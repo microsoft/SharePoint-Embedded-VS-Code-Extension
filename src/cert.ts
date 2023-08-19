@@ -1,6 +1,5 @@
 import * as forge from 'node-forge';
 import * as fs from 'fs';
-import * as vscode from 'vscode';
 const { v4: uuidv4 } = require('uuid');
 import * as rsa from 'jsrsasign'
 import path = require('path');
@@ -55,7 +54,6 @@ export function generateCertificateAndPrivateKey(): void {
 }
 
 export async function uploadCert() {
-    // Construct the parent directory path
     const parentDirectoryPath = path.join(__dirname, '..');
 
     const directoryPath = path.join(parentDirectoryPath, 'certs/certificate.pem');
@@ -124,7 +122,6 @@ async function acquireAppOnlyCertSPOToken(certThumbprint: string) {
     let jwt = getRequestJwt(certThumbprint);
     console.log(jwt);
 
-    // Construct the token request data
     const tokenRequestBody = new URLSearchParams({
         client_assertion_type: 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer',
         client_assertion: jwt,
@@ -149,14 +146,12 @@ async function acquireAppOnlyCertSPOToken(certThumbprint: string) {
 
         const accessToken = response.data.access_token;
         return accessToken;
-        // Use the obtained access token for API calls
     } catch (error) {
         console.error('Error obtaining access token:', error);
     }
 }
 
 function getRequestJwt(thumbprint: string) {
-    // Construct the parent directory path
     const parentDirectoryPath = path.join(__dirname, '..');
 
     const directoryPath = path.join(parentDirectoryPath, 'certs/privateKey.pem');

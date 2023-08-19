@@ -2,14 +2,10 @@ import * as vscode from 'vscode';
 import AuthProvider from './auth'; // Update the import path to your AuthProvider file
 import { generateCertificateAndPrivateKey, uploadCert } from './cert';
 
-// Create an instance of AuthProvider
 const authProvider = new AuthProvider();
-
 let accessTokenPanel: vscode.WebviewPanel | undefined;
 
-// Activate method is called when your extension is activated
 export function activate(context: vscode.ExtensionContext) {
-    // Command to initiate the interactive token retrieval
     const getTokenCommand = vscode.commands.registerCommand('syntex-repository-services.getToken', async () => {
         try {
             const accessToken = await authProvider.getTokenInteractive(['Application.ReadWrite.All', 'Files.Read']);
@@ -62,7 +58,6 @@ function showAccessTokenWebview(accessToken: string) {
 }
 
 function getAccessTokenHtml(accessToken: string): string {
-    // Define the HTML content for your webview
     return `
         <!DOCTYPE html>
         <html>
