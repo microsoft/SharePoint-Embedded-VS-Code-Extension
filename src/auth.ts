@@ -1,30 +1,56 @@
-import * as msal from '@azure/msal-node';
 import * as vscode from 'vscode';
 import * as http from 'http';
 import * as url from 'url';
-import { CryptoProvider } from '@azure/msal-node';
+import { AccountInfo, AuthenticationResult, AuthorizationUrlRequest, CryptoProvider, PublicClientApplication, SilentFlowRequest } from '@azure/msal-node';
 import axios from 'axios';
 import { clientId, consumingTenantId } from './utils/constants';
 
 export default class AuthProvider {
-    private clientApplication: msal.PublicClientApplication;
+    private clientApplication: PublicClientApplication;
+    private account: AccountInfo | null;
+    private authCodeUrlParams: AuthorizationUrlRequest;
 
     constructor() {
-        this.clientApplication = new msal.PublicClientApplication({
+        this.clientApplication = new PublicClientApplication({
             auth: {
                 clientId: clientId,
                 authority: `https://login.microsoftonline.com/${consumingTenantId}/`,
             }
         });
+        this.account = null;
+        this.authCodeUrlParams = {scopes: [], redirectUri: 'http://localhost:12345/redirect'}
     }
 
-    async getTokenInteractive(tokenRequestScopes: string[] ): Promise<string> {
+    async getToken(scopes: string[]): Promise<string> {
+        let authResponse: AuthenticationResult;
+        const account = this.account || await this.getAccount();
+        if (account) {
+            authResponse = await this.getTokenSilent({scopes, account: account});
+        } else {
+            const authCodeRequest = { scopes, redirectUri: this.authCodeUrlParams.redirectUri};
+            authResponse = await this.getTokenInteractive(authCodeRequest);
+        }
+
+        return authResponse.accessToken || "";
+    }
+
+    async getTokenSilent(tokenRequest: SilentFlowRequest): Promise<AuthenticationResult> {
+        try {
+            return await this.clientApplication.acquireTokenSilent(tokenRequest);
+        } catch (error) {
+            console.log("Silent token acquisition failed, acquiring token using pop up");
+            const authCodeRequest = { scopes: tokenRequest.scopes, redirectUri: this.authCodeUrlParams.redirectUri};
+            return await this.getTokenInteractive(authCodeRequest);
+        }
+    }
+
+    async getTokenInteractive(request: AuthorizationUrlRequest): Promise<AuthenticationResult> {
         // Generate PKCE Challenge and Verifier before request
         const cryptoProvider = new CryptoProvider();
         const { challenge, verifier } = await cryptoProvider.generatePkceCodes();
-        
-        const authCodeUrlParameters: msal.AuthorizationUrlRequest = {
-            scopes: tokenRequestScopes,
+
+        const authCodeUrlParameters: AuthorizationUrlRequest = {
+            scopes: request.scopes,
             redirectUri: 'http://localhost:12345/redirect',
             codeChallengeMethod: 'S256',
             codeChallenge: challenge, // PKCE Code Challenge
@@ -37,16 +63,35 @@ export default class AuthProvider {
             const code = await this.listenForAuthCode(authCodeUrl);
             const tokenResponse = await this.clientApplication.acquireTokenByCode({
                 code,
-                scopes: tokenRequestScopes,
+                scopes: request.scopes,
                 redirectUri: 'http://localhost:12345/redirect',
                 codeVerifier: verifier // PKCE Code Verifier
             });
-
-            //console.log(tokenResponse.accessToken)
-            return tokenResponse.accessToken;
+            return tokenResponse;
         } catch (error) {
             console.error('Error getting token:', error);
             throw error;
+        }
+    }
+
+    private async getAccount(): Promise<AccountInfo | null> {
+        const cache = this.clientApplication.getTokenCache();
+        const currentAccounts = await cache.getAllAccounts();
+
+        if (currentAccounts === null) {
+            console.log("No accounts detected");
+            return null;
+        }
+
+        if (currentAccounts.length > 1) {
+            console.log("Multiple accounts detected");
+            this.account = currentAccounts[0]
+            return currentAccounts[0];
+        } else if (currentAccounts.length === 1) {
+            this.account = currentAccounts[0]
+            return currentAccounts[0];
+        } else {
+            return null;
         }
     }
 
@@ -87,7 +132,7 @@ export default class AuthProvider {
                 Authorization: `Bearer ${accessToken}`
             }
         };
-    
+
         try {
             const response = await axios.get("https://graph.microsoft.com/v1.0/me/drive", options);
             return response.data;

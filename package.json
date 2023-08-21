@@ -40,7 +40,7 @@
     "viewsWelcome": [
       {
         "view": "syntex-repository-services",
-        "contents": "Welcome to Syntex Repository Services! To begin, please log in with your partner tenant credentials below: \n[Log In](command:syntex-repository-services.getToken)\n"
+        "contents": "Welcome to Syntex Repository Services! To begin, please log in with your partner tenant credentials below: \n[Log In](command:srs.getToken)\n"
       }
     ],
     "commands": [
@@ -51,6 +51,10 @@
       {
         "command": "srs.uploadCertificate",
         "title": "Syntex repository services: Upload Certificate"
+      },
+      {
+        "command": "srs.getCSOMToken",
+        "title": "Syntex repository services: Get CSOM Token"
       }
     ]
   },
