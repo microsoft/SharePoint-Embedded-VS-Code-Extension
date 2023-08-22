@@ -40,7 +40,7 @@
     "viewsWelcome": [
       {
         "view": "syntex-repository-services",
-        "contents": "Welcome to Syntex Repository Services! To begin, please log in with your partner tenant credentials below: \n[Log In](command:srs.getToken)\n"
+        "contents": "Welcome to Syntex Repository Services! To begin, please log in with your partner tenant credentials below: \n[Log In](command:srs.login)\n"
       }
     ],
     "commands": [
@@ -53,8 +53,20 @@
         "title": "Syntex repository services: Upload Certificate"
       },
       {
-        "command": "srs.getCSOMToken",
-        "title": "Syntex repository services: Get CSOM Token"
+        "command": "srs.login",
+        "title": "Syntex repository services: Login to AAD"
+      },
+      {
+        "command": "srs.getCTCreationToken",
+        "title": "Syntex repository services: Get CT Creation Token (CSOM)"
+      },
+      {
+        "command": "srs.getFileStorageContainerToken",
+        "title": "Syntex repository services: Get FileStorageContainer Token"
+      },
+      {
+        "command": "srs.callMSGraphCommand",
+        "title": "Syntex repository services: Call MSGraph"
       }
     ]
   },

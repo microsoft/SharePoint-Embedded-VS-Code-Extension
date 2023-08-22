@@ -6,10 +6,9 @@ const authProvider = new AuthProvider();
 let accessTokenPanel: vscode.WebviewPanel | undefined;
 
 export function activate(context: vscode.ExtensionContext) {
-    const getTokenCommand = vscode.commands.registerCommand('srs.getToken', async () => {
+    const aadLoginCommand = vscode.commands.registerCommand('srs.login', async () => {
         try {
             const accessToken = await authProvider.getToken(['Application.ReadWrite.All']);
-            //vscode.window.showInformationMessage(`Access token obtained successfully! ${accessToken}`);
             showAccessTokenWebview(accessToken);
             
         } catch (error) {
@@ -18,11 +17,31 @@ export function activate(context: vscode.ExtensionContext) {
         }
     });
 
-    const getCSOMTokenCommand = vscode.commands.registerCommand('srs.getCSOMToken', async () => {
+    const getFileStorageContainerTokenCommand = vscode.commands.registerCommand('srs.getFileStorageContainerToken', async () => {
         try {
             //const accessToken = await authProvider.getToken(['https://a830edad9050849alexpnp.sharepoint.com/.default']);
-            const accessToken = await authProvider.getToken(['Files.Read', 'FileStorageContainer.Selected']);
-            showAccessTokenWebview(`CSOM access token obtained successfully! ${accessToken}`);
+            const accessToken = await authProvider.getToken(['FileStorageContainer.Selected']);
+            showAccessTokenWebview(`RaaS access token obtained successfully! ${accessToken}`);
+        } catch (error) {
+            vscode.window.showErrorMessage('Failed to obtain access token.');
+            console.error('Error:', error);
+        }
+    })
+
+    const getCTCreationTokenCommand = vscode.commands.registerCommand('srs.getCTCreationToken', async () => {
+        try {
+            const accessToken = await authProvider.getToken(['https://a830edad9050849alexpnp.sharepoint.com/.default']);
+            showAccessTokenWebview(`CSOM access token obtained successfully: ${accessToken}`);
+        } catch (error) {
+            vscode.window.showErrorMessage('Failed to obtain access token.');
+            console.error('Error:', error);
+        }
+    })
+    
+    const callMSGraphCommand = vscode.commands.registerCommand('srs.callMSGraphCommand', async () => {
+        try {
+            const accessToken = await authProvider.getToken(['Files.Read']);
+            showAccessTokenWebview(`Obtained Graph Token successfully: ${accessToken}`);
             const gResponse = await authProvider.callMicrosoftGraph(accessToken)
             console.log(gResponse);
         } catch (error) {
@@ -41,8 +60,10 @@ export function activate(context: vscode.ExtensionContext) {
     });
 
     // Register commands
-    context.subscriptions.push(getTokenCommand,
-        getCSOMTokenCommand,
+    context.subscriptions.push(aadLoginCommand,
+        getFileStorageContainerTokenCommand,
+        getCTCreationTokenCommand,
+        callMSGraphCommand,
         generateCertificateCommand,
         uploadCertificateCommand
     );
