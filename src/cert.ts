@@ -2,7 +2,7 @@ import * as forge from 'node-forge';
 import * as fs from 'fs';
 const { v4: uuidv4 } = require('uuid');
 import * as rsa from 'jsrsasign'
-import path = require('path');
+const {path} = require('path');
 import axios from 'axios';
 import { accessToken, clientId, consumingTenantId } from './utils/constants';
 

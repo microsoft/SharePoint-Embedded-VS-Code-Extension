@@ -1,8 +1,10 @@
 import * as vscode from 'vscode';
-import AuthProvider from './auth'; // Update the import path to your AuthProvider file
-import { generateCertificateAndPrivateKey, uploadCert } from './cert';
+import AuthProvider from './auth.js'; // Update the import path to your AuthProvider file
+import { generateCertificateAndPrivateKey, uploadCert } from './cert.js';
+//import PnPProvider from './utils/pnp.js';
 
 const authProvider = new AuthProvider();
+//const pnpProvider: any = new PnPProvider();
 let accessTokenPanel: vscode.WebviewPanel | undefined;
 
 export function activate(context: vscode.ExtensionContext) {
@@ -17,21 +19,33 @@ export function activate(context: vscode.ExtensionContext) {
         }
     });
 
-    const getFileStorageContainerTokenCommand = vscode.commands.registerCommand('srs.getFileStorageContainerToken', async () => {
+    const createNewAadApplicationCommand = vscode.commands.registerCommand('srs.createNewAadApplicationCommand', async () => {
         try {
-            //const accessToken = await authProvider.getToken(['https://a830edad9050849alexpnp.sharepoint.com/.default']);
-            const accessToken = await authProvider.getToken(['FileStorageContainer.Selected']);
-            showAccessTokenWebview(`RaaS access token obtained successfully! ${accessToken}`);
+            const accessToken = await authProvider.getToken(['Application.ReadWrite.All']);
+            //await pnpProvider.createNewContainerType(accessToken, "a830edad9050849alexpnp")
+            showAccessTokenWebview(`CSOM access token obtained successfully: ${accessToken}`);
         } catch (error) {
             vscode.window.showErrorMessage('Failed to obtain access token.');
             console.error('Error:', error);
         }
     })
 
-    const getCTCreationTokenCommand = vscode.commands.registerCommand('srs.getCTCreationToken', async () => {
+    const createNewContainerTypeCommand = vscode.commands.registerCommand('srs.createNewContainerTypeCommand', async () => {
         try {
             const accessToken = await authProvider.getToken(['https://a830edad9050849alexpnp.sharepoint.com/.default']);
+            //await pnpProvider.createNewContainerType(accessToken, "a830edad9050849alexpnp")
             showAccessTokenWebview(`CSOM access token obtained successfully: ${accessToken}`);
+        } catch (error) {
+            vscode.window.showErrorMessage('Failed to obtain access token.');
+            console.error('Error:', error);
+        }
+    })
+
+    const getFileStorageContainerTokenCommand = vscode.commands.registerCommand('srs.getFileStorageContainerToken', async () => {
+        try {
+            //const accessToken = await authProvider.getToken(['https://a830edad9050849alexpnp.sharepoint.com/.default']);
+            const accessToken = await authProvider.getToken(['FileStorageContainer.Selected']);
+            showAccessTokenWebview(`RaaS access token obtained successfully! ${accessToken}`);
         } catch (error) {
             vscode.window.showErrorMessage('Failed to obtain access token.');
             console.error('Error:', error);
@@ -61,8 +75,9 @@ export function activate(context: vscode.ExtensionContext) {
 
     // Register commands
     context.subscriptions.push(aadLoginCommand,
+        createNewAadApplicationCommand,
         getFileStorageContainerTokenCommand,
-        getCTCreationTokenCommand,
+        createNewContainerTypeCommand,
         callMSGraphCommand,
         generateCertificateCommand,
         uploadCertificateCommand

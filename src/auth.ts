@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import * as http from 'http';
 import * as url from 'url';
 import { AccountInfo, AuthenticationResult, AuthorizationUrlRequest, CryptoProvider, PublicClientApplication, SilentFlowRequest } from '@azure/msal-node';
-import axios from 'axios';
+import axios, { AxiosResponse } from 'axios';
 import { clientId, consumingTenantId } from './utils/constants';
 
 export default class AuthProvider {
@@ -18,16 +18,16 @@ export default class AuthProvider {
             }
         });
         this.account = null;
-        this.authCodeUrlParams = {scopes: [], redirectUri: 'http://localhost:12345/redirect'}
+        this.authCodeUrlParams = { scopes: [], redirectUri: 'http://localhost:12345/redirect' }
     }
 
     async getToken(scopes: string[]): Promise<string> {
         let authResponse: AuthenticationResult;
         const account = this.account || await this.getAccount();
         if (account) {
-            authResponse = await this.getTokenSilent({scopes, account: account});
+            authResponse = await this.getTokenSilent({ scopes, account: account });
         } else {
-            const authCodeRequest = { scopes, redirectUri: this.authCodeUrlParams.redirectUri};
+            const authCodeRequest = { scopes, redirectUri: this.authCodeUrlParams.redirectUri };
             authResponse = await this.getTokenInteractive(authCodeRequest);
         }
 
@@ -39,7 +39,7 @@ export default class AuthProvider {
             return await this.clientApplication.acquireTokenSilent(tokenRequest);
         } catch (error) {
             console.log("Silent token acquisition failed, acquiring token using pop up");
-            const authCodeRequest = { scopes: tokenRequest.scopes, redirectUri: this.authCodeUrlParams.redirectUri};
+            const authCodeRequest = { scopes: tokenRequest.scopes, redirectUri: this.authCodeUrlParams.redirectUri };
             return await this.getTokenInteractive(authCodeRequest);
         }
     }
@@ -139,6 +139,22 @@ export default class AuthProvider {
         } catch (error) {
             console.log(error)
             return error;
+        }
+    };
+
+    async getOwningTenantName(accessToken: string) {
+        const options = {
+            headers: {
+                Authorization: `Bearer ${accessToken}`
+            }
+        };
+        try {
+            const response: AxiosResponse = await axios.get("https://graph.microsoft.com/v1.0/organization", options);
+            const tenantName = response.data.value[0].displayName;
+            return tenantName;
+        } catch (error) {
+            console.error("Error fetching tenant name:", error);
+            throw error;
         }
     };
 }
