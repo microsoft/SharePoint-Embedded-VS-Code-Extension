@@ -53,7 +53,7 @@ export function generateCertificateAndPrivateKey(): void {
     }
 }
 
-export async function uploadCert() {
+export function createKeyCredential() {
     const parentDirectoryPath = path.join(__dirname, '..');
 
     const directoryPath = path.join(parentDirectoryPath, 'certs/certificate.pem');
@@ -71,53 +71,10 @@ export async function uploadCert() {
         displayName: 'CN=AlexVSC'
     };
 
-
-    const headers = {
-        Authorization: `Bearer ${accessToken}`,
-    };
-
-    try {
-        const response = await axios({
-            method: 'patch',
-            url: `https://graph.microsoft.com/v1.0/applications(appId='${clientId}')`,
-            data: {
-                keyCredentials: [keyCredential]
-            },
-            headers: {
-                Authorization: `Bearer ${accessToken}`
-            }
-        });
-        console.log('Key credential updated successfully:', response.data);
-    } catch (error: any) {
-        console.error('Error updating key credential:', error.response.data);
-    }
-
-    let thumbprint;
-
-    try {
-        const response = await axios.get(`https://graph.microsoft.com/v1.0/applications?$filter=appId eq '${clientId}'`, { headers });
-
-        if (response.data.value && response.data.value.length > 0) {
-            const application = response.data.value[0];
-            const keyCredentials = application.keyCredentials;
-
-            if (keyCredentials && keyCredentials.length > 0) {
-                thumbprint = keyCredentials[0].customKeyIdentifier;
-                console.log('Thumbprint:', thumbprint);
-                let token = await acquireAppOnlyCertSPOToken(thumbprint);
-                console.log('AppOnlyToken: ', token);
-            } else {
-                console.log('No key credentials found for the application.');
-            }
-        } else {
-            console.log('Application not found.');
-        }
-    } catch (error: any) {
-        console.error('Error:', error.response?.data || error.message);
-    }
+    return keyCredential;
 }
 
-async function acquireAppOnlyCertSPOToken(certThumbprint: string) {
+export async function acquireAppOnlyCertSPOToken(certThumbprint: string) {
     console.log("Acquiring a new access token");
     let jwt = getRequestJwt(certThumbprint);
     console.log(jwt);

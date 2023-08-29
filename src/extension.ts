@@ -1,9 +1,12 @@
 import * as vscode from 'vscode';
-import AuthProvider from './auth.js'; // Update the import path to your AuthProvider file
-import { generateCertificateAndPrivateKey, uploadCert } from './cert.js';
+import AuthProvider from './services/AuthProvider.js'; // Update the import path to your AuthProvider file
+import { generateCertificateAndPrivateKey, createKeyCredential, acquireAppOnlyCertSPOToken } from './cert.js';
+import GraphServiceProvider from './services/GraphProvider.js';
+import { clientId } from './utils/constants.js';
 //import PnPProvider from './utils/pnp.js';
 
 const authProvider = new AuthProvider();
+const graphProvider = new GraphServiceProvider();
 //const pnpProvider: any = new PnPProvider();
 let accessTokenPanel: vscode.WebviewPanel | undefined;
 
@@ -11,8 +14,14 @@ export function activate(context: vscode.ExtensionContext) {
     const aadLoginCommand = vscode.commands.registerCommand('srs.login', async () => {
         try {
             const accessToken = await authProvider.getToken(['Application.ReadWrite.All']);
-            showAccessTokenWebview(accessToken);
             
+            const secrets = context['secrets']; //SecretStorage-object
+            await secrets.store('AccessToken', accessToken); //Save a secret
+            const mySecret = await secrets.get('AccessToken'); //Get a secret
+
+            console.log(`mySecret1: '${mySecret}'`); //Print
+            showAccessTokenWebview(mySecret!);
+
         } catch (error) {
             vscode.window.showErrorMessage('Failed to obtain access token.');
             console.error('Error:', error);
@@ -22,8 +31,8 @@ export function activate(context: vscode.ExtensionContext) {
     const createNewAadApplicationCommand = vscode.commands.registerCommand('srs.createNewAadApplicationCommand', async () => {
         try {
             const accessToken = await authProvider.getToken(['Application.ReadWrite.All']);
-            //await pnpProvider.createNewContainerType(accessToken, "a830edad9050849alexpnp")
-            showAccessTokenWebview(`CSOM access token obtained successfully: ${accessToken}`);
+            const applicationProps = await graphProvider.createAadApplication(accessToken);
+            showAccessTokenWebview(`CSOM access token obtained successfully: ${applicationProps}`);
         } catch (error) {
             vscode.window.showErrorMessage('Failed to obtain access token.');
             console.error('Error:', error);
@@ -41,22 +50,28 @@ export function activate(context: vscode.ExtensionContext) {
         }
     })
 
-    const getFileStorageContainerTokenCommand = vscode.commands.registerCommand('srs.getFileStorageContainerToken', async () => {
+    const registerNewContainerTypeCommand = vscode.commands.registerCommand('srs.registerNewContainerTypeCommand', async () => {
         try {
-            //const accessToken = await authProvider.getToken(['https://a830edad9050849alexpnp.sharepoint.com/.default']);
-            const accessToken = await authProvider.getToken(['FileStorageContainer.Selected']);
-            showAccessTokenWebview(`RaaS access token obtained successfully! ${accessToken}`);
+            const accessToken = await authProvider.getToken(['Application.ReadWrite.All']);
+            //@ts-ignore
+            vscode.secrets.store('myExtensionAccessToken', accessToken);
+            generateCertificateAndPrivateKey();
+            const keyCredential = createKeyCredential();
+            await graphProvider.uploadKeyCredentialToApplication(accessToken, clientId, keyCredential);
+            const certThumbprint = await graphProvider.getCertThumbprintFromApplication(accessToken, clientId);
+            const vroomAccessToken = acquireAppOnlyCertSPOToken(certThumbprint)
+            // call Vroom
         } catch (error) {
             vscode.window.showErrorMessage('Failed to obtain access token.');
             console.error('Error:', error);
         }
     })
-    
+
     const callMSGraphCommand = vscode.commands.registerCommand('srs.callMSGraphCommand', async () => {
         try {
             const accessToken = await authProvider.getToken(['Files.Read']);
             showAccessTokenWebview(`Obtained Graph Token successfully: ${accessToken}`);
-            const gResponse = await authProvider.callMicrosoftGraph(accessToken)
+            const gResponse = await graphProvider.getUserDrive(accessToken)
             console.log(gResponse);
         } catch (error) {
             vscode.window.showErrorMessage('Failed to obtain access token.');
@@ -68,19 +83,13 @@ export function activate(context: vscode.ExtensionContext) {
         generateCertificateAndPrivateKey();
     });
 
-    const uploadCertificateCommand = vscode.commands.registerCommand('srs.uploadCertificate', async () => {
-        await uploadCert();
-        console.log('cert published')
-    });
-
     // Register commands
     context.subscriptions.push(aadLoginCommand,
         createNewAadApplicationCommand,
-        getFileStorageContainerTokenCommand,
+        registerNewContainerTypeCommand,
         createNewContainerTypeCommand,
         callMSGraphCommand,
-        generateCertificateCommand,
-        uploadCertificateCommand
+        generateCertificateCommand
     );
 }
 

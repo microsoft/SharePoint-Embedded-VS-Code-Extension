@@ -57,12 +57,16 @@
         "title": "Syntex repository services: Login to AAD"
       },
       {
+        "command": "srs.createNewAadApplicationCommand",
+        "title": "Syntex repository services: Create New AAD Application"
+      },
+      {
         "command": "srs.createNewContainerTypeCommand",
         "title": "Syntex repository services: Create New ContainerType"
       },
       {
-        "command": "srs.getFileStorageContainerToken",
-        "title": "Syntex repository services: Get FileStorageContainer Token"
+        "command": "srs.registerNewContainerTypeCommand",
+        "title": "Syntex repository services: Register New ContainerType"
       },
       {
         "command": "srs.callMSGraphCommand",

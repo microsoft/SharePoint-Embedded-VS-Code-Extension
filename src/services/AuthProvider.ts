@@ -3,7 +3,7 @@ import * as http from 'http';
 import * as url from 'url';
 import { AccountInfo, AuthenticationResult, AuthorizationUrlRequest, CryptoProvider, PublicClientApplication, SilentFlowRequest } from '@azure/msal-node';
 import axios, { AxiosResponse } from 'axios';
-import { clientId, consumingTenantId } from './utils/constants';
+import { clientId, consumingTenantId } from '../utils/constants';
 
 export default class AuthProvider {
     private clientApplication: PublicClientApplication;
@@ -124,37 +124,4 @@ export default class AuthProvider {
             });
         });
     }
-
-    async callMicrosoftGraph(accessToken: string) {
-        console.log("Calling Microsoft Graph");
-        const options = {
-            headers: {
-                Authorization: `Bearer ${accessToken}`
-            }
-        };
-
-        try {
-            const response = await axios.get("https://graph.microsoft.com/v1.0/me/drive", options);
-            return response.data;
-        } catch (error) {
-            console.log(error)
-            return error;
-        }
-    };
-
-    async getOwningTenantName(accessToken: string) {
-        const options = {
-            headers: {
-                Authorization: `Bearer ${accessToken}`
-            }
-        };
-        try {
-            const response: AxiosResponse = await axios.get("https://graph.microsoft.com/v1.0/organization", options);
-            const tenantName = response.data.value[0].displayName;
-            return tenantName;
-        } catch (error) {
-            console.error("Error fetching tenant name:", error);
-            throw error;
-        }
-    };
 }
