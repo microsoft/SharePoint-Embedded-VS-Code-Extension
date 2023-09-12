@@ -17,7 +17,7 @@ export default class GraphProvider {
         }
     };
 
-    async getOwningTenantName(accessToken: string) {
+    async getOwningTenantDomain(accessToken: string) {
         const options = {
             headers: {
                 Authorization: `Bearer ${accessToken}`
@@ -25,8 +25,9 @@ export default class GraphProvider {
         };
         try {
             const response: AxiosResponse = await axios.get("https://graph.microsoft.com/v1.0/organization", options);
-            const tenantName = response.data.value[0].displayName;
-            return tenantName;
+            // @ts-ignore: Ignore the 'any' type error for primaryDomain
+            const primaryDomain = response.data.value[0].verifiedDomains.filter(domain => domain.isDefault)[0].name;
+            return primaryDomain;
         } catch (error) {
             console.error("Error fetching tenant name:", error);
             throw error;
@@ -47,7 +48,63 @@ export default class GraphProvider {
                 redirectUris: [
                     'http://localhost:12345/redirect'
                 ],
-            }
+            },
+            requiredResourceAccess: [
+                {
+                    "resourceAppId": "00000003-0000-0000-c000-000000000000",
+                    "resourceAccess": [
+                        {
+                            "id": "37f7f235-527c-4136-accd-4a02d197296e",
+                            "type": "Scope"
+                        },
+                        {
+                            "id": "14dad69e-099b-42c9-810b-d002981feec1",
+                            "type": "Scope"
+                        },
+                        {
+                            "id": "7427e0e9-2fba-42fe-b0c0-848c9e6a8182",
+                            "type": "Scope"
+                        },
+                        {
+                            "id": "4908d5b9-3fb2-4b1e-9336-1888b7937185",
+                            "type": "Scope"
+                        },
+                        {
+                            "id": "bdfbf15f-ee85-4955-8675-146e8e5296b5",
+                            "type": "Scope"
+                        },
+                        {
+                            "id": "40dc41bc-0f7e-42ff-89bd-d9516947e474",
+                            "type": "Role"
+                        },
+                        {
+                            "id": "085ca537-6565-41c2-aca7-db852babc212",
+                            "type": "Scope"
+                        },
+                        {
+                            "id": "10465720-29dd-4523-a11a-6a75c743c9d9",
+                            "type": "Scope"
+                        }
+                    ]
+                },
+                {
+                    "resourceAppId": "00000003-0000-0ff1-ce00-000000000000",
+                    "resourceAccess": [
+                        {
+                            "id": "19766c1b-905b-43af-8756-06526ab42875",
+                            "type": "Role"
+                        },
+                        {
+                            "id": "4d114b1a-3649-4764-9dfb-be1e236ff371",
+                            "type": "Scope"
+                        },
+                        {
+                            "id": "4e0d77b0-96ba-4398-af14-3baa780278f4",
+                            "type": "Scope"
+                        }
+                    ]
+                }
+            ],
         };
         try {
             const response: AxiosResponse = await axios.post("https://graph.microsoft.com/v1.0/applications",
@@ -61,6 +118,22 @@ export default class GraphProvider {
             throw error;
         }
     }
+
+    async listApplications(accessToken: string): Promise<any> {
+        try {
+          const config = {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+            },
+          };
+      
+          const response = await axios.get("https://graph.microsoft.com/v1.0/applications", config);
+          return response.data;
+        } catch (error) {
+            console.error('Error creating application:', error);
+            throw error;
+        }
+      }
 
     async uploadKeyCredentialToApplication(accessToken: string, clientId: string, keyCredential: any) {
         try {

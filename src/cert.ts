@@ -1,10 +1,10 @@
 import * as forge from 'node-forge';
 import * as fs from 'fs';
-const { v4: uuidv4 } = require('uuid');
+import { v4 as uuidv4 } from 'uuid';
 import * as rsa from 'jsrsasign'
-const {path} = require('path');
+const path = require('path');
 import axios from 'axios';
-import { accessToken, clientId, consumingTenantId } from './utils/constants';
+import { consumingTenantId } from './utils/constants';
 
 export function generateCertificateAndPrivateKey(): void {
     // Create a new certificate
@@ -74,16 +74,16 @@ export function createKeyCredential() {
     return keyCredential;
 }
 
-export async function acquireAppOnlyCertSPOToken(certThumbprint: string) {
+export async function acquireAppOnlyCertSPOToken(certThumbprint: string, clientId: string, domain: string) {
     console.log("Acquiring a new access token");
-    let jwt = getRequestJwt(certThumbprint);
+    let jwt = getRequestJwt(certThumbprint, clientId);
     console.log(jwt);
 
     const tokenRequestBody = new URLSearchParams({
         client_assertion_type: 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer',
         client_assertion: jwt,
         client_id: clientId,
-        scope: 'https://a830edad9050849alexpnp.sharepoint.com/.default',
+        scope: `https://${domain}.sharepoint.com/.default`,
         //scope: 'https://graph.microsoft.com/.default',
         grant_type: 'client_credentials'
     });
@@ -108,7 +108,7 @@ export async function acquireAppOnlyCertSPOToken(certThumbprint: string) {
     }
 }
 
-function getRequestJwt(thumbprint: string) {
+function getRequestJwt(thumbprint: string, clientId: string) {
     const parentDirectoryPath = path.join(__dirname, '..');
 
     const directoryPath = path.join(parentDirectoryPath, 'certs/privateKey.pem');

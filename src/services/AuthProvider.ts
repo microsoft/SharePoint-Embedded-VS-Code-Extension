@@ -1,21 +1,25 @@
 import * as vscode from 'vscode';
 import * as http from 'http';
 import * as url from 'url';
+// @ts-ignore
 import { AccountInfo, AuthenticationResult, AuthorizationUrlRequest, CryptoProvider, PublicClientApplication, SilentFlowRequest } from '@azure/msal-node';
-import axios, { AxiosResponse } from 'axios';
-import { clientId, consumingTenantId } from '../utils/constants';
+import { CachePluginFactory } from '../utils/CacheFactory';
 
 export default class AuthProvider {
     private clientApplication: PublicClientApplication;
     private account: AccountInfo | null;
     private authCodeUrlParams: AuthorizationUrlRequest;
 
-    constructor() {
+    constructor(clientId: string, consumingTenantId: string, cacheNamespace: string) {
+        const cache = new CachePluginFactory(cacheNamespace);
         this.clientApplication = new PublicClientApplication({
             auth: {
                 clientId: clientId,
                 authority: `https://login.microsoftonline.com/${consumingTenantId}/`,
-            }
+            },
+            cache: {
+                cachePlugin: cache
+            } 
         });
         this.account = null;
         this.authCodeUrlParams = { scopes: [], redirectUri: 'http://localhost:12345/redirect' }
