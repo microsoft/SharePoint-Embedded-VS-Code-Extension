@@ -49,7 +49,7 @@ export function activate(context: vscode.ExtensionContext) {
 
     const createNewContainerTypeCommand = vscode.commands.registerCommand('srs.createNewContainerTypeCommand', async () => {
         try {
-            const thirdPartyAppDetails: any = workspaceStorageManager.getValue("NewApplication");
+            const thirdPartyAppDetails: any = globalStorageManager.getValue("NewApplication");
             if (typeof thirdPartyAuthProvider == "undefined" || thirdPartyAuthProvider == null) {
                 thirdPartyAuthProvider = new AuthProvider(thirdPartyAppDetails["appId"], consumingTenantId, "3P")
             }
@@ -59,7 +59,7 @@ export function activate(context: vscode.ExtensionContext) {
             const parts = tenantDomain.split('.');
             const domain = parts[0];
 
-            const accessToken = await thirdPartyAuthProvider.getToken([`https://${domain}-admin.sharepoint.com/AllSites.FullControl`]);
+            const accessToken = await thirdPartyAuthProvider.getToken([`https://${domain}-admin.sharepoint.com/.default`]);
 
             await pnpProvider.createNewContainerType(accessToken, domain, thirdPartyAppDetails["appId"])
             showAccessTokenWebview(`CSOM access token obtained successfully: ${accessToken}`);
@@ -98,12 +98,12 @@ export function activate(context: vscode.ExtensionContext) {
 
     const callMSGraphCommand = vscode.commands.registerCommand('srs.callMSGraphCommand', async () => {
         try {
-            const thirdPartyAppDetails: any = workspaceStorageManager.getValue("NewApplication");
+            const thirdPartyAppDetails: any = globalStorageManager.getValue("NewApplication");
             if (typeof thirdPartyAuthProvider == "undefined" || thirdPartyAuthProvider == null) {
                 thirdPartyAuthProvider = new AuthProvider(thirdPartyAppDetails["appId"], consumingTenantId, "3P")
             }
             
-            const accessToken = await firstPartyAppAuthProvider.getToken([`https://graph.microsoft.com/.default`]);
+            const accessToken = await thirdPartyAuthProvider.getToken([`https://graph.microsoft.com/.default`]);
             showAccessTokenWebview(`Obtained Graph Token successfully: ${accessToken}`);
             const gResponse = await graphProvider.getUserDrive(accessToken)
             console.log(gResponse);

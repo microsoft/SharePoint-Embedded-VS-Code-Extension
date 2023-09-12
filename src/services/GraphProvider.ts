@@ -74,16 +74,16 @@ export default class GraphProvider {
                             "type": "Scope"
                         },
                         {
-                            "id": "40dc41bc-0f7e-42ff-89bd-d9516947e474",
-                            "type": "Role"
-                        },
-                        {
                             "id": "085ca537-6565-41c2-aca7-db852babc212",
                             "type": "Scope"
                         },
                         {
                             "id": "10465720-29dd-4523-a11a-6a75c743c9d9",
                             "type": "Scope"
+                        },
+                        {
+                            "id": "40dc41bc-0f7e-42ff-89bd-d9516947e474",
+                            "type": "Role"
                         }
                     ]
                 },
@@ -99,7 +99,7 @@ export default class GraphProvider {
                             "type": "Scope"
                         },
                         {
-                            "id": "4e0d77b0-96ba-4398-af14-3baa780278f4",
+                            "id": "640ddd16-e5b7-4d71-9690-3f4022699ee7",
                             "type": "Scope"
                         }
                     ]
