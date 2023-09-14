@@ -2,8 +2,9 @@ import * as vscode from 'vscode';
 import * as http from 'http';
 import * as url from 'url';
 // @ts-ignore
-import { AccountInfo, AuthenticationResult, AuthorizationUrlRequest, CryptoProvider, PublicClientApplication, SilentFlowRequest } from '@azure/msal-node';
+import { AccountInfo, AuthenticationResult, AuthorizationUrlRequest, CryptoProvider, LogLevel, PublicClientApplication, SilentFlowRequest } from '@azure/msal-node';
 import { CachePluginFactory } from '../utils/CacheFactory';
+import { ext } from '../utils/extensionVariables';
 
 export default class AuthProvider {
     private clientApplication: PublicClientApplication;
@@ -19,7 +20,36 @@ export default class AuthProvider {
             },
             cache: {
                 cachePlugin: cache
-            } 
+            },
+            system: {
+                loggerOptions: {
+                    logLevel: LogLevel.Info,
+                    loggerCallback: (level: LogLevel, message: string, containsPii: boolean) => {
+                        if (containsPii) {
+                            return;
+                        }
+						message = 'MSAL: ' + message;
+                        switch (level) {
+							case LogLevel.Error:
+								ext.outputChannel.error(message);
+								break;
+							case LogLevel.Warning:
+								ext.outputChannel.warn(message);
+								break;
+							case LogLevel.Info:
+								ext.outputChannel.info(message);
+								break;
+							case LogLevel.Verbose:
+								ext.outputChannel.debug(message);
+								break;
+							case LogLevel.Trace:
+								ext.outputChannel.trace(message);
+								break;
+						}
+                    },
+                    piiLoggingEnabled: false
+                }
+            }
         });
         this.account = null;
         this.authCodeUrlParams = { scopes: [], redirectUri: 'http://localhost:12345/redirect' }

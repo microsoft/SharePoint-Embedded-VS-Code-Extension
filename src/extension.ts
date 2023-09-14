@@ -7,12 +7,15 @@ import PnPProvider from './services/PnPProvider.js';
 import { LocalStorageService } from './services/StorageProvider.js';
 import VroomProvider from './services/VroomProvider.js';
 import { ext } from './utils/extensionVariables.js';
+import { window } from 'vscode';
 
 
 let accessTokenPanel: vscode.WebviewPanel | undefined;
 
 export function activate(context: vscode.ExtensionContext) {
     ext.context = context;
+	ext.outputChannel = window.createOutputChannel("Syntex repository services", { log: true});
+	context.subscriptions.push(ext.outputChannel);
     //Initialize storage models
     let workspaceStorageManager = new LocalStorageService(context.workspaceState);
     let globalStorageManager = new LocalStorageService(context.globalState);
