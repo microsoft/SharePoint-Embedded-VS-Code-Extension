@@ -1,12 +1,10 @@
 import * as forge from 'node-forge';
-import * as fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
 import * as rsa from 'jsrsasign'
-const path = require('path');
 import axios from 'axios';
 import { consumingTenantId } from './utils/constants';
 
-export function generateCertificateAndPrivateKey(): void {
+export function generateCertificateAndPrivateKey(): { certificatePEM: string, privateKey: string } {
     // Create a new certificate
     const keys = forge.pki.rsa.generateKeyPair(2048);
     const cert = forge.pki.createCertificate();
@@ -19,7 +17,7 @@ export function generateCertificateAndPrivateKey(): void {
     cert.validity.notAfter.setFullYear(cert.validity.notBefore.getFullYear() + 1);
 
     const attrs = [
-        { name: 'commonName', value: 'alexVSC' }
+        { name: 'commonName', value: 'Syntex repository services VS Code Ext' }
     ];
 
     cert.setSubject(attrs);
@@ -32,51 +30,35 @@ export function generateCertificateAndPrivateKey(): void {
     const certPem = forge.pki.certificateToPem(cert);
     const privateKeyPem = forge.pki.privateKeyToPem(keys.privateKey);
 
-    // Convert the PEM-encoded private key to Base64
-    const privateKeyBytes = Buffer.from(privateKeyPem, 'utf8');
-    const privateKeyBase64 = privateKeyBytes.toString('base64');
-
-    try {
-        // Construct the parent directory path
-        const parentDirectoryPath = path.join(__dirname, '..');
-
-        const directoryPath = path.join(parentDirectoryPath, 'certs');
-        if (!fs.existsSync(directoryPath)) {
-            fs.mkdirSync(directoryPath, { recursive: true });
-        }
-
-        fs.writeFileSync(path.join(directoryPath, 'certificate.pem'), certPem);
-        fs.writeFileSync(path.join(directoryPath, 'privateKey.pem'), privateKeyPem);
-        fs.writeFileSync(path.join(directoryPath, 'privateKeyBase64.txt'), privateKeyBase64);
-    } catch (error) {
-        console.error('Error writing files:', error);
-    }
+    return { 'certificatePEM': certPem, 'privateKey': privateKeyPem }
 }
 
-export function createKeyCredential() {
-    const parentDirectoryPath = path.join(__dirname, '..');
-
-    const directoryPath = path.join(parentDirectoryPath, 'certs/certificate.pem');
-    const certBase64 = fs.readFileSync(directoryPath, 'base64');
-
+export function createKeyCredential(certString: string) {
+    const buffer = Buffer.from(certString, "utf-8");
+    const certBase64 = buffer.toString("base64");
     const currentDate = new Date();
-    const startDate = currentDate.toISOString();
+    const newEndDateTime = new Date(currentDate);
+    newEndDateTime.setFullYear(currentDate.getFullYear() + 1); // Add 1 year
+    newEndDateTime.setHours(currentDate.getHours() - 1);      // Subtract 1 hour
+
+    const startTime = currentDate.toISOString();
+    const endDateTime = newEndDateTime.toISOString();
 
     const keyCredential = {
-        endDateTime: '2024-08-01T00:00:00Z',
-        startDateTime: startDate,
+        startDateTime: startTime,
+        endDateTime: endDateTime,
         type: 'AsymmetricX509Cert',
         usage: 'verify',
         key: certBase64,
-        displayName: 'CN=AlexVSC'
+        displayName: 'CN=Syntex repository services VS Code Ext'
     };
 
     return keyCredential;
 }
 
-export async function acquireAppOnlyCertSPOToken(certThumbprint: string, clientId: string, domain: string) {
+export async function acquireAppOnlyCertSPOToken(certThumbprint: string, clientId: string, domain: string, privateKey: string) {
     console.log("Acquiring a new access token");
-    let jwt = getRequestJwt(certThumbprint, clientId);
+    let jwt = getRequestJwt(certThumbprint, clientId, privateKey);
     console.log(jwt);
 
     const tokenRequestBody = new URLSearchParams({
@@ -108,12 +90,7 @@ export async function acquireAppOnlyCertSPOToken(certThumbprint: string, clientI
     }
 }
 
-function getRequestJwt(thumbprint: string, clientId: string) {
-    const parentDirectoryPath = path.join(__dirname, '..');
-
-    const directoryPath = path.join(parentDirectoryPath, 'certs/privateKey.pem');
-    const pk = fs.readFileSync(directoryPath, 'utf8');
-
+function getRequestJwt(thumbprint: string, clientId: string, privateKey: string) {
     const header = {
         'alg': 'RS256',
         'typ': 'JWT',
@@ -131,7 +108,7 @@ function getRequestJwt(thumbprint: string, clientId: string) {
         'iat': now
     };
 
-    var encryptedPk = pk
+    var encryptedPk = privateKey
     var decryptedPk = encryptedPk;
     // if (pm.environment.has('CertPassword') && pm.environment.get('CertPassword') !== '') {
     //     decryptedPk = rsa.KEYUTIL.getKey(encryptedPk, pm.environment.get('CertPassword'));

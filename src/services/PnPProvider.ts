@@ -50,7 +50,7 @@ export default class PnPProvider {
                 console.log(e.message);
             }
             console.log(JSON.stringify(c, null, 4));
-
+            return c;
         } catch (e: any) {
             console.log(e)
         }

@@ -71,6 +71,10 @@
       {
         "command": "srs.callMSGraphCommand",
         "title": "Syntex repository services: Call MSGraph"
+      },
+      {
+        "command": "srs.getSPToken",
+        "title": "Syntex repository services: Get SP Token"
       }
     ]
   },

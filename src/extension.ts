@@ -9,7 +9,6 @@ import VroomProvider from './services/VroomProvider.js';
 import { ext } from './utils/extensionVariables.js';
 import { window } from 'vscode';
 
-
 let accessTokenPanel: vscode.WebviewPanel | undefined;
 
 export function activate(context: vscode.ExtensionContext) {
@@ -40,10 +39,16 @@ export function activate(context: vscode.ExtensionContext) {
     const createNewAadApplicationCommand = vscode.commands.registerCommand('srs.createNewAadApplicationCommand', async () => {
         try {
             const accessToken = await firstPartyAppAuthProvider.getToken(['Application.ReadWrite.All']);
-            const applicationProps = await graphProvider.createAadApplication(accessToken);
+            const { certificatePEM, privateKey } = generateCertificateAndPrivateKey();
+            const keyCredential = createKeyCredential(certificatePEM);
+            const applicationProps = await graphProvider.createAadApplication(accessToken, keyCredential);
+
             globalStorageManager.setValue("NewApplication", applicationProps);
+            await ext.context.secrets.store("3PAppPrivateKey", privateKey);
+            await ext.context.secrets.store("3PAppCert", certificatePEM);
+
             thirdPartyAuthProvider = new AuthProvider(applicationProps["appId"], consumingTenantId, "3P")
-            //showAccessTokenWebview(`CSOM access token obtained successfully: ${applicationProps}`);
+            vscode.window.showInformationMessage(`Successfully created 3P application: ${applicationProps["appId"]}`);
         } catch (error) {
             vscode.window.showErrorMessage('Failed to obtain access token.');
             console.error('Error:', error);
@@ -64,8 +69,9 @@ export function activate(context: vscode.ExtensionContext) {
 
             const accessToken = await thirdPartyAuthProvider.getToken([`https://${domain}-admin.sharepoint.com/.default`]);
 
-            await pnpProvider.createNewContainerType(accessToken, domain, thirdPartyAppDetails["appId"])
-            showAccessTokenWebview(`CSOM access token obtained successfully: ${accessToken}`);
+            const containerTypeDetails = await pnpProvider.createNewContainerType(accessToken, domain, thirdPartyAppDetails["appId"])
+            globalStorageManager.setValue("ContainerTypeDetails", containerTypeDetails);
+            showAccessTokenWebview(`ContainerType created successfully: ${containerTypeDetails}`);
         } catch (error) {
             vscode.window.showErrorMessage('Failed to obtain access token.');
             console.error('Error:', error);
@@ -74,7 +80,7 @@ export function activate(context: vscode.ExtensionContext) {
 
     const registerNewContainerTypeCommand = vscode.commands.registerCommand('srs.registerNewContainerTypeCommand', async () => {
         try {
-            const thirdPartyAppDetails: any = workspaceStorageManager.getValue("NewApplication");
+            const thirdPartyAppDetails: any = globalStorageManager.getValue("NewApplication");
             if (typeof thirdPartyAuthProvider == "undefined" || thirdPartyAuthProvider == null) {
                 thirdPartyAuthProvider = new AuthProvider(thirdPartyAppDetails["appId"], consumingTenantId, "3P")
             }
@@ -85,14 +91,13 @@ export function activate(context: vscode.ExtensionContext) {
             const parts = tenantDomain.split('.');
             const domain = parts[0];
 
-            //@ts-ignore
-            //vscode.secrets.store('myExtensionAccessToken', accessToken);
-            generateCertificateAndPrivateKey();
-            const keyCredential = createKeyCredential();
-            await graphProvider.uploadKeyCredentialToApplication(accessToken, thirdPartyAppDetails["appId"], keyCredential);
+            const pk: string | undefined = await ext.context.secrets.get("3PAppPrivateKey");
+
             const certThumbprint = await graphProvider.getCertThumbprintFromApplication(accessToken, thirdPartyAppDetails["appId"]);
-            const vroomAccessToken = await acquireAppOnlyCertSPOToken(certThumbprint, thirdPartyAppDetails["appId"], domain)
-            vroomProvider.registerContainerType(vroomAccessToken, thirdPartyAppDetails["appId"], `https://${domain}.sharepoint.com`, "9f725df3-d9a1-4a9b-8dcd-7fe5adab37a4")
+            const vroomAccessToken = pk && await acquireAppOnlyCertSPOToken(certThumbprint, thirdPartyAppDetails["appId"], domain, pk)
+            const containerTypeDetails: any = globalStorageManager.getValue("ContainerTypeDetails");
+            vroomProvider.registerContainerType(vroomAccessToken, thirdPartyAppDetails["appId"], `https://${domain}.sharepoint.com`, containerTypeDetails['ContainerTypeId'])
+            vscode.window.showInformationMessage(`Successfully registered ContainerType ${containerTypeDetails['ContainerTypeId']} on 3P application: ${thirdPartyAppDetails["appId"]}`);
         } catch (error) {
             vscode.window.showErrorMessage('Failed to obtain access token.');
             console.error('Error:', error);
@@ -106,10 +111,42 @@ export function activate(context: vscode.ExtensionContext) {
                 thirdPartyAuthProvider = new AuthProvider(thirdPartyAppDetails["appId"], consumingTenantId, "3P")
             }
             
-            const accessToken = await thirdPartyAuthProvider.getToken([`https://graph.microsoft.com/.default`]);
+            const pk: string | undefined = await ext.context.secrets.get("3PAppPrivateKey");
+
+            const accessToken = await thirdPartyAuthProvider.getToken(['https://graph.microsoft.com/.default']);
+
+            const tenantDomain = await graphProvider.getOwningTenantDomain(accessToken);
+            const parts = tenantDomain.split('.');
+            const domain = parts[0];
+
+            //await graphProvider.addSPScopes(accessToken, thirdPartyAppDetails["appId"])
+
+            const sp = await thirdPartyAuthProvider.getToken([`https://${domain}-admin.sharepoint.com/.default`]);
+
             showAccessTokenWebview(`Obtained Graph Token successfully: ${accessToken}`);
             const gResponse = await graphProvider.getUserDrive(accessToken)
             console.log(gResponse);
+        } catch (error) {
+            vscode.window.showErrorMessage('Failed to obtain access token.');
+            console.error('Error:', error);
+        }
+    })
+
+    const getSPToken = vscode.commands.registerCommand('srs.getSPToken', async () => {
+        try {
+            const thirdPartyAppDetails: any = globalStorageManager.getValue("NewApplication");
+            if (typeof thirdPartyAuthProvider == "undefined" || thirdPartyAuthProvider == null) {
+                thirdPartyAuthProvider = new AuthProvider(thirdPartyAppDetails["appId"], consumingTenantId, "3P")
+            }
+            const accessToken = await thirdPartyAuthProvider.getToken(['https://graph.microsoft.com/.default']);
+
+            const tenantDomain = await graphProvider.getOwningTenantDomain(accessToken);
+            const parts = tenantDomain.split('.');
+            const domain = parts[0];
+
+            const sp = await thirdPartyAuthProvider.getToken([`https://${domain}.sharepoint.com/.default`]);
+
+            showAccessTokenWebview(`Obtained SP Token successfully: ${sp}`);
         } catch (error) {
             vscode.window.showErrorMessage('Failed to obtain access token.');
             console.error('Error:', error);
@@ -127,7 +164,8 @@ export function activate(context: vscode.ExtensionContext) {
         registerNewContainerTypeCommand,
         createNewContainerTypeCommand,
         callMSGraphCommand,
-        generateCertificateCommand
+        generateCertificateCommand, 
+        getSPToken
     );
 }
 
