@@ -61,13 +61,13 @@ export function activate(context: vscode.ExtensionContext) {
             if (typeof thirdPartyAuthProvider == "undefined" || thirdPartyAuthProvider == null) {
                 thirdPartyAuthProvider = new AuthProvider(thirdPartyAppDetails["appId"], consumingTenantId, "3P")
             }
-            
+
             const graphAccessToken = await thirdPartyAuthProvider.getToken(['https://graph.microsoft.com/.default']);
             const tenantDomain = await graphProvider.getOwningTenantDomain(graphAccessToken);
             const parts = tenantDomain.split('.');
             const domain = parts[0];
 
-            const accessToken = await thirdPartyAuthProvider.getToken([`https://${domain}-admin.sharepoint.com/.default`]);
+            const accessToken = await thirdPartyAuthProvider.getToken([`https://${domain}-admin.sharepoint.com/AllSites.Write`]);
 
             const containerTypeDetails = await pnpProvider.createNewContainerType(accessToken, domain, thirdPartyAppDetails["appId"])
             globalStorageManager.setValue("ContainerTypeDetails", containerTypeDetails);
@@ -110,22 +110,12 @@ export function activate(context: vscode.ExtensionContext) {
             if (typeof thirdPartyAuthProvider == "undefined" || thirdPartyAuthProvider == null) {
                 thirdPartyAuthProvider = new AuthProvider(thirdPartyAppDetails["appId"], consumingTenantId, "3P")
             }
-            
-            const pk: string | undefined = await ext.context.secrets.get("3PAppPrivateKey");
 
             const accessToken = await thirdPartyAuthProvider.getToken(['https://graph.microsoft.com/.default']);
 
-            const tenantDomain = await graphProvider.getOwningTenantDomain(accessToken);
-            const parts = tenantDomain.split('.');
-            const domain = parts[0];
-
-            //await graphProvider.addSPScopes(accessToken, thirdPartyAppDetails["appId"])
-
-            const sp = await thirdPartyAuthProvider.getToken([`https://${domain}-admin.sharepoint.com/.default`]);
-
-            showAccessTokenWebview(`Obtained Graph Token successfully: ${accessToken}`);
             const gResponse = await graphProvider.getUserDrive(accessToken)
             console.log(gResponse);
+            showAccessTokenWebview(`Obtained Graph Token successfully: ${accessToken}`);
         } catch (error) {
             vscode.window.showErrorMessage('Failed to obtain access token.');
             console.error('Error:', error);
@@ -138,15 +128,16 @@ export function activate(context: vscode.ExtensionContext) {
             if (typeof thirdPartyAuthProvider == "undefined" || thirdPartyAuthProvider == null) {
                 thirdPartyAuthProvider = new AuthProvider(thirdPartyAppDetails["appId"], consumingTenantId, "3P")
             }
+
             const accessToken = await thirdPartyAuthProvider.getToken(['https://graph.microsoft.com/.default']);
 
             const tenantDomain = await graphProvider.getOwningTenantDomain(accessToken);
             const parts = tenantDomain.split('.');
             const domain = parts[0];
 
-            const sp = await thirdPartyAuthProvider.getToken([`https://${domain}.sharepoint.com/.default`]);
+            globalStorageManager.setValue("TenantDomain", domain);
 
-            showAccessTokenWebview(`Obtained SP Token successfully: ${sp}`);
+            showAccessTokenWebview(`Obtained SP Token successfully, tenant domain: ${domain}`);
         } catch (error) {
             vscode.window.showErrorMessage('Failed to obtain access token.');
             console.error('Error:', error);

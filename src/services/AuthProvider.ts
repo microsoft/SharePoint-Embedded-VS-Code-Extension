@@ -23,7 +23,7 @@ export default class AuthProvider {
             },
             system: {
                 loggerOptions: {
-                    logLevel: LogLevel.Info,
+                    logLevel: LogLevel.Trace,
                     loggerCallback: (level: LogLevel, message: string, containsPii: boolean) => {
                         if (containsPii) {
                             return;
@@ -59,7 +59,8 @@ export default class AuthProvider {
         let authResponse: AuthenticationResult;
         const account = this.account || await this.getAccount();
         if (account) {
-            authResponse = await this.getTokenSilent({ scopes, account: account });
+            //authResponse = await this.getTokenSilent({ scopes, account: account });
+            authResponse = await this.getTokenSilent({ scopes, account: account, forceRefresh: true });
         } else {
             const authCodeRequest = { scopes, redirectUri: this.authCodeUrlParams.redirectUri };
             authResponse = await this.getTokenInteractive(authCodeRequest);
