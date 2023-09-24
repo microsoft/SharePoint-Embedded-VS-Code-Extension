@@ -1,5 +1,4 @@
 import * as vscode from 'vscode';
-import AuthProvider from './services/AuthProvider.js'; // Update the import path to your AuthProvider file
 import { generateCertificateAndPrivateKey, createKeyCredential, acquireAppOnlyCertSPOToken } from './cert.js';
 import GraphServiceProvider from './services/GraphProvider.js';
 import { clientId, consumingTenantId } from './utils/constants.js';
@@ -8,19 +7,20 @@ import { LocalStorageService } from './services/StorageProvider.js';
 import VroomProvider from './services/VroomProvider.js';
 import { ext } from './utils/extensionVariables.js';
 import { window } from 'vscode';
+import FirstPartyAuthProvider from './services/1PAuthProvider.js';
+import ThirdPartyAuthProvider from './services/3PAuthProvider.js';
 
 let accessTokenPanel: vscode.WebviewPanel | undefined;
 
 export function activate(context: vscode.ExtensionContext) {
     ext.context = context;
-	ext.outputChannel = window.createOutputChannel("Syntex repository services", { log: true});
-	context.subscriptions.push(ext.outputChannel);
+    ext.outputChannel = window.createOutputChannel("Syntex repository services", { log: true });
+    context.subscriptions.push(ext.outputChannel);
     //Initialize storage models
     let workspaceStorageManager = new LocalStorageService(context.workspaceState);
     let globalStorageManager = new LocalStorageService(context.globalState);
 
-    const firstPartyAppAuthProvider = new AuthProvider(clientId, consumingTenantId, "1P");
-    let thirdPartyAuthProvider: AuthProvider;
+    let thirdPartyAuthProvider: ThirdPartyAuthProvider;
 
     const graphProvider = new GraphServiceProvider();
     const pnpProvider = new PnPProvider();
@@ -28,8 +28,8 @@ export function activate(context: vscode.ExtensionContext) {
 
     const aadLoginCommand = vscode.commands.registerCommand('srs.login', async () => {
         try {
-            const accessToken = await firstPartyAppAuthProvider.getToken(['Application.ReadWrite.All']);
-            showAccessTokenWebview(`1P access token obtained successfully: ${accessToken}`);
+            // const accessToken = await firstPartyAppAuthProvider.getToken(['Application.ReadWrite.All']);
+            // showAccessTokenWebview(`1P access token obtained successfully: ${accessToken}`);
         } catch (error) {
             vscode.window.showErrorMessage('Failed to obtain access token.');
             console.error('Error:', error);
@@ -38,16 +38,20 @@ export function activate(context: vscode.ExtensionContext) {
 
     const createNewAadApplicationCommand = vscode.commands.registerCommand('srs.createNewAadApplicationCommand', async () => {
         try {
+            const firstPartyAppAuthProvider = new FirstPartyAuthProvider(clientId, consumingTenantId, "1P");
+
             const accessToken = await firstPartyAppAuthProvider.getToken(['Application.ReadWrite.All']);
-            const { certificatePEM, privateKey } = generateCertificateAndPrivateKey();
+            const { certificatePEM, privateKey, thumbprint } = generateCertificateAndPrivateKey();
+
             const keyCredential = createKeyCredential(certificatePEM);
             const applicationProps = await graphProvider.createAadApplication(accessToken, keyCredential);
 
             globalStorageManager.setValue("NewApplication", applicationProps);
+            await ext.context.secrets.store("3PAppThumbprint", thumbprint);
             await ext.context.secrets.store("3PAppPrivateKey", privateKey);
             await ext.context.secrets.store("3PAppCert", certificatePEM);
 
-            thirdPartyAuthProvider = new AuthProvider(applicationProps["appId"], consumingTenantId, "3P")
+            thirdPartyAuthProvider = new ThirdPartyAuthProvider(applicationProps["appId"], consumingTenantId, "3P", thumbprint, privateKey)
             vscode.window.showInformationMessage(`Successfully created 3P application: ${applicationProps["appId"]}`);
         } catch (error) {
             vscode.window.showErrorMessage('Failed to obtain access token.');
@@ -59,17 +63,24 @@ export function activate(context: vscode.ExtensionContext) {
         try {
             const thirdPartyAppDetails: any = globalStorageManager.getValue("NewApplication");
             if (typeof thirdPartyAuthProvider == "undefined" || thirdPartyAuthProvider == null) {
-                thirdPartyAuthProvider = new AuthProvider(thirdPartyAppDetails["appId"], consumingTenantId, "3P")
+                const pk: any = await ext.context.secrets.get("3PAppPrivateKey");
+                const thumbprint: any = await ext.context.secrets.get("3PAppThumbprint");
+                thirdPartyAuthProvider = new ThirdPartyAuthProvider(thirdPartyAppDetails["appId"], consumingTenantId, "3P", thumbprint, pk)
             }
+            
+            const consentToken = await thirdPartyAuthProvider.getToken(['00000003-0000-0ff1-ce00-000000000000/.default']);
 
-            const graphAccessToken = await thirdPartyAuthProvider.getToken(['https://graph.microsoft.com/.default']);
+            //const graphAccessToken = await thirdPartyAuthProvider.getOBOGraphToken(consentToken, ['Organization.Read.All']);
+
+            const graphAccessToken = await thirdPartyAuthProvider.getToken(["00000003-0000-0000-c000-000000000000/Organization.Read.All"]);
+            
             const tenantDomain = await graphProvider.getOwningTenantDomain(graphAccessToken);
             const parts = tenantDomain.split('.');
             const domain = parts[0];
 
-            const accessToken = await thirdPartyAuthProvider.getToken([`https://${domain}-admin.sharepoint.com/AllSites.Write`]);
+            //const accessToken = await thirdPartyAuthProvider.getAppToken(`https://${domain}-admin.sharepoint.com/.default`);
 
-            const containerTypeDetails = await pnpProvider.createNewContainerType(accessToken, domain, thirdPartyAppDetails["appId"])
+            const containerTypeDetails = await pnpProvider.createNewContainerType(consentToken, domain, thirdPartyAppDetails["appId"])
             globalStorageManager.setValue("ContainerTypeDetails", containerTypeDetails);
             showAccessTokenWebview(`ContainerType created successfully: ${containerTypeDetails}`);
         } catch (error) {
@@ -82,7 +93,9 @@ export function activate(context: vscode.ExtensionContext) {
         try {
             const thirdPartyAppDetails: any = globalStorageManager.getValue("NewApplication");
             if (typeof thirdPartyAuthProvider == "undefined" || thirdPartyAuthProvider == null) {
-                thirdPartyAuthProvider = new AuthProvider(thirdPartyAppDetails["appId"], consumingTenantId, "3P")
+                const pk: any = await ext.context.secrets.get("3PAppPrivateKey");
+                const thumbprint: any = await ext.context.secrets.get("3PAppThumbprint");
+                thirdPartyAuthProvider = new ThirdPartyAuthProvider(thirdPartyAppDetails["appId"], consumingTenantId, "3P", thumbprint, pk)
             }
 
             const accessToken = await thirdPartyAuthProvider.getToken(['https://graph.microsoft.com/.default']);
@@ -108,7 +121,9 @@ export function activate(context: vscode.ExtensionContext) {
         try {
             const thirdPartyAppDetails: any = globalStorageManager.getValue("NewApplication");
             if (typeof thirdPartyAuthProvider == "undefined" || thirdPartyAuthProvider == null) {
-                thirdPartyAuthProvider = new AuthProvider(thirdPartyAppDetails["appId"], consumingTenantId, "3P")
+                const pk: any = await ext.context.secrets.get("3PAppPrivateKey");
+                const thumbprint: any = await ext.context.secrets.get("3PAppThumbprint");
+                thirdPartyAuthProvider = new ThirdPartyAuthProvider(thirdPartyAppDetails["appId"], consumingTenantId, "3P", thumbprint, pk)
             }
 
             const accessToken = await thirdPartyAuthProvider.getToken(['https://graph.microsoft.com/.default']);
@@ -126,7 +141,9 @@ export function activate(context: vscode.ExtensionContext) {
         try {
             const thirdPartyAppDetails: any = globalStorageManager.getValue("NewApplication");
             if (typeof thirdPartyAuthProvider == "undefined" || thirdPartyAuthProvider == null) {
-                thirdPartyAuthProvider = new AuthProvider(thirdPartyAppDetails["appId"], consumingTenantId, "3P")
+                const pk: any = await ext.context.secrets.get("3PAppPrivateKey");
+                const thumbprint: any = await ext.context.secrets.get("3PAppThumbprint");
+                thirdPartyAuthProvider = new ThirdPartyAuthProvider(thirdPartyAppDetails["appId"], consumingTenantId, "3P", thumbprint, pk)
             }
 
             const accessToken = await thirdPartyAuthProvider.getToken(['https://graph.microsoft.com/.default']);
@@ -155,7 +172,7 @@ export function activate(context: vscode.ExtensionContext) {
         registerNewContainerTypeCommand,
         createNewContainerTypeCommand,
         callMSGraphCommand,
-        generateCertificateCommand, 
+        generateCertificateCommand,
         getSPToken
     );
 }

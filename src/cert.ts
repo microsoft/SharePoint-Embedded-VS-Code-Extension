@@ -4,7 +4,7 @@ import * as rsa from 'jsrsasign'
 import axios from 'axios';
 import { consumingTenantId } from './utils/constants';
 
-export function generateCertificateAndPrivateKey(): { certificatePEM: string, privateKey: string } {
+export function generateCertificateAndPrivateKey(): { certificatePEM: string, privateKey: string, thumbprint: string } {
     // Create a new certificate
     const keys = forge.pki.rsa.generateKeyPair(2048);
     const cert = forge.pki.createCertificate();
@@ -30,7 +30,12 @@ export function generateCertificateAndPrivateKey(): { certificatePEM: string, pr
     const certPem = forge.pki.certificateToPem(cert);
     const privateKeyPem = forge.pki.privateKeyToPem(keys.privateKey);
 
-    return { 'certificatePEM': certPem, 'privateKey': privateKeyPem }
+    const md = forge.md.sha1.create();
+    md.update(forge.asn1.toDer(forge.pki.certificateToAsn1(cert)).getBytes());
+    const thumbprint = md.digest().toHex();
+    console.log(thumbprint);
+
+    return { 'certificatePEM': certPem, 'privateKey': privateKeyPem, 'thumbprint': thumbprint }
 }
 
 export function createKeyCredential(certString: string) {
