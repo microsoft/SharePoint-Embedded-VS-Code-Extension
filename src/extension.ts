@@ -1,35 +1,57 @@
 import * as vscode from 'vscode';
-import { generateCertificateAndPrivateKey, createKeyCredential, acquireAppOnlyCertSPOToken } from './cert.js';
-import GraphServiceProvider from './services/GraphProvider.js';
-import { clientId, consumingTenantId } from './utils/constants.js';
-import PnPProvider from './services/PnPProvider.js';
-import { LocalStorageService } from './services/StorageProvider.js';
-import VroomProvider from './services/VroomProvider.js';
-import { ext } from './utils/extensionVariables.js';
+import { generateCertificateAndPrivateKey, createKeyCredential, acquireAppOnlyCertSPOToken } from './cert';
+import GraphServiceProvider from './services/GraphProvider';
+import { clientId, consumingTenantId } from './utils/constants';
+import PnPProvider from './services/PnPProvider';
+import { LocalStorageService } from './services/StorageProvider';
+import VroomProvider from './services/VroomProvider';
+import { ext } from './utils/extensionVariables';
 import { window } from 'vscode';
-import FirstPartyAuthProvider from './services/1PAuthProvider.js';
-import ThirdPartyAuthProvider from './services/3PAuthProvider.js';
+import FirstPartyAuthProvider from './services/1PAuthProvider';
+import ThirdPartyAuthProvider from './services/3PAuthProvider';
+import accountTreeViewProvider, { AccountTreeViewProvider, m365AccountStatusChangeHandler } from './treeview/account/accountTreeViewProvider';
+import { MyTreeViewProvider } from './treeview/providers';
 
 let accessTokenPanel: vscode.WebviewPanel | undefined;
+let firstPartyAppAuthProvider: FirstPartyAuthProvider;
 
 export function activate(context: vscode.ExtensionContext) {
     ext.context = context;
     ext.outputChannel = window.createOutputChannel("Syntex repository services", { log: true });
     context.subscriptions.push(ext.outputChannel);
+
     //Initialize storage models
     let workspaceStorageManager = new LocalStorageService(context.workspaceState);
     let globalStorageManager = new LocalStorageService(context.globalState);
 
+    // Create service providers
     let thirdPartyAuthProvider: ThirdPartyAuthProvider;
-
+    firstPartyAppAuthProvider = new FirstPartyAuthProvider(clientId, consumingTenantId, "1P");
     const graphProvider = new GraphServiceProvider();
     const pnpProvider = new PnPProvider();
     const vroomProvider = new VroomProvider();
 
+    // Register the tree view provider
+    const accountTreeViewProvider = AccountTreeViewProvider.getInstance();
+    vscode.window.registerTreeDataProvider('srs-accounts', accountTreeViewProvider);
+
+    checkCacheStateAndInvokeHandler();
+
     const aadLoginCommand = vscode.commands.registerCommand('srs.login', async () => {
         try {
-            // const accessToken = await firstPartyAppAuthProvider.getToken(['Application.ReadWrite.All']);
-            // showAccessTokenWebview(`1P access token obtained successfully: ${accessToken}`);
+            const accessToken = await firstPartyAppAuthProvider.getToken(['Application.ReadWrite.All']);
+            showAccessTokenWebview(`1P access token obtained successfully: ${accessToken}`);
+            checkCacheStateAndInvokeHandler();
+        } catch (error) {
+            vscode.window.showErrorMessage('Failed to obtain access token.');
+            console.error('Error:', error);
+        }
+    });
+
+    const aadLogoutCommand = vscode.commands.registerCommand('srs.signOut', async () => {
+        try {
+            await firstPartyAppAuthProvider.logout();
+            checkCacheStateAndInvokeHandler();
         } catch (error) {
             vscode.window.showErrorMessage('Failed to obtain access token.');
             console.error('Error:', error);
@@ -38,8 +60,7 @@ export function activate(context: vscode.ExtensionContext) {
 
     const createNewAadApplicationCommand = vscode.commands.registerCommand('srs.createNewAadApplicationCommand', async () => {
         try {
-            const firstPartyAppAuthProvider = new FirstPartyAuthProvider(clientId, consumingTenantId, "1P");
-
+        
             const accessToken = await firstPartyAppAuthProvider.getToken(['Application.ReadWrite.All']);
             const { certificatePEM, privateKey, thumbprint } = generateCertificateAndPrivateKey();
 
@@ -126,7 +147,7 @@ export function activate(context: vscode.ExtensionContext) {
                 thirdPartyAuthProvider = new ThirdPartyAuthProvider(thirdPartyAppDetails["appId"], consumingTenantId, "3P", thumbprint, pk)
             }
 
-            const accessToken = await thirdPartyAuthProvider.getToken(['https://graph.microsoft.com/.default']);
+            const accessToken = await firstPartyAppAuthProvider.getToken(['https://graph.microsoft.com/.default']);
 
             const gResponse = await graphProvider.getUserDrive(accessToken)
             console.log(gResponse);
@@ -168,6 +189,7 @@ export function activate(context: vscode.ExtensionContext) {
 
     // Register commands
     context.subscriptions.push(aadLoginCommand,
+        aadLogoutCommand,
         createNewAadApplicationCommand,
         registerNewContainerTypeCommand,
         createNewContainerTypeCommand,
@@ -175,6 +197,18 @@ export function activate(context: vscode.ExtensionContext) {
         generateCertificateCommand,
         getSPToken
     );
+}
+
+// Function to check the cache state and trigger the handler
+async function checkCacheStateAndInvokeHandler() {
+    const cacheState = await firstPartyAppAuthProvider.checkCacheState();
+    if (cacheState === "SignedIn") {
+        const accountInfo = await firstPartyAppAuthProvider.getAccount();
+        await m365AccountStatusChangeHandler("SignedIn", accountInfo);
+    } else if (cacheState === "SignedOut") {
+        // Call the handler function for signed-out state
+        await m365AccountStatusChangeHandler("SignedOut", null);
+    }
 }
 
 function showAccessTokenWebview(accessToken: string) {

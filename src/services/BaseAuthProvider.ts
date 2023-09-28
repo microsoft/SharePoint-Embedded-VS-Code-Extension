@@ -1,10 +1,10 @@
 import * as vscode from 'vscode';
 import * as http from 'http';
 import * as url from 'url';
+import * as fs from 'fs';
 // @ts-ignore
 import { AccountInfo, AuthenticationResult, AuthorizationUrlRequest, ConfidentialClientApplication, CryptoProvider, LogLevel, PublicClientApplication, SilentFlowRequest } from '@azure/msal-node';
-import { CachePluginFactory } from '../utils/CacheFactory';
-import { ext } from '../utils/extensionVariables';
+import { htmlString } from '../html/page';
 
 
 export abstract class BaseAuthProvider {
@@ -66,7 +66,7 @@ export abstract class BaseAuthProvider {
         }
     }
 
-    protected async getAccount(): Promise<AccountInfo | null> {
+    async getAccount(): Promise<AccountInfo | null> {
         const cache = this.clientApplication.getTokenCache();
         const currentAccounts = await cache.getAllAccounts();
 
@@ -87,6 +87,34 @@ export abstract class BaseAuthProvider {
         }
     }
 
+    async logout(): Promise<boolean> {
+        try {
+            const cache = await this.clientApplication.getTokenCache();
+            const accounts = await cache.getAllAccounts();
+            const account = accounts[0];
+            await cache.removeAccount(account);
+            return true
+        } catch (e) {
+            console.error('Error logging out', e);
+            return false;
+        }
+
+    }
+
+    async checkCacheState(): Promise<string> {
+        try {
+            const accounts = await this.clientApplication.getTokenCache().getAllAccounts();
+            if (accounts.length > 0) {
+                return "SignedIn";
+            } else {
+                return "SignedOut";
+            }
+        } catch (error) {
+            console.error("Error checking cache state:", error);
+            return "Error";
+        }
+    }
+
     async listenForAuthCode(authCodeUrl: string): Promise<string> {
         return new Promise<string>((resolve, reject) => {
             const server = http.createServer(async (req, res) => {
@@ -95,7 +123,8 @@ export abstract class BaseAuthProvider {
 
                 if (authCode) {
                     res.writeHead(200, { 'Content-Type': 'text/html' });
-                    res.end('Authentication successful! You can close this window.');
+                    res.end(htmlString);
+
                     resolve(authCode);
 
                     server.close(() => {

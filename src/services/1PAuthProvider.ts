@@ -8,6 +8,7 @@ import { ext } from '../utils/extensionVariables';
 import { BaseAuthProvider } from './BaseAuthProvider';
 
 export default class FirstPartyAuthProvider extends BaseAuthProvider {
+    private static instance: FirstPartyAuthProvider;
     protected clientApplication: PublicClientApplication;
     protected account: AccountInfo | null;
     protected authCodeUrlParams: AuthorizationUrlRequest;
@@ -30,24 +31,24 @@ export default class FirstPartyAuthProvider extends BaseAuthProvider {
                         if (containsPii) {
                             return;
                         }
-						message = 'MSAL: ' + message;
+                        message = 'MSAL: ' + message;
                         switch (level) {
-							case LogLevel.Error:
-								ext.outputChannel.error(message);
-								break;
-							case LogLevel.Warning:
-								ext.outputChannel.warn(message);
-								break;
-							case LogLevel.Info:
-								ext.outputChannel.info(message);
-								break;
-							case LogLevel.Verbose:
-								ext.outputChannel.debug(message);
-								break;
-							case LogLevel.Trace:
-								ext.outputChannel.trace(message);
-								break;
-						}
+                            case LogLevel.Error:
+                                ext.outputChannel.error(message);
+                                break;
+                            case LogLevel.Warning:
+                                ext.outputChannel.warn(message);
+                                break;
+                            case LogLevel.Info:
+                                ext.outputChannel.info(message);
+                                break;
+                            case LogLevel.Verbose:
+                                ext.outputChannel.debug(message);
+                                break;
+                            case LogLevel.Trace:
+                                ext.outputChannel.trace(message);
+                                break;
+                        }
                     },
                     piiLoggingEnabled: false
                 }
