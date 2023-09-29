@@ -34,7 +34,7 @@ export default class GraphProvider {
         }
     };
 
-    async createAadApplication(accessToken: string, keyCredential: any) {
+    async createAadApplication(applicationName: string, accessToken: string, keyCredential: any) {
         const options = {
             headers: {
                 Authorization: `Bearer ${accessToken}`,
@@ -43,7 +43,7 @@ export default class GraphProvider {
         };
 
         const applicationData = {
-            displayName: 'My New Application',
+            displayName: applicationName,
             publicClient: {
                 redirectUris: [
                     'http://localhost:12345/redirect'
