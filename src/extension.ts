@@ -11,6 +11,7 @@ import FirstPartyAuthProvider from './services/1PAuthProvider';
 import ThirdPartyAuthProvider from './services/3PAuthProvider';
 import accountTreeViewProvider, { AccountTreeViewProvider, m365AccountStatusChangeHandler } from './treeview/account/accountTreeViewProvider';
 import { MyTreeViewProvider } from './treeview/providers';
+import { DevelopmentTreeViewProvider } from './treeview/developmentTreeViewProvider';
 
 let accessTokenPanel: vscode.WebviewPanel | undefined;
 let firstPartyAppAuthProvider: FirstPartyAuthProvider;
@@ -33,7 +34,9 @@ export function activate(context: vscode.ExtensionContext) {
 
     // Register the tree view provider
     const accountTreeViewProvider = AccountTreeViewProvider.getInstance();
+    const developmentTreeViewProvider = DevelopmentTreeViewProvider.getInstance();
     vscode.window.registerTreeDataProvider('srs-accounts', accountTreeViewProvider);
+    vscode.window.registerTreeDataProvider('srs-development', developmentTreeViewProvider);
 
     checkCacheStateAndInvokeHandler();
 
