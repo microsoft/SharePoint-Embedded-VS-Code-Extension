@@ -90,6 +90,10 @@
         "command": "srs.signOut",
         "title": "Syntex repository services: Sign out account",
         "icon": "$(sign-out)"
+      },
+      {
+        "command": "srs.cloneRepo",
+        "title": "Syntex repository services: Clone Git Repo"
       }
     ]
   },

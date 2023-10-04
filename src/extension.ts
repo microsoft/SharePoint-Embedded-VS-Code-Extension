@@ -1,4 +1,6 @@
 import * as vscode from 'vscode';
+import * as fs from 'fs';
+import * as path from 'path';
 import { generateCertificateAndPrivateKey, createKeyCredential, acquireAppOnlyCertSPOToken } from './cert';
 import GraphServiceProvider from './services/GraphProvider';
 import { clientId, consumingTenantId } from './utils/constants';
@@ -10,7 +12,6 @@ import { ExtensionContext, window } from 'vscode';
 import FirstPartyAuthProvider from './services/1PAuthProvider';
 import ThirdPartyAuthProvider from './services/3PAuthProvider';
 import accountTreeViewProvider, { AccountTreeViewProvider, m365AccountStatusChangeHandler } from './treeview/account/accountTreeViewProvider';
-import { MyTreeViewProvider } from './treeview/providers';
 import { DevelopmentTreeViewProvider } from './treeview/developmentTreeViewProvider';
 import { createAppInput } from './qp/createAppInput';
 import { CreateAppProvider } from './services/CreateAppProvider';
@@ -67,32 +68,90 @@ export function activate(context: vscode.ExtensionContext) {
         }
     });
 
-    context.subscriptions.push(vscode.commands.registerCommand('srs.createNewApp', async () => {
-		const options: { [key: string]: (context: ExtensionContext) => Promise<{appName: string}> } = {
-			"RaaS Node App" : createAppInput
-		};
-		const quickPick = window.createQuickPick();
+    const createNewSampleAppCommand = vscode.commands.registerCommand('srs.createNewApp', async () => {
+        const options: { [key: string]: (context: ExtensionContext) => Promise<{ appName: string }> } = {
+            "RaaS Node App": createAppInput
+        };
+        const quickPick = window.createQuickPick();
         quickPick.title = 'Select the type of sample app';
         quickPick.placeholder = 'Select an option...';
-		quickPick.items = Object.keys(options).map(label => ({ label }));
-		quickPick.onDidChangeSelection(async selection => {
-			if (selection[0]) {
-				const state =  await options[selection[0].label](context)
+        quickPick.items = Object.keys(options).map(label => ({ label }));
+        quickPick.onDidChangeSelection(async selection => {
+            if (selection[0]) {
+                const state = await options[selection[0].label](context)
                 await createAppServiceProvider.createAadApplication(state.appName);
                 await timeoutForSeconds(20);
                 await createAppServiceProvider.createContainerType();
-			}
-		});
-		quickPick.onDidHide(() => quickPick.dispose());
-		quickPick.show();
-	}));
+                await vscode.commands.executeCommand('srs.cloneRepo');
+            }
+        });
+        quickPick.onDidHide(() => quickPick.dispose());
+        quickPick.show();
+    });
 
-    // vscode.commands.execute
+    const cloneRepoCommand = vscode.commands.registerCommand('srs.cloneRepo', async () => {
+        try {
+            const repoUrl = 'https://github.com/microsoft/syntex-repository-services.git';
+            const folders = await vscode.window.showOpenDialog({
+                canSelectFiles: false,
+                canSelectFolders: true,
+                canSelectMany: false,
+                openLabel: 'Clone Here',
+            });
+
+            if (folders && folders.length > 0) {
+                const destinationPath = folders[0].fsPath;
+                await vscode.commands.executeCommand('git.clone', repoUrl, destinationPath);
+                console.log(`Repository cloned to: ${destinationPath}`);
+                writeLocalSettingsJson(destinationPath);
+                writeEnvFile(destinationPath);
+            } else {
+                console.log('No destination folder selected. Cloning canceled.');
+            }
+        } catch (error) {
+            vscode.window.showErrorMessage('Failed to clone Git Repo');
+            console.error('Error:', error);
+        }
+    });
+
+    const writeLocalSettingsJson = (destinationPath: string) => {
+        const thirdPartyAppDetails: any = createAppServiceProvider.globalStorageManager.getValue("NewApplication")
+        const localSettings = {
+            IsEncrypted: false,
+            Values: {
+                AzureWebJobsStorage: "",
+                FUNCTIONS_WORKER_RUNTIME: "node",
+                APP_CLIENT_ID: `${thirdPartyAppDetails["appId"]}`,
+                APP_AUTHORITY: "https://login.microsoftonline.com/common",
+                APP_AUDIENCE: `api/${thirdPartyAppDetails["appId"]}`,
+                APP_CLIENT_SECRET: `${thirdPartyAppDetails["appId"]}`,
+                APP_CONTAINER_TYPE_ID: "12345"
+            },
+            Host: {
+                CORS: "*"
+            }
+        };
+
+        const localSettingsJson = JSON.stringify(localSettings, null, 2);
+        const localSettingsPath = path.join(destinationPath, 'syntex-repository-services', 'samples', 'raas-spa-azurefunction', 'packages', 'azure-functions', 'local.settings.json');
+
+        fs.writeFileSync(localSettingsPath, localSettingsJson, 'utf8');
+        console.log('local.settings.json written successfully.');
+    };
+
+    const writeEnvFile = (destinationPath: string) => {
+        const thirdPartyAppDetails: any = createAppServiceProvider.globalStorageManager.getValue("NewApplication")
+        const envContent = `REACT_APP_CLIENT_ID = '${thirdPartyAppDetails["appId"]}'`;
+        const envFilePath = path.join(destinationPath, 'syntex-repository-services', 'samples', 'raas-spa-azurefunction', 'packages', 'client-app', '.env');
+
+        fs.writeFileSync(envFilePath, envContent, 'utf8');
+        console.log('.env file written successfully.');
+    };
 
 
     // const createNewAadApplicationCommand = vscode.commands.registerCommand('srs.createNewAadApplicationCommand', async () => {
     //     try {
-        
+
     //         const accessToken = await firstPartyAppAuthProvider.getToken(['Application.ReadWrite.All']);
     //         const { certificatePEM, privateKey, thumbprint } = generateCertificateAndPrivateKey();
 
@@ -120,13 +179,13 @@ export function activate(context: vscode.ExtensionContext) {
     //             const thumbprint: any = await ext.context.secrets.get("3PAppThumbprint");
     //             thirdPartyAuthProvider = new ThirdPartyAuthProvider(thirdPartyAppDetails["appId"], consumingTenantId, "3P", thumbprint, pk)
     //         }
-            
+
     //         const consentToken = await thirdPartyAuthProvider.getToken(['00000003-0000-0ff1-ce00-000000000000/.default']);
 
     //         //const graphAccessToken = await thirdPartyAuthProvider.getOBOGraphToken(consentToken, ['Organization.Read.All']);
 
     //         const graphAccessToken = await thirdPartyAuthProvider.getToken(["00000003-0000-0000-c000-000000000000/Organization.Read.All"]);
-            
+
     //         const tenantDomain = await graphProvider.getOwningTenantDomain(graphAccessToken);
     //         const parts = tenantDomain.split('.');
     //         const domain = parts[0];
@@ -222,6 +281,8 @@ export function activate(context: vscode.ExtensionContext) {
     // Register commands
     context.subscriptions.push(aadLoginCommand,
         aadLogoutCommand,
+        createNewSampleAppCommand,
+        cloneRepoCommand
         // createNewAadApplicationCommand,
         // registerNewContainerTypeCommand,
         // createNewContainerTypeCommand,

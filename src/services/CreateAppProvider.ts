@@ -20,7 +20,7 @@ private vroomProvider = new VroomProvider();
 
 //Initialize storage models
 private workspaceStorageManager: LocalStorageService;
-private globalStorageManager: LocalStorageService;
+public globalStorageManager: LocalStorageService;
 
 constructor(context: vscode.ExtensionContext) {
     this.workspaceStorageManager = new LocalStorageService(context.workspaceState);
@@ -71,7 +71,7 @@ async createContainerType() {
 
         const containerTypeDetails = await this.pnpProvider.createNewContainerType(consentToken, domain, thirdPartyAppDetails["appId"])
         this.globalStorageManager.setValue("ContainerTypeDetails", containerTypeDetails);
-        showAccessTokenWebview(`ContainerType created successfully: ${containerTypeDetails}`);
+        vscode.window.showInformationMessage(`ContainerType created successfully: ${containerTypeDetails}`);
     } catch (error) {
         vscode.window.showErrorMessage('Failed to obtain access token.');
         console.error('Error:', error);
