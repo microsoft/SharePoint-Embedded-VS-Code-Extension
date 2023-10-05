@@ -118,7 +118,6 @@ export abstract class BaseAuthProvider {
     async listenForAuthCode(authCodeUrl: string): Promise<string> {
         return new Promise<string>((resolve, reject) => {
             const server = http.createServer(async (req, res) => {
-                console.log("in callback")
                 const queryParams = url.parse(req.url || '', true).query as { code?: string };
                 const authCode = queryParams.code;
 
@@ -144,7 +143,6 @@ export abstract class BaseAuthProvider {
             const serverPort = 12345; // Adjust the port as needed
             server.listen(serverPort, () => {
                 vscode.env.openExternal(vscode.Uri.parse(authCodeUrl));
-                console.log("hi")
             });
         });
     }

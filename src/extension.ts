@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { generateCertificateAndPrivateKey, acquireAppOnlyCertSPOToken } from './cert';
 import GraphServiceProvider from './services/GraphProvider';
-import { clientId, consumingTenantId } from './utils/constants';
+import { clientId } from './utils/constants';
 import PnPProvider from './services/PnPProvider';
 import { LocalStorageService } from './services/StorageProvider';
 import VroomProvider from './services/VroomProvider';
@@ -35,7 +35,7 @@ export function activate(context: vscode.ExtensionContext) {
     // const graphProvider = new GraphServiceProvider();
     // const pnpProvider = new PnPProvider();
     // const vroomProvider = new VroomProvider();
-    firstPartyAppAuthProvider = new FirstPartyAuthProvider(clientId, consumingTenantId, "1P");
+    firstPartyAppAuthProvider = new FirstPartyAuthProvider(clientId, "1P");
     const createAppServiceProvider = new CreateAppProvider(context);
 
 
@@ -84,15 +84,21 @@ export function activate(context: vscode.ExtensionContext) {
 
                 if (!applicationCreated) {
                     vscode.window.showErrorMessage('Application creation failed. Please try again');
-                    return; // Exit early if application creation fails
+                    return;
                 }
 
                 await timeoutForSeconds(20);
                 const containerTypeCreated = await createAppServiceProvider.createContainerType();
 
                 if (!containerTypeCreated) {
-                    vscode.window.showErrorMessage('Application creation failed. Please try again');
-                    return; // Exit early if application creation fails
+                    vscode.window.showErrorMessage('ContainerType creation failed. Please try again');
+                    return;
+                }
+
+                const containerTypeRegistered = await createAppServiceProvider.registerContainerType()
+                if (!containerTypeRegistered) {
+                    vscode.window.showErrorMessage('ContainerType registration failed. Please try again');
+                    return;
                 }
 
                 await vscode.commands.executeCommand('srs.cloneRepo');

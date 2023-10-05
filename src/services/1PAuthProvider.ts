@@ -13,13 +13,14 @@ export default class FirstPartyAuthProvider extends BaseAuthProvider {
     protected account: AccountInfo | null;
     protected authCodeUrlParams: AuthorizationUrlRequest;
 
-    constructor(clientId: string, consumingTenantId: string, cacheNamespace: string) {
+    constructor(clientId: string, cacheNamespace: string) {
         super();
         const cache = new CachePluginFactory(cacheNamespace);
         this.clientApplication = new PublicClientApplication({
             auth: {
                 clientId: clientId,
-                authority: `https://login.microsoftonline.com/${consumingTenantId}/`,
+                //authority: `https://login.microsoftonline.com/${consumingTenantId}/`,
+                authority: `https://login.microsoftonline.com/common/`,
             },
             cache: {
                 cachePlugin: cache

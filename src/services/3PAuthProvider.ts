@@ -1,6 +1,3 @@
-import * as vscode from 'vscode';
-import * as http from 'http';
-import * as url from 'url';
 // @ts-ignore
 import { AccountInfo, AuthenticationResult, AuthorizationUrlRequest, ConfidentialClientApplication, CryptoProvider, LogLevel, PublicClientApplication, SilentFlowRequest } from '@azure/msal-node';
 import { CachePluginFactory } from '../utils/CacheFactory';
@@ -12,13 +9,14 @@ export default class ThirdPartyAuthProvider extends BaseAuthProvider {
     protected account: AccountInfo | null;
     protected authCodeUrlParams: AuthorizationUrlRequest;
 
-    constructor(clientId: string, consumingTenantId: string, cacheNamespace: string, thumbprint: string, privateKey: string) {
+    constructor(clientId: string, cacheNamespace: string, thumbprint: string, privateKey: string) {
         super();
         const cache = new CachePluginFactory(clientId);
         this.clientApplication = new ConfidentialClientApplication({
             auth: {
                 clientId: clientId,
-                authority: `https://login.microsoftonline.com/${consumingTenantId}/`,
+                //authority: `https://login.microsoftonline.com/${consumingTenantId}/`,
+                authority: `https://login.microsoftonline.com/common/`,
                 clientCertificate: {
                     thumbprint: thumbprint, // a 40-digit hexadecimal string 
                     privateKey: privateKey,
