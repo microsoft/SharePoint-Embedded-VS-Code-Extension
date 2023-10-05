@@ -4,7 +4,7 @@ import * as rsa from 'jsrsasign'
 import axios from 'axios';
 import { consumingTenantId } from './utils/constants';
 
-export function generateCertificateAndPrivateKey(): { certificatePEM: string, privateKey: string, thumbprint: string } {
+export function generateCertificateAndPrivateKey(): { certificatePEM: string, privateKey: string, thumbprint: string} {
     // Create a new certificate
     const keys = forge.pki.rsa.generateKeyPair(2048);
     const cert = forge.pki.createCertificate();
@@ -30,15 +30,18 @@ export function generateCertificateAndPrivateKey(): { certificatePEM: string, pr
     const certPem = forge.pki.certificateToPem(cert);
     const privateKeyPem = forge.pki.privateKeyToPem(keys.privateKey);
 
+    const randomBytes = forge.random.getBytesSync(32);
+    const clientSecret = forge.util.encode64(randomBytes);
+
     const md = forge.md.sha1.create();
     md.update(forge.asn1.toDer(forge.pki.certificateToAsn1(cert)).getBytes());
     const thumbprint = md.digest().toHex();
     console.log(thumbprint);
 
-    return { 'certificatePEM': certPem, 'privateKey': privateKeyPem, 'thumbprint': thumbprint }
+    return { 'certificatePEM': certPem, 'privateKey': privateKeyPem, 'thumbprint': thumbprint}
 }
 
-export function createKeyCredential(certString: string) {
+export function createCertKeyCredential(certString: string) {
     const buffer = Buffer.from(certString, "utf-8");
     const certBase64 = buffer.toString("base64");
     const currentDate = new Date();
@@ -56,6 +59,25 @@ export function createKeyCredential(certString: string) {
         usage: 'verify',
         key: certBase64,
         displayName: 'CN=Syntex repository services VS Code Ext'
+    };
+
+    return keyCredential;
+}
+
+export function createSecretKeyCredential(clientSecret: string) {
+    const currentDate = new Date();
+    const newEndDateTime = new Date(currentDate);
+    newEndDateTime.setFullYear(currentDate.getFullYear() + 1); // Add 1 year
+    newEndDateTime.setHours(currentDate.getHours() - 1);      // Subtract 1 hour
+
+    const startTime = currentDate.toISOString();
+    const endDateTime = newEndDateTime.toISOString();
+
+    const keyCredential = {
+        startDateTime: startTime,
+        endDateTime: endDateTime,
+        secretText: clientSecret,
+        displayName: 'Syntex repository services VS Code Ext Secret'
     };
 
     return keyCredential;

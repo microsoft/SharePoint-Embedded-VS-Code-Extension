@@ -34,7 +34,22 @@ export default class GraphProvider {
         }
     };
 
-    async createAadApplication(applicationName: string, accessToken: string, keyCredential: any) {
+    async getApplicationById(accessToken: string, appId: string) {
+        const options = {
+            headers: {
+                Authorization: `Bearer ${accessToken}`
+            }
+        };
+        try {
+            const response: AxiosResponse = await axios.get(`https://graph.microsoft.com/v1.0/applications(appId='${appId}')`, options);
+            return response.data;
+        } catch (error) {
+            console.error(`Error fetching app ${appId}:`, error);
+            throw error;
+        }
+    };
+
+    async createAadApplication(applicationName: string, accessToken: string, certKeyCredential: any) {
         const options = {
             headers: {
                 Authorization: `Bearer ${accessToken}`,
@@ -46,15 +61,22 @@ export default class GraphProvider {
             displayName: applicationName,
             publicClient: {
                 redirectUris: [
-                    'http://localhost:12345/redirect'
+                    'http://localhost/redirect'
                 ],
             },
             web: {
                 redirectUris: [
-                    'http://localhost:12345/redirect'
+                    'http://localhost/redirect',
+                    'https://oauth.pstmn.io/v1/browser-callback',
+                    'https://oauth.pstmn.io/v1/callback'
                 ],
             },
-            keyCredentials: [keyCredential],
+            spa: {
+                redirectUris: [
+                    'https://localhost/signin-oidc'
+                ]
+            },
+            keyCredentials: [certKeyCredential],
             requiredResourceAccess: [
                 {
                     // https://microsoft.sharepoint.com
@@ -177,6 +199,40 @@ export default class GraphProvider {
             console.log('Key credential updated successfully:', response.data);
         } catch (error: any) {
             console.error('Error updating key credential:', error.response.data);
+        }
+    }
+
+    async addPassword(accessToken: string, clientId: string) {
+        const options = {
+            headers: {
+                Authorization: `Bearer ${accessToken}`,
+                'Content-Type': 'application/json'
+            }
+        };
+
+        const currentDate = new Date();
+        const newEndDateTime = new Date(currentDate);
+        newEndDateTime.setFullYear(currentDate.getFullYear() + 1); // Add 1 year
+        newEndDateTime.setHours(currentDate.getHours() - 1);      // Subtract 1 hour
+
+        const applicationData = {
+            "passwordCredential" : {
+                displayName: 'VS Code Extension Secret',
+                // startDateTime: currentDate, 
+                // endDateTime: newEndDateTime
+            }
+        }
+
+        try {
+            const response: AxiosResponse = await axios.post(`https://graph.microsoft.com/v1.0/applications(appId='${clientId}')/addPassword`,
+                JSON.stringify(applicationData),
+                options
+            );
+            console.log('Password credential uploaded successfully:', response.data);
+            return response.data;
+        } catch (error) {
+            console.error('Error uploaded password credential:', error);
+            throw error;
         }
     }
 

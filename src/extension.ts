@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
-import { generateCertificateAndPrivateKey, createKeyCredential, acquireAppOnlyCertSPOToken } from './cert';
+import { generateCertificateAndPrivateKey, acquireAppOnlyCertSPOToken } from './cert';
 import GraphServiceProvider from './services/GraphProvider';
 import { clientId, consumingTenantId } from './utils/constants';
 import PnPProvider from './services/PnPProvider';
@@ -70,7 +70,8 @@ export function activate(context: vscode.ExtensionContext) {
 
     const createNewSampleAppCommand = vscode.commands.registerCommand('srs.createNewApp', async () => {
         const options: { [key: string]: (context: ExtensionContext) => Promise<{ appName: string }> } = {
-            "RaaS Node App": createAppInput
+            "Node.js SharePoint Embedded App": createAppInput,
+            ".NET SharePoint Embedded App": createAppInput
         };
         const quickPick = window.createQuickPick();
         quickPick.title = 'Select the type of sample app';
@@ -79,9 +80,21 @@ export function activate(context: vscode.ExtensionContext) {
         quickPick.onDidChangeSelection(async selection => {
             if (selection[0]) {
                 const state = await options[selection[0].label](context)
-                await createAppServiceProvider.createAadApplication(state.appName);
+                const applicationCreated = await createAppServiceProvider.createAadApplication(state.appName);
+
+                if (!applicationCreated) {
+                    vscode.window.showErrorMessage('Application creation failed. Please try again');
+                    return; // Exit early if application creation fails
+                }
+
                 await timeoutForSeconds(20);
-                await createAppServiceProvider.createContainerType();
+                const containerTypeCreated = await createAppServiceProvider.createContainerType();
+
+                if (!containerTypeCreated) {
+                    vscode.window.showErrorMessage('Application creation failed. Please try again');
+                    return; // Exit early if application creation fails
+                }
+
                 await vscode.commands.executeCommand('srs.cloneRepo');
             }
         });
@@ -103,7 +116,9 @@ export function activate(context: vscode.ExtensionContext) {
                 const destinationPath = folders[0].fsPath;
                 await vscode.commands.executeCommand('git.clone', repoUrl, destinationPath);
                 console.log(`Repository cloned to: ${destinationPath}`);
-                writeLocalSettingsJson(destinationPath);
+                const secretKey: any = await ext.context.secrets.get("3PAppSecret");
+                writeLocalSettingsJsonFile(destinationPath, secretKey);
+                writeAppSettingsJsonFile(destinationPath, secretKey);
                 writeEnvFile(destinationPath);
             } else {
                 console.log('No destination folder selected. Cloning canceled.');
@@ -114,8 +129,9 @@ export function activate(context: vscode.ExtensionContext) {
         }
     });
 
-    const writeLocalSettingsJson = (destinationPath: string) => {
+    const writeLocalSettingsJsonFile = (destinationPath: string, secretText: string) => {
         const thirdPartyAppDetails: any = createAppServiceProvider.globalStorageManager.getValue("NewApplication")
+        const containerTypeDetails: any = createAppServiceProvider.globalStorageManager.getValue("containerTypeDetails")
         const localSettings = {
             IsEncrypted: false,
             Values: {
@@ -124,8 +140,8 @@ export function activate(context: vscode.ExtensionContext) {
                 APP_CLIENT_ID: `${thirdPartyAppDetails["appId"]}`,
                 APP_AUTHORITY: "https://login.microsoftonline.com/common",
                 APP_AUDIENCE: `api/${thirdPartyAppDetails["appId"]}`,
-                APP_CLIENT_SECRET: `${thirdPartyAppDetails["appId"]}`,
-                APP_CONTAINER_TYPE_ID: "12345"
+                APP_CLIENT_SECRET: `${secretText}`,
+                APP_CONTAINER_TYPE_ID: `${containerTypeDetails}`
             },
             Host: {
                 CORS: "*"
@@ -137,6 +153,47 @@ export function activate(context: vscode.ExtensionContext) {
 
         fs.writeFileSync(localSettingsPath, localSettingsJson, 'utf8');
         console.log('local.settings.json written successfully.');
+    };
+    const writeAppSettingsJsonFile = (destinationPath: string, secretText: string) => {
+        const thirdPartyAppDetails: any = createAppServiceProvider.globalStorageManager.getValue("NewApplication")
+        const containerTypeDetails: any = createAppServiceProvider.globalStorageManager.getValue("containerTypeDetails")
+        const appSettings = {
+            AzureAd: {
+              Instance: "https://login.microsoftonline.com/",
+              prompt: "select_account",
+              TenantId: "common",
+              ClientId: `${thirdPartyAppDetails["appId"]}`,
+              CallbackPath: "/signin-oidc",
+              SignedOutCallbackPath: "/signout-callback-oidc",
+              ClientSecret: `${secretText}`
+            },          
+            GraphAPI: {
+              Endpoint: "https://graph.microsoft.com/v1.0",
+              StaticScope: "https://graph.microsoft.com/.default"
+            },
+            Logging: {
+              LogLevel: {
+                Default: "Information",
+                Microsoft: "Warning",
+                "Microsoft.Hosting.Lifetime": "Information"
+              }
+            },
+            AllowedHosts: "*",
+          
+            TestContainer: {
+              "ContainerTypeId": `${containerTypeDetails}`
+            },
+            ConnectionStrings: {
+              AppDBConnStr: "Data Source=(localdb)\\MSSQLLocalDB;Initial Catalog=DemoAppDb;Integrated Security=True;Connect Timeout=30;",
+            },
+            Urls: "https://localhost:57750"
+          }
+
+        const localSettingsJson = JSON.stringify(appSettings, null, 2);
+        const localSettingsPath = path.join(destinationPath, 'syntex-repository-services', 'samples', 'syntex.rs-asp.net-webservice', 'appsettings.json');
+
+        fs.writeFileSync(localSettingsPath, localSettingsJson, 'utf8');
+        console.log('appsettings.json written successfully.');
     };
 
     const writeEnvFile = (destinationPath: string) => {
