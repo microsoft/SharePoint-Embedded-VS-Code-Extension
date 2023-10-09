@@ -1,8 +1,5 @@
-import * as vscode from 'vscode';
-import * as http from 'http';
-import * as url from 'url';
 // @ts-ignore
-import { AccountInfo, AuthenticationResult, AuthorizationUrlRequest, ConfidentialClientApplication, CryptoProvider, LogLevel, PublicClientApplication, SilentFlowRequest } from '@azure/msal-node';
+import { AccountInfo, AuthorizationUrlRequest, LogLevel, PublicClientApplication } from '@azure/msal-node';
 import { CachePluginFactory } from '../utils/CacheFactory';
 import { ext } from '../utils/extensionVariables';
 import { BaseAuthProvider } from './BaseAuthProvider';

@@ -1,3 +1,8 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -16,6 +21,7 @@ import { DevelopmentTreeViewProvider } from './treeview/developmentTreeViewProvi
 import { createAppInput } from './qp/createAppInput';
 import { CreateAppProvider } from './services/CreateAppProvider';
 import { timeoutForSeconds } from './utils/timeout';
+import { checkJwtForAdminClaim } from './utils/token';
 
 let accessTokenPanel: vscode.WebviewPanel | undefined;
 let firstPartyAppAuthProvider: FirstPartyAuthProvider;
@@ -50,6 +56,14 @@ export function activate(context: vscode.ExtensionContext) {
     const aadLoginCommand = vscode.commands.registerCommand('srs.login', async () => {
         try {
             const accessToken = await firstPartyAppAuthProvider.getToken(['Application.ReadWrite.All']);
+            const isAdmin = checkJwtForAdminClaim(accessToken);
+
+            if (isAdmin) {
+                vscode.commands.executeCommand('setContext', 'srs:isAdminLoggedIn', true);
+            }
+            else {
+                vscode.commands.executeCommand('setContext', 'srs:isAdminLoggedIn', false);
+            }
             showAccessTokenWebview(`1P access token obtained successfully: ${accessToken}`);
             checkCacheStateAndInvokeHandler();
         } catch (error) {
@@ -147,7 +161,7 @@ export function activate(context: vscode.ExtensionContext) {
                 APP_AUTHORITY: "https://login.microsoftonline.com/common",
                 APP_AUDIENCE: `api/${thirdPartyAppDetails["appId"]}`,
                 APP_CLIENT_SECRET: `${secretText}`,
-                APP_CONTAINER_TYPE_ID: `${containerTypeDetails}`
+                APP_CONTAINER_TYPE_ID: `${containerTypeDetails['ContainerTypeId']}`
             },
             Host: {
                 CORS: "*"
@@ -165,35 +179,35 @@ export function activate(context: vscode.ExtensionContext) {
         const containerTypeDetails: any = createAppServiceProvider.globalStorageManager.getValue("containerTypeDetails")
         const appSettings = {
             AzureAd: {
-              Instance: "https://login.microsoftonline.com/",
-              prompt: "select_account",
-              TenantId: "common",
-              ClientId: `${thirdPartyAppDetails["appId"]}`,
-              CallbackPath: "/signin-oidc",
-              SignedOutCallbackPath: "/signout-callback-oidc",
-              ClientSecret: `${secretText}`
-            },          
+                Instance: "https://login.microsoftonline.com/",
+                prompt: "select_account",
+                TenantId: "common",
+                ClientId: `${thirdPartyAppDetails["appId"]}`,
+                CallbackPath: "/signin-oidc",
+                SignedOutCallbackPath: "/signout-callback-oidc",
+                ClientSecret: `${secretText}`
+            },
             GraphAPI: {
-              Endpoint: "https://graph.microsoft.com/v1.0",
-              StaticScope: "https://graph.microsoft.com/.default"
+                Endpoint: "https://graph.microsoft.com/v1.0",
+                StaticScope: "https://graph.microsoft.com/.default"
             },
             Logging: {
-              LogLevel: {
-                Default: "Information",
-                Microsoft: "Warning",
-                "Microsoft.Hosting.Lifetime": "Information"
-              }
+                LogLevel: {
+                    Default: "Information",
+                    Microsoft: "Warning",
+                    "Microsoft.Hosting.Lifetime": "Information"
+                }
             },
             AllowedHosts: "*",
-          
+
             TestContainer: {
-              "ContainerTypeId": `${containerTypeDetails}`
+                "ContainerTypeId": `${containerTypeDetails['ContainerTypeId']}`
             },
             ConnectionStrings: {
-              AppDBConnStr: "Data Source=(localdb)\\MSSQLLocalDB;Initial Catalog=DemoAppDb;Integrated Security=True;Connect Timeout=30;",
+                AppDBConnStr: "Data Source=(localdb)\\MSSQLLocalDB;Initial Catalog=DemoAppDb;Integrated Security=True;Connect Timeout=30;",
             },
             Urls: "https://localhost:57750"
-          }
+        }
 
         const localSettingsJson = JSON.stringify(appSettings, null, 2);
         const localSettingsPath = path.join(destinationPath, 'syntex-repository-services', 'samples', 'syntex.rs-asp.net-webservice', 'appsettings.json');
@@ -355,14 +369,28 @@ export function activate(context: vscode.ExtensionContext) {
     );
 }
 
+async function checkAdminStatus() {
+    const accessToken = await firstPartyAppAuthProvider.getToken(['Application.ReadWrite.All']);
+    const isAdmin = checkJwtForAdminClaim(accessToken);
+
+    if (isAdmin) {
+        vscode.commands.executeCommand('setContext', 'srs:isAdminLoggedIn', true);
+    }
+    else {
+        vscode.commands.executeCommand('setContext', 'srs:isAdminLoggedIn', false);
+    }
+}
+
 // Function to check the cache state and trigger the handler
 async function checkCacheStateAndInvokeHandler() {
     const cacheState = await firstPartyAppAuthProvider.checkCacheState();
     if (cacheState === "SignedIn") {
         const accountInfo = await firstPartyAppAuthProvider.getAccount();
+        await checkAdminStatus()
         await m365AccountStatusChangeHandler("SignedIn", accountInfo);
     } else if (cacheState === "SignedOut") {
         // Call the handler function for signed-out state
+        vscode.commands.executeCommand('setContext', 'srs:isAdminLoggedIn', false);
         await m365AccountStatusChangeHandler("SignedOut", null);
     }
 }

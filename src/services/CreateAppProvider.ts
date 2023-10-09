@@ -1,3 +1,8 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
 import * as vscode from 'vscode';
 import { clientId } from '../utils/constants';
 import FirstPartyAuthProvider from './1PAuthProvider';
@@ -13,7 +18,7 @@ export class CreateAppProvider {
     // Create service providers
     private thirdPartyAuthProvider: ThirdPartyAuthProvider | undefined;
     private firstPartyAppAuthProvider = new FirstPartyAuthProvider(clientId, "1P");
-    private graphProvider = new GraphServiceProvider();
+    public graphProvider = new GraphServiceProvider();
     private pnpProvider = new PnPProvider();
     private vroomProvider = new VroomProvider();
 
@@ -110,7 +115,7 @@ export class CreateAppProvider {
             const certThumbprint = await this.graphProvider.getCertThumbprintFromApplication(accessToken, thirdPartyAppDetails["appId"]);
             const vroomAccessToken = pk && await acquireAppOnlyCertSPOToken(certThumbprint, thirdPartyAppDetails["appId"], domain, pk)
             const containerTypeDetails: any = this.globalStorageManager.getValue("ContainerTypeDetails");
-            this.vroomProvider.registerContainerType(vroomAccessToken, thirdPartyAppDetails["appId"], `https://${domain}.sharepoint.com`, containerTypeDetails['ContainerTypeId'])
+            await this.vroomProvider.registerContainerType(vroomAccessToken, thirdPartyAppDetails["appId"], `https://${domain}.sharepoint.com`, containerTypeDetails['ContainerTypeId'])
             vscode.window.showInformationMessage(`Successfully registered ContainerType ${containerTypeDetails['ContainerTypeId']} on 3P application: ${thirdPartyAppDetails["appId"]}`);
             return true;
         } catch (error: any) {

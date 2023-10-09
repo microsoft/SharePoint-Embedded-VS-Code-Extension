@@ -1,3 +1,8 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
 import axios, { AxiosResponse } from "axios";
 
 export default class GraphProvider {
@@ -216,7 +221,7 @@ export default class GraphProvider {
         newEndDateTime.setHours(currentDate.getHours() - 1);      // Subtract 1 hour
 
         const applicationData = {
-            "passwordCredential" : {
+            "passwordCredential": {
                 displayName: 'VS Code Extension Secret',
                 // startDateTime: currentDate, 
                 // endDateTime: newEndDateTime
