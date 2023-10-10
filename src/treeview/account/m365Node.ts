@@ -14,7 +14,7 @@ export class M365AccountNode extends DynamicNode {
     super("Login to M365");
     this.status = AccountItemStatus.SignedOut;
     this.command = {
-      command: 'srs.login',
+      command: 'spe.login',
       title: 'Login to M365'
     }
   }
@@ -50,7 +50,7 @@ export class M365AccountNode extends DynamicNode {
       this.iconPath = m365Icon;
       this.command = {
         title: this.label,
-        command: "srs.login"
+        command: "spe.login"
       };
     }
     return this;

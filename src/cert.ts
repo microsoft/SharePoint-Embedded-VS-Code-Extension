@@ -22,7 +22,7 @@ export function generateCertificateAndPrivateKey(): { certificatePEM: string, pr
     cert.validity.notAfter.setFullYear(cert.validity.notBefore.getFullYear() + 1);
 
     const attrs = [
-        { name: 'commonName', value: 'Syntex repository services VS Code Ext' }
+        { name: 'commonName', value: 'SharePoint Embedded VSCode Extension' }
     ];
 
     cert.setSubject(attrs);
@@ -63,7 +63,7 @@ export function createCertKeyCredential(certString: string) {
         type: 'AsymmetricX509Cert',
         usage: 'verify',
         key: certBase64,
-        displayName: 'CN=Syntex repository services VS Code Ext'
+        displayName: 'CN=SharePoint Embedded VS Code Ext'
     };
 
     return keyCredential;

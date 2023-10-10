@@ -48,7 +48,7 @@ export class DevelopmentTreeViewProvider implements vscode.TreeDataProvider<Tree
             new TreeViewCommand(
                 "Create a New App",
                 "Create a new app from scratch or start from a sample app",
-                "srs.createNewApp",
+                "spe.createNewApp",
                 "createProject",
                 { name: "new-folder", custom: false }
             )

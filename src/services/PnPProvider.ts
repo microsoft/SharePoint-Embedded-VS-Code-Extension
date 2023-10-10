@@ -45,7 +45,8 @@ export default class PnPProvider {
                 c = await sp.admin.tenant.call("NewSPOContainerType", {
                     containerTypeProperties: {
                         DisplayName: "PnPTest",
-                        OwningAppId: owningAppId
+                        OwningAppId: owningAppId,
+                        //BillingClassification: 1
                     }
                 });
 

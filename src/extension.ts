@@ -28,7 +28,7 @@ let firstPartyAppAuthProvider: FirstPartyAuthProvider;
 
 export function activate(context: vscode.ExtensionContext) {
     ext.context = context;
-    ext.outputChannel = window.createOutputChannel("Syntex repository services", { log: true });
+    ext.outputChannel = window.createOutputChannel("SharePoint Embedded", { log: true });
     context.subscriptions.push(ext.outputChannel);
 
     //Initialize storage models
@@ -48,21 +48,21 @@ export function activate(context: vscode.ExtensionContext) {
     // Register the tree view provider
     const accountTreeViewProvider = AccountTreeViewProvider.getInstance();
     const developmentTreeViewProvider = DevelopmentTreeViewProvider.getInstance();
-    vscode.window.registerTreeDataProvider('srs-accounts', accountTreeViewProvider);
-    vscode.window.registerTreeDataProvider('srs-development', developmentTreeViewProvider);
+    vscode.window.registerTreeDataProvider('spe-accounts', accountTreeViewProvider);
+    vscode.window.registerTreeDataProvider('spe-development', developmentTreeViewProvider);
 
     checkCacheStateAndInvokeHandler();
 
-    const aadLoginCommand = vscode.commands.registerCommand('srs.login', async () => {
+    const aadLoginCommand = vscode.commands.registerCommand('spe.login', async () => {
         try {
             const accessToken = await firstPartyAppAuthProvider.getToken(['Application.ReadWrite.All']);
             const isAdmin = checkJwtForAdminClaim(accessToken);
 
             if (isAdmin) {
-                vscode.commands.executeCommand('setContext', 'srs:isAdminLoggedIn', true);
+                vscode.commands.executeCommand('setContext', 'spe:isAdminLoggedIn', true);
             }
             else {
-                vscode.commands.executeCommand('setContext', 'srs:isAdminLoggedIn', false);
+                vscode.commands.executeCommand('setContext', 'spe:isAdminLoggedIn', false);
             }
             showAccessTokenWebview(`1P access token obtained successfully: ${accessToken}`);
             checkCacheStateAndInvokeHandler();
@@ -72,7 +72,7 @@ export function activate(context: vscode.ExtensionContext) {
         }
     });
 
-    const aadLogoutCommand = vscode.commands.registerCommand('srs.signOut', async () => {
+    const aadLogoutCommand = vscode.commands.registerCommand('spe.signOut', async () => {
         try {
             await firstPartyAppAuthProvider.logout();
             checkCacheStateAndInvokeHandler();
@@ -82,7 +82,7 @@ export function activate(context: vscode.ExtensionContext) {
         }
     });
 
-    const createNewSampleAppCommand = vscode.commands.registerCommand('srs.createNewApp', async () => {
+    const createNewSampleAppCommand = vscode.commands.registerCommand('spe.createNewApp', async () => {
         const options: { [key: string]: (context: ExtensionContext) => Promise<{ appName: string }> } = {
             "Node.js SharePoint Embedded App": createAppInput,
             ".NET SharePoint Embedded App": createAppInput
@@ -109,20 +109,20 @@ export function activate(context: vscode.ExtensionContext) {
                     return;
                 }
 
-                const containerTypeRegistered = await createAppServiceProvider.registerContainerType()
-                if (!containerTypeRegistered) {
-                    vscode.window.showErrorMessage('ContainerType registration failed. Please try again');
-                    return;
-                }
+                // const containerTypeRegistered = await createAppServiceProvider.registerContainerType()
+                // if (!containerTypeRegistered) {
+                //     vscode.window.showErrorMessage('ContainerType registration failed. Please try again');
+                //     return;
+                // }
 
-                await vscode.commands.executeCommand('srs.cloneRepo');
+                await vscode.commands.executeCommand('spe.cloneRepo');
             }
         });
         quickPick.onDidHide(() => quickPick.dispose());
         quickPick.show();
     });
 
-    const cloneRepoCommand = vscode.commands.registerCommand('srs.cloneRepo', async () => {
+    const cloneRepoCommand = vscode.commands.registerCommand('spe.cloneRepo', async () => {
         try {
             const repoUrl = 'https://github.com/microsoft/syntex-repository-services.git';
             const folders = await vscode.window.showOpenDialog({
@@ -226,7 +226,7 @@ export function activate(context: vscode.ExtensionContext) {
     };
 
 
-    // const createNewAadApplicationCommand = vscode.commands.registerCommand('srs.createNewAadApplicationCommand', async () => {
+    // const createNewAadApplicationCommand = vscode.commands.registerCommand('spe.createNewAadApplicationCommand', async () => {
     //     try {
 
     //         const accessToken = await firstPartyAppAuthProvider.getToken(['Application.ReadWrite.All']);
@@ -248,7 +248,7 @@ export function activate(context: vscode.ExtensionContext) {
     //     }
     // })
 
-    // const createNewContainerTypeCommand = vscode.commands.registerCommand('srs.createNewContainerTypeCommand', async () => {
+    // const createNewContainerTypeCommand = vscode.commands.registerCommand('spe.createNewContainerTypeCommand', async () => {
     //     try {
     //         const thirdPartyAppDetails: any = globalStorageManager.getValue("NewApplication");
     //         if (typeof thirdPartyAuthProvider == "undefined" || thirdPartyAuthProvider == null) {
@@ -278,7 +278,7 @@ export function activate(context: vscode.ExtensionContext) {
     //     }
     // })
 
-    // const registerNewContainerTypeCommand = vscode.commands.registerCommand('srs.registerNewContainerTypeCommand', async () => {
+    // const registerNewContainerTypeCommand = vscode.commands.registerCommand('spe.registerNewContainerTypeCommand', async () => {
     //     try {
     //         const thirdPartyAppDetails: any = globalStorageManager.getValue("NewApplication");
     //         if (typeof thirdPartyAuthProvider == "undefined" || thirdPartyAuthProvider == null) {
@@ -306,7 +306,7 @@ export function activate(context: vscode.ExtensionContext) {
     //     }
     // })
 
-    // const callMSGraphCommand = vscode.commands.registerCommand('srs.callMSGraphCommand', async () => {
+    // const callMSGraphCommand = vscode.commands.registerCommand('spe.callMSGraphCommand', async () => {
     //     try {
     //         const thirdPartyAppDetails: any = globalStorageManager.getValue("NewApplication");
     //         if (typeof thirdPartyAuthProvider == "undefined" || thirdPartyAuthProvider == null) {
@@ -326,7 +326,7 @@ export function activate(context: vscode.ExtensionContext) {
     //     }
     // })
 
-    // const getSPToken = vscode.commands.registerCommand('srs.getSPToken', async () => {
+    // const getSPToken = vscode.commands.registerCommand('spe.getSPToken', async () => {
     //     try {
     //         const thirdPartyAppDetails: any = globalStorageManager.getValue("NewApplication");
     //         if (typeof thirdPartyAuthProvider == "undefined" || thirdPartyAuthProvider == null) {
@@ -351,7 +351,7 @@ export function activate(context: vscode.ExtensionContext) {
     // })
 
     const generateCertificateCommand =
-        vscode.commands.registerCommand('srs.generateCertificate', () => {
+        vscode.commands.registerCommand('spe.generateCertificate', () => {
             generateCertificateAndPrivateKey();
         });
 
@@ -374,10 +374,10 @@ async function checkAdminStatus() {
     const isAdmin = checkJwtForAdminClaim(accessToken);
 
     if (isAdmin) {
-        vscode.commands.executeCommand('setContext', 'srs:isAdminLoggedIn', true);
+        vscode.commands.executeCommand('setContext', 'spe:isAdminLoggedIn', true);
     }
     else {
-        vscode.commands.executeCommand('setContext', 'srs:isAdminLoggedIn', false);
+        vscode.commands.executeCommand('setContext', 'spe:isAdminLoggedIn', false);
     }
 }
 
@@ -390,7 +390,7 @@ async function checkCacheStateAndInvokeHandler() {
         await m365AccountStatusChangeHandler("SignedIn", accountInfo);
     } else if (cacheState === "SignedOut") {
         // Call the handler function for signed-out state
-        vscode.commands.executeCommand('setContext', 'srs:isAdminLoggedIn', false);
+        vscode.commands.executeCommand('setContext', 'spe:isAdminLoggedIn', false);
         await m365AccountStatusChangeHandler("SignedOut", null);
     }
 }

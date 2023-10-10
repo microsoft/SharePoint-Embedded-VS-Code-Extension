@@ -28,6 +28,6 @@ export const passIcon = new vscode.ThemeIcon(
   "pass",
   new vscode.ThemeColor("debugIcon.startForeground")
 );
-export const m365Icon = new vscode.ThemeIcon("srs-m365");
+export const m365Icon = new vscode.ThemeIcon("spe-m365");
 export const signOutIcon = new vscode.ThemeIcon("sign-out");
 export const azureIcon = new vscode.ThemeIcon("azure");

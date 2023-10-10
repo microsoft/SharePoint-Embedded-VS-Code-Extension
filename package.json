@@ -1,7 +1,7 @@
 {
-  "name": "srs",
-  "displayName": "SRS",
-  "description": "Syntex repository services VS Code Extension ",
+  "name": "spe",
+  "displayName": "spe",
+  "description": "SharePoint Embedded VS Code Extension ",
   "version": "0.0.1",
   "engines": {
     "vscode": "^1.81.0"
@@ -10,15 +10,15 @@
     "Other"
   ],
   "activationEvents": [
-    "onCommand:srs.generateCertificate"
+    "onCommand:spe.generateCertificate"
   ],
   "main": "./out/extension.js",
   "contributes": {
     "icons": {
-      "srs-m365": {
+      "spe-m365": {
         "description": "Microsoft 365 icon in command tree view",
         "default": {
-          "fontPath": "./media/font/srs.woff",
+          "fontPath": "./media/font/spe.woff",
           "fontCharacter": "\\E002"
         }
       }
@@ -26,75 +26,75 @@
     "viewsContainers": {
       "activitybar": [
         {
-          "id": "syntex-repository-services",
-          "title": "Syntex repository services",
+          "id": "sharepoint-embedded",
+          "title": "SharePoint Embedded",
           "icon": "media/container.svg"
         }
       ]
     },
     "views": {
-      "syntex-repository-services": [
+      "sharepoint-embedded": [
         {
-          "id": "srs-accounts",
+          "id": "spe-accounts",
           "name": "Accounts"
         },
         {
-          "id": "srs-development",
+          "id": "spe-development",
           "name": "Development",
-          "when": "srs:isAdminLoggedIn"
+          "when": "spe:isAdminLoggedIn"
         }
       ]
     },
     "menus": {
       "view/item/context": [
         {
-          "command": "srs.signOut",
-          "when": "view == srs-accounts && viewItem == signedinM365",
+          "command": "spe.signOut",
+          "when": "view == spe-accounts && viewItem == signedinM365",
           "group": "inline@1"
         }
       ]
     },
     "commands": [
       {
-        "command": "srs.generateCertificate",
-        "title": "Syntex repository services: Generate Certificate"
+        "command": "spe.generateCertificate",
+        "title": "SharePoint Embedded: Generate Certificate"
       },
       {
-        "command": "srs.uploadCertificate",
-        "title": "Syntex repository services: Upload Certificate"
+        "command": "spe.uploadCertificate",
+        "title": "SharePoint Embedded: Upload Certificate"
       },
       {
-        "command": "srs.login",
-        "title": "Syntex repository services: Login to AAD"
+        "command": "spe.login",
+        "title": "SharePoint Embedded: Login to AAD"
       },
       {
-        "command": "srs.createNewAadApplicationCommand",
-        "title": "Syntex repository services: Create New AAD Application"
+        "command": "spe.createNewAadApplicationCommand",
+        "title": "SharePoint Embedded: Create New AAD Application"
       },
       {
-        "command": "srs.createNewContainerTypeCommand",
-        "title": "Syntex repository services: Create New ContainerType"
+        "command": "spe.createNewContainerTypeCommand",
+        "title": "SharePoint Embedded: Create New ContainerType"
       },
       {
-        "command": "srs.registerNewContainerTypeCommand",
-        "title": "Syntex repository services: Register New ContainerType"
+        "command": "spe.registerNewContainerTypeCommand",
+        "title": "SharePoint Embedded: Register New ContainerType"
       },
       {
-        "command": "srs.callMSGraphCommand",
-        "title": "Syntex repository services: Call MSGraph"
+        "command": "spe.callMSGraphCommand",
+        "title": "SharePoint Embedded: Call MSGraph"
       },
       {
-        "command": "srs.getSPToken",
-        "title": "Syntex repository services: Get SP Token"
+        "command": "spe.getSPToken",
+        "title": "SharePoint Embedded: Get SP Token"
       },
       {
-        "command": "srs.signOut",
-        "title": "Syntex repository services: Sign out account",
+        "command": "spe.signOut",
+        "title": "SharePoint Embedded: Sign out account",
         "icon": "$(sign-out)"
       },
       {
-        "command": "srs.cloneRepo",
-        "title": "Syntex repository services: Clone Git Repo"
+        "command": "spe.cloneRepo",
+        "title": "SharePoint Embedded: Clone Git Repo"
       }
     ]
   },
