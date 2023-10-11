@@ -39,8 +39,6 @@ export class CreateAppProvider {
             const certKeyCredential = createCertKeyCredential(certificatePEM);
             const applicationProps = await this.graphProvider.createAadApplication(applicationName, accessToken, certKeyCredential);
 
-            
-
             this.globalStorageManager.setValue("NewApplication", applicationProps);
             
             await ext.context.secrets.store("3PAppThumbprint", thumbprint);
@@ -73,7 +71,7 @@ export class CreateAppProvider {
 
             //const graphAccessToken = await thirdPartyAuthProvider.getOBOGraphToken(consentToken, ['Organization.Read.All']);
 
-            const graphAccessToken = await this.thirdPartyAuthProvider.getToken(["00000003-0000-0000-c000-000000000000/Application.ReadWrite.All"]);
+            const graphAccessToken = await this.thirdPartyAuthProvider.getToken(["00000003-0000-0000-c000-000000000000/Organization.Read.All", "00000003-0000-0000-c000-000000000000/Application.ReadWrite.All"]);
 
             const passwordCredential: any = await this.graphProvider.addPassword(graphAccessToken, thirdPartyAppDetails["appId"]);
             await ext.context.secrets.store("3PAppSecret", passwordCredential.secretText)

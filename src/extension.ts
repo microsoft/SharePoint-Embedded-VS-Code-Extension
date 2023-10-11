@@ -161,7 +161,7 @@ export function activate(context: vscode.ExtensionContext) {
                 APP_AUTHORITY: "https://login.microsoftonline.com/common",
                 APP_AUDIENCE: `api/${thirdPartyAppDetails["appId"]}`,
                 APP_CLIENT_SECRET: `${secretText}`,
-                APP_CONTAINER_TYPE_ID: `${containerTypeDetails['ContainerTypeId']}`
+                APP_CONTAINER_TYPE_ID: containerTypeDetails ? `${containerTypeDetails['ContainerTypeId']}` : 'NULL'
             },
             Host: {
                 CORS: "*"
@@ -201,7 +201,7 @@ export function activate(context: vscode.ExtensionContext) {
             AllowedHosts: "*",
 
             TestContainer: {
-                "ContainerTypeId": `${containerTypeDetails['ContainerTypeId']}`
+                "ContainerTypeId": containerTypeDetails ? `${containerTypeDetails['ContainerTypeId']}` : 'NULL'
             },
             ConnectionStrings: {
                 AppDBConnStr: "Data Source=(localdb)\\MSSQLLocalDB;Initial Catalog=DemoAppDb;Integrated Security=True;Connect Timeout=30;",
