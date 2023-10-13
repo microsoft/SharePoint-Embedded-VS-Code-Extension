@@ -7,7 +7,6 @@ import * as forge from 'node-forge';
 import { v4 as uuidv4 } from 'uuid';
 import * as rsa from 'jsrsasign'
 import axios from 'axios';
-//import { consumingTenantId } from './utils/constants';
 
 export function generateCertificateAndPrivateKey(): { certificatePEM: string, privateKey: string, thumbprint: string} {
     // Create a new certificate
@@ -51,8 +50,7 @@ export function createCertKeyCredential(certString: string) {
     const certBase64 = buffer.toString("base64");
     const currentDate = new Date();
     const newEndDateTime = new Date(currentDate);
-    newEndDateTime.setFullYear(currentDate.getFullYear() + 1); // Add 1 year
-    newEndDateTime.setHours(currentDate.getHours() - 1);      // Subtract 1 hour
+    newEndDateTime.setDate(currentDate.getDate() + 60); // 60 day TTL
 
     const startTime = currentDate.toISOString();
     const endDateTime = newEndDateTime.toISOString();
@@ -69,9 +67,9 @@ export function createCertKeyCredential(certString: string) {
     return keyCredential;
 }
 
-export async function acquireAppOnlyCertSPOToken(certThumbprint: string, clientId: string, domain: string, privateKey: string) {
+export async function acquireAppOnlyCertSPOToken(certThumbprint: string, clientId: string, domain: string, privateKey: string, tid: string) {
     console.log("Acquiring a new access token");
-    let jwt = getRequestJwt(certThumbprint, clientId, privateKey);
+    let jwt = getRequestJwt(certThumbprint, clientId, privateKey, tid);
     console.log(jwt);
 
     const tokenRequestBody = new URLSearchParams({
@@ -91,7 +89,7 @@ export async function acquireAppOnlyCertSPOToken(certThumbprint: string, clientI
 
     try {
         const response = await axios.post(
-            `https://login.microsoftonline.com/common/oauth2/v2.0/token`,
+            `https://login.microsoftonline.com/${tid}/oauth2/v2.0/token`,
             tokenRequestBody.toString(),
             tokenRequestOptions
         );
@@ -103,7 +101,7 @@ export async function acquireAppOnlyCertSPOToken(certThumbprint: string, clientI
     }
 }
 
-function getRequestJwt(thumbprint: string, clientId: string, privateKey: string) {
+function getRequestJwt(thumbprint: string, clientId: string, privateKey: string, tid: string) {
     const header = {
         'alg': 'RS256',
         'typ': 'JWT',
@@ -112,7 +110,7 @@ function getRequestJwt(thumbprint: string, clientId: string, privateKey: string)
 
     const now = getTimeInSec();
     const payload = {
-        'aud': `https://login.microsoftonline.com/common/oauth2/v2.0/token`,
+        'aud': `https://login.microsoftonline.com/${tid}/oauth2/v2.0/token`,
         'exp': now + 60 * 60,
         'iss': clientId, //client id 
         'jti': uuidv4(),

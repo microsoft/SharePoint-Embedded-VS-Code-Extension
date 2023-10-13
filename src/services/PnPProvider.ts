@@ -44,21 +44,20 @@ export default class PnPProvider {
             try {
                 c = await sp.admin.tenant.call("NewSPOContainerType", {
                     containerTypeProperties: {
-                        DisplayName: "PnPTest",
+                        DisplayName: "SharePoint Embedded VS Code Extension CT",
                         OwningAppId: owningAppId,
-                        //BillingClassification: 1
+                        SPContainerTypeBillingClassification: 1
                     }
                 });
-
-                // c = await sp.admin.tenant();
-
             } catch (e: any) {
                 console.log(e.message);
+                throw e;
             }
             console.log(JSON.stringify(c, null, 4));
             return c;
         } catch (e: any) {
             console.log(e)
+            throw e;
         }
     }
 }

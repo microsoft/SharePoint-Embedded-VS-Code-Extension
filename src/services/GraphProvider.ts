@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import axios, { AxiosResponse } from "axios";
+import { v4 as uuidv4 } from 'uuid';
 
 export default class GraphProvider {
     async getUserDrive(accessToken: string) {
@@ -64,11 +65,11 @@ export default class GraphProvider {
 
         const applicationData = {
             displayName: applicationName,
-            publicClient: {
-                redirectUris: [
-                    'http://localhost/redirect'
-                ],
-            },
+            // publicClient: {
+            //     redirectUris: [
+            //         'http://localhost/redirect'
+            //     ],
+            // },
             web: {
                 redirectUris: [
                     'http://localhost/redirect',
@@ -78,8 +79,23 @@ export default class GraphProvider {
             },
             spa: {
                 redirectUris: [
-                    'https://localhost/signin-oidc'
+                    'https://localhost/signin-oidc',
+                    'http://localhost/'
                 ]
+            },
+            "api": {
+                "oauth2PermissionScopes": [
+                    {
+                        "id": uuidv4(),
+                        "type": "User",
+                        "value": "Container.Manage",
+                        "userConsentDisplayName": "Create and manage storage containers",
+                        "userConsentDescription": "Create and manage storage containers",
+                        "adminConsentDisplayName": "Create and manage storage containers",
+                        "adminConsentDescription": "Create and manage storage containers"
+                    }
+                ],
+                "requestedAccessTokenVersion": "2"
             },
             keyCredentials: [certKeyCredential],
             requiredResourceAccess: [
@@ -189,21 +205,23 @@ export default class GraphProvider {
         }
     }
 
-    async uploadKeyCredentialToApplication(accessToken: string, clientId: string, keyCredential: any) {
+    async addIdentifierUri(accessToken: string, clientId: string) {
         try {
             const response = await axios({
                 method: 'patch',
                 url: `https://graph.microsoft.com/v1.0/applications(appId='${clientId}')`,
                 data: {
-                    keyCredentials: [keyCredential]
+                    "identifierUris": [
+                        `api://${clientId}`
+                    ]
                 },
                 headers: {
                     Authorization: `Bearer ${accessToken}`
                 }
             });
-            console.log('Key credential updated successfully:', response.data);
+            console.log('Identifier URI added successfully:', response.data);
         } catch (error: any) {
-            console.error('Error updating key credential:', error.response.data);
+            console.error('Error adding identifier URI:', error.response.data);
         }
     }
 
