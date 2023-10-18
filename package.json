@@ -84,8 +84,8 @@
         "title": "SharePoint Embedded: Call MSGraph"
       },
       {
-        "command": "spe.getSPToken",
-        "title": "SharePoint Embedded: Get SP Token"
+        "command": "spe.getCertPK",
+        "title": "SharePoint Embedded: Get Cert PK"
       },
       {
         "command": "spe.signOut",

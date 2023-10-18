@@ -225,6 +225,31 @@ export default class GraphProvider {
         }
     }
 
+    async addPasswordWithRetry(accessToken: string, clientId: string) {
+        const maxRetries = 3;
+        let retries = 0;
+
+        while (retries < maxRetries) {
+            try {
+                const response = await this.addPassword(accessToken, clientId);
+                return response;
+            } catch (error: any) {
+                if (error.response && error.response.status === 404) {
+                    console.log(`Received a 404 error. Retrying... (Retry ${retries + 1})`);
+                    retries++;
+                } else {
+                    // Handle other errors here
+                    console.error('Error uploading password credential:', error);
+                    throw error;
+                }
+            }
+        }
+
+        // If maxRetries are exceeded, you can throw an error or return an appropriate result.
+        console.error('Maximum number of retries reached.');
+        throw new Error('Maximum number of retries reached.');
+    }
+
     async addPassword(accessToken: string, clientId: string) {
         const options = {
             headers: {

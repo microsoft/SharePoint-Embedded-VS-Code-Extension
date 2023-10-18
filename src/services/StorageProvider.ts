@@ -17,4 +17,8 @@ export class LocalStorageService {
     public setValue<T>(key : string, value : T){
         this.storage.update(key, value );
     }
+
+    public getAllKeys(): readonly string[] {
+        return this.storage.keys();
+    }
 }

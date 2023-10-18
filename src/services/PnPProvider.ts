@@ -38,26 +38,35 @@ export default class PnPProvider {
                 sp = await getPnPProvider(accessToken, tenantName)
             } catch (e) {
                 console.log(e);
+                throw e;
             }
 
-            let c;
+            // Accept Terms of Service for SharePoint Embedded Services prior to management calls
             try {
-                c = await sp.admin.tenant.call("NewSPOContainerType", {
+                await sp.admin.tenant.call("AcceptSyntexRepositoryTermsOfService")
+            } catch (error: any) {
+                console.log(error.message);
+                throw error;
+            }
+
+            let containerTypeProperties;
+            try {
+                containerTypeProperties = await sp.admin.tenant.call("NewSPOContainerType", {
                     containerTypeProperties: {
                         DisplayName: "SharePoint Embedded VS Code Extension CT",
                         OwningAppId: owningAppId,
                         SPContainerTypeBillingClassification: 1
                     }
                 });
-            } catch (e: any) {
-                console.log(e.message);
-                throw e;
+            } catch (error: any) {
+                console.log(error.message);
+                throw error;
             }
-            console.log(JSON.stringify(c, null, 4));
-            return c;
-        } catch (e: any) {
-            console.log(e)
-            throw e;
+            console.log(JSON.stringify(containerTypeProperties, null, 4));
+            return containerTypeProperties;
+        } catch (error: any) {
+            console.log(error)
+            throw error;
         }
     }
 }

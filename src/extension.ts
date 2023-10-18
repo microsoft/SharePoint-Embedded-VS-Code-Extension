@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
-import { generateCertificateAndPrivateKey, acquireAppOnlyCertSPOToken } from './cert';
+import { generateCertificateAndPrivateKey, acquireAppOnlyCertSPOToken, createCertKeyCredential } from './cert';
 import GraphServiceProvider from './services/GraphProvider';
 import { clientId } from './utils/constants';
 import PnPProvider from './services/PnPProvider';
@@ -78,6 +78,16 @@ export function activate(context: vscode.ExtensionContext) {
     const aadLogoutCommand = vscode.commands.registerCommand('spe.signOut', async () => {
         try {
             await firstPartyAppAuthProvider.logout();
+
+            const appDict: { [key: string]: any } = createAppServiceProvider.globalStorageManager.getValue("3PAppList") || {}
+
+            Object.keys(appDict).forEach(async appId => {
+                await ext.context.secrets.delete(appId);
+            });
+
+            createAppServiceProvider.globalStorageManager.setValue("3PAppList", undefined);
+            createAppServiceProvider.globalStorageManager.setValue("ContainerTypeList", undefined);
+            createAppServiceProvider.globalStorageManager.setValue("CurrentApplication", undefined);
             checkCacheStateAndInvokeHandler();
         } catch (error) {
             vscode.window.showErrorMessage('Failed to obtain access token.');
@@ -114,19 +124,27 @@ export function activate(context: vscode.ExtensionContext) {
                     });
         
                     progress.report({ increment: 0, message: "Creation started"})
+
+                    setTimeout(() => {
+                        progress.report({ increment: 25, message: "Configuring properties..." });
+                    }, 2000);
         
                     setTimeout(() => {
-                        progress.report({ increment: 20, message: "Configuring properties..." });
+                        progress.report({ increment: 25, message: "Configuring properties..." });
                     }, 5000);
+
+                    setTimeout(() => {
+                        progress.report({ increment: 25, message: "Configuring properties..." });
+                    }, 10000);
         
                     setTimeout(() => {
-                        progress.report({ increment: 60, message: "Almost there..." });
-                    }, 13000);
+                        progress.report({ increment: 25, message: "Almost there..." });
+                    }, 15000);
         
                     const p = new Promise<void>(resolve => {
                         setTimeout(() => {
                             resolve();
-                        }, 18000);
+                        }, 20000);
                     });
         
                     return p;
@@ -168,9 +186,10 @@ export function activate(context: vscode.ExtensionContext) {
                 const destinationPath = folders[0].fsPath;
                 await vscode.commands.executeCommand('git.clone', repoUrl, destinationPath);
                 console.log(`Repository cloned to: ${destinationPath}`);
-                const secretKey: any = await ext.context.secrets.get("3PAppSecret");
-                writeLocalSettingsJsonFile(destinationPath, secretKey);
-                writeAppSettingsJsonFile(destinationPath, secretKey);
+                const thirdPartyAppId: any = createAppServiceProvider.globalStorageManager.getValue("CurrentApplication");
+                const secrets = await createAppServiceProvider.getSecretsByAppId(thirdPartyAppId);                
+                writeLocalSettingsJsonFile(destinationPath, secrets.clientSecret);
+                writeAppSettingsJsonFile(destinationPath, secrets.clientSecret);
                 writeEnvFile(destinationPath);
             } else {
                 console.log('No destination folder selected. Cloning canceled.');
@@ -182,18 +201,18 @@ export function activate(context: vscode.ExtensionContext) {
     });
 
     const writeLocalSettingsJsonFile = (destinationPath: string, secretText: string) => {
-        const thirdPartyAppDetails: any = createAppServiceProvider.globalStorageManager.getValue("NewApplication")
-        const containerTypeDetails: any = createAppServiceProvider.globalStorageManager.getValue("ContainerTypeDetails")
+        const thirdPartyAppId: any = createAppServiceProvider.globalStorageManager.getValue("CurrentApplication");
+        const containerTypeDict: { [key: string]: any } = createAppServiceProvider.globalStorageManager.getValue("ContainerTypeList");
         const localSettings = {
             IsEncrypted: false,
             Values: {
                 AzureWebJobsStorage: "",
                 FUNCTIONS_WORKER_RUNTIME: "node",
-                APP_CLIENT_ID: `${thirdPartyAppDetails["appId"]}`,
+                APP_CLIENT_ID: `${thirdPartyAppId}`,
                 APP_AUTHORITY: "https://login.microsoftonline.com/common",
-                APP_AUDIENCE: `api/${thirdPartyAppDetails["appId"]}`,
+                APP_AUDIENCE: `api/${thirdPartyAppId}`,
                 APP_CLIENT_SECRET: `${secretText}`,
-                APP_CONTAINER_TYPE_ID: containerTypeDetails ? `${containerTypeDetails['ContainerTypeId']}` : 'NULL'
+                APP_CONTAINER_TYPE_ID: containerTypeDict ? `${containerTypeDict[thirdPartyAppId].ContainerTypeId}` : 'NULL'
             },
             Host: {
                 CORS: "*"
@@ -207,14 +226,14 @@ export function activate(context: vscode.ExtensionContext) {
         console.log('local.settings.json written successfully.');
     };
     const writeAppSettingsJsonFile = (destinationPath: string, secretText: string) => {
-        const thirdPartyAppDetails: any = createAppServiceProvider.globalStorageManager.getValue("NewApplication")
-        const containerTypeDetails: any = createAppServiceProvider.globalStorageManager.getValue("ContainerTypeDetails")
+        const thirdPartyAppId: any = createAppServiceProvider.globalStorageManager.getValue("CurrentApplication");
+        const containerTypeDict: { [key: string]: any } = createAppServiceProvider.globalStorageManager.getValue("ContainerTypeList");
         const appSettings = {
             AzureAd: {
                 Instance: "https://login.microsoftonline.com/",
                 prompt: "select_account",
                 TenantId: "common",
-                ClientId: `${thirdPartyAppDetails["appId"]}`,
+                ClientId: `${thirdPartyAppId}`,
                 CallbackPath: "/signin-oidc",
                 SignedOutCallbackPath: "/signout-callback-oidc",
                 ClientSecret: `${secretText}`
@@ -233,7 +252,7 @@ export function activate(context: vscode.ExtensionContext) {
             AllowedHosts: "*",
 
             TestContainer: {
-                "ContainerTypeId": containerTypeDetails ? `${containerTypeDetails['ContainerTypeId']}` : 'NULL'
+                "ContainerTypeId":  containerTypeDict ? `${containerTypeDict[thirdPartyAppId].ContainerTypeId}` : 'NULL'
             },
             ConnectionStrings: {
                 AppDBConnStr: "Data Source=(localdb)\\MSSQLLocalDB;Initial Catalog=DemoAppDb;Integrated Security=True;Connect Timeout=30;",
@@ -249,8 +268,8 @@ export function activate(context: vscode.ExtensionContext) {
     };
 
     const writeEnvFile = (destinationPath: string) => {
-        const thirdPartyAppDetails: any = createAppServiceProvider.globalStorageManager.getValue("NewApplication")
-        const envContent = `REACT_APP_CLIENT_ID = '${thirdPartyAppDetails["appId"]}'`;
+        const thirdPartyAppId: any = createAppServiceProvider.globalStorageManager.getValue("CurrentApplication");
+        const envContent = `REACT_APP_CLIENT_ID = '${thirdPartyAppId}'`;
         const envFilePath = path.join(destinationPath, 'syntex-repository-services', 'samples', 'raas-spa-azurefunction', 'packages', 'client-app', '.env');
 
         fs.writeFileSync(envFilePath, envContent, 'utf8');
@@ -258,84 +277,107 @@ export function activate(context: vscode.ExtensionContext) {
     };
 
 
-    // const createNewAadApplicationCommand = vscode.commands.registerCommand('spe.createNewAadApplicationCommand', async () => {
-    //     try {
+    const createNewAadApplicationCommand = vscode.commands.registerCommand('spe.createNewAadApplicationCommand', async () => {
+        try {
+            const accessToken = await createAppServiceProvider.firstPartyAppAuthProvider.getToken(['Application.ReadWrite.All']);
+            const { certificatePEM, privateKey, thumbprint } = generateCertificateAndPrivateKey();
 
-    //         const accessToken = await firstPartyAppAuthProvider.getToken(['Application.ReadWrite.All']);
-    //         const { certificatePEM, privateKey, thumbprint } = generateCertificateAndPrivateKey();
+            const certKeyCredential = createCertKeyCredential(certificatePEM);
+            const applicationProps = await createAppServiceProvider.graphProvider.createAadApplication("TestingAppCreate", accessToken, certKeyCredential);
 
-    //         const keyCredential = createKeyCredential(certificatePEM);
-    //         const applicationProps = await graphProvider.createAadApplication(accessToken, keyCredential);
+            const appDict: { [key: string]: any } = createAppServiceProvider.globalStorageManager.getValue("3PAppList") || {};
+            appDict[applicationProps.appId] = applicationProps;
 
-    //         globalStorageManager.setValue("NewApplication", applicationProps);
-    //         await ext.context.secrets.store("3PAppThumbprint", thumbprint);
-    //         await ext.context.secrets.store("3PAppPrivateKey", privateKey);
-    //         await ext.context.secrets.store("3PAppCert", certificatePEM);
+            createAppServiceProvider.globalStorageManager.setValue("3PAppList", appDict);
+            createAppServiceProvider.globalStorageManager.setValue("CurrentApplication", applicationProps.appId);
 
-    //         thirdPartyAuthProvider = new ThirdPartyAuthProvider(applicationProps["appId"], consumingTenantId, "3P", thumbprint, privateKey)
-    //         vscode.window.showInformationMessage(`Successfully created 3P application: ${applicationProps["appId"]}`);
-    //     } catch (error) {
-    //         vscode.window.showErrorMessage('Failed to obtain access token.');
-    //         console.error('Error:', error);
-    //     }
-    // })
+            //serialize secrets
+            const secrets = {
+                thumbprint: thumbprint,
+                privateKey: privateKey,
+                certificatePEM: certificatePEM
+            }
+            const serializedSecrets = JSON.stringify(secrets);
+            await ext.context.secrets.store(applicationProps.appId, serializedSecrets);
 
-    // const createNewContainerTypeCommand = vscode.commands.registerCommand('spe.createNewContainerTypeCommand', async () => {
-    //     try {
-    //         const thirdPartyAppDetails: any = globalStorageManager.getValue("NewApplication");
-    //         if (typeof thirdPartyAuthProvider == "undefined" || thirdPartyAuthProvider == null) {
-    //             const pk: any = await ext.context.secrets.get("3PAppPrivateKey");
-    //             const thumbprint: any = await ext.context.secrets.get("3PAppThumbprint");
-    //             thirdPartyAuthProvider = new ThirdPartyAuthProvider(thirdPartyAppDetails["appId"], consumingTenantId, "3P", thumbprint, pk)
-    //         }
+            createAppServiceProvider.thirdPartyAuthProvider = new ThirdPartyAuthProvider(applicationProps.appId, thumbprint, privateKey);
+            vscode.window.showInformationMessage(`Successfully created 3P application: ${applicationProps.appId}`);
+            return [true, applicationProps.appId];
+        } catch (error) {
+            vscode.window.showErrorMessage('Failed to obtain access token.');
+            console.error('Error:', error);
+            return [false, ""];
+        }
+    })
 
-    //         const consentToken = await thirdPartyAuthProvider.getToken(['00000003-0000-0ff1-ce00-000000000000/.default']);
+    const createNewContainerTypeCommand = vscode.commands.registerCommand('spe.createNewContainerTypeCommand', async () => {
+        try {
+            const thirdPartyAppId: any = createAppServiceProvider.globalStorageManager.getValue("CurrentApplication");
+            if (typeof createAppServiceProvider.thirdPartyAuthProvider == "undefined" || createAppServiceProvider.thirdPartyAuthProvider == null) {
+                const serializedSecrets = await createAppServiceProvider.getSecretsByAppId(thirdPartyAppId);                
+                createAppServiceProvider.thirdPartyAuthProvider = new ThirdPartyAuthProvider(thirdPartyAppId, serializedSecrets.certificatePEM, serializedSecrets.privateKey)
+            }
 
-    //         //const graphAccessToken = await thirdPartyAuthProvider.getOBOGraphToken(consentToken, ['Organization.Read.All']);
+            const accessToken = await createAppServiceProvider.firstPartyAppAuthProvider.getToken(['Application.ReadWrite.All']);
+            await createAppServiceProvider.graphProvider.getApplicationById(accessToken, thirdPartyAppId)
 
-    //         const graphAccessToken = await thirdPartyAuthProvider.getToken(["00000003-0000-0000-c000-000000000000/Organization.Read.All"]);
+            const consentToken = await createAppServiceProvider.thirdPartyAuthProvider.getToken(['00000003-0000-0ff1-ce00-000000000000/.default']);
 
-    //         const tenantDomain = await graphProvider.getOwningTenantDomain(graphAccessToken);
-    //         const parts = tenantDomain.split('.');
-    //         const domain = parts[0];
+            //const graphAccessToken = await thirdPartyAuthProvider.getOBOGraphToken(consentToken, ['Organization.Read.All']);
 
-    //         //const accessToken = await thirdPartyAuthProvider.getAppToken(`https://${domain}-admin.sharepoint.com/.default`);
+            const graphAccessToken = await createAppServiceProvider.thirdPartyAuthProvider.getToken(["00000003-0000-0000-c000-000000000000/Organization.Read.All", "00000003-0000-0000-c000-000000000000/Application.ReadWrite.All"]);
 
-    //         const containerTypeDetails = await pnpProvider.createNewContainerType(consentToken, domain, thirdPartyAppDetails["appId"])
-    //         globalStorageManager.setValue("ContainerTypeDetails", containerTypeDetails);
-    //         showAccessTokenWebview(`ContainerType created successfully: ${containerTypeDetails}`);
-    //     } catch (error) {
-    //         vscode.window.showErrorMessage('Failed to obtain access token.');
-    //         console.error('Error:', error);
-    //     }
-    // })
+            const passwordCredential: any = await createAppServiceProvider.graphProvider.addPassword(graphAccessToken, thirdPartyAppId);
+            await createAppServiceProvider.graphProvider.addIdentifierUri(graphAccessToken, thirdPartyAppId);
+
+            let secrets = await createAppServiceProvider.getSecretsByAppId(thirdPartyAppId);
+            secrets.clientSecret = passwordCredential.secretText;
+            await ext.context.secrets.store(thirdPartyAppId, JSON.stringify(secrets));
+
+            const tenantDomain = await createAppServiceProvider.graphProvider.getOwningTenantDomain(graphAccessToken);
+            const parts = tenantDomain.split('.');
+            const domain = parts[0];
+
+            //const accessToken = await thirdPartyAuthProvider.getAppToken(`https://${domain}-admin.sharepoint.com/.default`);
+
+            const containerTypeDetails = await createAppServiceProvider.pnpProvider.createNewContainerType(consentToken, domain, thirdPartyAppId)
+            const containerTypeDict: { [key: string]: any } = createAppServiceProvider.globalStorageManager.getValue("ContainerTypeList") || {};
+            containerTypeDict[thirdPartyAppId] = containerTypeDetails;
+            createAppServiceProvider.globalStorageManager.setValue("ContainerTypeList", containerTypeDict);
+            vscode.window.showInformationMessage(`ContainerType created successfully: ${containerTypeDetails.ContainerTypeId}`);
+            return true
+        } catch (error) {
+            vscode.window.showErrorMessage('Failed to obtain access token.');
+            console.error('Error:', error);
+            return false;
+        }
+    })
 
     const registerNewContainerTypeCommand = vscode.commands.registerCommand('spe.registerNewContainerTypeCommand', async () => {
         try {
+            const thirdPartyAppId: any = createAppServiceProvider.globalStorageManager.getValue("CurrentApplication");
             const tid: any = createAppServiceProvider.globalStorageManager.getValue("tid");
-            const thirdPartyAppDetails: any = createAppServiceProvider.globalStorageManager.getValue("NewApplication");
+            const secrets = await createAppServiceProvider.getSecretsByAppId(thirdPartyAppId);                
             if (typeof createAppServiceProvider.thirdPartyAuthProvider == "undefined" || createAppServiceProvider.thirdPartyAuthProvider == null) {
-                const pk: any = await ext.context.secrets.get("3PAppPrivateKey");
-                const thumbprint: any = await ext.context.secrets.get("3PAppThumbprint");
-                createAppServiceProvider.thirdPartyAuthProvider = new ThirdPartyAuthProvider(thirdPartyAppDetails["appId"], "3P", thumbprint, pk)
+                createAppServiceProvider.thirdPartyAuthProvider = new ThirdPartyAuthProvider(thirdPartyAppId, secrets.certificatePEM, secrets.privateKey)
             }
 
             const accessToken = await createAppServiceProvider.thirdPartyAuthProvider.getToken(['https://graph.microsoft.com/.default']);
 
             const tenantDomain = await createAppServiceProvider.graphProvider.getOwningTenantDomain(accessToken);
             const parts = tenantDomain.split('.');
-            let domain = parts[0];
+            const domain = parts[0];
 
-            const pk: string | undefined = await ext.context.secrets.get("3PAppPrivateKey");
-
-            const certThumbprint = await createAppServiceProvider.graphProvider.getCertThumbprintFromApplication(accessToken, thirdPartyAppDetails["appId"]);
-            const vroomAccessToken = pk && await acquireAppOnlyCertSPOToken(certThumbprint, thirdPartyAppDetails["appId"], domain, pk, tid) 
-            const containerTypeDetails: any = createAppServiceProvider.globalStorageManager.getValue("ContainerTypeDetails");
-            await createAppServiceProvider.vroomProvider.registerContainerType(vroomAccessToken, thirdPartyAppDetails["appId"], `https://${domain}.sharepoint.com`, containerTypeDetails['ContainerTypeId'])
-            vscode.window.showInformationMessage(`Successfully registered ContainerType ${containerTypeDetails['ContainerTypeId']} on 3P application: ${thirdPartyAppDetails["appId"]}`);
-        } catch (error) {
-            vscode.window.showErrorMessage('Failed to obtain access token.');
-            console.error('Error:', error);
+            const certThumbprint = await createAppServiceProvider.graphProvider.getCertThumbprintFromApplication(accessToken, thirdPartyAppId);
+            const vroomAccessToken = secrets.privateKey && await acquireAppOnlyCertSPOToken(certThumbprint, thirdPartyAppId, domain, secrets.privateKey, tid)
+            const containerTypeDict: { [key: string]: any } = createAppServiceProvider.globalStorageManager.getValue("ContainerTypeList");
+            await createAppServiceProvider.vroomProvider.registerContainerType(vroomAccessToken, thirdPartyAppId, `https://${domain}.sharepoint.com`, containerTypeDict[thirdPartyAppId].ContainerTypeId)
+            vscode.window.showInformationMessage(`Successfully registered ContainerType ${containerTypeDict[thirdPartyAppId].ContainerTypeId} on 3P application: ${thirdPartyAppId}`);
+            return true;
+        } catch (error: any) {
+            vscode.window.showErrorMessage('Failed to register ContainerType');
+            console.error('Error:', error.response);
+            return false;
         }
     })
 
@@ -359,29 +401,19 @@ export function activate(context: vscode.ExtensionContext) {
     //     }
     // })
 
-    // const getSPToken = vscode.commands.registerCommand('spe.getSPToken', async () => {
-    //     try {
-    //         const thirdPartyAppDetails: any = globalStorageManager.getValue("NewApplication");
-    //         if (typeof thirdPartyAuthProvider == "undefined" || thirdPartyAuthProvider == null) {
-    //             const pk: any = await ext.context.secrets.get("3PAppPrivateKey");
-    //             const thumbprint: any = await ext.context.secrets.get("3PAppThumbprint");
-    //             thirdPartyAuthProvider = new ThirdPartyAuthProvider(thirdPartyAppDetails["appId"], consumingTenantId, "3P", thumbprint, pk)
-    //         }
-
-    //         const accessToken = await thirdPartyAuthProvider.getToken(['https://graph.microsoft.com/.default']);
-
-    //         const tenantDomain = await graphProvider.getOwningTenantDomain(accessToken);
-    //         const parts = tenantDomain.split('.');
-    //         const domain = parts[0];
-
-    //         globalStorageManager.setValue("TenantDomain", domain);
-
-    //         showAccessTokenWebview(`Obtained SP Token successfully, tenant domain: ${domain}`);
-    //     } catch (error) {
-    //         vscode.window.showErrorMessage('Failed to obtain access token.');
-    //         console.error('Error:', error);
-    //     }
-    // })
+    const getCertPK = vscode.commands.registerCommand('spe.getCertPK', async () => {
+        try {
+            const appId: any = createAppServiceProvider.globalStorageManager.getValue("CurrentApplication");
+            const apps: any = createAppServiceProvider.globalStorageManager.getValue("3PAppList");
+            const cts: any = createAppServiceProvider.globalStorageManager.getValue("ContainerTypeList");
+            const secrets = appId && await createAppServiceProvider.getSecretsByAppId(appId) || await createAppServiceProvider.getSecretsByAppId("00a1a4fd-d441-43c3-805b-02d7c5d8ffd7");
+            const keys = createAppServiceProvider.globalStorageManager.getAllKeys()
+            console.log('hi');
+        } catch (error) {
+            vscode.window.showErrorMessage('Failed to obtain access token.');
+            console.error('Error:', error);
+        }
+    })
 
     const generateCertificateCommand =
         vscode.commands.registerCommand('spe.generateCertificate', () => {
@@ -393,9 +425,10 @@ export function activate(context: vscode.ExtensionContext) {
         aadLogoutCommand,
         createNewSampleAppCommand,
         cloneRepoCommand,
-        // createNewAadApplicationCommand,
+        getCertPK,
         registerNewContainerTypeCommand,
-        // createNewContainerTypeCommand,
+        createNewContainerTypeCommand,
+        createNewAadApplicationCommand
         // callMSGraphCommand,
         // generateCertificateCommand,
         // getSPToken

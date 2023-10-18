@@ -14,7 +14,7 @@ export default class ThirdPartyAuthProvider extends BaseAuthProvider {
     protected account: AccountInfo | null;
     protected authCodeUrlParams: AuthorizationUrlRequest;
 
-    constructor(clientId: string, cacheNamespace: string, thumbprint: string, privateKey: string) {
+    constructor(clientId: string, thumbprint: string, privateKey: string) {
         super();
         const cache = new CachePluginFactory(clientId);
         this.clientApplication = new ConfidentialClientApplication({
