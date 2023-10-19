@@ -15,6 +15,7 @@ import { ext } from '../utils/extensionVariables';
 import { LocalStorageService } from './StorageProvider';
 
 export class CreateAppProvider {
+    private static instance: CreateAppProvider;
     // Create service providers
     public thirdPartyAuthProvider: ThirdPartyAuthProvider | undefined;
     public firstPartyAppAuthProvider = new FirstPartyAuthProvider(clientId, "1P");
@@ -29,6 +30,13 @@ export class CreateAppProvider {
     constructor(context: vscode.ExtensionContext) {
         this.workspaceStorageManager = new LocalStorageService(context.workspaceState);
         this.globalStorageManager = new LocalStorageService(context.globalState);
+    }
+
+    public static getInstance(context: vscode.ExtensionContext) {
+        if (!CreateAppProvider.instance) {
+            CreateAppProvider.instance = new CreateAppProvider(context);
+        }
+        return CreateAppProvider.instance;
     }
 
     async createAadApplication(applicationName: string): Promise<[boolean, string]> {
@@ -67,7 +75,7 @@ export class CreateAppProvider {
         try {
             const thirdPartyAppId: any = this.globalStorageManager.getValue("CurrentApplication");
             if (typeof this.thirdPartyAuthProvider == "undefined" || this.thirdPartyAuthProvider == null) {
-                const serializedSecrets = await this.getSecretsByAppId(thirdPartyAppId);                
+                const serializedSecrets = await this.getSecretsByAppId(thirdPartyAppId);
                 this.thirdPartyAuthProvider = new ThirdPartyAuthProvider(thirdPartyAppId, serializedSecrets.certificatePEM, serializedSecrets.privateKey)
             }
 
@@ -98,7 +106,7 @@ export class CreateAppProvider {
             const containerTypeDict: { [key: string]: any } = this.globalStorageManager.getValue("ContainerTypeList") || {};
             containerTypeDict[thirdPartyAppId] = containerTypeDetails;
             this.globalStorageManager.setValue("ContainerTypeList", containerTypeDict);
-            vscode.window.showInformationMessage(`ContainerType created successfully: ${containerTypeDetails.ContainerTypeId}`);
+            vscode.window.showInformationMessage(`ContainerType ${containerTypeDetails.ContainerTypeId} created successfully`);
             return true
         } catch (error) {
             vscode.window.showErrorMessage('Failed to obtain access token.');
@@ -111,7 +119,7 @@ export class CreateAppProvider {
         try {
             const thirdPartyAppId: any = this.globalStorageManager.getValue("CurrentApplication");
             const tid: any = this.globalStorageManager.getValue("tid");
-            const secrets = await this.getSecretsByAppId(thirdPartyAppId);                
+            const secrets = await this.getSecretsByAppId(thirdPartyAppId);
             if (typeof this.thirdPartyAuthProvider == "undefined" || this.thirdPartyAuthProvider == null) {
                 this.thirdPartyAuthProvider = new ThirdPartyAuthProvider(thirdPartyAppId, secrets.certificatePEM, secrets.privateKey)
             }

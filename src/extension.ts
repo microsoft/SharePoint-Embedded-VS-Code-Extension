@@ -42,7 +42,7 @@ export function activate(context: vscode.ExtensionContext) {
     // const pnpProvider = new PnPProvider();
     // const vroomProvider = new VroomProvider();
     firstPartyAppAuthProvider = new FirstPartyAuthProvider(clientId, "1P");
-    const createAppServiceProvider = new CreateAppProvider(context);
+    const createAppServiceProvider = CreateAppProvider.getInstance(context);
 
 
     // Register the TreeView providers
@@ -55,7 +55,8 @@ export function activate(context: vscode.ExtensionContext) {
 
     const aadLoginCommand = vscode.commands.registerCommand('spe.login', async () => {
         try {
-            const accessToken = await firstPartyAppAuthProvider.getToken(['Application.ReadWrite.All']);
+            const accessToken = await firstPartyAppAuthProvider.getToken(['Application.ReadWrite.All', 'User.Read']);
+            const roles = await createAppServiceProvider.graphProvider.checkAdminMemberObjects(accessToken);
             const decodedToken = decodeJwt(accessToken);
             const tid = getJwtTenantId(decodedToken);
             createAppServiceProvider.globalStorageManager.setValue("tid", tid);

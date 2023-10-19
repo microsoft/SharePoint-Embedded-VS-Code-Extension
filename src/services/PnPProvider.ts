@@ -42,12 +42,12 @@ export default class PnPProvider {
             }
 
             // Accept Terms of Service for SharePoint Embedded Services prior to management calls
-            try {
-                await sp.admin.tenant.call("AcceptSyntexRepositoryTermsOfService")
-            } catch (error: any) {
-                console.log(error.message);
-                throw error;
-            }
+            // try {
+            //     await sp.admin.tenant.call("AcceptSyntexRepositoryTermsOfService")
+            // } catch (error: any) {
+            //     console.log(error.message);
+            //     throw error;
+            // }
 
             let containerTypeProperties;
             try {

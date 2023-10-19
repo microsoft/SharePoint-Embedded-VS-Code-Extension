@@ -7,19 +7,31 @@ import axios, { AxiosResponse } from "axios";
 import { v4 as uuidv4 } from 'uuid';
 
 export default class GraphProvider {
-    async getUserDrive(accessToken: string) {
+    async checkAdminMemberObjects(accessToken: string) {
         const options = {
             headers: {
-                Authorization: `Bearer ${accessToken}`
+                Authorization: `Bearer ${accessToken}`,
+                'Content-Type': 'application/json'
             }
         };
 
+        const applicationData = {
+            "ids": [
+                "62e90394-69f5-4237-9190-012177145e10",
+                "f28a1f50-f6e7-4571-818b-6a12f2af6b6c"
+            ]
+        }
+
         try {
-            const response = await axios.get("https://graph.microsoft.com/v1.0/me/drive", options);
+            const response: AxiosResponse = await axios.post(`https://graph.microsoft.com/v1.0/me/checkMemberObjects`,
+                JSON.stringify(applicationData),
+                options
+            );
+            console.log('Returning valid member objects: ', response.data);
             return response.data;
         } catch (error) {
-            console.log(error)
-            return error;
+            console.error('Error retreiving member objects:', error);
+            throw error;
         }
     };
 
@@ -311,4 +323,23 @@ export default class GraphProvider {
             console.error('Error:', error.response?.data || error.message);
         }
     }
+
+
+    // Container Management APIs
+
+
+    async listStorageContainers(accessToken: string, containerTypeId: string) {
+        const options = {
+            headers: {
+                Authorization: `Bearer ${accessToken}`
+            }
+        };
+        try {
+            const response: AxiosResponse = await axios.get(`https://graph.microsoft.com/beta/storage/fileStorage/containers?$filter=containerTypeId eq ${containerTypeId}`, options);
+            return response.data;
+        } catch (error) {
+            console.error(`Error fetching containers`, error);
+            throw error;
+        }
+    };
 }
