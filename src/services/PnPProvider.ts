@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-
+import * as vscode from 'vscode';
 let sp: any = null;
 
 export async function getPnPProvider(accessToken: any, tenantName: any) {
@@ -42,12 +42,12 @@ export default class PnPProvider {
             }
 
             // Accept Terms of Service for SharePoint Embedded Services prior to management calls
-            // try {
-            //     await sp.admin.tenant.call("AcceptSyntexRepositoryTermsOfService")
-            // } catch (error: any) {
-            //     console.log(error.message);
-            //     throw error;
-            // }
+            try {
+                await sp.admin.tenant.call("AcceptSyntexRepositoryTermsOfService")
+            } catch (error: any) {
+                console.log(error.message);
+                throw error;
+            }
 
             let containerTypeProperties;
             try {
@@ -59,13 +59,27 @@ export default class PnPProvider {
                     }
                 });
             } catch (error: any) {
-                console.log(error.message);
-                throw error;
+                if (error.response && error.response.status === 500) {
+                    const errorMessage = error.message;
+                    if (errorMessage.includes("Maximum number of allowed Trial Container Types has been exceeded.")) {
+                        throw new Error("Maximum number of allowed Trial Container Types has been exceeded.")
+                    } else if (errorMessage.inclues("")) {
+                        throw new Error("Maximum number of allowed Trial Container Types has been exceeded.")
+                    }
+                }
+                else if (error.response && error.response.status === 400) {
+                    const errorMessage = error.message;
+                    if (errorMessage.includes("Accept the terms of service in SharePoint admin center to continue")) {
+                        throw new Error("SharePoint Embedded Terms of Service have not been accepted. Visit https://aka.ms/enable-spe")
+                    }
+                } else {
+                    throw new Error(error.message);
+                }
             }
+
             console.log(JSON.stringify(containerTypeProperties, null, 4));
             return containerTypeProperties;
         } catch (error: any) {
-            console.log(error)
             throw error;
         }
     }

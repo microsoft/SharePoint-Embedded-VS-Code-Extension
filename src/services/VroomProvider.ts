@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import axios from "axios";
+import { ApplicationPermissions } from "../utils/models";
 
 export default class VroomProvider {
-    async registerContainerType(accessToken: string, clientId: string, rootSiteUrl: string, containerTypeId: string) {
+    async registerContainerType(accessToken: string, clientId: string, rootSiteUrl: string, containerTypeId: string, appPermissions: ApplicationPermissions[]) {
         const options = {
             headers: {
                 Authorization: `Bearer ${accessToken}`,
@@ -15,13 +16,7 @@ export default class VroomProvider {
         };
     
         const applicationPermissionsData = {
-            value: [
-                {
-                    appId: clientId,
-                    delegated: ['full'],
-                    appOnly: ['full'],
-                },
-            ],
+            value: appPermissions
         };
     
         try {

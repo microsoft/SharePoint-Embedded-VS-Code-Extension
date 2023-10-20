@@ -6,9 +6,9 @@
 import * as vscode from "vscode"
 
 import { TreeViewCommand } from "./treeViewCommand";
-import { ext } from "../utils/extensionVariables";
-import { CreateAppProvider } from "../services/CreateAppProvider";
-import ThirdPartyAuthProvider from "../services/3PAuthProvider";
+import { ext } from "../../utils/extensionVariables";
+import { CreateAppProvider } from "../../services/CreateAppProvider";
+import ThirdPartyAuthProvider from "../../services/3PAuthProvider";
 
 export class DevelopmentTreeViewProvider implements vscode.TreeDataProvider<TreeViewCommand> {
     private createAppServiceProvider: CreateAppProvider;
