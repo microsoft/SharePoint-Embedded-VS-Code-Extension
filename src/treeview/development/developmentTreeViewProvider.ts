@@ -9,20 +9,21 @@ import { TreeViewCommand } from "./treeViewCommand";
 import { ext } from "../../utils/extensionVariables";
 import { CreateAppProvider } from "../../services/CreateAppProvider";
 import ThirdPartyAuthProvider from "../../services/3PAuthProvider";
+import { ContainerTypeTreeItem } from "./containerTypeTreeItem";
 
-export class DevelopmentTreeViewProvider implements vscode.TreeDataProvider<TreeViewCommand> {
+export class DevelopmentTreeViewProvider implements vscode.TreeDataProvider<TreeViewCommand | ContainerTypeTreeItem> {
     private createAppServiceProvider: CreateAppProvider;
     private static instance: DevelopmentTreeViewProvider;
-    private _onDidChangeTreeData: vscode.EventEmitter<TreeViewCommand | undefined | void> =
+    private _onDidChangeTreeData: vscode.EventEmitter<TreeViewCommand | ContainerTypeTreeItem | undefined | void> =
         new vscode.EventEmitter<TreeViewCommand | undefined | void>();
-    readonly onDidChangeTreeData: vscode.Event<TreeViewCommand | undefined | void> =
+    readonly onDidChangeTreeData: vscode.Event<TreeViewCommand | ContainerTypeTreeItem| undefined | void> =
         this._onDidChangeTreeData.event;
 
-    private commands: Promise<TreeViewCommand[]>;
+    private commands: (TreeViewCommand | ContainerTypeTreeItem)[];
 
     public constructor() {
         this.createAppServiceProvider = CreateAppProvider.getInstance(ext.context);
-        this.commands = this.getDevelopmentCommands();
+        this.commands = this.getDevelopmentTreeViewChildren();
     }
 
     public static getInstance() {
@@ -36,19 +37,20 @@ export class DevelopmentTreeViewProvider implements vscode.TreeDataProvider<Tree
         this._onDidChangeTreeData.fire();
     }
 
-    public getTreeItem(element: TreeViewCommand): vscode.TreeItem {
+    public getTreeItem(element: (any)): vscode.TreeItem {
         return element;
     }
 
-    public getChildren(element?: TreeViewCommand): Thenable<TreeViewCommand[]> {
-        if (element && element.children) {
-            return Promise.resolve(element.children);
+    public getChildren(element?: (TreeViewCommand | ContainerTypeTreeItem)): Thenable<(TreeViewCommand | ContainerTypeTreeItem)[]> {
+        if (element) {
+            // eslint-disable-next-line
+            return Promise.resolve(element.getChildren());
         } else {
             return Promise.resolve(this.commands);
         }
     }
 
-    private async getDevelopmentCommands(): Promise<TreeViewCommand[]> {
+    private getDevelopmentTreeViewChildren(): (TreeViewCommand | ContainerTypeTreeItem)[] {
         // Fetch apps and CT List from storage
         const apps: any = this.createAppServiceProvider.globalStorageManager.getValue("3PAppList");
         const containerTypeList: any = this.createAppServiceProvider.globalStorageManager.getValue("ContainerTypeList");
@@ -61,19 +63,18 @@ export class DevelopmentTreeViewProvider implements vscode.TreeDataProvider<Tree
             { name: "new-folder", custom: false }
         );
 
-        const treeViewCommands: any = [createAppButton, ...Object.values(containerTypeList).map(async (containerType : any) => {
+        const treeViewCommands: any = [createAppButton, ...Object.values(containerTypeList).map((containerType : any) => {
 
-            const appId = containerType.OwningAppId
-            const secrets = await this.createAppServiceProvider.getSecretsByAppId(appId)
-            const provider = new ThirdPartyAuthProvider(appId, secrets.thumbprint, secrets.privateKey)
-            const token = await provider.getToken(['FileStorageContainer.Selected']);
-            const containers = await this.createAppServiceProvider.graphProvider.listStorageContainers(token, containerType.ContainerTypeId)
+            // const appId = containerType.OwningAppId
+            // const secrets = await this.createAppServiceProvider.getSecretsByAppId(appId)
+            // const provider = new ThirdPartyAuthProvider(appId, secrets.thumbprint, secrets.privateKey)
+            // const token = await provider.getToken(['FileStorageContainer.Selected']);
+            // const containers = await this.createAppServiceProvider.graphProvider.listStorageContainers(token, containerType.ContainerTypeId)
 
-            return new TreeViewCommand(
-                `${containerType.DisplayName}: ${containers ? containers.value ? containers.value.length : 0 : 0} containers`,
-                containerType.OwningAppId,
-                "spe:test",
-                "",
+            return new ContainerTypeTreeItem(
+                containerType.ContainerTypeId,
+                `${containerType.DisplayName}`,
+                vscode.TreeItemCollapsibleState.Collapsed,
                 { name: "symbol-function", custom: false }
             );
         })];

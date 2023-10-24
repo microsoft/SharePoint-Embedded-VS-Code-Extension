@@ -9,18 +9,12 @@ import { ContainerTreeItem } from "./containerTreeItem";
 import { CreateAppProvider } from "../../services/CreateAppProvider";
 import { ext } from "../../utils/extensionVariables";
 import ThirdPartyAuthProvider from "../../services/3PAuthProvider";
-import { ApplicationPermissions } from "../../utils/models";
-import { TreeViewCommand } from "./treeViewCommand";
-import { ApplicationsTreeItem } from "./applicationsTreeItem";
-import { ContainersTreeItem } from "./containersTreeItem";
 
-export class ContainerTypeTreeItem extends vscode.TreeItem {
-    private appsItem?: ApplicationTreeItem[];
-    private containersListItem: ContainerTreeItem[] | undefined;
+export class ContainersTreeItem extends vscode.TreeItem {
+    private containerItems?: ContainerTreeItem[];
     private createAppServiceProvider: CreateAppProvider;
 
     constructor(
-        public readonly containerTypeId: string,
         public readonly label: string,
         public readonly collapsibleState: vscode.TreeItemCollapsibleState,
         public image?: { name: string; custom: boolean }
@@ -29,21 +23,31 @@ export class ContainerTypeTreeItem extends vscode.TreeItem {
         super(label, collapsibleState)
         this.setImagetoIcon();
         this.createAppServiceProvider = CreateAppProvider.getInstance(ext.context);
+        this.containerItems = []
     }
 
     public async getChildren() {
-        const createAppButton = new TreeViewCommand(
-            "Load Existing AAD App",
-            "Load an existing AAD Application ID",
-            "spe.stub",
-            "createProject",
-            { name: "globe", custom: false }
-        );
+        const containersGraphResponse: any = await this.getContainers();
+        //const containersGraphResponse: any = [1,2,3,4,5];
+        this.containerItems = containersGraphResponse.value.map((container: any) => {
+            return new ContainerTreeItem(container.displayName, vscode.TreeItemCollapsibleState.None,  {name: "symbol-field", custom: false });
+        })
+        return this.containerItems;
+    }
 
-        const applicationsTreeItem = new ApplicationsTreeItem(this.containerTypeId, "Applications", vscode.TreeItemCollapsibleState.Collapsed);
-        const containersTreeItem = new ContainersTreeItem("Containers", vscode.TreeItemCollapsibleState.Collapsed);
+    private async getContainers(): Promise<any> {
+        const owningAppId: string = this.createAppServiceProvider.globalStorageManager.getValue("OwningAppId");
+        const containerTypeDict: { [key: string]: any } = this.createAppServiceProvider.globalStorageManager.getValue("ContainerTypeList") || {};
 
-        return [createAppButton, applicationsTreeItem, containersTreeItem];
+        if (owningAppId == null || owningAppId == undefined) {
+            return [];
+        }
+
+        const secrets = await this.createAppServiceProvider.getSecretsByAppId(owningAppId);
+        const provider = new ThirdPartyAuthProvider(owningAppId, secrets.thumbprint, secrets.privateKey);
+        const token = await provider.getToken(['FileStorageContainer.Selected']);
+        const containers = await this.createAppServiceProvider.graphProvider.listStorageContainers(token, containerTypeDict[owningAppId].ContainerTypeId);
+        return containers;
     }
 
     private setImagetoIcon() {

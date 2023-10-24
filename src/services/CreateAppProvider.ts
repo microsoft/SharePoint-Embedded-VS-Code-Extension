@@ -169,6 +169,11 @@ export class CreateAppProvider {
         } catch (error: any) {
             vscode.window.showErrorMessage('Failed to register ContainerType');
             console.error('Error:', error.response);
+
+            // TODO
+            // remove registered app id from global storage?
+            // remove application that failed registration from global storage?
+
             return false;
         }
     }

@@ -4,15 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from "vscode";
-import { ContainerTreeItem } from "./containerTreeItem";
-import { CreateAppProvider } from "../../services/CreateAppProvider";
-import { ext } from "../../utils/extensionVariables";
 
 export class ApplicationTreeItem extends vscode.TreeItem {
-    private appItem?: ApplicationTreeItem[];
-    private containersListItem: ContainerTreeItem[] | undefined;
-    private createAppServiceProvider: CreateAppProvider;
-
     constructor(
         public readonly label: string,
         public readonly collapsibleState: vscode.TreeItemCollapsibleState,
@@ -21,14 +14,10 @@ export class ApplicationTreeItem extends vscode.TreeItem {
     ) {
         super(label, collapsibleState)
         this.setImagetoIcon();
-        this.createAppServiceProvider = CreateAppProvider.getInstance(ext.context);
-
-        this.appItem
-
     }
 
-    getChildren() {
-        return [this.appItem, this.containersListItem]
+    public async getChildren() {
+        return [this]
     }
 
     private setImagetoIcon() {

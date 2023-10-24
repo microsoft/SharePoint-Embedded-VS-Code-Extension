@@ -6,11 +6,9 @@
 import * as vscode from "vscode";
 import { CreateAppProvider } from "../../services/CreateAppProvider";
 import { ext } from "../../utils/extensionVariables";
+import ThirdPartyAuthProvider from "../../services/3PAuthProvider";
 
 export class ContainerTreeItem extends vscode.TreeItem {
-    private containers: any[];
-    private createAppServiceProvider: CreateAppProvider;
-
     constructor(
         public readonly label: string,
         public readonly collapsibleState: vscode.TreeItemCollapsibleState,
@@ -19,24 +17,11 @@ export class ContainerTreeItem extends vscode.TreeItem {
     ) {
         super(label, collapsibleState)
         this.setImagetoIcon();
-        this.createAppServiceProvider = CreateAppProvider.getInstance(ext.context);
-
-        this.containers =[];
-
     }
 
-    getChildren() {
-        return this.containers;
+    public async getChildren() {
+        return [this];
     }
-
-    // private async getContainers(): any[] {
-    //     const appId = containerType.OwningAppId;
-    //     const secrets = await this.createAppServiceProvider.getSecretsByAppId(appId);
-    //     const provider = new ThirdPartyAuthProvider(appId, secrets.thumbprint, secrets.privateKey);
-    //     const token = await provider.getToken(['FileStorageContainer.Selected']);
-    //     const containers = await this.createAppServiceProvider.graphProvider.listStorageContainers(token, containerType.ContainerTypeId);
-    //     return [];
-    // }
 
     private setImagetoIcon() {
         if (this.image !== undefined) {
