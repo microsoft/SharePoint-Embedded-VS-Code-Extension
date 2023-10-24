@@ -12,7 +12,7 @@ export class TreeViewCommand extends vscode.TreeItem {
     private readyLabel: string,
     private readyTooltip: string | vscode.MarkdownString,
     public commandId?: string,
-    public runningLabelKey?: string,
+    public commandArguments?: any[],
     public image?: { name: string; custom: boolean }
   ) {
     super(readyLabel, vscode.TreeItemCollapsibleState.None);
@@ -23,7 +23,8 @@ export class TreeViewCommand extends vscode.TreeItem {
     if (commandId) {
       this.command = {
         title: readyLabel,
-        command: commandId
+        command: commandId,
+        arguments: commandArguments
       };
       this.contextValue = commandId;
     }

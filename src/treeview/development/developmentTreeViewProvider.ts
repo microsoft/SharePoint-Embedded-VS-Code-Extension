@@ -59,7 +59,7 @@ export class DevelopmentTreeViewProvider implements vscode.TreeDataProvider<Tree
             "Create a New App",
             "Create a new app from scratch or start from a sample app",
             "spe.createNewApp",
-            "createProject",
+            undefined,
             { name: "new-folder", custom: false }
         );
 
@@ -71,9 +71,11 @@ export class DevelopmentTreeViewProvider implements vscode.TreeDataProvider<Tree
             // const token = await provider.getToken(['FileStorageContainer.Selected']);
             // const containers = await this.createAppServiceProvider.graphProvider.listStorageContainers(token, containerType.ContainerTypeId)
 
+            const billingType = containerType.SPContainerTypeBillingClassification === 1 ? "Trial" : "Standard";
+
             return new ContainerTypeTreeItem(
-                containerType.ContainerTypeId,
-                `${containerType.DisplayName}`,
+                `${containerType.ContainerTypeId}`,
+                `${billingType} - ${containerType.DisplayName}`,
                 vscode.TreeItemCollapsibleState.Collapsed,
                 { name: "symbol-function", custom: false }
             );

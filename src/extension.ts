@@ -125,13 +125,13 @@ export function activate(context: vscode.ExtensionContext) {
                     token.onCancellationRequested(() => {
                         console.log("User canceled the long running operation");
                     });
-        
-                    progress.report({ increment: 0, message: "Creation started"})
+
+                    progress.report({ increment: 0, message: "Creation started" })
 
                     setTimeout(() => {
                         progress.report({ increment: 25, message: "Configuring properties..." });
                     }, 2000);
-        
+
                     setTimeout(() => {
                         progress.report({ increment: 25, message: "Configuring properties..." });
                     }, 5000);
@@ -139,17 +139,17 @@ export function activate(context: vscode.ExtensionContext) {
                     setTimeout(() => {
                         progress.report({ increment: 25, message: "Configuring properties..." });
                     }, 10000);
-        
+
                     setTimeout(() => {
                         progress.report({ increment: 25, message: "Almost there..." });
                     }, 15000);
-        
+
                     const p = new Promise<void>(resolve => {
                         setTimeout(() => {
                             resolve();
                         }, 20000);
                     });
-        
+
                     return p;
                 });
 
@@ -190,7 +190,7 @@ export function activate(context: vscode.ExtensionContext) {
                 await vscode.commands.executeCommand('git.clone', repoUrl, destinationPath);
                 console.log(`Repository cloned to: ${destinationPath}`);
                 const thirdPartyAppId: any = createAppServiceProvider.globalStorageManager.getValue("CurrentApplication");
-                const secrets = await createAppServiceProvider.getSecretsByAppId(thirdPartyAppId);                
+                const secrets = await createAppServiceProvider.getSecretsByAppId(thirdPartyAppId);
                 writeLocalSettingsJsonFile(destinationPath, secrets.clientSecret);
                 writeAppSettingsJsonFile(destinationPath, secrets.clientSecret);
                 writeEnvFile(destinationPath);
@@ -255,7 +255,7 @@ export function activate(context: vscode.ExtensionContext) {
             AllowedHosts: "*",
 
             TestContainer: {
-                "ContainerTypeId":  containerTypeDict ? `${containerTypeDict[thirdPartyAppId].ContainerTypeId}` : 'NULL'
+                "ContainerTypeId": containerTypeDict ? `${containerTypeDict[thirdPartyAppId].ContainerTypeId}` : 'NULL'
             },
             ConnectionStrings: {
                 AppDBConnStr: "Data Source=(localdb)\\MSSQLLocalDB;Initial Catalog=DemoAppDb;Integrated Security=True;Connect Timeout=30;",
@@ -317,7 +317,7 @@ export function activate(context: vscode.ExtensionContext) {
         try {
             const thirdPartyAppId: any = createAppServiceProvider.globalStorageManager.getValue("CurrentApplication");
             if (typeof createAppServiceProvider.thirdPartyAuthProvider == "undefined" || createAppServiceProvider.thirdPartyAuthProvider == null) {
-                const serializedSecrets = await createAppServiceProvider.getSecretsByAppId(thirdPartyAppId);                
+                const serializedSecrets = await createAppServiceProvider.getSecretsByAppId(thirdPartyAppId);
                 createAppServiceProvider.thirdPartyAuthProvider = new ThirdPartyAuthProvider(thirdPartyAppId, serializedSecrets.thumbprint, serializedSecrets.privateKey)
             }
 
@@ -392,7 +392,7 @@ export function activate(context: vscode.ExtensionContext) {
         try {
             const thirdPartyAppId: any = createAppServiceProvider.globalStorageManager.getValue("CurrentApplication");
             if (typeof createAppServiceProvider.thirdPartyAuthProvider == "undefined" || createAppServiceProvider.thirdPartyAuthProvider == null) {
-                const serializedSecrets = await createAppServiceProvider.getSecretsByAppId(thirdPartyAppId);                
+                const serializedSecrets = await createAppServiceProvider.getSecretsByAppId(thirdPartyAppId);
                 createAppServiceProvider.thirdPartyAuthProvider = new ThirdPartyAuthProvider(thirdPartyAppId, serializedSecrets.thumbprint, serializedSecrets.privateKey)
             }
 
@@ -403,6 +403,102 @@ export function activate(context: vscode.ExtensionContext) {
             showAccessTokenWebview(`Obtained Graph Token successfully: ${accessToken}`);
         } catch (error) {
             vscode.window.showErrorMessage('Failed to obtain access token.');
+            console.error('Error:', error);
+        }
+    })
+
+    const exportPostmanConfig = vscode.commands.registerCommand('spe.exportPostmanConfig', async (appId, containerTypeId) => {
+        const secrets = appId && await createAppServiceProvider.getSecretsByAppId(appId);
+        const tid = createAppServiceProvider.globalStorageManager.getValue("tid");
+        const thirdPartyAuthProvider = new ThirdPartyAuthProvider(appId, secrets.thumbprint, secrets.privateKey)
+        const accessToken = await thirdPartyAuthProvider.getToken(["Organization.Read.All"]);
+        const tenantDomain = await createAppServiceProvider.graphProvider.getOwningTenantDomain(accessToken);
+        const parts = tenantDomain.split('.');
+        const domain = parts[0];
+
+        const values: any[] = [];
+        values.push(
+        {
+            key: "ClientID",
+            value: appId,
+            type: "default",
+            enabled: true
+        },
+        {
+            key: "ClientSecret",
+            value: secrets.clientSecret,
+            type: "secret",
+            enabled: true
+        },
+        {
+            key: "ConsumingTenantId",
+            value: tid,
+            type: "default",
+            enabled: true
+        },
+        {
+            key: "RootSiteUrl",
+            value: `https://${domain}.sharepoint.com/`,
+            type: "default",
+            enabled: true
+        },
+        {
+            key: "ContainerTypeId",
+            value: containerTypeId,
+            type: "default",
+            enabled: true
+        },
+        {
+            key: "TenantName",
+            value: domain,
+            type: "default",
+            enabled: true
+        },
+        
+        {
+            key: "CertThumbprint",
+            value: secrets.thumbprint,
+            type: "default",
+            enabled: true
+        },
+        {
+            key: "CertPrivateKey",
+            value: secrets.privateKey,
+            type: "secret",
+            enabled: true
+        }
+        );
+
+        const pmEnv = {
+            id: uuidv4(),
+            name: appId,
+            values: values,
+            _postman_variable_scope: "environment",
+            _postman_exported_at: (new Date()).toISOString(),
+            _postman_exported_using: "Postman/10.13.5"
+        };
+
+        try {
+            const folders = await vscode.window.showOpenDialog({
+                canSelectFiles: false,
+                canSelectFolders: true,
+                canSelectMany: false,
+                openLabel: 'Save Here',
+            });
+
+            if (folders && folders.length > 0) {
+                const destinationPath = folders[0].fsPath;
+                const postmanEnvJson = JSON.stringify(pmEnv, null, 2);
+                const postmanEnvPath = path.join(destinationPath, `${appId}_postman_environment.json`);
+        
+                fs.writeFileSync(postmanEnvPath, postmanEnvJson, 'utf8');
+                console.log(`${appId}_postman_environment.json written successfully`);
+                vscode.window.showInformationMessage(`Postman environment created successfully for Application ${appId}`);
+            } else {
+                console.log('No destination folder selected. Saving canceled.');
+            }
+        } catch (error) {
+            vscode.window.showErrorMessage('Failed to download Postman environment');
             console.error('Error:', error);
         }
     })
@@ -423,17 +519,6 @@ export function activate(context: vscode.ExtensionContext) {
         }
     })
 
-    const createPostmanConfig = vscode.commands.registerCommand('spe.createPostmanEnv', async () => {
-        try {
-            const values = {
-                id: uuidv4(),
-
-            }
-        } catch (error) {
-
-        }
-    })
-
     const generateCertificateCommand =
         vscode.commands.registerCommand('spe.generateCertificate', () => {
             generateCertificateAndPrivateKey();
@@ -449,6 +534,7 @@ export function activate(context: vscode.ExtensionContext) {
         createNewContainerTypeCommand,
         createNewAadApplicationCommand,
         callMSGraphCommand,
+        exportPostmanConfig
         // generateCertificateCommand,
         // getSPToken
     );

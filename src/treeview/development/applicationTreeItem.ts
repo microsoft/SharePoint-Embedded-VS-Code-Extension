@@ -4,12 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from "vscode";
+import { TreeViewCommand } from "./treeViewCommand";
 
 export class ApplicationTreeItem extends vscode.TreeItem {
     constructor(
         public readonly label: string,
         public readonly collapsibleState: vscode.TreeItemCollapsibleState,
-        public image?: { name: string; custom: boolean }
+        public image?: { name: string; custom: boolean },
+        public commandArguments?: any[]
 
     ) {
         super(label, collapsibleState)
@@ -17,7 +19,23 @@ export class ApplicationTreeItem extends vscode.TreeItem {
     }
 
     public async getChildren() {
-        return [this]
+        const createPostmanEnvButton = new TreeViewCommand(
+            "Export Postman Config",
+            "Create a Postman config based on the application details",
+            "spe.exportPostmanConfig",
+            this.commandArguments,
+            { name: "symbol-property", custom: false }
+        );
+
+        const loadSampleAppButton = new TreeViewCommand(
+            "Load Sample App",
+            "Clone sample app template",
+            "spe.loadSampleApp",
+            this.commandArguments,
+            { name: "symbol-package", custom: false }
+        );
+
+        return [createPostmanEnvButton, loadSampleAppButton];
     }
 
     private setImagetoIcon() {

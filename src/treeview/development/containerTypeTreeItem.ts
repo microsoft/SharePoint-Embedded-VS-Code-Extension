@@ -36,7 +36,7 @@ export class ContainerTypeTreeItem extends vscode.TreeItem {
             "Load Existing AAD App",
             "Load an existing AAD Application ID",
             "spe.stub",
-            "createProject",
+            undefined,
             { name: "globe", custom: false }
         );
 
