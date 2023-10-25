@@ -9,6 +9,7 @@ import { ContainerTreeItem } from "./containerTreeItem";
 import { CreateAppProvider } from "../../services/CreateAppProvider";
 import { ext } from "../../utils/extensionVariables";
 import ThirdPartyAuthProvider from "../../services/3PAuthProvider";
+import { ContainerTypeListKey, OwningAppIdKey } from "../../utils/constants";
 
 export class ContainersTreeItem extends vscode.TreeItem {
     private containerItems?: ContainerTreeItem[];
@@ -28,7 +29,6 @@ export class ContainersTreeItem extends vscode.TreeItem {
 
     public async getChildren() {
         const containersGraphResponse: any = await this.getContainers();
-        //const containersGraphResponse: any = [1,2,3,4,5];
         this.containerItems = containersGraphResponse.value.map((container: any) => {
             return new ContainerTreeItem(container.displayName, vscode.TreeItemCollapsibleState.None,  {name: "symbol-field", custom: false });
         })
@@ -36,8 +36,8 @@ export class ContainersTreeItem extends vscode.TreeItem {
     }
 
     private async getContainers(): Promise<any> {
-        const owningAppId: string = this.createAppServiceProvider.globalStorageManager.getValue("OwningAppId");
-        const containerTypeDict: { [key: string]: any } = this.createAppServiceProvider.globalStorageManager.getValue("ContainerTypeList") || {};
+        const owningAppId: string = this.createAppServiceProvider.globalStorageManager.getValue(OwningAppIdKey);
+        const containerTypeDict: { [key: string]: any } = this.createAppServiceProvider.globalStorageManager.getValue(ContainerTypeListKey) || {};
 
         if (owningAppId == null || owningAppId == undefined) {
             return [];

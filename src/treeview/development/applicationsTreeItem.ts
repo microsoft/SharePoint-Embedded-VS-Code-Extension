@@ -11,6 +11,7 @@ import { ext } from "../../utils/extensionVariables";
 import ThirdPartyAuthProvider from "../../services/3PAuthProvider";
 import { ApplicationPermissions } from "../../utils/models";
 import { TreeViewCommand } from "./treeViewCommand";
+import { AppPermissionsListKey, ThirdPartyAppListKey } from "../../utils/constants";
 
 export class ApplicationsTreeItem extends vscode.TreeItem {
     private appsItem?: ApplicationTreeItem[];
@@ -35,8 +36,8 @@ export class ApplicationsTreeItem extends vscode.TreeItem {
     }
 
     private getApps() {
-        const appPermissionsDict: { [key: string]: ApplicationPermissions[] } = this.createAppServiceProvider.globalStorageManager.getValue("AppPermissions");
-        const appDict: { [key: string]: any } = this.createAppServiceProvider.globalStorageManager.getValue("3PAppList") 
+        const appPermissionsDict: { [key: string]: ApplicationPermissions[] } = this.createAppServiceProvider.globalStorageManager.getValue(AppPermissionsListKey);
+        const appDict: { [key: string]: any } = this.createAppServiceProvider.globalStorageManager.getValue(ThirdPartyAppListKey) 
         const appItems = appPermissionsDict[this.containerTypeId].map(
             (app) => {
                 return new ApplicationTreeItem(appDict[app.appId].displayName, vscode.TreeItemCollapsibleState.Collapsed, { name: "console", custom: false }, [app.appId, this.containerTypeId])

@@ -3,4 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 export const clientId = 'aba7eb80-02fe-4070-8fca-b729f428166f';
-//export const clientId = '01dda778-ac0f-4c31-b3f3-b15e06f64f5d';
+export const ThirdPartyAppListKey = "3PAppList";
+export const ContainerTypeListKey = "ContainerTypeList";
+export const AppPermissionsListKey = "AppPermissions";
+export const CurrentApplicationKey = "CurrentApplication";
+export const OwningAppIdKey = "OwningAppId";
+export const TenantIdKey = "tid";
