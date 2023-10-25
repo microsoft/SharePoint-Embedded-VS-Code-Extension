@@ -30,7 +30,7 @@ export class ApplicationTreeItem extends vscode.TreeItem {
         const loadSampleAppButton = new TreeViewCommand(
             "Load Sample App",
             "Clone sample app template",
-            "spe.loadSampleApp",
+            "spe.cloneRepo",
             this.commandArguments,
             { name: "symbol-package", custom: false }
         );

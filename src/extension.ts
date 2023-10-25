@@ -32,20 +32,8 @@ export function activate(context: vscode.ExtensionContext) {
     ext.context = context;
     ext.outputChannel = window.createOutputChannel("SharePoint Embedded", { log: true });
     context.subscriptions.push(ext.outputChannel);
-
-    //Initialize storage models
-    // let workspaceStorageManager = new LocalStorageService(context.workspaceState);
-    // let globalStorageManager = new LocalStorageService(context.globalState);
-
-    // Create service providers
-    // let thirdPartyAuthProvider: ThirdPartyAuthProvider;
-    // firstPartyAppAuthProvider = new FirstPartyAuthProvider(clientId, consumingTenantId, "1P");
-    // const graphProvider = new GraphServiceProvider();
-    // const pnpProvider = new PnPProvider();
-    // const vroomProvider = new VroomProvider();
     firstPartyAppAuthProvider = new FirstPartyAuthProvider(clientId, "1P");
     const createAppServiceProvider = CreateAppProvider.getInstance(context);
-
 
     // Register the TreeView providers
     const accountTreeViewProvider = AccountTreeViewProvider.getInstance();
@@ -168,14 +156,17 @@ export function activate(context: vscode.ExtensionContext) {
                     return;
                 }
 
-                await vscode.commands.executeCommand('spe.cloneRepo');
+                const owningAppId: string = createAppServiceProvider.globalStorageManager.getValue("OwningAppId");
+                const containerTypeDict: { [key: string]: any } = createAppServiceProvider.globalStorageManager.getValue("ContainerTypeList") || {};
+                const containerTypeId = containerTypeDict[owningAppId].ContainerTypeId
+                await vscode.commands.executeCommand('spe.cloneRepo', appId, containerTypeId);
             }
         });
         quickPick.onDidHide(() => quickPick.dispose());
         quickPick.show();
     });
 
-    const cloneRepoCommand = vscode.commands.registerCommand('spe.cloneRepo', async () => {
+    const cloneRepoCommand = vscode.commands.registerCommand('spe.cloneRepo', async (appId, containerTypeId) => {
         try {
             const repoUrl = 'https://github.com/microsoft/syntex-repository-services.git';
             const folders = await vscode.window.showOpenDialog({
@@ -189,11 +180,10 @@ export function activate(context: vscode.ExtensionContext) {
                 const destinationPath = folders[0].fsPath;
                 await vscode.commands.executeCommand('git.clone', repoUrl, destinationPath);
                 console.log(`Repository cloned to: ${destinationPath}`);
-                const thirdPartyAppId: any = createAppServiceProvider.globalStorageManager.getValue("CurrentApplication");
-                const secrets = await createAppServiceProvider.getSecretsByAppId(thirdPartyAppId);
-                writeLocalSettingsJsonFile(destinationPath, secrets.clientSecret);
-                writeAppSettingsJsonFile(destinationPath, secrets.clientSecret);
-                writeEnvFile(destinationPath);
+                const secrets = await createAppServiceProvider.getSecretsByAppId(appId);
+                writeLocalSettingsJsonFile(destinationPath, appId, containerTypeId, secrets.clientSecret);
+                writeAppSettingsJsonFile(destinationPath, appId, containerTypeId, secrets.clientSecret);
+                writeEnvFile(destinationPath, appId);
             } else {
                 console.log('No destination folder selected. Cloning canceled.');
             }
@@ -203,19 +193,17 @@ export function activate(context: vscode.ExtensionContext) {
         }
     });
 
-    const writeLocalSettingsJsonFile = (destinationPath: string, secretText: string) => {
-        const thirdPartyAppId: any = createAppServiceProvider.globalStorageManager.getValue("CurrentApplication");
-        const containerTypeDict: { [key: string]: any } = createAppServiceProvider.globalStorageManager.getValue("ContainerTypeList");
+    const writeLocalSettingsJsonFile = (destinationPath: string, appId: string, containerTypeId: string, secretText: string) => {
         const localSettings = {
             IsEncrypted: false,
             Values: {
                 AzureWebJobsStorage: "",
                 FUNCTIONS_WORKER_RUNTIME: "node",
-                APP_CLIENT_ID: `${thirdPartyAppId}`,
+                APP_CLIENT_ID: `${appId}`,
                 APP_AUTHORITY: "https://login.microsoftonline.com/common",
-                APP_AUDIENCE: `api/${thirdPartyAppId}`,
+                APP_AUDIENCE: `api/${appId}`,
                 APP_CLIENT_SECRET: `${secretText}`,
-                APP_CONTAINER_TYPE_ID: containerTypeDict ? `${containerTypeDict[thirdPartyAppId].ContainerTypeId}` : 'NULL'
+                APP_CONTAINER_TYPE_ID: containerTypeId
             },
             Host: {
                 CORS: "*"
@@ -228,15 +216,13 @@ export function activate(context: vscode.ExtensionContext) {
         fs.writeFileSync(localSettingsPath, localSettingsJson, 'utf8');
         console.log('local.settings.json written successfully.');
     };
-    const writeAppSettingsJsonFile = (destinationPath: string, secretText: string) => {
-        const thirdPartyAppId: any = createAppServiceProvider.globalStorageManager.getValue("CurrentApplication");
-        const containerTypeDict: { [key: string]: any } = createAppServiceProvider.globalStorageManager.getValue("ContainerTypeList");
+    const writeAppSettingsJsonFile = (destinationPath: string, appId: string, containerTypeId: string, secretText: string) => {
         const appSettings = {
             AzureAd: {
                 Instance: "https://login.microsoftonline.com/",
                 prompt: "select_account",
                 TenantId: "common",
-                ClientId: `${thirdPartyAppId}`,
+                ClientId: `${appId}`,
                 CallbackPath: "/signin-oidc",
                 SignedOutCallbackPath: "/signout-callback-oidc",
                 ClientSecret: `${secretText}`
@@ -255,7 +241,7 @@ export function activate(context: vscode.ExtensionContext) {
             AllowedHosts: "*",
 
             TestContainer: {
-                "ContainerTypeId": containerTypeDict ? `${containerTypeDict[thirdPartyAppId].ContainerTypeId}` : 'NULL'
+                "ContainerTypeId": containerTypeId
             },
             ConnectionStrings: {
                 AppDBConnStr: "Data Source=(localdb)\\MSSQLLocalDB;Initial Catalog=DemoAppDb;Integrated Security=True;Connect Timeout=30;",
@@ -270,9 +256,8 @@ export function activate(context: vscode.ExtensionContext) {
         console.log('appsettings.json written successfully.');
     };
 
-    const writeEnvFile = (destinationPath: string) => {
-        const thirdPartyAppId: any = createAppServiceProvider.globalStorageManager.getValue("CurrentApplication");
-        const envContent = `REACT_APP_CLIENT_ID = '${thirdPartyAppId}'`;
+    const writeEnvFile = (destinationPath: string, appId: string) => {
+        const envContent = `REACT_APP_CLIENT_ID = '${appId}'`;
         const envFilePath = path.join(destinationPath, 'syntex-repository-services', 'samples', 'raas-spa-azurefunction', 'packages', 'client-app', '.env');
 
         fs.writeFileSync(envFilePath, envContent, 'utf8');
