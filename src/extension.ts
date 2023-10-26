@@ -78,6 +78,7 @@ export function activate(context: vscode.ExtensionContext) {
             createAppServiceProvider.globalStorageManager.setValue(CurrentApplicationKey, undefined);
             createAppServiceProvider.globalStorageManager.setValue(OwningAppIdKey, undefined);
             createAppServiceProvider.globalStorageManager.setValue(TenantIdKey, undefined);
+            developmentTreeViewProvider.refresh();
             checkCacheStateAndInvokeHandler();
         } catch (error) {
             vscode.window.showErrorMessage('Failed to obtain access token.');

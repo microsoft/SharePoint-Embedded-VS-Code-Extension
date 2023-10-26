@@ -53,7 +53,7 @@ export class DevelopmentTreeViewProvider implements vscode.TreeDataProvider<Tree
     private getDevelopmentTreeViewChildren(): (TreeViewCommand | ContainerTypeTreeItem)[] {
         // Fetch apps and CT List from storage
         const apps: any = this.createAppServiceProvider.globalStorageManager.getValue(ThirdPartyAppListKey);
-        const containerTypeList: any = this.createAppServiceProvider.globalStorageManager.getValue(ContainerTypeListKey);
+        const containerTypeList: any = this.createAppServiceProvider.globalStorageManager.getValue(ContainerTypeListKey) || {};
         
         const createAppButton = new TreeViewCommand(
             "Create a New App",
