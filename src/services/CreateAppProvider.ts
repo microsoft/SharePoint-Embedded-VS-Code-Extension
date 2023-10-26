@@ -148,11 +148,9 @@ export class CreateAppProvider {
             }
             const tid: any = this.globalStorageManager.getValue(TenantIdKey);
             const secrets = await this.getSecretsByAppId(thirdPartyAppId);
-            if (typeof this.thirdPartyAuthProvider == "undefined" || this.thirdPartyAuthProvider == null) {
-                this.thirdPartyAuthProvider = new ThirdPartyAuthProvider(thirdPartyAppId, secrets.thumbprint, secrets.privateKey)
-            }
+            const thirdPartyAuthProvider = new ThirdPartyAuthProvider(thirdPartyAppId, secrets.thumbprint, secrets.privateKey)
 
-            const accessToken = await this.thirdPartyAuthProvider.getToken(['https://graph.microsoft.com/.default']);
+            const accessToken = await thirdPartyAuthProvider.getToken(["00000003-0000-0000-c000-000000000000/Organization.Read.All", "00000003-0000-0000-c000-000000000000/Application.ReadWrite.All"]);
 
             const tenantDomain = await this.graphProvider.getOwningTenantDomain(accessToken);
             const parts = tenantDomain.split('.');
@@ -164,7 +162,7 @@ export class CreateAppProvider {
             const appPermissionsDict: { [key: string]: ApplicationPermissions[] } = this.globalStorageManager.getValue(AppPermissionsListKey);
             const containerTypeId = containerTypeDict[owningAppId].ContainerTypeId;
             await this.vroomProvider.registerContainerType(vroomAccessToken, thirdPartyAppId, `https://${domain}.sharepoint.com`, containerTypeId, appPermissionsDict[containerTypeId])
-            vscode.window.showInformationMessage(`Successfully registered ContainerType ${containerTypeDict[owningAppId].ContainerTypeId} on 3P application: ${thirdPartyAppId}`);
+            vscode.window.showInformationMessage(`Successfully registered ContainerType ${containerTypeDict[owningAppId].ContainerTypeId} on 3P application: ${this.globalStorageManager.getValue(CurrentApplicationKey)}`);
             return true;
         } catch (error: any) {
             vscode.window.showErrorMessage('Failed to register ContainerType');
