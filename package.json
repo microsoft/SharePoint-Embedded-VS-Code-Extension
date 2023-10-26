@@ -95,6 +95,10 @@
       {
         "command": "spe.cloneRepo",
         "title": "SharePoint Embedded: Clone Git Repo"
+      },
+      {
+        "command": "spe.callSpeTosCommand",
+        "title": "SharePoint Embedded: Accept SPE Terms of Service"
       }
     ]
   },

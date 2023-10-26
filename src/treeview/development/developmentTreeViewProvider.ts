@@ -43,7 +43,7 @@ export class DevelopmentTreeViewProvider implements vscode.TreeDataProvider<Tree
 
     public getChildren(element?: (TreeViewCommand | ContainerTypeTreeItem)): Thenable<(TreeViewCommand | ContainerTypeTreeItem)[]> {
         if (element) {
-            // eslint-disable-next-line
+            // @ts-ignore
             return Promise.resolve(element.getChildren());
         } else {
             return Promise.resolve(this.commands);

@@ -41,14 +41,6 @@ export default class PnPProvider {
                 throw e;
             }
 
-            // Accept Terms of Service for SharePoint Embedded Services prior to management calls
-            try {
-                await sp.admin.tenant.call("AcceptSyntexRepositoryTermsOfService")
-            } catch (error: any) {
-                console.log(error.message);
-                throw error;
-            }
-
             let containerTypeProperties;
             try {
                 containerTypeProperties = await sp.admin.tenant.call("NewSPOContainerType", {
@@ -79,6 +71,28 @@ export default class PnPProvider {
 
             console.log(JSON.stringify(containerTypeProperties, null, 4));
             return containerTypeProperties;
+        } catch (error: any) {
+            throw error;
+        }
+    }
+
+    async acceptSpeTos(accessToken: any, tenantName: any, owningAppId: string) {
+        try {
+            let sp: any;
+            try {
+                sp = await getPnPProvider(accessToken, tenantName)
+            } catch (e) {
+                console.log(e);
+                throw e;
+            }
+
+            // Accept Terms of Service for SharePoint Embedded Services prior to management calls
+            try {
+                await sp.admin.tenant.call("AcceptSyntexRepositoryTermsOfService")
+            } catch (error: any) {
+                console.log(error.message);
+                throw error;
+            }
         } catch (error: any) {
             throw error;
         }

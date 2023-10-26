@@ -423,6 +423,32 @@ export function activate(context: vscode.ExtensionContext) {
         }
     })
 
+    const callSpeTosCommand = vscode.commands.registerCommand('spe.callSpeTosCommand', async () => {
+        try {
+            const thirdPartyAppId: any = createAppServiceProvider.globalStorageManager.getValue(CurrentApplicationKey);
+            if (typeof createAppServiceProvider.thirdPartyAuthProvider == "undefined" || createAppServiceProvider.thirdPartyAuthProvider == null) {
+                const serializedSecrets = await createAppServiceProvider.getSecretsByAppId(thirdPartyAppId);
+                createAppServiceProvider.thirdPartyAuthProvider = new ThirdPartyAuthProvider(thirdPartyAppId, serializedSecrets.thumbprint, serializedSecrets.privateKey)
+            }
+
+            const consentToken = await createAppServiceProvider.thirdPartyAuthProvider.getToken(['00000003-0000-0ff1-ce00-000000000000/.default']);
+            //const consentToken = await this.thirdPartyAuthProvider.getToken(['00000003-0000-0ff1-ce00-000000000000/.default']);
+            const graphAccessToken = await createAppServiceProvider.thirdPartyAuthProvider.getToken(["00000003-0000-0000-c000-000000000000/Organization.Read.All", "00000003-0000-0000-c000-000000000000/Application.ReadWrite.All"]);
+
+            const tenantDomain = await createAppServiceProvider.graphProvider.getOwningTenantDomain(graphAccessToken);
+            const parts = tenantDomain.split('.');
+            const domain = parts[0];
+
+            const spToken = await createAppServiceProvider.thirdPartyAuthProvider.getToken([`https://${domain}-admin.sharepoint.com/.default`]);
+
+            await createAppServiceProvider.pnpProvider.acceptSpeTos(spToken, domain, thirdPartyAppId)
+        } catch (error) {
+            vscode.window.showErrorMessage('Failed to obtain access token.');
+            console.error('Error:', error);
+            return false;
+        }
+    })
+
     const exportPostmanConfig = vscode.commands.registerCommand('spe.exportPostmanConfig', async (appId, containerTypeId) => {
         const secrets = appId && await createAppServiceProvider.getSecretsByAppId(appId);
         const tid = createAppServiceProvider.globalStorageManager.getValue(TenantIdKey);
@@ -550,7 +576,8 @@ export function activate(context: vscode.ExtensionContext) {
         createNewContainerTypeCommand,
         createNewAadApplicationCommand,
         callMSGraphCommand,
-        exportPostmanConfig
+        exportPostmanConfig,
+        callSpeTosCommand
         // generateCertificateCommand,
         // getSPToken
     );
