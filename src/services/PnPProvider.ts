@@ -31,7 +31,7 @@ export async function getPnPProvider(accessToken: any, tenantName: any) {
     return sp;
 }
 export default class PnPProvider {
-    async createNewContainerType(accessToken: any, tenantName: any, owningAppId: string) {
+    async createNewContainerType(accessToken: any, tenantName: any, owningAppId: string, displayName: string) {
         try {
             let sp: any;
             try {
@@ -45,7 +45,7 @@ export default class PnPProvider {
             try {
                 containerTypeProperties = await sp.admin.tenant.call("NewSPOContainerType", {
                     containerTypeProperties: {
-                        DisplayName: "SharePoint Embedded VS Code Extension CT",
+                        DisplayName: displayName,
                         OwningAppId: owningAppId,
                         SPContainerTypeBillingClassification: 1
                     }

@@ -68,7 +68,7 @@
         "title": "SharePoint Embedded: Login to AAD"
       },
       {
-        "command": "spe.createNewAadApplicationCommand",
+        "command": "spe.createNewAadApp",
         "title": "SharePoint Embedded: Create New AAD Application"
       },
       {

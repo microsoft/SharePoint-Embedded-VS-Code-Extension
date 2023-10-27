@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { AppPermissionsListKey, ContainerTypeListKey, CurrentApplicationKey, OwningAppIdKey, TenantIdKey, ThirdPartyAppListKey, clientId } from '../utils/constants';
+import { AppPermissionsListKey, ContainerTypeListKey, CurrentApplicationKey, OwningAppIdKey, RegisteredContainerTypeSetKey, TenantIdKey, ThirdPartyAppListKey, clientId } from '../utils/constants';
 import FirstPartyAuthProvider from './1PAuthProvider';
 import GraphServiceProvider from './GraphProvider';
 import ThirdPartyAuthProvider from './3PAuthProvider';
@@ -72,19 +72,15 @@ export class CreateAppProvider {
         }
     }
 
-    async createContainerType(): Promise<boolean> {
+    async createContainerType(appId: string, containerTypeName: string): Promise<boolean> {
         try {
-            const thirdPartyAppId: any = this.globalStorageManager.getValue(CurrentApplicationKey);
+            const thirdPartyAppId: any = appId;
             if (typeof this.thirdPartyAuthProvider == "undefined" || this.thirdPartyAuthProvider == null) {
                 const serializedSecrets = await this.getSecretsByAppId(thirdPartyAppId);
                 this.thirdPartyAuthProvider = new ThirdPartyAuthProvider(thirdPartyAppId, serializedSecrets.thumbprint, serializedSecrets.privateKey)
             }
 
-            const accessToken = await this.firstPartyAppAuthProvider.getToken(['Application.ReadWrite.All']);
-            await this.graphProvider.getApplicationById(accessToken, thirdPartyAppId)
-
             const consentToken = await this.thirdPartyAuthProvider.getToken(['00000003-0000-0ff1-ce00-000000000000/.default']);
-            //const consentToken = await this.thirdPartyAuthProvider.getToken(['00000003-0000-0ff1-ce00-000000000000/.default']);
             const graphAccessToken = await this.thirdPartyAuthProvider.getToken(["00000003-0000-0000-c000-000000000000/Organization.Read.All", "00000003-0000-0000-c000-000000000000/Application.ReadWrite.All"]);
 
             const passwordCredential: any = await this.graphProvider.addPasswordWithRetry(graphAccessToken, thirdPartyAppId);
@@ -118,7 +114,7 @@ export class CreateAppProvider {
                 vscode.window.showInformationMessage(`Registering App ${thirdPartyAppId} on ContainerType ${containerTypeDict[thirdPartyAppId]}`);
                 return true;
             } else {
-                const containerTypeDetails = await this.pnpProvider.createNewContainerType(spToken, domain, thirdPartyAppId)
+                const containerTypeDetails = await this.pnpProvider.createNewContainerType(spToken, domain, thirdPartyAppId, containerTypeName);
                 containerTypeDict[thirdPartyAppId] = containerTypeDetails;
                 appPermissionsDict[containerTypeDetails.ContainerTypeId] = [{
                     appId: thirdPartyAppId,
@@ -131,24 +127,23 @@ export class CreateAppProvider {
                 vscode.window.showInformationMessage(`ContainerType ${containerTypeDetails.ContainerTypeId} created successfully`);
                 return true
             }
-        } catch (error) {
-            vscode.window.showErrorMessage('Failed to obtain access token.');
+        } catch (error: any) {
             console.error('Error:', error);
+            vscode.window.showErrorMessage(error.response && error.response.data && error.response.data && error.response.data.error.message);
+            vscode.window.showErrorMessage(error.message);
             return false;
         }
     }
 
-    async registerContainerType(): Promise<boolean> {
+    async registerContainerType(owningAppId: string, guestAppId: string): Promise<boolean> {
         try {
-            let thirdPartyAppId: any = this.globalStorageManager.getValue(CurrentApplicationKey);
-            const owningAppId: string = this.globalStorageManager.getValue("OwningAppId");
             // Use Owning App Context for registration
-            if (owningAppId !== thirdPartyAppId) {
-                thirdPartyAppId = owningAppId;
+            if (owningAppId !== guestAppId) {
+                guestAppId = owningAppId;
             }
             const tid: any = this.globalStorageManager.getValue(TenantIdKey);
-            const secrets = await this.getSecretsByAppId(thirdPartyAppId);
-            const thirdPartyAuthProvider = new ThirdPartyAuthProvider(thirdPartyAppId, secrets.thumbprint, secrets.privateKey)
+            const secrets = await this.getSecretsByAppId(guestAppId);
+            const thirdPartyAuthProvider = new ThirdPartyAuthProvider(guestAppId, secrets.thumbprint, secrets.privateKey)
 
             const accessToken = await thirdPartyAuthProvider.getToken(["00000003-0000-0000-c000-000000000000/Organization.Read.All", "00000003-0000-0000-c000-000000000000/Application.ReadWrite.All"]);
 
@@ -156,12 +151,15 @@ export class CreateAppProvider {
             const parts = tenantDomain.split('.');
             const domain = parts[0];
 
-            const certThumbprint = await this.graphProvider.getCertThumbprintFromApplication(accessToken, thirdPartyAppId);
-            const vroomAccessToken = secrets.privateKey && await acquireAppOnlyCertSPOToken(certThumbprint, thirdPartyAppId, domain, secrets.privateKey, tid)
+            const certThumbprint = await this.graphProvider.getCertThumbprintFromApplication(accessToken, guestAppId);
+            const vroomAccessToken = secrets.privateKey && await acquireAppOnlyCertSPOToken(certThumbprint, guestAppId, domain, secrets.privateKey, tid)
             const containerTypeDict: { [key: string]: any } = this.globalStorageManager.getValue(ContainerTypeListKey);
             const appPermissionsDict: { [key: string]: ApplicationPermissions[] } = this.globalStorageManager.getValue(AppPermissionsListKey);
             const containerTypeId = containerTypeDict[owningAppId].ContainerTypeId;
-            await this.vroomProvider.registerContainerType(vroomAccessToken, thirdPartyAppId, `https://${domain}.sharepoint.com`, containerTypeId, appPermissionsDict[containerTypeId])
+            await this.vroomProvider.registerContainerType(vroomAccessToken, guestAppId, `https://${domain}.sharepoint.com`, containerTypeId, appPermissionsDict[containerTypeId]);
+            let registeredContainerTypes: string[] = this.globalStorageManager.getValue(RegisteredContainerTypeSetKey) || [];
+            registeredContainerTypes.push(containerTypeId);
+            this.globalStorageManager.setValue(RegisteredContainerTypeSetKey, registeredContainerTypes);
             vscode.window.showInformationMessage(`Successfully registered ContainerType ${containerTypeDict[owningAppId].ContainerTypeId} on 3P application: ${this.globalStorageManager.getValue(CurrentApplicationKey)}`);
             return true;
         } catch (error: any) {

@@ -13,20 +13,19 @@ import { ApplicationPermissions } from "../../utils/models";
 import { TreeViewCommand } from "./treeViewCommand";
 import { ApplicationsTreeItem } from "./applicationsTreeItem";
 import { ContainersTreeItem } from "./containersTreeItem";
-import { RegisteredContainerTypeSetKey } from "../../utils/constants";
+import { ContainerTypeListKey, OwningAppIdsListKey, ThirdPartyAppListKey } from "../../utils/constants";
+import { OwningApplicationTreeItem } from "./owningApplicationTreeItem";
 
-export class ContainerTypeTreeItem extends vscode.TreeItem {
+export class OwningApplicationsTreeItem extends vscode.TreeItem {
     private appsItem?: ApplicationTreeItem[];
     private containersListItem: ContainerTreeItem[] | undefined;
     private createAppServiceProvider: CreateAppProvider;
 
     constructor(
-        public appId: string,
-        public readonly containerTypeId: string,
         public readonly label: string,
         public readonly collapsibleState: vscode.TreeItemCollapsibleState,
-        public image?: { name: string; custom: boolean }
-
+        public image?: { name: string; custom: boolean },
+        public commandArguments?: any[]
     ) {
         super(label, collapsibleState)
         this.setImagetoIcon();
@@ -34,34 +33,30 @@ export class ContainerTypeTreeItem extends vscode.TreeItem {
     }
 
     public async getChildren() {
-        const registeredContainerTypes: any = this.createAppServiceProvider.globalStorageManager.getValue(RegisteredContainerTypeSetKey) || [];
-        const registerCTSet = new Set(registeredContainerTypes);
-        
-        if (registerCTSet.has(this.containerTypeId)) {
-            const newGuestAdAppButton = new TreeViewCommand(
-                "Create new Guest AD App",
-                "",
-                "spe.createGuestAdApp",
-                [this.appId, undefined],
-                { name: "new-folder", custom: false }
+        const owningApps: [] = this.createAppServiceProvider.globalStorageManager.getValue(OwningAppIdsListKey) || [];
+        const apps: any = this.createAppServiceProvider.globalStorageManager.getValue(ThirdPartyAppListKey);
+        const containerTypeList: any = this.createAppServiceProvider.globalStorageManager.getValue(ContainerTypeListKey) || {};
+
+        const createAppButton = new TreeViewCommand(
+            "Create a new Azure AD App",
+            "Create a new owning Azure AD App",
+            "spe.createNewAadApp",
+            [true],
+            { name: "new-folder", custom: false }
+        );
+
+        const owningApplications: any = [...owningApps.map(id => {
+            return new OwningApplicationTreeItem(
+                id,
+                `${apps[id].displayName}`,
+                vscode.TreeItemCollapsibleState.Collapsed,
+                { name: "symbol-function", custom: false },
+
             );
-            const applicationsTreeItem = new ApplicationsTreeItem(this.containerTypeId, "Guest AD Apps", vscode.TreeItemCollapsibleState.Collapsed);
+        })]
 
-            return [newGuestAdAppButton, applicationsTreeItem];
-
-        } else {
-            const registerContainerTypeButton = new TreeViewCommand(
-                "Register Container Type",
-                "Register this Container Type",
-                "spe.registerNewContainerTypeCommand",
-                [this.appId, undefined],
-                { name: "globe", custom: false }
-            );
-            
-            return [registerContainerTypeButton];
-        }
-
-        //const containersTreeItem = new ContainersTreeItem("Containers", vscode.TreeItemCollapsibleState.Collapsed);
+        if (owningApplications.length === 0) return [createAppButton];
+        return [createAppButton, ...owningApplications];
     }
 
     private setImagetoIcon() {

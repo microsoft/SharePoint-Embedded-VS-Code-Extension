@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 export const clientId = 'aba7eb80-02fe-4070-8fca-b729f428166f';
 export const ThirdPartyAppListKey = "3PAppList";
+export const OwningAppIdsListKey = "OwningApps";
+export const RegisteredContainerTypeSetKey = "RegisteredContainerTypes";
 export const ContainerTypeListKey = "ContainerTypeList";
 export const AppPermissionsListKey = "AppPermissions";
 export const CurrentApplicationKey = "CurrentApplication";

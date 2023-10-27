@@ -9,7 +9,8 @@ import { TreeViewCommand } from "./treeViewCommand";
 import { ext } from "../../utils/extensionVariables";
 import { CreateAppProvider } from "../../services/CreateAppProvider";
 import { ContainerTypeTreeItem } from "./containerTypeTreeItem";
-import { ContainerTypeListKey, ThirdPartyAppListKey } from "../../utils/constants";
+import { ContainerTypeListKey, OwningAppIdsListKey, ThirdPartyAppListKey } from "../../utils/constants";
+import { OwningApplicationsTreeItem } from "./owningApplicationsTreeItem";
 
 export class DevelopmentTreeViewProvider implements vscode.TreeDataProvider<TreeViewCommand | ContainerTypeTreeItem> {
     private createAppServiceProvider: CreateAppProvider;
@@ -52,34 +53,14 @@ export class DevelopmentTreeViewProvider implements vscode.TreeDataProvider<Tree
 
     private getDevelopmentTreeViewChildren(): (TreeViewCommand | ContainerTypeTreeItem)[] {
         // Fetch apps and CT List from storage
-        const apps: any = this.createAppServiceProvider.globalStorageManager.getValue(ThirdPartyAppListKey);
-        const containerTypeList: any = this.createAppServiceProvider.globalStorageManager.getValue(ContainerTypeListKey) || {};
-        
-        const createAppButton = new TreeViewCommand(
-            "Create a New App",
-            "Create a new app from scratch or start from a sample app",
-            "spe.createNewApp",
-            undefined,
-            { name: "new-folder", custom: false }
-        );
+        const owningAppsTreeItem = new OwningApplicationsTreeItem(
+            `Azure AD Apps`,
+            vscode.TreeItemCollapsibleState.Collapsed,
+            { name: "symbol-function", custom: false }
+        )
 
-        const treeViewCommands: any = [createAppButton, ...Object.values(containerTypeList).map((containerType : any) => {
+        const treeViewCommands: any = [owningAppsTreeItem]
 
-            // const appId = containerType.OwningAppId
-            // const secrets = await this.createAppServiceProvider.getSecretsByAppId(appId)
-            // const provider = new ThirdPartyAuthProvider(appId, secrets.thumbprint, secrets.privateKey)
-            // const token = await provider.getToken(['FileStorageContainer.Selected']);
-            // const containers = await this.createAppServiceProvider.graphProvider.listStorageContainers(token, containerType.ContainerTypeId)
-
-            const billingType = containerType.SPContainerTypeBillingClassification === 1 ? "Trial" : "Standard";
-
-            return new ContainerTypeTreeItem(
-                `${containerType.ContainerTypeId}`,
-                `${billingType} - ${containerType.DisplayName}`,
-                vscode.TreeItemCollapsibleState.Collapsed,
-                { name: "symbol-function", custom: false }
-            );
-        })];
 
         return treeViewCommands;
     }
