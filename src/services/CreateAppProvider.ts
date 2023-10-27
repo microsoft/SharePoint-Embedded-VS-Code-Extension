@@ -152,7 +152,7 @@ export class CreateAppProvider {
             const domain = parts[0];
 
             const certThumbprint = await this.graphProvider.getCertThumbprintFromApplication(accessToken, guestAppId);
-            const vroomAccessToken = secrets.privateKey && await acquireAppOnlyCertSPOToken(certThumbprint, guestAppId, domain, secrets.privateKey, tid)
+            const vroomAccessToken = secrets.privateKey && await acquireAppOnlyCertSPOToken(certThumbprint, owningAppId, domain, secrets.privateKey, tid)
             const containerTypeDict: { [key: string]: any } = this.globalStorageManager.getValue(ContainerTypeListKey);
             const appPermissionsDict: { [key: string]: ApplicationPermissions[] } = this.globalStorageManager.getValue(AppPermissionsListKey);
             const containerTypeId = containerTypeDict[owningAppId].ContainerTypeId;
