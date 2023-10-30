@@ -30,6 +30,7 @@ export class OwningApplicationsTreeItem extends vscode.TreeItem {
         super(label, collapsibleState)
         this.setImagetoIcon();
         this.createAppServiceProvider = CreateAppProvider.getInstance(ext.context);
+        this.contextValue = "aadAppList";
     }
 
     public async getChildren() {

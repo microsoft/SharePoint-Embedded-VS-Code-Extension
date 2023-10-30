@@ -51,6 +51,11 @@
           "command": "spe.signOut",
           "when": "view == spe-accounts && viewItem == signedinM365",
           "group": "inline@1"
+        },
+        {
+          "command": "spe.createNewAadApp",
+          "when": "view == spe-development && viewItem == aadAppList",
+          "group": "inline@1"
         }
       ]
     },
@@ -69,7 +74,8 @@
       },
       {
         "command": "spe.createNewAadApp",
-        "title": "SharePoint Embedded: Create New AAD Application"
+        "title": "SharePoint Embedded: Create New AAD Application",
+        "icon": "$(terminal-new)"
       },
       {
         "command": "spe.createNewContainerTypeCommand",

@@ -6,53 +6,40 @@
 import * as vscode from "vscode";
 import { DynamicNode } from "../dynamicNode";
 import { AccountItemStatus, m365Icon, signOutIcon } from "./common";
+import { Account, AccountChangeListener } from "../../models/Account";
 
-export class M365AccountNode extends DynamicNode {
-  public status: AccountItemStatus;
+export class M365AccountNode extends DynamicNode implements AccountChangeListener {
 
   constructor(private eventEmitter: vscode.EventEmitter<DynamicNode | undefined | void>) {
-    super("Login to M365");
-    this.status = AccountItemStatus.SignedOut;
+    super("Sign in to Microsoft 365");
+    Account.subscribe(this);
+    this.collapsibleState = vscode.TreeItemCollapsibleState.None;
     this.command = {
       command: 'spe.login',
-      title: 'Login to M365'
-    }
+      title: 'Sign in to Microsoft 365'
+    };
+    this.iconPath = m365Icon;
   }
 
-  public setSignedIn(upn: string) {
-    if (this.status === AccountItemStatus.SignedIn) {
-      return;
-    }
-    this.status = AccountItemStatus.SignedIn;
-    this.label = upn;
+  public onLogin(account: Account): void {
+    this.label = account.username;
     this.contextValue = "signedinM365";
-    // refresh
+    vscode.commands.executeCommand('setContext', 'spe:isAdminLoggedIn', account.isAdmin);
     this.eventEmitter.fire(this);
   }
 
-  public setSignedOut() {
-    if (this.status === AccountItemStatus.SignedOut) {
-      return;
-    }
-    this.status = AccountItemStatus.SignedOut;
+  public onLogout(): void {
+    this.label = "Login to M365";
     this.contextValue = "signinM365";
-    // refresh
+    vscode.commands.executeCommand('setContext', 'spe:isAdminLoggedIn', false);
     this.eventEmitter.fire(this);
   }
 
-  public override getChildren(): vscode.ProviderResult<DynamicNode[]> {
+  public getChildren(): vscode.ProviderResult<DynamicNode[]> {
     return [this];
   }
-  public override getTreeItem(): vscode.TreeItem | Promise<vscode.TreeItem> {
-    this.collapsibleState = vscode.TreeItemCollapsibleState.None;
-    if (this.status !== AccountItemStatus.SignedIn) {
-      this.label = "Sign in to Microsoft 365";
-      this.iconPath = m365Icon;
-      this.command = {
-        title: this.label,
-        command: "spe.login"
-      };
-    }
+
+  public getTreeItem(): vscode.TreeItem | Promise<vscode.TreeItem> {
     return this;
   }
 }

@@ -21,11 +21,21 @@ import { CreateAppProvider } from './services/CreateAppProvider';
 import { checkJwtForAdminClaim, decodeJwt, getJwtTenantId, } from './utils/token';
 import { ApplicationPermissions } from './utils/models';
 import { createContainerTypeInput } from './qp/createContainerTypeInput';
+import { LocalStorageService, StorageProvider } from './services/StorageProvider';
+import Account from './models/Account';
 
 let accessTokenPanel: vscode.WebviewPanel | undefined;
 let firstPartyAppAuthProvider: FirstPartyAuthProvider;
 
 export function activate(context: vscode.ExtensionContext) {
+    StorageProvider.init(
+        new LocalStorageService(context.globalState), 
+        new LocalStorageService(context.workspaceState), 
+        context.secrets
+    );
+    vscode.window.registerTreeDataProvider('spe-accounts', AccountTreeViewProvider.getInstance());
+    Account.loginToSavedAccount();
+
     ext.context = context;
     ext.outputChannel = window.createOutputChannel("SharePoint Embedded", { log: true });
     context.subscriptions.push(ext.outputChannel);
@@ -42,6 +52,7 @@ export function activate(context: vscode.ExtensionContext) {
 
     const aadLoginCommand = vscode.commands.registerCommand('spe.login', async () => {
         try {
+            Account.login();
             const accessToken = await firstPartyAppAuthProvider.getToken(['Application.ReadWrite.All', 'User.Read']);
             const roles = await createAppServiceProvider.graphProvider.checkAdminMemberObjects(accessToken);
             const decodedToken = decodeJwt(accessToken);
