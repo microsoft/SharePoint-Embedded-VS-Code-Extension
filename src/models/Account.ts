@@ -1,3 +1,7 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
 
 // @ts-ignore
 import { AccountInfo } from '@azure/msal-node';
@@ -5,17 +9,19 @@ import FirstPartyAuthProvider from '../services/1PAuthProvider';
 import { BaseAuthProvider } from '../services/BaseAuthProvider';
 import { checkJwtForAdminClaim, decodeJwt } from '../utils/token';
 import { App } from './App';
+import { StorageProvider } from '../services/StorageProvider';
 
 
 // Account class that represents an msal AccountInfo object from the FirstPartyAuthProvider
 export class Account {
     // Storage key for the account
-    private static readonly storageKey: string = "account";
+    private static readonly storageKey: string = "1P";
     private static readonly firstPartyAppId: string = "aba7eb80-02fe-4070-8fca-b729f428166f";
     private static readonly authProvider: BaseAuthProvider = new FirstPartyAuthProvider(Account.firstPartyAppId, Account.storageKey);
     private static readonly scopes: string[] = ['Application.ReadWrite.All', 'User.Read'];
     private static instance: Account | undefined;
     private static subscribers: AccountChangeListener[] = [];
+    private static readonly storage: StorageProvider;
 
     public readonly homeAccountId: string;
     public readonly environment: string;
@@ -119,7 +125,6 @@ export class Account {
         }
         return undefined;
     }
-
 }
 
 export abstract class AccountChangeListener {

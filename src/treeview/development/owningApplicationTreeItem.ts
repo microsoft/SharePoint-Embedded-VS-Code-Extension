@@ -16,6 +16,7 @@ import { ContainersTreeItem } from "./containersTreeItem";
 import { ContainerTypeListKey, OwningAppIdsListKey, RegisteredContainerTypeSetKey, ThirdPartyAppListKey } from "../../utils/constants";
 import { ContainerTypeTreeItem } from "./containerTypeTreeItem";
 import { OwningApplicationsTreeItem } from "./owningApplicationsTreeItem";
+import { ContainerType } from "../../models/ContainerType";
 
 export class OwningApplicationTreeItem extends vscode.TreeItem {
     private appsItem?: ApplicationTreeItem[];
@@ -35,10 +36,8 @@ export class OwningApplicationTreeItem extends vscode.TreeItem {
     }
 
     public async getChildren() {
-        const owningApps: [] = this.createAppServiceProvider.globalStorageManager.getValue(OwningAppIdsListKey);
-        const apps: any = this.createAppServiceProvider.globalStorageManager.getValue(ThirdPartyAppListKey);
-        const containerTypeList: any = this.createAppServiceProvider.globalStorageManager.getValue(ContainerTypeListKey) || {};
-        const registeredContainerTypes: any = this.createAppServiceProvider.globalStorageManager.getValue(RegisteredContainerTypeSetKey) || [];
+        const containerTypeList: any = ContainerType.loadAllContainerTypesFromStorage();
+        const registeredContainerTypes: any = ContainerType.loadRegisteredContainerTypesFromStorage();
         const registerCTSet = new Set(registeredContainerTypes);
 
         if (Object.keys(containerTypeList).length == 0) {
@@ -84,9 +83,6 @@ export class OwningApplicationTreeItem extends vscode.TreeItem {
 
             return [createPostmanEnvButton, loadSampleAppButton, containerTypeItem];
         }
-
-        //const applicationsTreeItem = new ApplicationsTreeItem(this.containerTypeId, "Applications", vscode.TreeItemCollapsibleState.Collapsed);
-        const containersTreeItem = new ContainersTreeItem("Containers", vscode.TreeItemCollapsibleState.Collapsed);
     }
 
     private setImagetoIcon() {

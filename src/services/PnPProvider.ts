@@ -5,7 +5,7 @@
 import * as vscode from 'vscode';
 let sp: any = null;
 
-export async function getPnPProvider(accessToken: any, tenantName: any) {
+async function getPnPProvider(accessToken: any, tenantName: any) {
 
     if (typeof sp !== "undefined" && sp !== null) {
         return sp;
@@ -31,7 +31,7 @@ export async function getPnPProvider(accessToken: any, tenantName: any) {
     return sp;
 }
 export default class PnPProvider {
-    async createNewContainerType(accessToken: any, tenantName: any, owningAppId: string, displayName: string) {
+    static async createNewContainerType(accessToken: any, tenantName: any, owningAppId: string, displayName: string) {
         try {
             let sp: any;
             try {
@@ -76,7 +76,7 @@ export default class PnPProvider {
         }
     }
 
-    async acceptSpeTos(accessToken: any, tenantName: any, owningAppId: string) {
+    static async acceptSpeTos(accessToken: any, tenantName: any, owningAppId: string) {
         try {
             let sp: any;
             try {

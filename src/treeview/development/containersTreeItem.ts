@@ -10,6 +10,7 @@ import { CreateAppProvider } from "../../services/CreateAppProvider";
 import { ext } from "../../utils/extensionVariables";
 import ThirdPartyAuthProvider from "../../services/3PAuthProvider";
 import { ContainerTypeListKey, OwningAppIdKey } from "../../utils/constants";
+import GraphProvider from "../../services/GraphProvider";
 
 export class ContainersTreeItem extends vscode.TreeItem {
     private containerItems?: ContainerTreeItem[];
@@ -46,7 +47,7 @@ export class ContainersTreeItem extends vscode.TreeItem {
         const secrets = await this.createAppServiceProvider.getSecretsByAppId(owningAppId);
         const provider = new ThirdPartyAuthProvider(owningAppId, secrets.thumbprint, secrets.privateKey);
         const token = await provider.getToken(['FileStorageContainer.Selected']);
-        const containers = await this.createAppServiceProvider.graphProvider.listStorageContainers(token, containerTypeDict[owningAppId].ContainerTypeId);
+        const containers = await GraphProvider.listStorageContainers(token, containerTypeDict[owningAppId].ContainerTypeId);
         return containers;
     }
 

@@ -9,7 +9,6 @@ import { ContainerTreeItem } from "./containerTreeItem";
 import { CreateAppProvider } from "../../services/CreateAppProvider";
 import { ext } from "../../utils/extensionVariables";
 import ThirdPartyAuthProvider from "../../services/3PAuthProvider";
-import { ApplicationPermissions } from "../../utils/models";
 import { TreeViewCommand } from "./treeViewCommand";
 import { ApplicationsTreeItem } from "./applicationsTreeItem";
 import { ContainersTreeItem } from "./containersTreeItem";
