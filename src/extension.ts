@@ -109,7 +109,8 @@ export function activate(context: vscode.ExtensionContext) {
     });
 
     const createNewContainerTypeCommand = vscode.commands.registerCommand('spe.createNewContainerTypeCommand', async () => {
-        const applications: App[] = await Account.loadApplicationsFromStorage();
+        const account = Account.get()!;
+        const applications: App[] = await account.loadManyFromStorage();
         const options: any = [];
         applications.forEach((app: App) => {
             options.push({

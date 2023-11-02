@@ -131,9 +131,19 @@ export class Account {
         return undefined;
     }
 
-    public static loadFromStorage(key: string): Promise<string[]> {
+    public static loadAppIdsFromStorage(key: string): string[] {
         const appIds: any = StorageProvider.get().global.getValue(key) || [];
         return appIds;
+    }
+
+    public async loadManyFromStorage(): Promise<App[]>{
+        const appPromises = this.appIds.map(async (appId) => {
+            const app = await App.loadFromStorage(appId);
+            return app;
+        });
+    
+        const apps: (App | undefined)[] = await Promise.all(appPromises);
+        return apps.filter(app => app !== undefined) as App[];
     }
 
     public async saveToStorage(): Promise<void> {

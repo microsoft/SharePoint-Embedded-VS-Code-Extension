@@ -143,7 +143,7 @@ export class App {
         }
         return undefined;
     }
-
+    
     public async saveToStorage(): Promise<void> {
         StorageProvider.get().global.setValue(this.clientId, this);
         const appSecrets = {
