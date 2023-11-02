@@ -19,23 +19,4 @@ export class ApplicationPermissions {
         this.delegated = delegated;
         this.appOnly = appOnly;
     }
-
-    public static loadFromStorage(containerTypeId: string): ApplicationPermissions[] | undefined {
-        const appPermissionsDict: { [key: string]: ApplicationPermissions[] } = StorageProvider.get().global.getValue(AppPermissionsListKey) || {};
-        const appPermissions = appPermissionsDict[containerTypeId];
-        if (appPermissions)
-            return appPermissions;
-        return undefined;
-    }
-
-    public async saveToStorage(containerTypeId: string): Promise<void> {
-        const appPermissionsDict: any = StorageProvider.get().global.getValue(AppPermissionsListKey) || {};
-        if (appPermissionsDict.hasOwnProperty(containerTypeId)) {
-            appPermissionsDict[containerTypeId].push(this);
-          } else {
-            appPermissionsDict[containerTypeId] = [this];
-          }
-        StorageProvider.get().global.setValue(AppPermissionsListKey, appPermissionsDict);
-    }
-
 }

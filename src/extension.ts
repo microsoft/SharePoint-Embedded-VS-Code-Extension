@@ -90,59 +90,26 @@ export function activate(context: vscode.ExtensionContext) {
             return;
         }
 
-        const [applicationCreated, appId] = await createAppServiceProvider.createAadApplication(appName);
+        const account = Account.get();
+        const app = await account!.createApp(appName, true);
 
-        if (applicationCreated && isOwningApp) {
-            App.saveOwningAppIdToStorage(appId);
+        if (!app) {
+            return;
         }
 
         // 20-second progress to allow app propagation before consent flow
-        await vscode.window.withProgress({
-            location: vscode.ProgressLocation.Notification,
-            title: "Application Status",
-            cancellable: true
-        }, (progress, token) => {
-            token.onCancellationRequested(() => {
-                console.log("User canceled the long running operation");
-            });
-
-            progress.report({ increment: 0, message: "Creation started" })
-
-            setTimeout(() => {
-                progress.report({ increment: 25, message: "Configuring properties..." });
-            }, 2000);
-
-            setTimeout(() => {
-                progress.report({ increment: 25, message: "Configuring properties..." });
-            }, 5000);
-
-            setTimeout(() => {
-                progress.report({ increment: 25, message: "Configuring properties..." });
-            }, 10000);
-
-            setTimeout(() => {
-                progress.report({ increment: 25, message: "Almost there..." });
-            }, 15000);
-
-            const p = new Promise<void>(resolve => {
-                setTimeout(() => {
-                    resolve();
-                }, 20000);
-            });
-
-            return p;
-        });
+        await showProgress();
 
         // app creation success
-        vscode.window.showInformationMessage(`Successfully created 3P application: ${appId}`);
-        if (isOwningApp) {
+        vscode.window.showInformationMessage(`Successfully created 3P application: ${app.clientId}`);
+        if (app.isOwningApp) {
             developmentTreeViewProvider.refresh();
         }
-        return appId;
+        return app;
     });
 
     const createNewContainerTypeCommand = vscode.commands.registerCommand('spe.createNewContainerTypeCommand', async () => {
-        const applications: App[] = await App.loadApplicationsFromStorage();
+        const applications: App[] = await Account.loadApplicationsFromStorage();
         const options: any = [];
         applications.forEach((app: App) => {
             options.push({
@@ -490,7 +457,6 @@ export function activate(context: vscode.ExtensionContext) {
             createAppServiceProvider.globalStorageManager.setValue(RegisteredContainerTypeSetKey, []);
 
             //createAppServiceProvider.globalStorageManager.setValue("apps", apps);
-            const a = await App.loadApplicationsFromStorage()
             console.log('hi');
         } catch (error) {
             vscode.window.showErrorMessage('Failed to obtain access token.');
@@ -546,6 +512,42 @@ async function checkAdminStatus() {
 //         await m365AccountStatusChangeHandler("SignedOut", null);
 //     }
 // }
+
+async function showProgress() {
+    await vscode.window.withProgress({
+        location: vscode.ProgressLocation.Notification,
+        title: "Application Status",
+        cancellable: true
+    }, (progress, token) => {
+        token.onCancellationRequested(() => {
+            console.log("User canceled the long running operation");
+        });
+
+        const progressSteps = [
+            { increment: 0, message: "Creation started" },
+            { increment: 25, message: "Configuring properties..." },
+            { increment: 25, message: "Configuring properties..." },
+            { increment: 25, message: "Configuring properties..." },
+            { increment: 25, message: "Almost there..." }
+        ];
+
+        const reportProgress = (step: any, delay: number) => {
+            setTimeout(() => {
+                progress.report(step);
+            }, delay);
+        };
+
+        for (let i = 0; i < progressSteps.length; i++) {
+            reportProgress(progressSteps[i], i * 5000); // Adjust the delay as needed
+        }
+
+        return new Promise<void>((resolve) => {
+            setTimeout(() => {
+                resolve();
+            }, progressSteps.length * 5000);
+        });
+    });
+}
 
 export function showAccessTokenWebview(accessToken: string) {
     if (accessTokenPanel) {

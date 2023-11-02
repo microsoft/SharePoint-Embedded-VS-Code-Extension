@@ -31,7 +31,7 @@ export class Account {
     public readonly isAdmin: boolean;
     public readonly name?: string;
 
-    public apps: App[] = [];
+    public appIds: string[] = [];
 
     private constructor(homeAccountId: string, environment: string, tenantId: string, username: string, localAccountId: string, isAdmin: boolean, name?: string) {
         this.homeAccountId = homeAccountId;
@@ -118,12 +118,26 @@ export class Account {
         });
     }
 
-    public async createApp(appName: string): Promise<App | undefined> {
+    public async createApp(appName: string, isOwningApp: boolean): Promise<App | undefined> {
         const token = await Account.authProvider.getToken(Account.scopes);
         if (token) {
-            return await App.create(appName, token);
+            const app = await App.create(appName, token, isOwningApp);
+            if (app) {
+                this.appIds.push(app.clientId);
+                this.saveToStorage()
+                return app;
+            }
         }
         return undefined;
+    }
+
+    public static loadFromStorage(key: string): Promise<string[]> {
+        const appIds: any = StorageProvider.get().global.getValue(key) || [];
+        return appIds;
+    }
+
+    public async saveToStorage(): Promise<void> {
+        StorageProvider.get().global.setValue("account", this.appIds);
     }
 }
 
