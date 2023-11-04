@@ -2,10 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-
-import { StorageProvider } from "../services/StorageProvider";
-import { AppPermissionsListKey, ContainerTypeListKey } from "../utils/constants";
-
 // Class that represents a FileStorageContainerType permissions object persisted in the global storage provider
 
 // add constants for specific permissions

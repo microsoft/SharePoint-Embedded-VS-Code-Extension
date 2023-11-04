@@ -57,24 +57,8 @@ export function activate(context: vscode.ExtensionContext) {
 
     const aadLogoutCommand = vscode.commands.registerCommand('spe.signOut', async () => {
         try {
-            //await firstPartyAppAuthProvider.logout();
-
-            await Account.logout()
-
-            const appDict: { [key: string]: any } = createAppServiceProvider.globalStorageManager.getValue(ThirdPartyAppListKey) || {}
-
-            Object.keys(appDict).forEach(async appId => {
-                await ext.context.secrets.delete(appId);
-            });
-
-            createAppServiceProvider.globalStorageManager.setValue(ThirdPartyAppListKey, undefined);
-            createAppServiceProvider.globalStorageManager.setValue(ContainerTypeListKey, undefined);
-            createAppServiceProvider.globalStorageManager.setValue(AppPermissionsListKey, undefined);
-            createAppServiceProvider.globalStorageManager.setValue(CurrentApplicationKey, undefined);
-            createAppServiceProvider.globalStorageManager.setValue(OwningAppIdKey, undefined);
-            createAppServiceProvider.globalStorageManager.setValue(TenantIdKey, undefined);
-            createAppServiceProvider.globalStorageManager.setValue(OwningAppIdsListKey, undefined);
-            createAppServiceProvider.globalStorageManager.setValue(RegisteredContainerTypeSetKey, undefined);
+            await Account.get()?.deleteFromStorage();
+            await Account.logout();
             developmentTreeViewProvider.refresh();
         } catch (error) {
             vscode.window.showErrorMessage('Failed to obtain access token.');
@@ -112,7 +96,7 @@ export function activate(context: vscode.ExtensionContext) {
 
     const createNewContainerTypeCommand = vscode.commands.registerCommand('spe.createNewContainerTypeCommand', async () => {
         const account = Account.get()!;
-        const applications: App[] = await account.loadManyFromStorage();
+        const applications: App[] = account.apps;
         const options: any = [];
         applications.forEach((app: App) => {
             options.push({

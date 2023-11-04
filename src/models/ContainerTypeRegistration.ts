@@ -24,11 +24,21 @@ export class ContainerTypeRegistration {
     }
 
     public static loadFromStorage(key: string): ContainerTypeRegistration | undefined {
-        return StorageProvider.get().global.getValue<ContainerTypeRegistration>(key);
+        const registrationString: string = StorageProvider.get().global.getValue(key);
+        if (registrationString) {
+            const registration = JSON.parse(registrationString);
+            return new ContainerTypeRegistration(registration.containerTypeId, registration.tenantId, registration.applicationPermissions)
+        }
+        return undefined;
     }
 
-    public async saveToStorage(containerTypeId: string, tenantId: string): Promise<void> {
-        StorageProvider.get().global.setValue(containerTypeId + '_' + tenantId, this);
+    public async saveToStorage(): Promise<void> {
+        const registration = {
+            containerTypeId: this.containerTypeId,
+            tenantId: this.tenantId,
+            applicationPermissions: this.applicationPermissions
+        }
+        StorageProvider.get().global.setValue(this.containerTypeId + '_' + this.tenantId, JSON.stringify(registration));
     }
 
 }

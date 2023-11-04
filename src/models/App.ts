@@ -3,16 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createCertKeyCredential, generateCertificateAndPrivateKey } from "../cert";
 import ThirdPartyAuthProvider from "../services/3PAuthProvider";
 import GraphProvider from "../services/GraphProvider";
-import PnPProvider from "../services/PnPProvider";
 import { StorageProvider } from "../services/StorageProvider";
 import { OwningAppIdKey, OwningAppIdsListKey, TenantIdKey } from "../utils/constants";
-import { Account } from "./Account";
-import { ApplicationPermissions } from "./ApplicationPermissions";
-import { ContainerType } from "./ContainerType";
-import { ContainerTypeRegistration } from "./ContainerTypeRegistration";
+
 
 // Class that represents an Azure AD application object persisted in the global storage provider
 export class App {
@@ -58,6 +53,21 @@ export class App {
             this.clientSecret = passwordCredential.secretText;
             await this.saveToStorage();
         }
+    }
+
+    public async consent() {
+        const appSecretsString = await StorageProvider.get().secrets.get(this.clientId);
+        if (!appSecretsString) {
+            return false;
+        }
+        const appSecrets = JSON.parse(appSecretsString);
+        const thirdPartyAuthProvider = new ThirdPartyAuthProvider(this.clientId, appSecrets.thumbprint, appSecrets.privateKey)
+        const tid: any = StorageProvider.get().global.getValue(TenantIdKey);
+        
+        const consentToken = await thirdPartyAuthProvider.getToken(['00000003-0000-0ff1-ce00-000000000000/.default']);
+        const graphAccessToken = await thirdPartyAuthProvider.getToken(["00000003-0000-0000-c000-000000000000/Organization.Read.All", "00000003-0000-0000-c000-000000000000/Application.ReadWrite.All"]);
+
+        return consentToken && graphAccessToken;
     }
 
     public static async loadFromStorage(clientId: string): Promise<App | undefined> {
