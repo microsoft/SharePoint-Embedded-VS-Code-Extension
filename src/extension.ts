@@ -57,7 +57,9 @@ export function activate(context: vscode.ExtensionContext) {
 
     const aadLogoutCommand = vscode.commands.registerCommand('spe.signOut', async () => {
         try {
-            await firstPartyAppAuthProvider.logout();
+            //await firstPartyAppAuthProvider.logout();
+
+            await Account.logout()
 
             const appDict: { [key: string]: any } = createAppServiceProvider.globalStorageManager.getValue(ThirdPartyAppListKey) || {}
 

@@ -37,7 +37,7 @@ export class OwningApplicationTreeItem extends vscode.TreeItem {
 
     public async getChildren() {
         const containerTypeList: any = ContainerType.loadAllContainerTypesFromStorage();
-        const registeredContainerTypes: any = ContainerType.loadRegisteredContainerTypesFromStorage();
+        const registeredContainerTypes: any = []
         const registerCTSet = new Set(registeredContainerTypes);
 
         if (Object.keys(containerTypeList).length == 0) {

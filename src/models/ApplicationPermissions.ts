@@ -8,6 +8,8 @@ import { AppPermissionsListKey, ContainerTypeListKey } from "../utils/constants"
 
 // Class that represents a FileStorageContainerType permissions object persisted in the global storage provider
 
+// add constants for specific permissions
+
 export class ApplicationPermissions {
     // instance properties
     public readonly appId: string;

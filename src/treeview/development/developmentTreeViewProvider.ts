@@ -59,7 +59,7 @@ export class DevelopmentTreeViewProvider implements vscode.TreeDataProvider<Tree
             { name: "symbol-function", custom: false }
         )
 
-        const treeViewCommands: any = [owningAppsTreeItem]
+        const treeViewCommands: any = []
 
 
         return treeViewCommands;

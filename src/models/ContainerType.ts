@@ -20,25 +20,27 @@ export class ContainerType {
     public readonly containerTypeId: string;
     public readonly owningAppId: string;
     public readonly billingClassification: number;
-    public isRegistered: boolean;
     public readonly azureSubscriptionId?: string;
     public readonly creationDate?: string;
     public readonly expiryDate?: string;
     public readonly isBillingProfileRequired?: boolean;
+    public owningApp!: App;
+    public secondaryApps: App[];
+    public registrations: ContainerTypeRegistration[];
 
-
-    public constructor(containerTypeId: string, owningAppId: string, billingClassification: number, azureSubscriptionId?: string, creationDate?: string, expiryDate?: string, isBillingProfileRequired?: boolean) {
+    public constructor(containerTypeId: string, owningAppId: string, owningApp: App, billingClassification: number, azureSubscriptionId?: string, creationDate?: string, expiryDate?: string, isBillingProfileRequired?: boolean) {
         this.azureSubscriptionId = azureSubscriptionId;
         this.owningAppId = owningAppId;
         this.billingClassification = billingClassification;
         this.containerTypeId = containerTypeId;
         this.creationDate = creationDate;
         this.expiryDate = expiryDate;
-        this.isBillingProfileRequired = isBillingProfileRequired;
-        this.isRegistered = false;
+        this.owningApp = owningApp;
+        this.secondaryApps = [];
+        this.registrations = [];
     }
 
-    public static async register(owningAppId: string, guestAppId: string): Promise<boolean> {
+    public async register(owningAppId: string, guestAppId: string): Promise<boolean> {
         try {
             // Use Owning App Context for registration
             if (owningAppId !== guestAppId) {
@@ -61,14 +63,12 @@ export class ContainerType {
             const certThumbprint = await GraphProvider.getCertThumbprintFromApplication(accessToken, guestAppId);
             const vroomAccessToken = appSecrets.privateKey && await acquireAppOnlyCertSPOToken(certThumbprint, owningAppId, domain, appSecrets.privateKey, tid)
 
-            const app = await App.loadFromStorage(owningAppId);
-            const containerTypeId = app!.containerTypeIds[0];
-            const containerTypeRegistration = ContainerTypeRegistration.loadFromStorage(`${containerTypeId}_${tid}`)!;
-            await VroomProvider.registerContainerType(vroomAccessToken, guestAppId, `https://${domain}.sharepoint.com`, containerTypeId, containerTypeRegistration.applicationPermissions);
+
+            const containerTypeRegistration = ContainerTypeRegistration.loadFromStorage(`${this.containerTypeId}_${tid}`)!;
+            await VroomProvider.registerContainerType(vroomAccessToken, guestAppId, `https://${domain}.sharepoint.com`, this.containerTypeId, containerTypeRegistration.applicationPermissions);
             
             // Update registration flag on ContainerType 
-            const containerType = ContainerType.loadFromStorage(containerTypeId)!;
-            containerType.isRegistered = true;
+            const containerType = ContainerType.loadFromStorage(this.containerTypeId)!;
             containerType.saveToStorage();
             //vscode.window.showInformationMessage(`Successfully registered ContainerType ${containerTypeDict[owningAppId].ContainerTypeId} on 3P application: ${this.globalStorageManager.getValue(CurrentApplicationKey)}`);
             return true;

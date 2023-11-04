@@ -35,8 +35,8 @@ export class OwningApplicationsTreeItem extends vscode.TreeItem {
     }
 
     public async getChildren() {
-        const owningApps: string[] = App.getOwningAppIdsFromStorage();
-        const apps: App[] = await App.loadApplicationsFromStorage();
+        const owningApps: string[] = []
+        const apps: App[] = [];
 
         const createAppButton = new TreeViewCommand(
             "Create a new Azure AD App",

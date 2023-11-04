@@ -10,12 +10,30 @@ import { BaseAuthProvider } from '../services/BaseAuthProvider';
 import { checkJwtForAdminClaim, decodeJwt } from '../utils/token';
 import { App } from './App';
 import { StorageProvider } from '../services/StorageProvider';
+import { ContainerType } from './ContainerType';
+import { generateCertificateAndPrivateKey, createCertKeyCredential } from '../cert';
+import GraphProvider from '../services/GraphProvider';
+import ThirdPartyAuthProvider from '../services/3PAuthProvider';
+import PnPProvider from '../services/PnPProvider';
+import { TenantIdKey, OwningAppIdKey } from '../utils/constants';
+import { ApplicationPermissions } from './ApplicationPermissions';
+import { ContainerTypeRegistration } from './ContainerTypeRegistration';
+
+type StoredAccount = {
+    appIds: string[],
+    containerTypeIds: string[]
+}
+
+type AccountData = {
+    apps: App[]
+    containerTypes: ContainerType[]
+} 
 
 
 // Account class that represents an msal AccountInfo object from the FirstPartyAuthProvider
 export class Account {
     // Storage key for the account
-    private static readonly storageKey: string = "1P";
+    private static readonly storageKey: string = "account";
     private static readonly firstPartyAppId: string = "aba7eb80-02fe-4070-8fca-b729f428166f";
     private static readonly authProvider: BaseAuthProvider = new FirstPartyAuthProvider(Account.firstPartyAppId, Account.storageKey);
     private static readonly scopes: string[] = ['Application.ReadWrite.All', 'User.Read'];
@@ -32,6 +50,11 @@ export class Account {
     public readonly name?: string;
 
     public appIds: string[] = [];
+    public containerTypeIds: string[] = [];
+
+    public apps: App[] = [];
+    public containerTypes: ContainerType[] = [];
+
 
     private constructor(homeAccountId: string, environment: string, tenantId: string, username: string, localAccountId: string, isAdmin: boolean, name?: string) {
         this.homeAccountId = homeAccountId;
@@ -41,6 +64,9 @@ export class Account {
         this.localAccountId = localAccountId;
         this.name = name;
         this.isAdmin = isAdmin;
+
+        this.loadFromStorage()
+        
     }
 
     public static get(): Account | undefined {
@@ -53,7 +79,7 @@ export class Account {
 
     public static async hasSavedAccount(): Promise<boolean> {
         const accountInfo = await Account.getSavedAccount();
-        return accountInfo !== undefined;
+        return accountInfo !== undefined && accountInfo !== null;
     }
 
     private static async getSavedAccount(): Promise<AccountInfo | null> {
@@ -121,7 +147,7 @@ export class Account {
     public async createApp(appName: string, isOwningApp: boolean): Promise<App | undefined> {
         const token = await Account.authProvider.getToken(Account.scopes);
         if (token) {
-            const app = await App.create(appName, token, isOwningApp);
+            const app = await Account.createApp(appName, token, isOwningApp);
             if (app) {
                 this.appIds.push(app.clientId);
                 this.saveToStorage()
@@ -131,23 +157,111 @@ export class Account {
         return undefined;
     }
 
+    public async createContainerType(appId: string, containerTypeName: string): Promise<boolean> {
+        const appSecretsString = await StorageProvider.get().secrets.get(appId);
+        if (!appSecretsString) {
+            return false;
+        }
+        const appSecrets = JSON.parse(appSecretsString);
+        const thirdPartyAuthProvider = new ThirdPartyAuthProvider(appId, appSecrets.thumbprint, appSecrets.privateKey)
+        const tid: any = StorageProvider.get().global.getValue(TenantIdKey);
+        
+        const consentToken = await thirdPartyAuthProvider.getToken(['00000003-0000-0ff1-ce00-000000000000/.default']);
+        const graphAccessToken = await thirdPartyAuthProvider.getToken(["00000003-0000-0000-c000-000000000000/Organization.Read.All", "00000003-0000-0000-c000-000000000000/Application.ReadWrite.All"]);
+        const tenantDomain = await GraphProvider.getOwningTenantDomain(graphAccessToken);
+        const parts = tenantDomain.split('.');
+        const domain = parts[0];
+
+        const spToken = await thirdPartyAuthProvider.getToken([`https://${domain}-admin.sharepoint.com/.default`]);
+
+        const appPermissions = new ApplicationPermissions(appId, ["full"], ["full"]);
+
+        // Create ContainerType if none exist in global store, else register application on existing ContainerType
+        if (this.containerTypeIds.length !== 0) {
+            // Currently, we support only 1 trial ContainerType per tenant, so we extract the first item of the Apps' containerTypeIds
+            const containerTypeRegistration = ContainerTypeRegistration.loadFromStorage(`${this.containerTypeIds[0]}_${tid}`)
+            containerTypeRegistration!.applicationPermissions.push(appPermissions);
+            containerTypeRegistration!.saveToStorage(this.containerTypeIds[0], tid);
+            //vscode.window.showInformationMessage(`Registering App ${thirdPartyAppId} on ContainerType ${containerTypeDict[thirdPartyAppId]}`);
+            return true;
+        } else {
+            const containerTypeDetails = await PnPProvider.createNewContainerType(spToken, domain, appId, containerTypeName);
+            const containerType = new ContainerType(containerTypeDetails.ContainerTypeId, 
+                containerTypeDetails.OwningAppId, 
+                containerTypeDetails.SPContainerTypeBillingClassification, 
+                containerTypeDetails.AzureSubscriptionId,
+                containerTypeDetails.CreationDate,
+                containerTypeDetails.ExpiryDate,
+                containerTypeDetails.isBillingProfileRequired);
+
+            // Update App with ContainerTypeId
+            this.containerTypeIds.push(containerType.containerTypeId);
+
+            // Create and store new ContainerTypeRegistration
+            const containerTypeRegistration = new ContainerTypeRegistration(containerType.containerTypeId, tid, [appPermissions]);
+            containerTypeRegistration.saveToStorage(containerType.containerTypeId, tid);
+            
+            // Store Container Type properties
+            containerType.saveToStorage();
+
+            StorageProvider.get().global.setValue(OwningAppIdKey, appId);
+            //vscode.window.showInformationMessage(`ContainerType ${containerTypeDetails.ContainerTypeId} created successfully`);
+            return true
+        }
+    }
+
+    private static async createApp(displayName: string, token: string, isOwningApp: boolean): Promise<App | undefined> {
+        const { certificatePEM, privateKey, thumbprint } = generateCertificateAndPrivateKey();
+        const certKeyCredential = createCertKeyCredential(certificatePEM);
+        const properties = await GraphProvider.createAadApplication(displayName, token, certKeyCredential);
+        if (properties) {
+            const app = new App(properties.appId, displayName, properties.id, Account.get()!.tenantId, isOwningApp, undefined, thumbprint, privateKey);
+            app.saveToStorage();
+            await app.addAppSecret(token);
+            return app;
+        }
+        return undefined;
+    }
+
+
     public static loadAppIdsFromStorage(key: string): string[] {
         const appIds: any = StorageProvider.get().global.getValue(key) || [];
         return appIds;
     }
 
-    public async loadManyFromStorage(): Promise<App[]>{
-        const appPromises = this.appIds.map(async (appId) => {
-            const app = await App.loadFromStorage(appId);
+    public async loadFromStorage(): Promise<void>{
+        const storedAccount: StoredAccount = JSON.parse(StorageProvider.get().global.getValue(Account.storageKey));
+
+        // hydrate App objects
+        const appPromises = storedAccount.appIds.map(async (appId) => {
+            const app = App.loadFromStorage(appId);
             return app;
         });
     
-        const apps: (App | undefined)[] = await Promise.all(appPromises);
-        return apps.filter(app => app !== undefined) as App[];
+        const unfilteredApps: (App | undefined)[] = await Promise.all(appPromises);
+        const apps = unfilteredApps.filter(app => app !== undefined) as App[];
+
+        // hydrate Container Type objects
+        const containerTypePromises = storedAccount.appIds.map(async (appId) => {
+            const app = ContainerType.loadFromStorage(appId);
+            return app;
+        });
+    
+        const unfilteredContainerTypes: (ContainerType | undefined)[] = await Promise.all(containerTypePromises);
+        const containerTypes = unfilteredContainerTypes.filter(containerType => containerType !== undefined) as ContainerType[];
+
+        this.appIds = storedAccount.appIds;
+        this.containerTypeIds = storedAccount.containerTypeIds;
+        this.apps = apps;
+        this.containerTypes = containerTypes;
     }
 
     public async saveToStorage(): Promise<void> {
-        StorageProvider.get().global.setValue("account", this.appIds);
+        const storedAccount = {
+            appIds: this.appIds,
+            containerTypeIds: this.containerTypeIds
+        }
+        StorageProvider.get().global.setValue(Account.storageKey, JSON.stringify(storedAccount));
     }
 }
 

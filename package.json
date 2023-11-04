@@ -15,7 +15,7 @@
   "main": "./out/extension.js",
   "contributes": {
     "icons": {
-      "spe-m365": {
+      "spe-365": {
         "description": "Microsoft 365 icon in command tree view",
         "default": {
           "fontPath": "./media/font/spe.woff",
@@ -32,11 +32,29 @@
         }
       ]
     },
+    "viewsWelcome": [
+      {
+        "view": "spe-welcome",
+        "contents": "Sign into your Microsoft 365 tenant with an adminstrator account to get started.\n [Sign into Microsoft 365](command:spe.login)",
+        "when": "!spe:isAdminLoggedIn"
+      },
+      {
+        "view": "spe-development",
+        "contents": "Get started with a trial Container Type\n [Create Trial Container Type](command:spe.login)",
+        "when": "spe:isAdminLoggedIn"
+      }
+    ],
     "views": {
       "sharepoint-embedded": [
         {
+          "id": "spe-welcome",
+          "name": "",
+          "when": "!spe:isAdminLoggedIn"
+        },
+        {
           "id": "spe-accounts",
-          "name": "Accounts"
+          "name": "Accounts",
+          "when": "spe:isAdminLoggedIn"
         },
         {
           "id": "spe-development",
