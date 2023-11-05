@@ -27,7 +27,7 @@ import PnPProvider from './services/PnPProvider';
 let accessTokenPanel: vscode.WebviewPanel | undefined;
 let firstPartyAppAuthProvider: FirstPartyAuthProvider;
 
-export function activate(context: vscode.ExtensionContext) {
+export async function activate(context: vscode.ExtensionContext) {
     ext.context = context;
     ext.outputChannel = window.createOutputChannel("SharePoint Embedded", { log: true });
     context.subscriptions.push(ext.outputChannel);
@@ -40,7 +40,7 @@ export function activate(context: vscode.ExtensionContext) {
     const createAppServiceProvider = CreateAppProvider.getInstance(context);
 
     vscode.window.registerTreeDataProvider('spe-accounts', AccountTreeViewProvider.getInstance());
-    Account.loginToSavedAccount();
+    await Account.loginToSavedAccount();
 
     // Register the TreeView providers
     const developmentTreeViewProvider = DevelopmentTreeViewProvider.getInstance();
@@ -64,6 +64,37 @@ export function activate(context: vscode.ExtensionContext) {
             vscode.window.showErrorMessage('Failed to obtain access token.');
             console.error('Error:', error);
         }
+    });
+
+    const createTrialContainerTypeCommand = vscode.commands.registerCommand('spe.createTrialContainerType', async () => {
+        const appName = await vscode.window.showInputBox({
+            prompt: 'Azure AD Application Name:'
+        });
+
+        if (!appName) {
+            vscode.window.showErrorMessage('No Azure AD Application name provided');
+            return;
+        }
+
+        const containerTypeName = await vscode.window.showInputBox({
+            prompt: 'Free Trial Container Type Name:'
+        });
+
+        if (!containerTypeName) {
+            vscode.window.showErrorMessage('No Container Type name provided');
+            return;
+        }
+        
+        const account = Account.get()!;
+        let app;
+        try {
+            app = await account.createApp(appName, true);
+        } catch (error: any) {
+            vscode.window.showErrorMessage("Unable to create Azure AD application: " + error.message);
+            return;
+        }
+        
+        console.log('app creation success');
     });
 
     const createNewAadAppCommand = vscode.commands.registerCommand('spe.createNewAadApp', async (isOwningApp) => {
@@ -434,17 +465,19 @@ export function activate(context: vscode.ExtensionContext) {
 
     const getCertPK = vscode.commands.registerCommand('spe.getCertPK', async () => {
         try {
-            const appId: any = createAppServiceProvider.globalStorageManager.getValue(CurrentApplicationKey);
-            const tid = createAppServiceProvider.globalStorageManager.getValue(TenantIdKey);
-            const apps: any = createAppServiceProvider.globalStorageManager.getValue(ThirdPartyAppListKey);
-            const cts: any = createAppServiceProvider.globalStorageManager.getValue(ContainerTypeListKey);
-            const owningAppId: any = createAppServiceProvider.globalStorageManager.getValue(OwningAppIdKey);
-            const secrets = appId && await createAppServiceProvider.getSecretsByAppId(owningAppId) || await createAppServiceProvider.getSecretsByAppId("00a1a4fd-d441-43c3-805b-02d7c5d8ffd7");
-            const keys = createAppServiceProvider.globalStorageManager.getAllKeys();
-            createAppServiceProvider.globalStorageManager.setValue(RegisteredContainerTypeSetKey, []);
+            const keys = StorageProvider.get().global.getAllKeys();
+            //createAppServiceProvider.globalStorageManager.setValue(RegisteredContainerTypeSetKey, []);
 
+            const account = Account.get();
+            const dets = StorageProvider.get().global.getValue(Account.storageKey);
+            const a = StorageProvider.get().global.getValue("c573a38f-866a-4de7-ad1a-4eafc24401ec");
             //createAppServiceProvider.globalStorageManager.setValue("apps", apps);
             console.log('hi');
+            if (false) {
+                keys.forEach(key => {
+                    createAppServiceProvider.globalStorageManager.setValue(key, undefined);
+                })
+            }
         } catch (error) {
             vscode.window.showErrorMessage('Failed to obtain access token.');
             console.error('Error:', error);
@@ -461,6 +494,7 @@ export function activate(context: vscode.ExtensionContext) {
         aadLogoutCommand,
         cloneRepoCommand,
         getCertPK,
+        createTrialContainerTypeCommand,
         registerNewContainerTypeCommand,
         createNewContainerTypeCommand,
         callMSGraphCommand,

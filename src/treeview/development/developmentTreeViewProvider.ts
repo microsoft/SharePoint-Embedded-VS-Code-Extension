@@ -7,6 +7,8 @@ import * as vscode from "vscode"
 
 
 import { ContainerTypesTreeItem } from "./containerTypesTreeItem";
+import { Account } from "../../models/Account";
+import { ContainerType } from "../../models/ContainerType";
 
 export class DevelopmentTreeViewProvider implements vscode.TreeDataProvider<ContainerTypesTreeItem> {
     private static instance: DevelopmentTreeViewProvider;
@@ -15,7 +17,7 @@ export class DevelopmentTreeViewProvider implements vscode.TreeDataProvider<Cont
     readonly onDidChangeTreeData: vscode.Event<ContainerTypesTreeItem| undefined | void> =
         this._onDidChangeTreeData.event;
 
-    private commands: ContainerTypesTreeItem
+    private commands: ContainerTypesTreeItem[];
 
     public constructor() {
         this.commands = this.getDevelopmentTreeViewChildren();
@@ -41,18 +43,28 @@ export class DevelopmentTreeViewProvider implements vscode.TreeDataProvider<Cont
             // @ts-ignore
             return Promise.resolve(element.getChildren());
         } else {
-            return Promise.resolve([this.commands]);
+            return Promise.resolve(this.commands);
         }
     }
 
-    private getDevelopmentTreeViewChildren(): ContainerTypesTreeItem {
-        // Fetch apps and CT List from storage
-        const containerTypesTreeItem = new ContainerTypesTreeItem(
-            `Container Types`,
-            vscode.TreeItemCollapsibleState.Collapsed,
-            { name: "symbol-function", custom: false }
-        )
-        return containerTypesTreeItem;
+    private getDevelopmentTreeViewChildren(): ContainerTypesTreeItem[] {
+        const account = Account.get();
+
+        if (!account)
+            return [];
+        
+        const containerTypes: ContainerType[] = Account.get()!.containerTypes;
+
+        if (containerTypes && containerTypes.length > 0) {
+            const containerTypesTreeItem = new ContainerTypesTreeItem(
+                `Container Types`,
+                vscode.TreeItemCollapsibleState.Collapsed,
+                { name: "symbol-function", custom: false }
+            )
+            return [containerTypesTreeItem];
+        }
+
+        return [];
     }
 
 }

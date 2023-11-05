@@ -33,7 +33,7 @@ type AccountData = {
 // Account class that represents an msal AccountInfo object from the FirstPartyAuthProvider
 export class Account {
     // Storage key for the account
-    private static readonly storageKey: string = "account";
+    public static readonly storageKey: string = "account";
     private static readonly firstPartyAppId: string = "aba7eb80-02fe-4070-8fca-b729f428166f";
     private static readonly authProvider: BaseAuthProvider = new FirstPartyAuthProvider(Account.firstPartyAppId, Account.storageKey);
     private static readonly scopes: string[] = ['Application.ReadWrite.All', 'User.Read'];
@@ -204,7 +204,7 @@ export class Account {
         const certKeyCredential = createCertKeyCredential(certificatePEM);
         const properties = await GraphProvider.createAadApplication(displayName, token, certKeyCredential);
         if (properties) {
-            const app = new App(properties.appId, displayName, properties.id, Account.get()!.tenantId, isOwningApp, undefined, thumbprint, privateKey);
+            const app = new App(properties.appId, displayName, properties.id, Account.get()!.tenantId, isOwningApp, undefined, undefined, undefined);
             app.saveToStorage();
             await app.addAppSecret(token);
             return app;
@@ -220,6 +220,9 @@ export class Account {
 
     public async loadFromStorage(): Promise<void>{
         const storedAccount: StoredAccount = JSON.parse(StorageProvider.get().global.getValue(Account.storageKey));
+
+        if (!storedAccount)
+            return;
 
         // hydrate App objects
         const appPromises = storedAccount.appIds.map(async (appId) => {
@@ -250,7 +253,9 @@ export class Account {
             appIds: this.appIds,
             containerTypeIds: this.containerTypeIds
         }
-        StorageProvider.get().global.setValue(Account.storageKey, JSON.stringify(storedAccount));
+
+        const jsonStr = JSON.stringify(storedAccount);
+        StorageProvider.get().global.setValue(Account.storageKey, jsonStr);
     }
 
     public async deleteFromStorage(): Promise<void> {

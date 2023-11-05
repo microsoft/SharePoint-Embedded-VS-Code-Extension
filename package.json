@@ -15,11 +15,18 @@
   "main": "./out/extension.js",
   "contributes": {
     "icons": {
-      "spe-365": {
+      "spe-m365": {
         "description": "Microsoft 365 icon in command tree view",
         "default": {
-          "fontPath": "./media/font/spe.woff",
-          "fontCharacter": "\\E002"
+          "fontPath": "./media/spe.woff",
+          "fontCharacter": "\\ED72"
+        }
+      },
+      "spe-logo":{
+        "description": "Activity Bar logo",
+        "default": {
+          "fontPath": "./media/spe.woff",
+          "fontCharacter": "\\ED18"
         }
       }
     },
@@ -28,7 +35,7 @@
         {
           "id": "sharepoint-embedded",
           "title": "SharePoint Embedded",
-          "icon": "media/container.svg"
+          "icon": "$(spe-logo)"
         }
       ]
     },
@@ -40,7 +47,7 @@
       },
       {
         "view": "spe-development",
-        "contents": "Get started with a trial Container Type\n [Create Trial Container Type](command:spe.login)",
+        "contents": "Get started with a trial Container Type\n [Create Trial Container Type](command:spe.createTrialContainerType)",
         "when": "spe:isAdminLoggedIn"
       }
     ],
