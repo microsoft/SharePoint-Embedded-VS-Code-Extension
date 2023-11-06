@@ -184,9 +184,9 @@ export class Account {
             const containerType = new ContainerType(
                 containerTypeDetails.ContainerTypeId,
                 containerTypeDetails.OwningAppId,
-                owningApp,
                 containerTypeDetails.DisplayName,
                 containerTypeDetails.SPContainerTypeBillingClassification,
+                owningApp,
                 containerTypeDetails.AzureSubscriptionId,
                 containerTypeDetails.CreationDate,
                 containerTypeDetails.ExpiryDate,
@@ -204,6 +204,48 @@ export class Account {
             //await StorageProvider.get().global.setValue(OwningAppIdKey, appId);
             //vscode.window.showInformationMessage(`ContainerType ${containerTypeDetails.ContainerTypeId} created successfully`);
         }
+    }
+
+    public async deleteContainerTypeById(appId: string, containerTypeId: string): Promise<ContainerType | undefined> {
+        const appSecretsString = await StorageProvider.get().secrets.get(appId);
+        if (!appSecretsString) {
+            return undefined;
+        }
+        const appSecrets = JSON.parse(appSecretsString);
+        const thirdPartyAuthProvider = new ThirdPartyAuthProvider(appId, appSecrets.thumbprint, appSecrets.privateKey)
+        const tid: any = StorageProvider.get().global.getValue(TenantIdKey);
+
+        //const consentToken = await thirdPartyAuthProvider.getToken(['00000003-0000-0ff1-ce00-000000000000/.default']);
+        const graphAccessToken = await thirdPartyAuthProvider.getToken(["00000003-0000-0000-c000-000000000000/Organization.Read.All", "00000003-0000-0000-c000-000000000000/Application.ReadWrite.All"]);
+        const tenantDomain = await GraphProvider.getOwningTenantDomain(graphAccessToken);
+        const parts = tenantDomain.split('.');
+        const domain = parts[0];
+
+        const spToken = await thirdPartyAuthProvider.getToken([`https://${domain}-admin.sharepoint.com/.default`]);
+
+        const containerTypeDetails = await PnPProvider.deleteContainerTypeById(spToken, domain, containerTypeId);
+
+        const secretPromises: Thenable<void>[] = [];
+        this.containerTypeIds = this.containerTypeIds.filter(id => id !== containerTypeId);
+        this.containerTypes = this.containerTypes.filter(ct => ct.containerTypeId !== containerTypeId);
+
+        this.containerTypeIds.forEach(async containerTypeId => {
+            secretPromises.push(StorageProvider.get().global.setValue(containerTypeId, undefined));
+        })
+
+        this.containerTypes.forEach(containerType => {
+            containerType.registrationIds.forEach(async registrationId => {
+                secretPromises.push(StorageProvider.get().global.setValue(registrationId, undefined));
+            });
+
+            containerType.secondaryAppIds.forEach(async secondaryAppId => {
+                secretPromises.push(StorageProvider.get().global.setValue(secondaryAppId, undefined));
+            })
+        });
+
+        await Promise.all(secretPromises);
+
+        await this.saveToStorage();
     }
 
     private static async createApp(displayName: string, token: string, isOwningApp: boolean): Promise<App | undefined> {
@@ -248,6 +290,9 @@ export class Account {
         const unfilteredApps: (App | undefined)[] = await Promise.all(appPromises);
         const apps = unfilteredApps.filter(app => app !== undefined) as App[];
 
+        this.appIds = storedAccount.appIds;
+        this.apps = apps;
+
         // hydrate Container Type objects
         const containerTypePromises = storedAccount.containerTypeIds.map(async (containerTypeId) => {
             const containerType = ContainerType.loadFromStorage(containerTypeId);
@@ -257,9 +302,7 @@ export class Account {
         const unfilteredContainerTypes: (ContainerType | undefined)[] = await Promise.all(containerTypePromises);
         const containerTypes = unfilteredContainerTypes.filter(containerType => containerType !== undefined) as ContainerType[];
 
-        this.appIds = storedAccount.appIds;
         this.containerTypeIds = storedAccount.containerTypeIds;
-        this.apps = apps;
         this.containerTypes = containerTypes;
     }
 
@@ -277,17 +320,20 @@ export class Account {
         const secretPromises: Thenable<void>[] = [];
 
         this.appIds.forEach(async appId => {
-            await StorageProvider.get().global.setValue(appId, undefined);
+            secretPromises.push(StorageProvider.get().global.setValue(appId, undefined));
             secretPromises.push(StorageProvider.get().secrets.delete(appId));
         })
 
         this.containerTypeIds.forEach(async containerTypeId => {
-            await StorageProvider.get().global.setValue(containerTypeId, undefined)
+            secretPromises.push(StorageProvider.get().global.setValue(containerTypeId, undefined));
         })
 
         this.containerTypes.forEach(containerType => {
             containerType.registrationIds.forEach(async registrationId => {
-                await StorageProvider.get().global.setValue(registrationId, undefined);
+                secretPromises.push(StorageProvider.get().global.setValue(registrationId, undefined));
+            });
+            containerType.secondaryAppIds.forEach(async secondaryAppId => {
+                secretPromises.push(StorageProvider.get().global.setValue(secondaryAppId, undefined));
             })
         })
         await Promise.all(secretPromises);

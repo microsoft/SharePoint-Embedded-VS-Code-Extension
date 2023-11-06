@@ -77,6 +77,30 @@ export default class PnPProvider {
         }
     }
 
+    static async deleteContainerTypeById(accessToken: any, tenantName: string, containerTypeId: string) {
+        try {
+            let sp: any;
+            try {
+                sp = await getPnPProvider(accessToken, tenantName)
+            } catch (e) {
+                console.log(e);
+                throw e;
+            }
+
+            // Accept Terms of Service for SharePoint Embedded Services prior to management calls
+            try {
+                await sp.admin.tenant.call("DeleteSPOContainerTypeById", {
+                    containerTypeId: containerTypeId
+                })
+            } catch (error: any) {
+                console.log(error.message);
+                throw error;
+            }
+        } catch (error: any) {
+            throw error;
+        }
+    }
+
     static async acceptSpeTos(accessToken: any, tenantName: any, owningAppId: string) {
         try {
             let sp: any;

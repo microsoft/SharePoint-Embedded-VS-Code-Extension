@@ -113,7 +113,7 @@ export async function activate(context: vscode.ExtensionContext) {
                 vscode.window.showErrorMessage(`Consent failed on app ${app.clientId}`);
                 throw new Error();
             }
-            const containerType = account.createContainerType(app.clientId, containerTypeName, BillingClassification.FreeTrial);
+            const containerType = await account.createContainerType(app.clientId, containerTypeName, BillingClassification.FreeTrial);
         } catch (error: any) {
             vscode.window.showErrorMessage("Unable to create Free Trial Container Type: " + error.message);
             account.deleteApp(app);
@@ -135,6 +135,20 @@ export async function activate(context: vscode.ExtensionContext) {
 
 
     });
+
+    const deleteContainerTypeCommand = vscode.commands.registerCommand('spe.deleteContainerType', async () => {
+        const account = Account.get()!;
+        const containerType = account.containerTypes[0]
+
+        try {
+            //await account.deleteContainerTypeById(containerType.owningApp.clientId, containerType.containerTypeId);
+            await account.deleteContainerTypeById("8415b804-a220-4113-8483-371b01d446ad", "d6daab70-24cf-0147-0fe9-ee2d222663b0");
+        } catch (error: any) {
+            vscode.window.showErrorMessage("Unable to create Azure AD application: " + error.message);
+            return;
+        }
+
+    })
 
     const createNewAadAppCommand = vscode.commands.registerCommand('spe.createNewAadApp', async (isOwningApp) => {
         const appName = await vscode.window.showInputBox({
@@ -535,6 +549,7 @@ export async function activate(context: vscode.ExtensionContext) {
         cloneRepoCommand,
         getCertPK,
         createTrialContainerTypeCommand,
+        deleteContainerTypeCommand,
         registerNewContainerTypeCommand,
         createNewContainerTypeCommand,
         callMSGraphCommand,

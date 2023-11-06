@@ -94,6 +94,10 @@
         "title": "SharePoint Embedded: Upload Certificate"
       },
       {
+        "command": "spe.deleteContainerType",
+        "title": "SharePoint Embedded: Delete ContainerType on Account"
+      },
+      {
         "command": "spe.login",
         "title": "SharePoint Embedded: Login to AAD"
       },

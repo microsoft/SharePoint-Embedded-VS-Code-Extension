@@ -17,9 +17,9 @@ export class App {
     public readonly objectId: string;
     public readonly tenantId: string;
     public readonly isOwningApp: boolean;
-    private clientSecret?: string;
-    private thumbprint?: string;
-    private privateKey?: string;
+    public clientSecret?: string;
+    public thumbprint?: string;
+    public privateKey?: string;
 
     public constructor(clientId: string, displayName: string, objectId: string, tenantId: string, isOwningApp: boolean, clientSecret?: string, thumbprint?: string, privateKey?: string) {
         this.clientId = clientId;
@@ -81,7 +81,7 @@ export class App {
                 app.thumbprint = appSecrets.thumbprint;
                 app.privateKey = appSecrets.privateKey;
             }
-            return app;
+            return new App(retrievedApp.clientId, retrievedApp.displayName, retrievedApp.objectId, retrievedApp.tenantId, retrievedApp.isOwningApp, app.clientSecret, app.thumbprint, app.privateKey);
         }
     return undefined;
     }

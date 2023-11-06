@@ -18,8 +18,8 @@ import { ContainerTypeRegistration } from "./ContainerTypeRegistration";
 export enum BillingClassification {
     Paid = 0,
     FreeTrial = 1
-  }
-  
+}
+
 
 // Class that represents a Container Type object persisted in the global storage provider
 export class ContainerType {
@@ -35,11 +35,11 @@ export class ContainerType {
     public secondaryAppIds: string[];
     public registrationIds: string[];
 
-    public owningApp: App;
+    public owningApp: App | undefined;
     public secondaryApps: App[];
     public registrations: ContainerTypeRegistration[];
 
-    public constructor(containerTypeId: string, owningAppId: string, owningApp: App, displayName: string, billingClassification: number, azureSubscriptionId?: string, creationDate?: string, expiryDate?: string, isBillingProfileRequired?: boolean) {
+    public constructor(containerTypeId: string, owningAppId: string, displayName: string, billingClassification: number, owningApp?: App, azureSubscriptionId?: string, creationDate?: string, expiryDate?: string, isBillingProfileRequired?: boolean) {
         this.azureSubscriptionId = azureSubscriptionId;
         this.displayName = displayName
         this.owningAppId = owningAppId;
@@ -112,45 +112,49 @@ export class ContainerType {
     }
 
     public static async loadFromStorage(containerTypeId: string): Promise<ContainerType | undefined> {
-        let containerType: ContainerType | undefined = StorageProvider.get().global.getValue<ContainerType>(containerTypeId);
-        if (containerType) {
-            containerType = await containerType.loadFromStorage(containerTypeId);
+        let containerTypeProps: ContainerType | undefined = StorageProvider.get().global.getValue<ContainerType>(containerTypeId);
+        if (containerTypeProps) {
+            let containerType = new ContainerType(containerTypeProps.containerTypeId, containerTypeProps.owningAppId, containerTypeProps.displayName, containerTypeProps.billingClassification)
+            containerType = await containerType.loadFromStorageInstance(containerType);
             return containerType;
         }
         return undefined;
     }
 
-    public async loadFromStorage(containerTypeId: string): Promise<ContainerType | undefined> {
-        const containerType: ContainerType = StorageProvider.get().global.getValue<ContainerType>(containerTypeId);
-        if (containerType) {
-            // hydrate owning App
-            const app = await App.loadFromStorage(containerType.owningAppId);
-            containerType.owningApp = app!;
+    public async loadFromStorageInstance(containerType: ContainerType): Promise<ContainerType> {
+        // hydrate owning App
+        const appProps = await App.loadFromStorage(containerType.owningAppId);
+        if (appProps)
+            containerType.owningApp = new App(appProps.clientId, appProps.displayName, appProps.objectId, appProps.tenantId, appProps.isOwningApp, appProps.clientSecret, appProps.thumbprint, appProps.privateKey);
 
-            // hydrate App objects
-            const appPromises = this.secondaryAppIds.map(async (appId) => {
-                const app = App.loadFromStorage(appId);
-                return app;
-            });
+        // hydrate App objects
+        const appPromises = containerType.secondaryAppIds.map(async (appId) => {
+            const app = App.loadFromStorage(appId);
+            return app;
+        });
+        const unfilteredApps: (App | undefined)[] = await Promise.all(appPromises);
+        const secondaryApps = unfilteredApps.filter(app => app !== undefined) as App[];
+        const secondaryAppsInstances = secondaryApps.map(appProps => {
+            // Storage loads App props, so we use props to instantiate App instances 
+            return new App(appProps.clientId, appProps.displayName, appProps.objectId, appProps.tenantId, appProps.isOwningApp, appProps.clientSecret, appProps.thumbprint, appProps.privateKey);
+        });
 
-            const unfilteredApps: (App | undefined)[] = await Promise.all(appPromises);
-            const secondaryApps = unfilteredApps.filter(app => app !== undefined) as App[];
+        // hydrate Container Type Regisration objects
+        const containerTypeRegistrationPromises = containerType.registrationIds.map(async (registrationId) => {
+            const containerTypeRegistration = ContainerTypeRegistration.loadFromStorage(registrationId);
+            return containerTypeRegistration;
+        });
+        const unfilteredContainerTypeRegistrations: (ContainerTypeRegistration | undefined)[] = await Promise.all(containerTypeRegistrationPromises);
+        const registrations = unfilteredContainerTypeRegistrations.filter(ct => ct !== undefined) as ContainerTypeRegistration[];
+        const registrationsInstances = registrations.map(registrationProps => {
+            // Storage loads App props, so we use props to instantiate App instances 
+            return new ContainerTypeRegistration(registrationProps.containerTypeId, registrationProps.tenantId, registrationProps.applicationPermissions);
+        });
 
-            // hydrate Container Type Regisration objects
-            const containerTypeRegistrationPromises = this.registrationIds.map(async (registrationId) => {
-                const containerTypeRegistration = ContainerTypeRegistration.loadFromStorage(registrationId);
-                return containerTypeRegistration;
-            });
+        containerType.secondaryApps = secondaryAppsInstances;
+        containerType.registrations = registrationsInstances;
 
-            const unfilteredContainerTypeRegistrations: (ContainerTypeRegistration | undefined)[] = await Promise.all(containerTypeRegistrationPromises);
-            const registrations = unfilteredContainerTypeRegistrations.filter(ct => ct !== undefined) as ContainerTypeRegistration[];
-
-            containerType.secondaryApps = secondaryApps;
-            containerType.registrations = registrations;
-
-            return containerType;
-        }
-        return undefined;
+        return containerType;
     }
 
     public async saveToStorage(): Promise<void> {
