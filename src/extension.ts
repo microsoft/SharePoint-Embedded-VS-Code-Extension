@@ -23,6 +23,7 @@ import { Account } from './models/Account';
 import GraphProvider from './services/GraphProvider';
 import { App } from './models/App';
 import PnPProvider from './services/PnPProvider';
+import { BillingClassification, ContainerType } from './models/ContainerType';
 
 let accessTokenPanel: vscode.WebviewPanel | undefined;
 let firstPartyAppAuthProvider: FirstPartyAuthProvider;
@@ -33,8 +34,8 @@ export async function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(ext.outputChannel);
 
     StorageProvider.init(
-        new LocalStorageService(context.globalState), 
-        new LocalStorageService(context.workspaceState), 
+        new LocalStorageService(context.globalState),
+        new LocalStorageService(context.workspaceState),
         context.secrets
     );
     const createAppServiceProvider = CreateAppProvider.getInstance(context);
@@ -84,17 +85,55 @@ export async function activate(context: vscode.ExtensionContext) {
             vscode.window.showErrorMessage('No Container Type name provided');
             return;
         }
-        
+
+
+        // Create AAD application 
         const account = Account.get()!;
-        let app;
+        let app: App | undefined;
         try {
             app = await account.createApp(appName, true);
         } catch (error: any) {
             vscode.window.showErrorMessage("Unable to create Azure AD application: " + error.message);
             return;
         }
-        
-        console.log('app creation success');
+
+        if (!app) {
+            vscode.window.showErrorMessage("Unable to create Azure AD application");
+            return;
+        }
+
+        // 20-second progress to allow app propagation before consent flow
+        await showProgress();
+
+        // Create Container Type 
+        let containerType: ContainerType | undefined;
+        try {
+            const result = await app.consent();
+            if (!result) {
+                vscode.window.showErrorMessage(`Consent failed on app ${app.clientId}`);
+                throw new Error();
+            }
+            const containerType = account.createContainerType(app.clientId, containerTypeName, BillingClassification.FreeTrial);
+        } catch (error: any) {
+            vscode.window.showErrorMessage("Unable to create Free Trial Container Type: " + error.message);
+            account.deleteApp(app);
+            return;
+        }
+
+        if (!containerType) {
+            vscode.window.showErrorMessage("Unable to create Free Trial Container Type");
+            return;
+        }
+
+        // Register Container Type
+        try {
+            await containerType.addTenantRegistration("", app, ["full"], ["full"]);
+        } catch (error: any) {
+            vscode.window.showErrorMessage("Unable to register Free Trial Container Type: " + error.message);
+        }
+
+
+
     });
 
     const createNewAadAppCommand = vscode.commands.registerCommand('spe.createNewAadApp', async (isOwningApp) => {
@@ -470,8 +509,8 @@ export async function activate(context: vscode.ExtensionContext) {
 
             const account = Account.get();
             const dets = StorageProvider.get().global.getValue("account");
-            const a = StorageProvider.get().global.getValue("bcaa157d-4749-4bd1-8c9a-6ea9e3ff94a6");
-            const a_s = await StorageProvider.get().secrets.get("bcaa157d-4749-4bd1-8c9a-6ea9e3ff94a6")
+            const a = StorageProvider.get().global.getValue("63408029-5baf-4cf3-acd8-ea0c49c8602a");
+            const a_s = await StorageProvider.get().secrets.get("63408029-5baf-4cf3-acd8-ea0c49c8602a")
             //createAppServiceProvider.globalStorageManager.setValue("apps", apps);
             console.log('hi');
             if (false) {

@@ -15,6 +15,12 @@ import { App } from "./App";
 import { ApplicationPermissions } from "./ApplicationPermissions";
 import { ContainerTypeRegistration } from "./ContainerTypeRegistration";
 
+export enum BillingClassification {
+    Paid = 0,
+    FreeTrial = 1
+  }
+  
+
 // Class that represents a Container Type object persisted in the global storage provider
 export class ContainerType {
     // instance properties
@@ -33,7 +39,7 @@ export class ContainerType {
     public secondaryApps: App[];
     public registrations: ContainerTypeRegistration[];
 
-    public constructor(containerTypeId: string, owningAppId: string, displayName: string, owningApp: App, billingClassification: number, azureSubscriptionId?: string, creationDate?: string, expiryDate?: string, isBillingProfileRequired?: boolean) {
+    public constructor(containerTypeId: string, owningAppId: string, owningApp: App, displayName: string, billingClassification: number, azureSubscriptionId?: string, creationDate?: string, expiryDate?: string, isBillingProfileRequired?: boolean) {
         this.azureSubscriptionId = azureSubscriptionId;
         this.displayName = displayName
         this.owningAppId = owningAppId;
@@ -66,7 +72,6 @@ export class ContainerType {
 
             const certThumbprint = await GraphProvider.getCertThumbprintFromApplication(accessToken, app.clientId);
             const vroomAccessToken = appSecrets.privateKey && await acquireAppOnlyCertSPOToken(certThumbprint, app.clientId, domain, appSecrets.privateKey, tid)
-
 
             const containerTypeRegistration = ContainerTypeRegistration.loadFromStorage(`${this.containerTypeId}_${tid}`)!;
 

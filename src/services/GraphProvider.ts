@@ -218,6 +218,23 @@ export default class GraphProvider {
         }
     }
 
+    static async deleteApplication(accessToken: string, applicationId: string) {
+        const endpoint = `https://graph.microsoft.com/v1.0/applications/${applicationId}`;
+      
+        try {
+          const response = await axios.delete(endpoint, {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+            },
+          });
+      
+          console.log(`Application with ID ${applicationId} deleted successfully.`);
+        } catch (error: any) {
+          console.error('Error deleting the application:', error.response.data);
+          throw error;
+        }
+      };
+
     static async addIdentifierUri(accessToken: string, clientId: string) {
         try {
             const response = await axios({

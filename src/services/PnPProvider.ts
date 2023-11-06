@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as vscode from 'vscode';
+import { BillingClassification } from '../models/ContainerType';
 let sp: any = null;
 
 async function getPnPProvider(accessToken: any, tenantName: any) {
@@ -31,7 +32,7 @@ async function getPnPProvider(accessToken: any, tenantName: any) {
     return sp;
 }
 export default class PnPProvider {
-    static async createNewContainerType(accessToken: any, tenantName: any, owningAppId: string, displayName: string) {
+    static async createNewContainerType(accessToken: any, tenantName: any, owningAppId: string, displayName: string, billingClassification: BillingClassification) {
         try {
             let sp: any;
             try {
@@ -47,7 +48,7 @@ export default class PnPProvider {
                     containerTypeProperties: {
                         DisplayName: displayName,
                         OwningAppId: owningAppId,
-                        SPContainerTypeBillingClassification: 1
+                        SPContainerTypeBillingClassification: billingClassification
                     }
                 });
             } catch (error: any) {

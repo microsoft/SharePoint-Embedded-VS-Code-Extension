@@ -14,6 +14,7 @@ import { generateCertificateAndPrivateKey, createCertKeyCredential, acquireAppOn
 import { ext } from '../utils/extensionVariables';
 import { LocalStorageService } from './StorageProvider';
 import { ApplicationPermissions } from '../utils/models';
+import { BillingClassification } from '../models/ContainerType';
 
 export class CreateAppProvider {
     private static instance: CreateAppProvider;
@@ -112,7 +113,7 @@ export class CreateAppProvider {
                 vscode.window.showInformationMessage(`Registering App ${thirdPartyAppId} on ContainerType ${containerTypeDict[thirdPartyAppId]}`);
                 return true;
             } else {
-                const containerTypeDetails = await PnPProvider.createNewContainerType(spToken, domain, thirdPartyAppId, containerTypeName);
+                const containerTypeDetails = await PnPProvider.createNewContainerType(spToken, domain, thirdPartyAppId, containerTypeName, BillingClassification.FreeTrial);
                 containerTypeDict[thirdPartyAppId] = containerTypeDetails;
                 appPermissionsDict[containerTypeDetails.ContainerTypeId] = [{
                     appId: thirdPartyAppId,
