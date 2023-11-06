@@ -38,7 +38,7 @@ export class ContainerTypeRegistration {
             tenantId: this.tenantId,
             applicationPermissions: this.applicationPermissions
         }
-        StorageProvider.get().global.setValue(this.containerTypeId + '_' + this.tenantId, JSON.stringify(registration));
+        const registrationString = JSON.stringify(registration)
+        await StorageProvider.get().global.setValue(this.containerTypeId + '_' + this.tenantId, registrationString);
     }
-
 }

@@ -37,8 +37,8 @@ export class LocalStorageService {
         return this.storage.get<T>(key, null as unknown as T);
     }
 
-    public setValue<T>(key : string, value : T){
-        this.storage.update(key, value );
+    public async setValue<T>(key : string, value : T){
+        await this.storage.update(key, value );
     }
 
     public getAllKeys(): readonly string[] {

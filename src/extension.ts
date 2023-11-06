@@ -469,8 +469,9 @@ export async function activate(context: vscode.ExtensionContext) {
             //createAppServiceProvider.globalStorageManager.setValue(RegisteredContainerTypeSetKey, []);
 
             const account = Account.get();
-            const dets = StorageProvider.get().global.getValue(Account.storageKey);
-            const a = StorageProvider.get().global.getValue("c573a38f-866a-4de7-ad1a-4eafc24401ec");
+            const dets = StorageProvider.get().global.getValue("account");
+            const a = StorageProvider.get().global.getValue("bcaa157d-4749-4bd1-8c9a-6ea9e3ff94a6");
+            const a_s = await StorageProvider.get().secrets.get("bcaa157d-4749-4bd1-8c9a-6ea9e3ff94a6")
             //createAppServiceProvider.globalStorageManager.setValue("apps", apps);
             console.log('hi');
             if (false) {

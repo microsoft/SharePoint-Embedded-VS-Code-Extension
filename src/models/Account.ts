@@ -151,7 +151,7 @@ export class Account {
                 // Save updated app IDs to storage
                 this.appIds.push(app.clientId);
                 this.apps.push(app);
-                this.saveToStorage()
+                await this.saveToStorage()
                 return app;
             }
         }
@@ -187,14 +187,14 @@ export class Account {
                 containerTypeDetails.isBillingProfileRequired);
 
             // Store new Container Type
-            containerType.saveToStorage();
+            await containerType.saveToStorage();
 
             // Update Account with ContainerTypeId
             this.containerTypeIds.push(containerType.containerTypeId);
             this.containerTypes.push(containerType);
-            this.saveToStorage();
+            await this.saveToStorage();
 
-            StorageProvider.get().global.setValue(OwningAppIdKey, appId);
+            //await StorageProvider.get().global.setValue(OwningAppIdKey, appId);
             //vscode.window.showInformationMessage(`ContainerType ${containerTypeDetails.ContainerTypeId} created successfully`);
         }
     }
@@ -204,7 +204,7 @@ export class Account {
         const certKeyCredential = createCertKeyCredential(certificatePEM);
         const properties = await GraphProvider.createAadApplication(displayName, token, certKeyCredential);
         if (properties) {
-            const app = new App(properties.appId, displayName, properties.id, Account.get()!.tenantId, isOwningApp, undefined, undefined, undefined);
+            const app = new App(properties.appId, displayName, properties.id, Account.get()!.tenantId, isOwningApp, undefined, thumbprint, privateKey);
             app.saveToStorage();
             await app.addAppSecret(token);
             return app;
@@ -248,36 +248,36 @@ export class Account {
         this.containerTypes = containerTypes;
     }
 
-    public saveToStorage(): void {
+    public async saveToStorage(): Promise<void> {
         const storedAccount = {
             appIds: this.appIds,
             containerTypeIds: this.containerTypeIds
         }
 
-        const jsonStr = JSON.stringify(storedAccount);
-        StorageProvider.get().global.setValue(Account.storageKey, jsonStr);
+        const accountString = JSON.stringify(storedAccount);
+        await StorageProvider.get().global.setValue(Account.storageKey, accountString);
     }
 
     public async deleteFromStorage(): Promise<void> {
         const secretPromises: Thenable<void>[] = [];
 
-        this.appIds.forEach(appId => {
-            StorageProvider.get().global.setValue(appId, undefined);
+        this.appIds.forEach(async appId => {
+            await StorageProvider.get().global.setValue(appId, undefined);
             secretPromises.push(StorageProvider.get().secrets.delete(appId));
         })
 
-        this.containerTypeIds.forEach(containerTypeId => {
-            StorageProvider.get().global.setValue(containerTypeId, undefined)
+        this.containerTypeIds.forEach(async containerTypeId => {
+            await StorageProvider.get().global.setValue(containerTypeId, undefined)
         })
 
         this.containerTypes.forEach(containerType => {
-            containerType.registrationIds.forEach(registrationId => {
-                StorageProvider.get().global.setValue(registrationId, undefined);
+            containerType.registrationIds.forEach(async registrationId => {
+                await StorageProvider.get().global.setValue(registrationId, undefined);
             })
         })
         await Promise.all(secretPromises);
 
-        StorageProvider.get().global.setValue(Account.storageKey, undefined);
+        await StorageProvider.get().global.setValue(Account.storageKey, undefined);
     }
 }
 

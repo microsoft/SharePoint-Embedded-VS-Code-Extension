@@ -7,7 +7,7 @@ import ThirdPartyAuthProvider from "../services/3PAuthProvider";
 import GraphProvider from "../services/GraphProvider";
 import { StorageProvider } from "../services/StorageProvider";
 import { OwningAppIdKey, OwningAppIdsListKey, TenantIdKey } from "../utils/constants";
-
+import _ from 'lodash';
 
 // Class that represents an Azure AD application object persisted in the global storage provider
 export class App {
@@ -71,7 +71,8 @@ export class App {
     }
 
     public static async loadFromStorage(clientId: string): Promise<App | undefined> {
-        const app: App = StorageProvider.get().global.getValue<App>(clientId);
+        const retrievedApp: App = StorageProvider.get().global.getValue<App>(clientId);
+        const app = _.cloneDeep(retrievedApp);
         if (app) {
             const appSecretsString = await StorageProvider.get().secrets.get(clientId);
             if (appSecretsString) {
@@ -82,16 +83,19 @@ export class App {
             }
             return app;
         }
-        return undefined;
+    return undefined;
     }
     
     public async saveToStorage(): Promise<void> {
-        StorageProvider.get().global.setValue(this.clientId, this);
+        const appCopy = _.cloneDeep(this);
+        const { clientSecret, thumbprint, privateKey, ...app } = appCopy;
+        await StorageProvider.get().global.setValue(this.clientId, app);
         const appSecrets = {
             clientSecret: this.clientSecret,
             thumbprint: this.thumbprint,
             privateKey: this.privateKey
         };
-        await StorageProvider.get().secrets.store(this.clientId, JSON.stringify(appSecrets));
+        const appSecretsString = JSON.stringify(appSecrets);
+        await StorageProvider.get().secrets.store(this.clientId, appSecretsString);
     }
 }

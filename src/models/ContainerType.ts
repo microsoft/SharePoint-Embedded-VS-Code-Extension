@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-const _ = require('lodash');
+import _ from 'lodash';
 import { acquireAppOnlyCertSPOToken } from "../cert";
 import ThirdPartyAuthProvider from "../services/3PAuthProvider";
 import GraphProvider from "../services/GraphProvider";
@@ -79,7 +79,7 @@ export class ContainerType {
             }
 
             // Save Container Type registration to storage
-            containerTypeRegistration.saveToStorage()
+            await containerTypeRegistration.saveToStorage()
 
             // Update properties on ContainerType 
             this.registrationIds.push(`${this.containerTypeId}_${tid}`)
@@ -90,7 +90,7 @@ export class ContainerType {
                 this.secondaryApps.push(app);
             }
 
-            this.saveToStorage();
+            await this.saveToStorage();
             //vscode.window.showInformationMessage(`Successfully registered ContainerType ${containerTypeDict[owningAppId].ContainerTypeId} on 3P application: ${this.globalStorageManager.getValue(CurrentApplicationKey)}`);
             return true;
         } catch (error: any) {
@@ -148,10 +148,10 @@ export class ContainerType {
         return undefined;
     }
 
-    public saveToStorage(): void {
+    public async saveToStorage(): Promise<void> {
         const containerTypeCopy = _.cloneDeep(this);
         const { owningApp, secondaryApps, registrations, ...containerType } = containerTypeCopy;
-        StorageProvider.get().global.setValue(this.containerTypeId, containerType);
+        await StorageProvider.get().global.setValue(this.containerTypeId, containerType);
     }
 
     public static loadAllContainerTypesFromStorage(): { [key: string]: any } | {} {
