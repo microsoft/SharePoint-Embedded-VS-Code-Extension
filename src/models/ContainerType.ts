@@ -39,7 +39,17 @@ export class ContainerType {
     public secondaryApps: App[];
     public registrations: ContainerTypeRegistration[];
 
-    public constructor(containerTypeId: string, owningAppId: string, displayName: string, billingClassification: number, owningApp?: App, azureSubscriptionId?: string, creationDate?: string, expiryDate?: string, isBillingProfileRequired?: boolean) {
+    public constructor(containerTypeId: string,
+        owningAppId: string,
+        displayName: string,
+        billingClassification: number,
+        owningApp?: App,
+        azureSubscriptionId?: string,
+        creationDate?: string,
+        expiryDate?: string,
+        isBillingProfileRequired?: boolean,
+        registrationIds?: string[],
+        secondaryAppIds?: string[]) {
         this.azureSubscriptionId = azureSubscriptionId;
         this.displayName = displayName
         this.owningAppId = owningAppId;
@@ -48,15 +58,14 @@ export class ContainerType {
         this.creationDate = creationDate;
         this.expiryDate = expiryDate;
         this.owningApp = owningApp;
-        this.secondaryAppIds = [];
+        this.secondaryAppIds = secondaryAppIds ? secondaryAppIds : [];
         this.secondaryApps = [];
-        this.registrationIds = [];
+        this.registrationIds = registrationIds ? registrationIds : [];
         this.registrations = [];
     }
 
     public async addTenantRegistration(tenantId: string, app: App, delegatedPermissions: string[], applicationPermissions: string[]): Promise<boolean> {
         try {
-            const tid: any = StorageProvider.get().global.getValue(TenantIdKey);
             const appSecretsString = await StorageProvider.get().secrets.get(app.clientId);
             if (!appSecretsString) {
                 return false;
@@ -71,12 +80,12 @@ export class ContainerType {
             const domain = parts[0];
 
             const certThumbprint = await GraphProvider.getCertThumbprintFromApplication(accessToken, app.clientId);
-            const vroomAccessToken = appSecrets.privateKey && await acquireAppOnlyCertSPOToken(certThumbprint, app.clientId, domain, appSecrets.privateKey, tid)
+            const vroomAccessToken = appSecrets.privateKey && await acquireAppOnlyCertSPOToken(certThumbprint, app.clientId, domain, appSecrets.privateKey, tenantId)
 
-            const containerTypeRegistration = ContainerTypeRegistration.loadFromStorage(`${this.containerTypeId}_${tid}`)!;
+            let containerTypeRegistration = ContainerTypeRegistration.loadFromStorage(`${this.containerTypeId}_${tenantId}`)!;
 
             if (!containerTypeRegistration) {
-                const containerTypeRegistration = new ContainerTypeRegistration(this.containerTypeId, tid, [new ApplicationPermissions(app.clientId, ["full"], ["full"])])
+                containerTypeRegistration = new ContainerTypeRegistration(this.containerTypeId, tenantId, [new ApplicationPermissions(app.clientId, ["full"], ["full"])])
                 await VroomProvider.registerContainerType(vroomAccessToken, app.clientId, `https://${domain}.sharepoint.com`, this.containerTypeId, containerTypeRegistration.applicationPermissions);
             } else {
                 containerTypeRegistration.applicationPermissions.push(new ApplicationPermissions(app.clientId, delegatedPermissions, applicationPermissions));
@@ -87,7 +96,7 @@ export class ContainerType {
             await containerTypeRegistration.saveToStorage()
 
             // Update properties on ContainerType 
-            this.registrationIds.push(`${this.containerTypeId}_${tid}`)
+            this.registrationIds.push(`${this.containerTypeId}_${tenantId}`)
             this.registrations.push(containerTypeRegistration);
 
             if (this.owningAppId != app.clientId) {
@@ -100,7 +109,7 @@ export class ContainerType {
             return true;
         } catch (error: any) {
             //vscode.window.showErrorMessage('Failed to register ContainerType');
-            console.error('Error:', error.response);
+            console.error('Error:', error);
 
             // TODO
             // remove registered app id from global storage?
@@ -114,7 +123,18 @@ export class ContainerType {
     public static async loadFromStorage(containerTypeId: string): Promise<ContainerType | undefined> {
         let containerTypeProps: ContainerType | undefined = StorageProvider.get().global.getValue<ContainerType>(containerTypeId);
         if (containerTypeProps) {
-            let containerType = new ContainerType(containerTypeProps.containerTypeId, containerTypeProps.owningAppId, containerTypeProps.displayName, containerTypeProps.billingClassification)
+            let containerType = new ContainerType(
+                containerTypeProps.containerTypeId, 
+                containerTypeProps.owningAppId, 
+                containerTypeProps.displayName, 
+                containerTypeProps.billingClassification, 
+                undefined, 
+                containerTypeProps.azureSubscriptionId,
+                containerTypeProps.creationDate,
+                containerTypeProps.expiryDate,
+                containerTypeProps.isBillingProfileRequired,
+                containerTypeProps.registrationIds,
+                containerTypeProps.secondaryAppIds)
             containerType = await containerType.loadFromStorageInstance(containerType);
             return containerType;
         }

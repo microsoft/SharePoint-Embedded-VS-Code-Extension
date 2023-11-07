@@ -98,6 +98,10 @@
         "title": "SharePoint Embedded: Delete ContainerType on Account"
       },
       {
+        "command": "spe.registerContainerType",
+        "title": "SharePoint Embedded: Register Container Type"
+      },
+      {
         "command": "spe.login",
         "title": "SharePoint Embedded: Login to AAD"
       },
@@ -105,14 +109,6 @@
         "command": "spe.createNewAadApp",
         "title": "SharePoint Embedded: Create New AAD Application",
         "icon": "$(terminal-new)"
-      },
-      {
-        "command": "spe.createNewContainerTypeCommand",
-        "title": "SharePoint Embedded: Create New ContainerType"
-      },
-      {
-        "command": "spe.registerNewContainerTypeCommand",
-        "title": "SharePoint Embedded: Register New ContainerType"
       },
       {
         "command": "spe.callMSGraphCommand",

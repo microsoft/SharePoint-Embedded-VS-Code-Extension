@@ -7,7 +7,7 @@
 import { AccountInfo, ProtocolMode } from '@azure/msal-node';
 import FirstPartyAuthProvider from '../services/1PAuthProvider';
 import { BaseAuthProvider } from '../services/BaseAuthProvider';
-import { checkJwtForAdminClaim, decodeJwt } from '../utils/token';
+import { checkJwtForAdminClaim, decodeJwt, getJwtTenantId } from '../utils/token';
 import { App } from './App';
 import { StorageProvider } from '../services/StorageProvider';
 import { BillingClassification, ContainerType } from './ContainerType';
@@ -98,6 +98,7 @@ export class Account {
             if (accountInfo) {
                 const decodedToken = decodeJwt(token);
                 const isAdmin = checkJwtForAdminClaim(decodedToken);
+                const tid = getJwtTenantId(decodedToken)
                 Account.instance = new Account(accountInfo.homeAccountId,
                     accountInfo.environment,
                     accountInfo.tenantId,
@@ -165,7 +166,6 @@ export class Account {
         }
         const appSecrets = JSON.parse(appSecretsString);
         const thirdPartyAuthProvider = new ThirdPartyAuthProvider(appId, appSecrets.thumbprint, appSecrets.privateKey)
-        const tid: any = StorageProvider.get().global.getValue(TenantIdKey);
 
         //const consentToken = await thirdPartyAuthProvider.getToken(['00000003-0000-0ff1-ce00-000000000000/.default']);
         const graphAccessToken = await thirdPartyAuthProvider.getToken(["00000003-0000-0000-c000-000000000000/Organization.Read.All", "00000003-0000-0000-c000-000000000000/Application.ReadWrite.All"]);
@@ -204,6 +204,27 @@ export class Account {
             //await StorageProvider.get().global.setValue(OwningAppIdKey, appId);
             //vscode.window.showInformationMessage(`ContainerType ${containerTypeDetails.ContainerTypeId} created successfully`);
         }
+    }
+
+    public async getContainerTypeById(appId: string, containerTypeId: string): Promise<ContainerType | undefined> {
+        const appSecretsString = await StorageProvider.get().secrets.get(appId);
+        if (!appSecretsString) {
+            return undefined;
+        }
+        const appSecrets = JSON.parse(appSecretsString);
+        const thirdPartyAuthProvider = new ThirdPartyAuthProvider(appId, appSecrets.thumbprint, appSecrets.privateKey)
+        const tid: any = StorageProvider.get().global.getValue(TenantIdKey);
+
+        //const consentToken = await thirdPartyAuthProvider.getToken(['00000003-0000-0ff1-ce00-000000000000/.default']);
+        const graphAccessToken = await thirdPartyAuthProvider.getToken(["00000003-0000-0000-c000-000000000000/Organization.Read.All", "00000003-0000-0000-c000-000000000000/Application.ReadWrite.All"]);
+        const tenantDomain = await GraphProvider.getOwningTenantDomain(graphAccessToken);
+        const parts = tenantDomain.split('.');
+        const domain = parts[0];
+
+        const spToken = await thirdPartyAuthProvider.getToken([`https://${domain}-admin.sharepoint.com/.default`]);
+        const containerTypeDetails = await PnPProvider.getContainerTypeById(spToken, domain, containerTypeId);
+
+        return containerTypeDetails;
     }
 
     public async deleteContainerTypeById(appId: string, containerTypeId: string): Promise<ContainerType | undefined> {

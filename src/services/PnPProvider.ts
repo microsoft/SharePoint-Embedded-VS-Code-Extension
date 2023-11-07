@@ -77,6 +77,30 @@ export default class PnPProvider {
         }
     }
 
+    static async getContainerTypeById(accessToken: any, tenantName: string, containerTypeId: string) {
+        try {
+            let sp: any;
+            try {
+                sp = await getPnPProvider(accessToken, tenantName)
+            } catch (e) {
+                console.log(e);
+                throw e;
+            }
+
+            try {
+                return await sp.admin.tenant.call("GetSPOContainerTypeById", {
+                    containerTypeId: containerTypeId,
+                    containerTenantType: 1
+                })
+            } catch (error: any) {
+                console.log(error.message);
+                throw error;
+            }
+        } catch (error: any) {
+            throw error;
+        }
+    }
+
     static async deleteContainerTypeById(accessToken: any, tenantName: string, containerTypeId: string) {
         try {
             let sp: any;

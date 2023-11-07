@@ -113,7 +113,7 @@ export async function activate(context: vscode.ExtensionContext) {
                 vscode.window.showErrorMessage(`Consent failed on app ${app.clientId}`);
                 throw new Error();
             }
-            const containerType = await account.createContainerType(app.clientId, containerTypeName, BillingClassification.FreeTrial);
+            containerType = await account.createContainerType(app.clientId, containerTypeName, BillingClassification.FreeTrial);
         } catch (error: any) {
             vscode.window.showErrorMessage("Unable to create Free Trial Container Type: " + error.message);
             account.deleteApp(app);
@@ -127,12 +127,25 @@ export async function activate(context: vscode.ExtensionContext) {
 
         // Register Container Type
         try {
-            await containerType.addTenantRegistration("", app, ["full"], ["full"]);
+            await containerType.addTenantRegistration(account.tenantId, app, ["full"], ["full"]);
         } catch (error: any) {
             vscode.window.showErrorMessage("Unable to register Free Trial Container Type: " + error.message);
         }
 
+        vscode.window.showInformationMessage(`Container Type ${containerTypeName} successfully created and registerd on Azure AD App: ${appName}`);
+    });
 
+    const registerContainerTypeCommand = vscode.commands.registerCommand('spe.registerContainerType', async () => {
+        const account = Account.get()!;
+        const containerType = account.containerTypes[0]
+
+        try {
+            const registrationComplete = await containerType.addTenantRegistration(account.tenantId, containerType.owningApp!, ["full"], ["full"])
+            vscode.window.showInformationMessage(`Container Type ${containerType.displayName} successfully created and registerd on Azure AD App: ${containerType.owningApp?.displayName}`);
+        } catch (error: any) {
+            vscode.window.showErrorMessage("Unable to create Azure AD application: " + error.message);
+            return;
+        }
 
     });
 
@@ -141,8 +154,8 @@ export async function activate(context: vscode.ExtensionContext) {
         const containerType = account.containerTypes[0]
 
         try {
-            //await account.deleteContainerTypeById(containerType.owningApp.clientId, containerType.containerTypeId);
-            await account.deleteContainerTypeById("8415b804-a220-4113-8483-371b01d446ad", "d6daab70-24cf-0147-0fe9-ee2d222663b0");
+            const containerTypeDetails = await account.getContainerTypeById(containerType.owningApp!.clientId, containerType.containerTypeId);
+            await account.deleteContainerTypeById(containerType.owningApp!.clientId, containerType.containerTypeId);
         } catch (error: any) {
             vscode.window.showErrorMessage("Unable to create Azure AD application: " + error.message);
             return;
@@ -523,8 +536,8 @@ export async function activate(context: vscode.ExtensionContext) {
 
             const account = Account.get();
             const dets = StorageProvider.get().global.getValue("account");
-            const a = StorageProvider.get().global.getValue("63408029-5baf-4cf3-acd8-ea0c49c8602a");
-            const a_s = await StorageProvider.get().secrets.get("63408029-5baf-4cf3-acd8-ea0c49c8602a")
+            const a = StorageProvider.get().global.getValue("8415b804-a220-4113-8483-371b01d446ad");
+            const a_s = await StorageProvider.get().secrets.get("8415b804-a220-4113-8483-371b01d446ad")
             //createAppServiceProvider.globalStorageManager.setValue("apps", apps);
             console.log('hi');
             if (false) {
@@ -550,14 +563,13 @@ export async function activate(context: vscode.ExtensionContext) {
         getCertPK,
         createTrialContainerTypeCommand,
         deleteContainerTypeCommand,
-        registerNewContainerTypeCommand,
+        registerContainerTypeCommand,
         createNewContainerTypeCommand,
         callMSGraphCommand,
         exportPostmanConfig,
         callSpeTosCommand,
         createNewAadAppCommand,
         createGuestAdApp,
-        registerContainerTypeOnGuestAppCommand
         // generateCertificateCommand,
         // getSPToken
     );
