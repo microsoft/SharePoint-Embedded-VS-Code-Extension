@@ -5,9 +5,13 @@
 
 import * as vscode from "vscode";
 import { TreeViewCommand } from "./treeViewCommand";
+import { App } from "../../models/App";
+import { ContainerType } from "../../models/ContainerType";
 
 export class SecondaryApplicationTreeItem extends vscode.TreeItem {
     constructor(
+        public app: App,
+        public containerType: ContainerType,
         public readonly label: string,
         public readonly collapsibleState: vscode.TreeItemCollapsibleState,
         public image?: { name: string; custom: boolean },

@@ -39,7 +39,7 @@ export class SecondaryApplicationsTreeItem extends vscode.TreeItem {
     private getApps() {
         const appItems = this.containerType.secondaryApps.map(
             (app) => {
-                return new SecondaryApplicationTreeItem(app.displayName, vscode.TreeItemCollapsibleState.Collapsed, { name: "console", custom: false })
+                return new SecondaryApplicationTreeItem(app, this.containerType ,app.displayName, vscode.TreeItemCollapsibleState.Collapsed, { name: "console", custom: false })
             }
         )
         return appItems;

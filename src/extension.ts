@@ -165,22 +165,18 @@ export async function activate(context: vscode.ExtensionContext) {
 
     });
 
-    const renameContainerTypeCommand = vscode.commands.registerCommand('spe.renameContainerType', async () => {
+    const renameContainerTypeCommand = vscode.commands.registerCommand('spe.renameContainerType', async (param) => {
+        console.log(param);
+        const account = Account.get()!;
+        const containerType = account.containerTypes[0]
+
         try {
-            const thirdPartyAppId: any = createAppServiceProvider.globalStorageManager.getValue(CurrentApplicationKey);
-            if (typeof createAppServiceProvider.thirdPartyAuthProvider == "undefined" || createAppServiceProvider.thirdPartyAuthProvider == null) {
-                const serializedSecrets = await createAppServiceProvider.getSecretsByAppId(thirdPartyAppId);
-                createAppServiceProvider.thirdPartyAuthProvider = new ThirdPartyAuthProvider(thirdPartyAppId, serializedSecrets.thumbprint, serializedSecrets.privateKey)
-            }
-
-            const accessToken = await createAppServiceProvider.thirdPartyAuthProvider.getToken(['https://graph.microsoft.com/.default']);
-
-            const gResponse = await GraphProvider.checkAdminMemberObjects(accessToken)
-            console.log(gResponse);
-            showAccessTokenWebview(`Obtained Graph Token successfully: ${accessToken}`);
-        } catch (error) {
-            vscode.window.showErrorMessage('Failed to obtain access token.');
-            console.error('Error:', error);
+            const containerTypeDetails = await account.getContainerTypeById(containerType.owningApp!.clientId, containerType.containerTypeId);
+            console.log(containerTypeDetails);
+            //await account.deleteContainerTypeById(containerType.owningApp!.clientId, containerType.containerTypeId);
+        } catch (error: any) {
+            vscode.window.showErrorMessage("Unable to create Azure AD application: " + error.message);
+            return;
         }
     })
 
@@ -266,8 +262,11 @@ export async function activate(context: vscode.ExtensionContext) {
         developmentTreeViewProvider.refresh();
     })
 
-    const cloneRepoCommand = vscode.commands.registerCommand('spe.cloneRepo', async (appId, containerTypeId) => {
+    const cloneRepoCommand = vscode.commands.registerCommand('spe.cloneRepo', async (applicationTreeItem) => {
         try {
+            const appId = applicationTreeItem && applicationTreeItem.app && applicationTreeItem.app.clientId;
+            const containerTypeId = applicationTreeItem && applicationTreeItem.containerType && applicationTreeItem.containerType.containerTypeId;
+            const clientSecret = applicationTreeItem && applicationTreeItem.app && applicationTreeItem.app.clientSecret;
             const repoUrl = 'https://github.com/microsoft/syntex-repository-services.git';
             const folders = await vscode.window.showOpenDialog({
                 canSelectFiles: false,
@@ -280,15 +279,115 @@ export async function activate(context: vscode.ExtensionContext) {
                 const destinationPath = folders[0].fsPath;
                 await vscode.commands.executeCommand('git.clone', repoUrl, destinationPath);
                 console.log(`Repository cloned to: ${destinationPath}`);
-                const secrets = await createAppServiceProvider.getSecretsByAppId(appId);
-                writeLocalSettingsJsonFile(destinationPath, appId, containerTypeId, secrets.clientSecret);
-                writeAppSettingsJsonFile(destinationPath, appId, containerTypeId, secrets.clientSecret);
+
+                writeLocalSettingsJsonFile(destinationPath, appId, containerTypeId, clientSecret);
+                writeAppSettingsJsonFile(destinationPath, appId, containerTypeId, clientSecret);
                 writeEnvFile(destinationPath, appId);
             } else {
                 console.log('No destination folder selected. Cloning canceled.');
             }
         } catch (error) {
             vscode.window.showErrorMessage('Failed to clone Git Repo');
+            console.error('Error:', error);
+        }
+    });
+
+    const exportPostmanConfig = vscode.commands.registerCommand('spe.exportPostmanConfig', async (applicationTreeItem) => {
+        const account = Account.get()!;
+        
+        const app = applicationTreeItem && applicationTreeItem.app && applicationTreeItem.app;
+        const containerType = applicationTreeItem && applicationTreeItem.containerType;
+        
+        const tid = account.tenantId;
+        const thirdPartyAuthProvider = new ThirdPartyAuthProvider(app.clientId, app.thumbprint, app.privateKey)
+        const accessToken = await thirdPartyAuthProvider.getToken(["Organization.Read.All"]);
+        const tenantDomain = await GraphProvider.getOwningTenantDomain(accessToken);
+        const parts = tenantDomain.split('.');
+        const domain = parts[0];
+
+        const values: any[] = [];
+        values.push(
+            {
+                key: "ClientID",
+                value: app.clientId,
+                type: "default",
+                enabled: true
+            },
+            {
+                key: "ClientSecret",
+                value: app.clientSecret,
+                type: "secret",
+                enabled: true
+            },
+            {
+                key: "ConsumingTenantId",
+                value: tid,
+                type: "default",
+                enabled: true
+            },
+            {
+                key: "RootSiteUrl",
+                value: `https://${domain}.sharepoint.com/`,
+                type: "default",
+                enabled: true
+            },
+            {
+                key: "ContainerTypeId",
+                value: containerType.containerTypeId,
+                type: "default",
+                enabled: true
+            },
+            {
+                key: "TenantName",
+                value: domain,
+                type: "default",
+                enabled: true
+            },
+
+            {
+                key: "CertThumbprint",
+                value: app.thumbprint,
+                type: "default",
+                enabled: true
+            },
+            {
+                key: "CertPrivateKey",
+                value: app.privateKey,
+                type: "secret",
+                enabled: true
+            }
+        );
+
+        const pmEnv = {
+            id: uuidv4(),
+            name: app.clientId,
+            values: values,
+            _postman_variable_scope: "environment",
+            _postman_exported_at: (new Date()).toISOString(),
+            _postman_exported_using: "Postman/10.13.5"
+        };
+
+        try {
+            const folders = await vscode.window.showOpenDialog({
+                canSelectFiles: false,
+                canSelectFolders: true,
+                canSelectMany: false,
+                openLabel: 'Save Here',
+            });
+
+            if (folders && folders.length > 0) {
+                const destinationPath = folders[0].fsPath;
+                const postmanEnvJson = JSON.stringify(pmEnv, null, 2);
+                const postmanEnvPath = path.join(destinationPath, `${app.clientId}_postman_environment.json`);
+
+                fs.writeFileSync(postmanEnvPath, postmanEnvJson, 'utf8');
+                console.log(`${app.clientId}_postman_environment.json written successfully`);
+                vscode.window.showInformationMessage(`Postman environment created successfully for Application ${app.clientId}`);
+            } else {
+                console.log('No destination folder selected. Saving canceled.');
+            }
+        } catch (error) {
+            vscode.window.showErrorMessage('Failed to download Postman environment');
             console.error('Error:', error);
         }
     });
@@ -407,102 +506,6 @@ export async function activate(context: vscode.ExtensionContext) {
             vscode.window.showErrorMessage('Failed to obtain access token.');
             console.error('Error:', error);
             return false;
-        }
-    })
-
-    const exportPostmanConfig = vscode.commands.registerCommand('spe.exportPostmanConfig', async (appId, containerTypeId) => {
-        const secrets = appId && await createAppServiceProvider.getSecretsByAppId(appId);
-        const tid = createAppServiceProvider.globalStorageManager.getValue(TenantIdKey);
-        const thirdPartyAuthProvider = new ThirdPartyAuthProvider(appId, secrets.thumbprint, secrets.privateKey)
-        const accessToken = await thirdPartyAuthProvider.getToken(["Organization.Read.All"]);
-        const tenantDomain = await GraphProvider.getOwningTenantDomain(accessToken);
-        const parts = tenantDomain.split('.');
-        const domain = parts[0];
-
-        const values: any[] = [];
-        values.push(
-            {
-                key: "ClientID",
-                value: appId,
-                type: "default",
-                enabled: true
-            },
-            {
-                key: "ClientSecret",
-                value: secrets.clientSecret,
-                type: "secret",
-                enabled: true
-            },
-            {
-                key: "ConsumingTenantId",
-                value: tid,
-                type: "default",
-                enabled: true
-            },
-            {
-                key: "RootSiteUrl",
-                value: `https://${domain}.sharepoint.com/`,
-                type: "default",
-                enabled: true
-            },
-            {
-                key: "ContainerTypeId",
-                value: containerTypeId,
-                type: "default",
-                enabled: true
-            },
-            {
-                key: "TenantName",
-                value: domain,
-                type: "default",
-                enabled: true
-            },
-
-            {
-                key: "CertThumbprint",
-                value: secrets.thumbprint,
-                type: "default",
-                enabled: true
-            },
-            {
-                key: "CertPrivateKey",
-                value: secrets.privateKey,
-                type: "secret",
-                enabled: true
-            }
-        );
-
-        const pmEnv = {
-            id: uuidv4(),
-            name: appId,
-            values: values,
-            _postman_variable_scope: "environment",
-            _postman_exported_at: (new Date()).toISOString(),
-            _postman_exported_using: "Postman/10.13.5"
-        };
-
-        try {
-            const folders = await vscode.window.showOpenDialog({
-                canSelectFiles: false,
-                canSelectFolders: true,
-                canSelectMany: false,
-                openLabel: 'Save Here',
-            });
-
-            if (folders && folders.length > 0) {
-                const destinationPath = folders[0].fsPath;
-                const postmanEnvJson = JSON.stringify(pmEnv, null, 2);
-                const postmanEnvPath = path.join(destinationPath, `${appId}_postman_environment.json`);
-
-                fs.writeFileSync(postmanEnvPath, postmanEnvJson, 'utf8');
-                console.log(`${appId}_postman_environment.json written successfully`);
-                vscode.window.showInformationMessage(`Postman environment created successfully for Application ${appId}`);
-            } else {
-                console.log('No destination folder selected. Saving canceled.');
-            }
-        } catch (error) {
-            vscode.window.showErrorMessage('Failed to download Postman environment');
-            console.error('Error:', error);
         }
     })
 

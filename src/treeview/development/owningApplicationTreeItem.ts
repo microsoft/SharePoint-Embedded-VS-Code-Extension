@@ -5,9 +5,11 @@
 
 import * as vscode from "vscode";
 import { ContainerType } from "../../models/ContainerType";
+import { App } from "../../models/App";
 
 export class OwningApplicationTreeItem extends vscode.TreeItem {
     constructor(
+        public app: App,
         public containerType: ContainerType,
         public readonly label: string,
         public readonly collapsibleState: vscode.TreeItemCollapsibleState,

@@ -106,6 +106,16 @@
           "command": "spe.renameADApplication",
           "when": "view == spe-development && viewItem == owningApplication",
           "group": "inline@1"
+        },
+        {
+          "command": "spe.cloneRepo",
+          "when": "view == spe-development && viewItem == owningApplication",
+          "group": "inline@2"
+        },
+        {
+          "command": "spe.exportPostmanConfig",
+          "when": "view == spe-development && viewItem == owningApplication",
+          "group": "inline@3"
         }
       ]
     },
@@ -153,6 +163,16 @@
         "icon": "$(terminal-new)"
       },
       {
+        "command": "spe.cloneRepo",
+        "title": "Load sample app",
+        "icon": "$(code)"
+      },
+      {
+        "command": "spe.exportPostmanConfig",
+        "title": "Export Postman config",
+        "icon": "$(wrench)"
+      },
+      {
         "command": "spe.callMSGraphCommand",
         "title": "SharePoint Embedded: Call MSGraph"
       },
@@ -164,10 +184,6 @@
         "command": "spe.signOut",
         "title": "SharePoint Embedded: Sign out account",
         "icon": "$(sign-out)"
-      },
-      {
-        "command": "spe.cloneRepo",
-        "title": "SharePoint Embedded: Clone Git Repo"
       },
       {
         "command": "spe.callSpeTosCommand",

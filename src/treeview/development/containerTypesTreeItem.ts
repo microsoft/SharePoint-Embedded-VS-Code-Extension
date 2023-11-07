@@ -24,7 +24,7 @@ export class ContainerTypesTreeItem extends vscode.TreeItem {
         const containerTypes: ContainerType[] = Account.get()!.containerTypes;
 
         const containerTypeTreeItems = [...containerTypes.map(containerType => {
-            const containerTypeTreeItem = new ContainerTypeTreeItem(containerType, "Hello Container", vscode.TreeItemCollapsibleState.Collapsed, { name: "symbol-function", custom: false })
+            const containerTypeTreeItem = new ContainerTypeTreeItem(containerType, "Hello Container", "Great description", vscode.TreeItemCollapsibleState.Collapsed, { name: "symbol-function", custom: false })
             return containerTypeTreeItem;
         })]
 
