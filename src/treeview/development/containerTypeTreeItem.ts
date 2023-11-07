@@ -23,7 +23,6 @@ export class ContainerTypeTreeItem extends vscode.TreeItem {
             vscode.commands.executeCommand('setContext', 'spe:showDeleteContainerType', true);
         }
 
-        //
         if (containerType.registrationIds.length === 0) {
             vscode.commands.executeCommand('setContext', 'spe:showRegisterContainerType', true);
         }

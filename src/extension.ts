@@ -109,6 +109,17 @@ export async function activate(context: vscode.ExtensionContext) {
         // Create Container Type 
         let containerType: ContainerType | undefined;
         try {
+            const message = "Grant consent to your new Azure AD application? This step is required in order to create a Free Trial Container Type. This will open a new web browser where you can grant consent with the administrator account on your tenant"
+            const userChoice = await vscode.window.showInformationMessage(
+                message,
+                'OK', 'Cancel'
+            );
+
+            if (userChoice === 'Cancel') {
+                vscode.window.showWarningMessage('You must consent to your new Azure AD application to continue.');
+                return;
+            }
+
             const result = await app.consent();
             if (!result) {
                 vscode.window.showErrorMessage(`Consent failed on app ${app.clientId}`);
@@ -148,6 +159,99 @@ export async function activate(context: vscode.ExtensionContext) {
             return;
         }
 
+    });
+
+    const createSecondaryApplicationCommand = vscode.commands.registerCommand('spe.createSecondaryApp', async (secondaryApplicationsModel) => {
+        const containerType = secondaryApplicationsModel.containerType;
+
+        const appName = await vscode.window.showInputBox({
+            prompt: 'Azure AD Application Name:'
+        });
+
+        if (!appName) {
+            vscode.window.showErrorMessage('No Azure AD Application name provided');
+            return;
+        }
+
+        const delegatedOptions = [
+            { "label": "None" },
+            { "label": "ReadContent" },
+            { "label": "WriteContent" },
+            { "label": "Create" },
+            { "label": "Delete" },
+            { "label": "Read" },
+            { "label": "Write" },
+            { "label": "AddPermissions" },
+            { "label": "UpdatePermissions" },
+            { "label": "DeletePermissions" },
+            { "label": "DeleteOwnPermissions" },
+            { "label": "ManagePermissions" },
+            { "label": "Full" }
+        ]
+
+        const props = {
+            title: 'Delegated Permissions',
+            placeholder: 'Select an option...',
+            canPickMany: true 
+        }
+
+        const targets: any = await vscode.window.showQuickPick(delegatedOptions, props);
+
+        // Create AAD application 
+        const account = Account.get()!;
+        let app: App | undefined;
+        try {
+            app = await account.createApp(appName, true);
+        } catch (error: any) {
+            vscode.window.showErrorMessage("Unable to create Azure AD application: " + error.message);
+            return;
+        }
+
+        if (!app) {
+            vscode.window.showErrorMessage("Unable to create Azure AD application");
+            return;
+        }
+
+        // 20-second progress to allow app propagation before consent flow
+        await showProgress();
+        
+        // Consent
+        try {
+            const message = "Grant consent to your new Azure AD application? This step is required in order to create a Free Trial Container Type. This will open a new web browser where you can grant consent with the administrator account on your tenant"
+            const userChoice = await vscode.window.showInformationMessage(
+                message,
+                'OK', 'Cancel'
+            );
+
+            if (userChoice === 'Cancel') {
+                vscode.window.showWarningMessage('You must consent to your new Azure AD application to continue.');
+                return;
+            }
+
+            const result = await app.consent();
+            if (!result) {
+                vscode.window.showErrorMessage(`Consent failed on app ${app.clientId}`);
+                throw new Error();
+            }
+        } catch (error: any) {
+            vscode.window.showErrorMessage("Unable to consent on app " + error.message);
+            account.deleteApp(app);
+            return;
+        }
+
+        if (!containerType) {
+            vscode.window.showErrorMessage("Unable to create Free Trial Container Type");
+            return;
+        }
+
+        // Register Container Type
+        try {
+            await containerType.addTenantRegistration(account.tenantId, app, ["full"], ["full"]);
+        } catch (error: any) {
+            vscode.window.showErrorMessage("Unable to register Free Trial Container Type: " + error.message);
+        }
+
+        vscode.window.showInformationMessage(`Container Type ${"containerTypeName"} successfully created and registerd on Azure AD App: ${appName}`);
     });
 
     const deleteContainerTypeCommand = vscode.commands.registerCommand('spe.deleteContainerType', async () => {
@@ -294,10 +398,10 @@ export async function activate(context: vscode.ExtensionContext) {
 
     const exportPostmanConfig = vscode.commands.registerCommand('spe.exportPostmanConfig', async (applicationTreeItem) => {
         const account = Account.get()!;
-        
+
         const app = applicationTreeItem && applicationTreeItem.app && applicationTreeItem.app;
         const containerType = applicationTreeItem && applicationTreeItem.containerType;
-        
+
         const tid = account.tenantId;
         const thirdPartyAuthProvider = new ThirdPartyAuthProvider(app.clientId, app.thumbprint, app.privateKey)
         const accessToken = await thirdPartyAuthProvider.getToken(["Organization.Read.All"]);
@@ -511,6 +615,30 @@ export async function activate(context: vscode.ExtensionContext) {
 
     const getCertPK = vscode.commands.registerCommand('spe.getCertPK', async () => {
         try {
+            const delegatedOptions = [
+                { "label": "None" },
+                { "label": "ReadContent" },
+                { "label": "WriteContent" },
+                { "label": "Create" },
+                { "label": "Delete" },
+                { "label": "Read" },
+                { "label": "Write" },
+                { "label": "AddPermissions" },
+                { "label": "UpdatePermissions" },
+                { "label": "DeletePermissions" },
+                { "label": "DeleteOwnPermissions" },
+                { "label": "ManagePermissions" },
+                { "label": "Full" }
+            ]
+
+            const props = {
+                title: 'Delegated Permission',
+                placeholder: 'Select an option...',
+                canPickMany: true 
+            }
+
+            const targets: any = await vscode.window.showQuickPick(delegatedOptions, props);
+
             const keys = StorageProvider.get().global.getAllKeys();
             //createAppServiceProvider.globalStorageManager.setValue(RegisteredContainerTypeSetKey, []);
 
@@ -545,6 +673,7 @@ export async function activate(context: vscode.ExtensionContext) {
         deleteContainerTypeCommand,
         registerContainerTypeCommand,
         renameContainerTypeCommand,
+        createSecondaryApplicationCommand,
         createNewContainerTypeCommand,
         callMSGraphCommand,
         exportPostmanConfig,

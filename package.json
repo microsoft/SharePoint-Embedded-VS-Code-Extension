@@ -78,11 +78,6 @@
           "group": "inline@1"
         },
         {
-          "command": "spe.createNewAadApp",
-          "when": "view == spe-development && viewItem == aadAppList",
-          "group": "inline@1"
-        },
-        {
           "command": "spe.renameContainerType",
           "when": "view == spe-development && viewItem == containerType",
           "group": "inline@1"
@@ -116,10 +111,19 @@
           "command": "spe.exportPostmanConfig",
           "when": "view == spe-development && viewItem == owningApplication",
           "group": "inline@3"
+        },
+        {
+          "command": "spe.createSecondaryApp",
+          "when": "view == spe-development && viewItem == secondaryApplications",
+          "group": "inline@1"
         }
       ]
     },
     "commands": [
+      {
+        "command": "spe.login",
+        "title": "SharePoint Embedded: Login to AAD"
+      },
       {
         "command": "spe.generateCertificate",
         "title": "SharePoint Embedded: Generate Certificate"
@@ -154,13 +158,9 @@
         "icon": "$(word-wrap)"
       },
       {
-        "command": "spe.login",
-        "title": "SharePoint Embedded: Login to AAD"
-      },
-      {
-        "command": "spe.createNewAadApp",
-        "title": "SharePoint Embedded: Create New AAD Application",
-        "icon": "$(terminal-new)"
+        "command": "spe.createSecondaryApp",
+        "title": "Create secondary app",
+        "icon": "$(plus)"
       },
       {
         "command": "spe.cloneRepo",
