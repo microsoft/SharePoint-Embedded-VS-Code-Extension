@@ -14,8 +14,9 @@ export class OwningApplicationTreeItem extends vscode.TreeItem {
         public image?: { name: string; custom: boolean },
         public commandArguments?: any[],
     ) {
-        super(label, collapsibleState)
+        super(label, collapsibleState);
         this.setImagetoIcon();
+        this.contextValue = "owningApplication";
     }
 
     public async getChildren() {

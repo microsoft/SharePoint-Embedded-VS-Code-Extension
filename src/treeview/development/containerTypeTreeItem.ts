@@ -4,13 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from "vscode";
-import { ContainerTreeItem } from "./containerTreeItem";
-import { CreateAppProvider } from "../../services/CreateAppProvider";
-import { ext } from "../../utils/extensionVariables";
-import ThirdPartyAuthProvider from "../../services/3PAuthProvider";
-import { TreeViewCommand } from "./treeViewCommand";
 import { ContainersTreeItem } from "./containersTreeItem";
-import { RegisteredContainerTypeSetKey } from "../../utils/constants";
 import { OwningApplicationTreeItem } from "./owningApplicationTreeItem";
 import { ContainerType } from "../../models/ContainerType";
 import { SecondaryApplicationsTreeItem } from "./secondaryApplicationsTreeItem";
@@ -23,9 +17,18 @@ export class ContainerTypeTreeItem extends vscode.TreeItem {
         public image?: { name: string; custom: boolean }
 
     ) {
-        super(label, collapsibleState)
+        super(label, collapsibleState);
+        if (containerType.registrationIds.length > 0) {
+            vscode.commands.executeCommand('setContext', 'spe:showDeleteContainerType', true);
+        }
+
+        //
+        if (containerType.registrationIds.length === 0) {
+            vscode.commands.executeCommand('setContext', 'spe:showRegisterContainerType', true);
+        }
         this.setImagetoIcon();
         this.contextValue = "containerType";
+       
     }
 
     public async getChildren() {

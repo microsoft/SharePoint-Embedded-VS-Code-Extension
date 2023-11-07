@@ -83,24 +83,29 @@
           "group": "inline@1"
         },
         {
-          "command": "spe.editDescriptionContainerType",
-          "when": "view == spe-development && viewItem == containerType",
-          "group": "inline@2"
-        },
-        {
           "command": "spe.renameContainerType",
           "when": "view == spe-development && viewItem == containerType",
           "group": "inline@1"
         },
         {
-          "command": "spe.registerContainerType",
-          "when": "view == spe-development && viewItem == containerType && spe.showRegisterContainerType",
-          "group": "inline@3"
+          "command": "spe.editDescriptionContainerType",
+          "when": "view == spe-development && viewItem == containerType",
+          "group": "inline@2"
         },
         {
           "command": "spe.deleteContainerType",
-          "when": "view == spe-development && viewItem == containerType && spe.showDeleteContainerType",
+          "when": "spe:showDeleteContainerType && view == spe-development && viewItem == containerType",
           "group": "inline@3"
+        },
+        {
+          "command": "spe.registerContainerType",
+          "when": "spe:showRegisterContainerType && view == spe-development && viewItem == containerType",
+          "group": "inline@3"
+        },
+        {
+          "command": "spe.renameADApplication",
+          "when": "view == spe-development && viewItem == owningApplication",
+          "group": "inline@1"
         }
       ]
     },
@@ -115,11 +120,13 @@
       },
       {
         "command": "spe.registerContainerType",
-        "title": "SharePoint Embedded: Register Container Type"
+        "title": "Register",
+        "icon": "$(unlock)"
       },
       {
         "command": "spe.deleteContainerType",
-        "title": "SharePoint Embedded: Delete ContainerType on Account"
+        "title": "Delete",
+        "icon": "$(trash)"
       },
       {
         "command": "spe.editDescriptionContainerType",
@@ -128,6 +135,11 @@
       },
       {
         "command": "spe.renameContainerType",
+        "title": "Rename",
+        "icon": "$(word-wrap)"
+      },
+      {
+        "command": "spe.renameADApplication",
         "title": "Rename",
         "icon": "$(word-wrap)"
       },
