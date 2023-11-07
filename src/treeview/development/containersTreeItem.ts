@@ -4,19 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from "vscode";
-import { ApplicationTreeItem } from "./applicationTreeItem";
 import { ContainerTreeItem } from "./containerTreeItem";
 import { CreateAppProvider } from "../../services/CreateAppProvider";
 import { ext } from "../../utils/extensionVariables";
 import ThirdPartyAuthProvider from "../../services/3PAuthProvider";
 import { ContainerTypeListKey, OwningAppIdKey } from "../../utils/constants";
 import GraphProvider from "../../services/GraphProvider";
+import { ContainerType } from "../../models/ContainerType";
 
 export class ContainersTreeItem extends vscode.TreeItem {
     private containerItems?: ContainerTreeItem[];
     private createAppServiceProvider: CreateAppProvider;
 
     constructor(
+        public containerType: ContainerType,
         public readonly label: string,
         public readonly collapsibleState: vscode.TreeItemCollapsibleState,
         public image?: { name: string; custom: boolean }
@@ -29,7 +30,7 @@ export class ContainersTreeItem extends vscode.TreeItem {
     }
 
     public async getChildren() {
-        const containersGraphResponse: any = await this.getContainers();
+        const containersGraphResponse: any = []
         this.containerItems = containersGraphResponse.value.map((container: any) => {
             return new ContainerTreeItem(container.displayName, vscode.TreeItemCollapsibleState.None,  {name: "symbol-field", custom: false });
         })

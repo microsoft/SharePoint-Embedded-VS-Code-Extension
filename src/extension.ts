@@ -42,6 +42,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
     vscode.window.registerTreeDataProvider('spe-accounts', AccountTreeViewProvider.getInstance());
     await Account.loginToSavedAccount();
+    await Account.get()?.loadFromStorage();
 
     // Register the TreeView providers
     const developmentTreeViewProvider = DevelopmentTreeViewProvider.getInstance();
@@ -156,40 +157,32 @@ export async function activate(context: vscode.ExtensionContext) {
         try {
             const containerTypeDetails = await account.getContainerTypeById(containerType.owningApp!.clientId, containerType.containerTypeId);
             await account.deleteContainerTypeById(containerType.owningApp!.clientId, containerType.containerTypeId);
+            //await account.deleteContainerTypeById(containerType.owningApp!.clientId, containerType.containerTypeId);
         } catch (error: any) {
             vscode.window.showErrorMessage("Unable to create Azure AD application: " + error.message);
             return;
         }
 
-    })
-
-    const createNewAadAppCommand = vscode.commands.registerCommand('spe.createNewAadApp', async (isOwningApp) => {
-        const appName = await vscode.window.showInputBox({
-            prompt: 'App name:'
-        });
-
-        if (!appName) {
-            vscode.window.showErrorMessage('No app name provided');
-            return;
-        }
-
-        const account = Account.get();
-        const app = await account!.createApp(appName, true);
-
-        if (!app) {
-            return;
-        }
-
-        // 20-second progress to allow app propagation before consent flow
-        await showProgress();
-
-        // app creation success
-        vscode.window.showInformationMessage(`Successfully created 3P application: ${app.clientId}`);
-        if (app.isOwningApp) {
-            developmentTreeViewProvider.refresh();
-        }
-        return app;
     });
+
+    const renameContainerTypeCommand = vscode.commands.registerCommand('spe.renameContainerType', async () => {
+        try {
+            const thirdPartyAppId: any = createAppServiceProvider.globalStorageManager.getValue(CurrentApplicationKey);
+            if (typeof createAppServiceProvider.thirdPartyAuthProvider == "undefined" || createAppServiceProvider.thirdPartyAuthProvider == null) {
+                const serializedSecrets = await createAppServiceProvider.getSecretsByAppId(thirdPartyAppId);
+                createAppServiceProvider.thirdPartyAuthProvider = new ThirdPartyAuthProvider(thirdPartyAppId, serializedSecrets.thumbprint, serializedSecrets.privateKey)
+            }
+
+            const accessToken = await createAppServiceProvider.thirdPartyAuthProvider.getToken(['https://graph.microsoft.com/.default']);
+
+            const gResponse = await GraphProvider.checkAdminMemberObjects(accessToken)
+            console.log(gResponse);
+            showAccessTokenWebview(`Obtained Graph Token successfully: ${accessToken}`);
+        } catch (error) {
+            vscode.window.showErrorMessage('Failed to obtain access token.');
+            console.error('Error:', error);
+        }
+    })
 
     const createNewContainerTypeCommand = vscode.commands.registerCommand('spe.createNewContainerTypeCommand', async () => {
         const account = Account.get()!;
@@ -251,18 +244,6 @@ export async function activate(context: vscode.ExtensionContext) {
             return;
         }
     });
-
-
-    const registerNewContainerTypeCommand = vscode.commands.registerCommand('spe.registerNewContainerTypeCommand', async (owningAppId, guestAppId) => {
-        const containerTypeRegistered = await createAppServiceProvider.registerContainerType(owningAppId, guestAppId)
-        if (!containerTypeRegistered) {
-            vscode.window.showErrorMessage('ContainerType registration failed. Please try again');
-            return;
-        }
-
-        //Update Development TreeView
-        developmentTreeViewProvider.refresh();
-    })
 
     const createGuestAdApp = vscode.commands.registerCommand('spe.createGuestAdApp', async (owningAppId, guestAppId) => {
 
@@ -382,10 +363,6 @@ export async function activate(context: vscode.ExtensionContext) {
         fs.writeFileSync(envFilePath, envContent, 'utf8');
         console.log('.env file written successfully.');
     };
-
-
-    const createNewAadApplicationCommand = vscode.commands.registerCommand('spe.createNewAadApplicationCommand', async () => {
-    })
 
     const callMSGraphCommand = vscode.commands.registerCommand('spe.callMSGraphCommand', async () => {
         try {
@@ -564,42 +541,16 @@ export async function activate(context: vscode.ExtensionContext) {
         createTrialContainerTypeCommand,
         deleteContainerTypeCommand,
         registerContainerTypeCommand,
+        renameContainerTypeCommand,
         createNewContainerTypeCommand,
         callMSGraphCommand,
         exportPostmanConfig,
         callSpeTosCommand,
-        createNewAadAppCommand,
         createGuestAdApp,
         // generateCertificateCommand,
         // getSPToken
     );
 }
-
-async function checkAdminStatus() {
-    const accessToken = await firstPartyAppAuthProvider.getToken(['Application.ReadWrite.All']);
-    const isAdmin = checkJwtForAdminClaim(decodeJwt(accessToken));
-
-    if (isAdmin) {
-        vscode.commands.executeCommand('setContext', 'spe:isAdminLoggedIn', true);
-    }
-    else {
-        vscode.commands.executeCommand('setContext', 'spe:isAdminLoggedIn', false);
-    }
-}
-
-// Function to check the cache state and trigger the handler
-// async function checkCacheStateAndInvokeHandler() {
-//     const cacheState = await firstPartyAppAuthProvider.checkCacheState();
-//     if (cacheState === "SignedIn") {
-//         const accountInfo = await firstPartyAppAuthProvider.getAccount();
-//         await checkAdminStatus()
-//         await m365AccountStatusChangeHandler("SignedIn", accountInfo);
-//     } else if (cacheState === "SignedOut") {
-//         // Call the handler function for signed-out state
-//         vscode.commands.executeCommand('setContext', 'spe:isAdminLoggedIn', false);
-//         await m365AccountStatusChangeHandler("SignedOut", null);
-//     }
-// }
 
 async function showProgress() {
     await vscode.window.withProgress({

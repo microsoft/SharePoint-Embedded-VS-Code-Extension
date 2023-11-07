@@ -52,14 +52,13 @@ export class DevelopmentTreeViewProvider implements vscode.TreeDataProvider<Cont
 
         if (!account)
             return [];
-        
+
         const containerTypes: ContainerType[] = Account.get()!.containerTypes;
 
         if (containerTypes && containerTypes.length > 0) {
             const containerTypesTreeItem = new ContainerTypesTreeItem(
                 `Container Types`,
-                vscode.TreeItemCollapsibleState.Collapsed,
-                { name: "symbol-function", custom: false }
+                vscode.TreeItemCollapsibleState.Collapsed
             )
             return [containerTypesTreeItem];
         }

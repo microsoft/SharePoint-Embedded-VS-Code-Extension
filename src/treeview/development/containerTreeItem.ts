@@ -4,9 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from "vscode";
-import { CreateAppProvider } from "../../services/CreateAppProvider";
-import { ext } from "../../utils/extensionVariables";
-import ThirdPartyAuthProvider from "../../services/3PAuthProvider";
 
 export class ContainerTreeItem extends vscode.TreeItem {
     constructor(

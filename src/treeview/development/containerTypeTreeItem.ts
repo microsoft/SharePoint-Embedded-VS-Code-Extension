@@ -4,24 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from "vscode";
-import { ApplicationTreeItem } from "./applicationTreeItem";
 import { ContainerTreeItem } from "./containerTreeItem";
 import { CreateAppProvider } from "../../services/CreateAppProvider";
 import { ext } from "../../utils/extensionVariables";
 import ThirdPartyAuthProvider from "../../services/3PAuthProvider";
 import { TreeViewCommand } from "./treeViewCommand";
-import { ApplicationsTreeItem } from "./applicationsTreeItem";
 import { ContainersTreeItem } from "./containersTreeItem";
 import { RegisteredContainerTypeSetKey } from "../../utils/constants";
+import { OwningApplicationTreeItem } from "./owningApplicationTreeItem";
+import { ContainerType } from "../../models/ContainerType";
+import { SecondaryApplicationsTreeItem } from "./secondaryApplicationsTreeItem";
 
 export class ContainerTypeTreeItem extends vscode.TreeItem {
-    private appsItem?: ApplicationTreeItem[];
-    private containersListItem: ContainerTreeItem[] | undefined;
-    private createAppServiceProvider: CreateAppProvider;
-
     constructor(
-        public appId: string,
-        public readonly containerTypeId: string,
+        public containerType: ContainerType,
         public readonly label: string,
         public readonly collapsibleState: vscode.TreeItemCollapsibleState,
         public image?: { name: string; custom: boolean }
@@ -29,38 +25,17 @@ export class ContainerTypeTreeItem extends vscode.TreeItem {
     ) {
         super(label, collapsibleState)
         this.setImagetoIcon();
-        this.createAppServiceProvider = CreateAppProvider.getInstance(ext.context);
+        this.contextValue = "containerType";
     }
 
     public async getChildren() {
-        const registeredContainerTypes: any = this.createAppServiceProvider.globalStorageManager.getValue(RegisteredContainerTypeSetKey) || [];
-        const registerCTSet = new Set(registeredContainerTypes);
-        
-        if (registerCTSet.has(this.containerTypeId)) {
-            const newGuestAdAppButton = new TreeViewCommand(
-                "Create new Guest AD App",
-                "",
-                "spe.createGuestAdApp",
-                [this.appId, undefined],
-                { name: "new-folder", custom: false }
-            );
-            const applicationsTreeItem = new ApplicationsTreeItem(this.containerTypeId, "Guest AD Apps", vscode.TreeItemCollapsibleState.Collapsed);
 
-            return [newGuestAdAppButton, applicationsTreeItem];
+        const owningApplicationTreeItem = new OwningApplicationTreeItem(this.containerType, `${this.containerType.owningApp!.displayName}`, vscode.TreeItemCollapsibleState.None, { name: "extensions-star-full", custom: false });
+        const secondaryAppsTreeItem = new SecondaryApplicationsTreeItem(this.containerType, 'Secondary Apps', vscode.TreeItemCollapsibleState.Collapsed);
+        const containersTreeItem = new ContainersTreeItem(this.containerType, 'Containers', vscode.TreeItemCollapsibleState.Collapsed);
 
-        } else {
-            const registerContainerTypeButton = new TreeViewCommand(
-                "Register Container Type",
-                "Register this Container Type",
-                "spe.registerNewContainerTypeCommand",
-                [this.appId, undefined],
-                { name: "globe", custom: false }
-            );
-            
-            return [registerContainerTypeButton];
-        }
+        return [owningApplicationTreeItem, secondaryAppsTreeItem, containersTreeItem];
 
-        //const containersTreeItem = new ContainersTreeItem("Containers", vscode.TreeItemCollapsibleState.Collapsed);
     }
 
     private setImagetoIcon() {

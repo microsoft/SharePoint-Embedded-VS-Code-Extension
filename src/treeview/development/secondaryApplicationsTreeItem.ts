@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from "vscode";
-import { ApplicationTreeItem } from "./applicationTreeItem";
+import { SecondaryApplicationTreeItem } from "./secondaryApplicationTreeItem";
 import { ContainerTreeItem } from "./containerTreeItem";
 import { CreateAppProvider } from "../../services/CreateAppProvider";
 import { ext } from "../../utils/extensionVariables";
@@ -12,13 +12,14 @@ import ThirdPartyAuthProvider from "../../services/3PAuthProvider";
 import { ApplicationPermissions } from "../../utils/models";
 import { TreeViewCommand } from "./treeViewCommand";
 import { AppPermissionsListKey, OwningAppIdsListKey, ThirdPartyAppListKey } from "../../utils/constants";
+import { ContainerType } from "../../models/ContainerType";
 
-export class ApplicationsTreeItem extends vscode.TreeItem {
-    private appsItem?: ApplicationTreeItem[];
+export class SecondaryApplicationsTreeItem extends vscode.TreeItem {
+    private appsItem?: SecondaryApplicationTreeItem[];
     private createAppServiceProvider: CreateAppProvider;
 
     constructor(
-        public readonly containerTypeId: string,
+        public containerType: ContainerType,
         public readonly label: string,
         public readonly collapsibleState: vscode.TreeItemCollapsibleState,
         public image?: { name: string; custom: boolean }
@@ -36,14 +37,9 @@ export class ApplicationsTreeItem extends vscode.TreeItem {
     }
 
     private getApps() {
-        const appPermissionsDict: { [key: string]: ApplicationPermissions[] } = this.createAppServiceProvider.globalStorageManager.getValue(AppPermissionsListKey);
-        const appDict: { [key: string]: any } = this.createAppServiceProvider.globalStorageManager.getValue(ThirdPartyAppListKey)
-        const owningApps: string[] = this.createAppServiceProvider.globalStorageManager.getValue(OwningAppIdsListKey);
-        const registeredAppIds = appPermissionsDict[this.containerTypeId];
-        const excludingOwningApps = registeredAppIds.filter(registeredApp => !owningApps.includes(registeredApp.appId));
-        const appItems = excludingOwningApps.map(
+        const appItems = this.containerType.secondaryApps.map(
             (app) => {
-                return new ApplicationTreeItem(appDict[app.appId].displayName, vscode.TreeItemCollapsibleState.Collapsed, { name: "console", custom: false }, [app.appId, this.containerTypeId])
+                return new SecondaryApplicationTreeItem(app.displayName, vscode.TreeItemCollapsibleState.Collapsed, { name: "console", custom: false })
             }
         )
         return appItems;

@@ -6,7 +6,7 @@
 import * as vscode from "vscode";
 import { TreeViewCommand } from "./treeViewCommand";
 
-export class ApplicationTreeItem extends vscode.TreeItem {
+export class SecondaryApplicationTreeItem extends vscode.TreeItem {
     constructor(
         public readonly label: string,
         public readonly collapsibleState: vscode.TreeItemCollapsibleState,
