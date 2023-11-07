@@ -15,6 +15,7 @@ import { ApplicationsTreeItem } from "./applicationsTreeItem";
 import { ContainersTreeItem } from "./containersTreeItem";
 import { ContainerTypeListKey, OwningAppIdsListKey, ThirdPartyAppListKey } from "../../utils/constants";
 import { OwningApplicationTreeItem } from "./owningApplicationTreeItem";
+import { App } from "../../models/App";
 
 export class OwningApplicationsTreeItem extends vscode.TreeItem {
     private appsItem?: ApplicationTreeItem[];
@@ -30,12 +31,12 @@ export class OwningApplicationsTreeItem extends vscode.TreeItem {
         super(label, collapsibleState)
         this.setImagetoIcon();
         this.createAppServiceProvider = CreateAppProvider.getInstance(ext.context);
+        this.contextValue = "aadAppList";
     }
 
     public async getChildren() {
-        const owningApps: [] = this.createAppServiceProvider.globalStorageManager.getValue(OwningAppIdsListKey) || [];
-        const apps: any = this.createAppServiceProvider.globalStorageManager.getValue(ThirdPartyAppListKey);
-        const containerTypeList: any = this.createAppServiceProvider.globalStorageManager.getValue(ContainerTypeListKey) || {};
+        const owningApps: string[] = []
+        const apps: App[] = [];
 
         const createAppButton = new TreeViewCommand(
             "Create a new Azure AD App",
@@ -45,10 +46,11 @@ export class OwningApplicationsTreeItem extends vscode.TreeItem {
             { name: "new-folder", custom: false }
         );
 
-        const owningApplications: any = [...owningApps.map(id => {
+        const owningApplications: any = [...owningApps.map((id: string) => {
+            const app = apps.find((id) => id === id);
             return new OwningApplicationTreeItem(
                 id,
-                `${apps[id].displayName}`,
+                `${app!.displayName}`,
                 vscode.TreeItemCollapsibleState.Collapsed,
                 { name: "symbol-function", custom: false },
 

@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import axios from "axios";
-import { ApplicationPermissions } from "../utils/models";
+import { ApplicationPermissions } from "../models/ApplicationPermissions";
 
 export default class VroomProvider {
-    async registerContainerType(accessToken: string, clientId: string, rootSiteUrl: string, containerTypeId: string, appPermissions: ApplicationPermissions[]) {
+    static async registerContainerType(accessToken: string, clientId: string, rootSiteUrl: string, containerTypeId: string, appPermissions: ApplicationPermissions[]) {
         const options = {
             headers: {
                 Authorization: `Bearer ${accessToken}`,
@@ -27,7 +27,7 @@ export default class VroomProvider {
             );
     
             console.log('ContainerType Registration successful:', response.data);
-            return response.data;
+            return response.data.value;
         } catch (error: any) {
             console.error('Error registrating ContainerType: ', error.response);
             throw error;

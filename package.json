@@ -18,8 +18,15 @@
       "spe-m365": {
         "description": "Microsoft 365 icon in command tree view",
         "default": {
-          "fontPath": "./media/font/spe.woff",
-          "fontCharacter": "\\E002"
+          "fontPath": "./media/spe.woff",
+          "fontCharacter": "\\ED72"
+        }
+      },
+      "spe-logo": {
+        "description": "Activity Bar logo",
+        "default": {
+          "fontPath": "./media/spe.woff",
+          "fontCharacter": "\\ED18"
         }
       }
     },
@@ -28,15 +35,33 @@
         {
           "id": "sharepoint-embedded",
           "title": "SharePoint Embedded",
-          "icon": "media/container.svg"
+          "icon": "$(spe-logo)"
         }
       ]
     },
+    "viewsWelcome": [
+      {
+        "view": "spe-welcome",
+        "contents": "Sign into your Microsoft 365 tenant with an adminstrator account to get started.\n [Sign into Microsoft 365](command:spe.login)",
+        "when": "!spe:isAdminLoggedIn"
+      },
+      {
+        "view": "spe-development",
+        "contents": "Get started with a trial Container Type\n [Create Trial Container Type](command:spe.createTrialContainerType)",
+        "when": "spe:isAdminLoggedIn"
+      }
+    ],
     "views": {
       "sharepoint-embedded": [
         {
+          "id": "spe-welcome",
+          "name": "",
+          "when": "!spe:isAdminLoggedIn"
+        },
+        {
           "id": "spe-accounts",
-          "name": "Accounts"
+          "name": "Accounts",
+          "when": "spe:isAdminLoggedIn"
         },
         {
           "id": "spe-development",
@@ -51,6 +76,11 @@
           "command": "spe.signOut",
           "when": "view == spe-accounts && viewItem == signedinM365",
           "group": "inline@1"
+        },
+        {
+          "command": "spe.createNewAadApp",
+          "when": "view == spe-development && viewItem == aadAppList",
+          "group": "inline@1"
         }
       ]
     },
@@ -64,20 +94,21 @@
         "title": "SharePoint Embedded: Upload Certificate"
       },
       {
+        "command": "spe.deleteContainerType",
+        "title": "SharePoint Embedded: Delete ContainerType on Account"
+      },
+      {
+        "command": "spe.registerContainerType",
+        "title": "SharePoint Embedded: Register Container Type"
+      },
+      {
         "command": "spe.login",
         "title": "SharePoint Embedded: Login to AAD"
       },
       {
         "command": "spe.createNewAadApp",
-        "title": "SharePoint Embedded: Create New AAD Application"
-      },
-      {
-        "command": "spe.createNewContainerTypeCommand",
-        "title": "SharePoint Embedded: Create New ContainerType"
-      },
-      {
-        "command": "spe.registerNewContainerTypeCommand",
-        "title": "SharePoint Embedded: Register New ContainerType"
+        "title": "SharePoint Embedded: Create New AAD Application",
+        "icon": "$(terminal-new)"
       },
       {
         "command": "spe.callMSGraphCommand",
@@ -113,6 +144,7 @@
   "devDependencies": {
     "@types/glob": "^8.1.0",
     "@types/jsrsasign": "^10.5.8",
+    "@types/lodash": "^4.14.200",
     "@types/mocha": "^10.0.1",
     "@types/node": "20.2.5",
     "@types/node-forge": "^1.3.4",
@@ -136,6 +168,7 @@
     "jsrsasign": "^10.8.6",
     "jsrsasign-util": "^1.0.5",
     "jwt-decode": "^3.1.2",
+    "lodash": "^4.17.21",
     "msal-node": "^0.0.1-security",
     "node-forge": "^1.3.1",
     "path": "^0.12.7",

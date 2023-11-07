@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as vscode from 'vscode';
+import { BillingClassification } from '../models/ContainerType';
 let sp: any = null;
 
-export async function getPnPProvider(accessToken: any, tenantName: any) {
+async function getPnPProvider(accessToken: any, tenantName: any) {
 
     if (typeof sp !== "undefined" && sp !== null) {
         return sp;
@@ -31,7 +32,7 @@ export async function getPnPProvider(accessToken: any, tenantName: any) {
     return sp;
 }
 export default class PnPProvider {
-    async createNewContainerType(accessToken: any, tenantName: any, owningAppId: string, displayName: string) {
+    static async createNewContainerType(accessToken: any, tenantName: any, owningAppId: string, displayName: string, billingClassification: BillingClassification) {
         try {
             let sp: any;
             try {
@@ -47,7 +48,7 @@ export default class PnPProvider {
                     containerTypeProperties: {
                         DisplayName: displayName,
                         OwningAppId: owningAppId,
-                        SPContainerTypeBillingClassification: 1
+                        SPContainerTypeBillingClassification: billingClassification
                     }
                 });
             } catch (error: any) {
@@ -76,7 +77,55 @@ export default class PnPProvider {
         }
     }
 
-    async acceptSpeTos(accessToken: any, tenantName: any, owningAppId: string) {
+    static async getContainerTypeById(accessToken: any, tenantName: string, containerTypeId: string) {
+        try {
+            let sp: any;
+            try {
+                sp = await getPnPProvider(accessToken, tenantName)
+            } catch (e) {
+                console.log(e);
+                throw e;
+            }
+
+            try {
+                return await sp.admin.tenant.call("GetSPOContainerTypeById", {
+                    containerTypeId: containerTypeId,
+                    containerTenantType: 1
+                })
+            } catch (error: any) {
+                console.log(error.message);
+                throw error;
+            }
+        } catch (error: any) {
+            throw error;
+        }
+    }
+
+    static async deleteContainerTypeById(accessToken: any, tenantName: string, containerTypeId: string) {
+        try {
+            let sp: any;
+            try {
+                sp = await getPnPProvider(accessToken, tenantName)
+            } catch (e) {
+                console.log(e);
+                throw e;
+            }
+
+            // Accept Terms of Service for SharePoint Embedded Services prior to management calls
+            try {
+                await sp.admin.tenant.call("DeleteSPOContainerTypeById", {
+                    containerTypeId: containerTypeId
+                })
+            } catch (error: any) {
+                console.log(error.message);
+                throw error;
+            }
+        } catch (error: any) {
+            throw error;
+        }
+    }
+
+    static async acceptSpeTos(accessToken: any, tenantName: any, owningAppId: string) {
         try {
             let sp: any;
             try {

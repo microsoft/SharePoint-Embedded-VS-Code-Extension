@@ -7,7 +7,8 @@ import axios, { AxiosResponse } from "axios";
 import { v4 as uuidv4 } from 'uuid';
 
 export default class GraphProvider {
-    async checkAdminMemberObjects(accessToken: string) {
+
+    static async checkAdminMemberObjects(accessToken: string) {
         const options = {
             headers: {
                 Authorization: `Bearer ${accessToken}`,
@@ -35,7 +36,7 @@ export default class GraphProvider {
         }
     };
 
-    async getOwningTenantDomain(accessToken: string) {
+    static async getOwningTenantDomain(accessToken: string) {
         const options = {
             headers: {
                 Authorization: `Bearer ${accessToken}`
@@ -52,7 +53,7 @@ export default class GraphProvider {
         }
     };
 
-    async getApplicationById(accessToken: string, appId: string) {
+    static async getApplicationById(accessToken: string, appId: string) {
         const options = {
             headers: {
                 Authorization: `Bearer ${accessToken}`
@@ -67,7 +68,7 @@ export default class GraphProvider {
         }
     };
 
-    async createAadApplication(applicationName: string, accessToken: string, certKeyCredential: any) {
+    static async createAadApplication(applicationName: string, accessToken: string, certKeyCredential: any) {
         const options = {
             headers: {
                 Authorization: `Bearer ${accessToken}`,
@@ -201,7 +202,7 @@ export default class GraphProvider {
         }
     }
 
-    async listApplications(accessToken: string): Promise<any> {
+    static async listApplications(accessToken: string): Promise<any> {
         try {
             const config = {
                 headers: {
@@ -217,7 +218,24 @@ export default class GraphProvider {
         }
     }
 
-    async addIdentifierUri(accessToken: string, clientId: string) {
+    static async deleteApplication(accessToken: string, applicationId: string) {
+        const endpoint = `https://graph.microsoft.com/v1.0/applications/${applicationId}`;
+      
+        try {
+          const response = await axios.delete(endpoint, {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+            },
+          });
+      
+          console.log(`Application with ID ${applicationId} deleted successfully.`);
+        } catch (error: any) {
+          console.error('Error deleting the application:', error.response.data);
+          throw error;
+        }
+      };
+
+    static async addIdentifierUri(accessToken: string, clientId: string) {
         try {
             const response = await axios({
                 method: 'patch',
@@ -237,7 +255,7 @@ export default class GraphProvider {
         }
     }
 
-    async addPasswordWithRetry(accessToken: string, clientId: string) {
+    static async addPasswordWithRetry(accessToken: string, clientId: string) {
         const maxRetries = 3;
         let retries = 0;
 
@@ -262,7 +280,7 @@ export default class GraphProvider {
         throw new Error('Maximum number of retries reached.');
     }
 
-    async addPassword(accessToken: string, clientId: string) {
+    static async addPassword(accessToken: string, clientId: string) {
         const options = {
             headers: {
                 Authorization: `Bearer ${accessToken}`,
@@ -296,7 +314,7 @@ export default class GraphProvider {
         }
     }
 
-    async getCertThumbprintFromApplication(accessToken: string, clientId: string) {
+    static async getCertThumbprintFromApplication(accessToken: string, clientId: string) {
         const headers = {
             Authorization: `Bearer ${accessToken}`,
         };
@@ -328,7 +346,7 @@ export default class GraphProvider {
     // Container Management APIs
 
 
-    async listStorageContainers(accessToken: string, containerTypeId: string) {
+    static async listStorageContainers(accessToken: string, containerTypeId: string) {
         const options = {
             headers: {
                 Authorization: `Bearer ${accessToken}`

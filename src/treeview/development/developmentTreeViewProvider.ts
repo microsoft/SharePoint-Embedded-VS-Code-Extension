@@ -5,25 +5,21 @@
 
 import * as vscode from "vscode"
 
-import { TreeViewCommand } from "./treeViewCommand";
-import { ext } from "../../utils/extensionVariables";
-import { CreateAppProvider } from "../../services/CreateAppProvider";
-import { ContainerTypeTreeItem } from "./containerTypeTreeItem";
-import { ContainerTypeListKey, OwningAppIdsListKey, ThirdPartyAppListKey } from "../../utils/constants";
-import { OwningApplicationsTreeItem } from "./owningApplicationsTreeItem";
 
-export class DevelopmentTreeViewProvider implements vscode.TreeDataProvider<TreeViewCommand | ContainerTypeTreeItem> {
-    private createAppServiceProvider: CreateAppProvider;
+import { ContainerTypesTreeItem } from "./containerTypesTreeItem";
+import { Account } from "../../models/Account";
+import { ContainerType } from "../../models/ContainerType";
+
+export class DevelopmentTreeViewProvider implements vscode.TreeDataProvider<ContainerTypesTreeItem> {
     private static instance: DevelopmentTreeViewProvider;
-    private _onDidChangeTreeData: vscode.EventEmitter<TreeViewCommand | ContainerTypeTreeItem | undefined | void> =
-        new vscode.EventEmitter<TreeViewCommand | undefined | void>();
-    readonly onDidChangeTreeData: vscode.Event<TreeViewCommand | ContainerTypeTreeItem| undefined | void> =
+    private _onDidChangeTreeData: vscode.EventEmitter< ContainerTypesTreeItem | undefined | void> =
+        new vscode.EventEmitter<ContainerTypesTreeItem | undefined | void>();
+    readonly onDidChangeTreeData: vscode.Event<ContainerTypesTreeItem| undefined | void> =
         this._onDidChangeTreeData.event;
 
-    private commands: (TreeViewCommand | ContainerTypeTreeItem)[];
+    private commands: ContainerTypesTreeItem[];
 
     public constructor() {
-        this.createAppServiceProvider = CreateAppProvider.getInstance(ext.context);
         this.commands = this.getDevelopmentTreeViewChildren();
     }
 
@@ -42,7 +38,7 @@ export class DevelopmentTreeViewProvider implements vscode.TreeDataProvider<Tree
         return element;
     }
 
-    public getChildren(element?: (TreeViewCommand | ContainerTypeTreeItem)): Thenable<(TreeViewCommand | ContainerTypeTreeItem)[]> {
+    public getChildren(element?: ContainerTypesTreeItem): Thenable<ContainerTypesTreeItem[]> {
         if (element) {
             // @ts-ignore
             return Promise.resolve(element.getChildren());
@@ -51,18 +47,24 @@ export class DevelopmentTreeViewProvider implements vscode.TreeDataProvider<Tree
         }
     }
 
-    private getDevelopmentTreeViewChildren(): (TreeViewCommand | ContainerTypeTreeItem)[] {
-        // Fetch apps and CT List from storage
-        const owningAppsTreeItem = new OwningApplicationsTreeItem(
-            `Azure AD Apps`,
-            vscode.TreeItemCollapsibleState.Collapsed,
-            { name: "symbol-function", custom: false }
-        )
+    private getDevelopmentTreeViewChildren(): ContainerTypesTreeItem[] {
+        const account = Account.get();
 
-        const treeViewCommands: any = [owningAppsTreeItem]
+        if (!account)
+            return [];
+        
+        const containerTypes: ContainerType[] = Account.get()!.containerTypes;
 
+        if (containerTypes && containerTypes.length > 0) {
+            const containerTypesTreeItem = new ContainerTypesTreeItem(
+                `Container Types`,
+                vscode.TreeItemCollapsibleState.Collapsed,
+                { name: "symbol-function", custom: false }
+            )
+            return [containerTypesTreeItem];
+        }
 
-        return treeViewCommands;
+        return [];
     }
 
 }

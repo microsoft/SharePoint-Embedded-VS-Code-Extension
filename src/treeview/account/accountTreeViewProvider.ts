@@ -40,22 +40,22 @@ export class AccountTreeViewProvider implements vscode.TreeDataProvider<DynamicN
     }
 }
 
-export async function m365AccountStatusChangeHandler(
-    status: string,
-    accountInfo?: AccountInfo | null
-) {
-    const instance = AccountTreeViewProvider.getInstance();
-    if (status === "SignedIn") {
-        if (accountInfo) {
-            instance.m365AccountNode.setSignedIn(
-                (accountInfo.username as string) ? (accountInfo.username as string) : ""
-            );
-        }
-    } else if (status === "SignedOut") {
-        instance.m365AccountNode.setSignedOut();
-    }
-    return Promise.resolve();
-}
+// export async function m365AccountStatusChangeHandler(
+//     status: string,
+//     accountInfo?: AccountInfo | null
+// ) {
+//     const instance = AccountTreeViewProvider.getInstance();
+//     if (status === "SignedIn") {
+//         if (accountInfo) {
+//             instance.m365AccountNode.setSignedIn(
+//                 (accountInfo.username as string) ? (accountInfo.username as string) : ""
+//             );
+//         }
+//     } else if (status === "SignedOut") {
+//         instance.m365AccountNode.setSignedOut();
+//     }
+//     return Promise.resolve();
+// }
 
 
 export default AccountTreeViewProvider.getInstance();
