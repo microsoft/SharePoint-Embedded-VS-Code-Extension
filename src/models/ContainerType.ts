@@ -14,12 +14,12 @@ import { AppPermissionsListKey, ContainerTypeListKey, CurrentApplicationKey, Own
 import { App } from "./App";
 import { ApplicationPermissions } from "./ApplicationPermissions";
 import { ContainerTypeRegistration } from "./ContainerTypeRegistration";
+import { Container } from './Container';
 
 export enum BillingClassification {
     Paid = 0,
     FreeTrial = 1
 }
-
 
 // Class that represents a Container Type object persisted in the global storage provider
 export class ContainerType {
@@ -27,6 +27,7 @@ export class ContainerType {
     public readonly containerTypeId: string;
     public readonly displayName: string;
     public readonly owningAppId: string;
+    public readonly owningTenantId: string;
     public readonly billingClassification: number;
     public readonly azureSubscriptionId?: string;
     public readonly creationDate?: string;
@@ -38,11 +39,13 @@ export class ContainerType {
     public owningApp: App | undefined;
     public secondaryApps: App[];
     public registrations: ContainerTypeRegistration[];
+    public containers: Container[];
 
     public constructor(containerTypeId: string,
         owningAppId: string,
         displayName: string,
         billingClassification: number,
+        owningTenantId: string,
         owningApp?: App,
         azureSubscriptionId?: string,
         creationDate?: string,
@@ -55,6 +58,7 @@ export class ContainerType {
         this.owningAppId = owningAppId;
         this.billingClassification = billingClassification;
         this.containerTypeId = containerTypeId;
+        this.owningTenantId = owningTenantId;
         this.creationDate = creationDate;
         this.expiryDate = expiryDate;
         this.owningApp = owningApp;
@@ -62,6 +66,7 @@ export class ContainerType {
         this.secondaryApps = [];
         this.registrationIds = registrationIds ? registrationIds : [];
         this.registrations = [];
+        this.containers = [];
     }
 
     public async addTenantRegistration(tenantId: string, app: App, delegatedPermissions: string[], applicationPermissions: string[]): Promise<boolean> {
@@ -120,6 +125,43 @@ export class ContainerType {
 
     }
 
+    public async getContainers(): Promise<Container[]> {
+        const appSecretsString = await StorageProvider.get().secrets.get(this.owningApp!.clientId);
+            if (!appSecretsString) {
+                return [];
+            }
+        const appSecrets = JSON.parse(appSecretsString);
+        const provider = new ThirdPartyAuthProvider(this.owningApp!.clientId, appSecrets.thumbprint, appSecrets.privateKey);
+        const token = await provider.getToken(['FileStorageContainer.Selected']);
+        const sparseContainers: any[] = await GraphProvider.listStorageContainers(token, this.containerTypeId);
+
+        const containerPromises = sparseContainers.map(container => {
+            return GraphProvider.getStorageContainer(token, container.id)
+        })
+
+        const containers = await Promise.all(containerPromises)
+        
+        this.containers = containers.map(container => {
+            return new Container(container.id, container.displayName, container.description, this.containerTypeId, container.status, container.createdDateTime);
+        });
+
+        return this.containers;
+    }
+
+    public async createContainer(displayName: string, description: string) {
+        const appSecretsString = await StorageProvider.get().secrets.get(this.owningApp!.clientId);
+            if (!appSecretsString) {
+                return false;
+            }
+        const appSecrets = JSON.parse(appSecretsString);
+        const provider = new ThirdPartyAuthProvider(this.owningApp!.clientId, appSecrets.thumbprint, appSecrets.privateKey);
+        const token = await provider.getToken(['FileStorageContainer.Selected']);
+        const createdContainer = await GraphProvider.createStorageContainer(token, this.containerTypeId, displayName, description);
+        const createdContainerInstance = new Container(createdContainer.id, createdContainer.displayName, createdContainer.description, this.containerTypeId, createdContainer.status, createdContainer.createdDateTime);
+        this.containers.push(createdContainerInstance);
+        return createdContainerInstance;
+    }
+
     public static async loadFromStorage(containerTypeId: string): Promise<ContainerType | undefined> {
         let containerTypeProps: ContainerType | undefined = StorageProvider.get().global.getValue<ContainerType>(containerTypeId);
         if (containerTypeProps) {
@@ -127,7 +169,8 @@ export class ContainerType {
                 containerTypeProps.containerTypeId, 
                 containerTypeProps.owningAppId, 
                 containerTypeProps.displayName, 
-                containerTypeProps.billingClassification, 
+                containerTypeProps.billingClassification,
+                containerTypeProps.owningTenantId, 
                 undefined, 
                 containerTypeProps.azureSubscriptionId,
                 containerTypeProps.creationDate,

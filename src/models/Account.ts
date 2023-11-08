@@ -186,6 +186,7 @@ export class Account {
                 containerTypeDetails.OwningAppId,
                 containerTypeDetails.DisplayName,
                 containerTypeDetails.SPContainerTypeBillingClassification,
+                containerTypeDetails.OwningTenantId,
                 owningApp,
                 containerTypeDetails.AzureSubscriptionId,
                 containerTypeDetails.CreationDate,
@@ -246,25 +247,17 @@ export class Account {
 
         const containerTypeDetails = await PnPProvider.deleteContainerTypeById(spToken, domain, containerTypeId);
 
-        const secretPromises: Thenable<void>[] = [];
+        const deletionPromises: Thenable<void>[] = [];
+        const containerType = this.containerTypes.find(ct => ct.containerTypeId === containerTypeId)!;
         this.containerTypeIds = this.containerTypeIds.filter(id => id !== containerTypeId);
         this.containerTypes = this.containerTypes.filter(ct => ct.containerTypeId !== containerTypeId);
 
-        this.containerTypeIds.forEach(async containerTypeId => {
-            secretPromises.push(StorageProvider.get().global.setValue(containerTypeId, undefined));
-        })
-
-        this.containerTypes.forEach(containerType => {
-            containerType.registrationIds.forEach(async registrationId => {
-                secretPromises.push(StorageProvider.get().global.setValue(registrationId, undefined));
-            });
-
-            containerType.secondaryAppIds.forEach(async secondaryAppId => {
-                secretPromises.push(StorageProvider.get().global.setValue(secondaryAppId, undefined));
-            })
+        await StorageProvider.get().global.setValue(containerTypeId, undefined);
+        containerType.registrationIds.forEach(async registrationId => {
+            deletionPromises.push(StorageProvider.get().global.setValue(registrationId, undefined));
         });
 
-        await Promise.all(secretPromises);
+        await Promise.all(deletionPromises);
 
         await this.saveToStorage();
     }

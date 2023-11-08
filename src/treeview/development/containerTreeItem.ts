@@ -8,12 +8,15 @@ import * as vscode from "vscode";
 export class ContainerTreeItem extends vscode.TreeItem {
     constructor(
         public readonly label: string,
+        public readonly tooltip: string,
         public readonly collapsibleState: vscode.TreeItemCollapsibleState,
         public image?: { name: string; custom: boolean }
 
     ) {
-        super(label, collapsibleState)
+        super(label, collapsibleState);
+        this.tooltip = tooltip;
         this.setImagetoIcon();
+        this.contextValue = "container";
     }
 
     public async getChildren() {

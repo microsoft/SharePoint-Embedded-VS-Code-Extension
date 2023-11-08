@@ -354,9 +354,48 @@ export default class GraphProvider {
         };
         try {
             const response: AxiosResponse = await axios.get(`https://graph.microsoft.com/beta/storage/fileStorage/containers?$filter=containerTypeId eq ${containerTypeId}`, options);
-            return response.data;
+            return response.data.value;
         } catch (error) {
             console.error(`Error fetching containers`, error);
+            throw error;
+        }
+    };
+
+    static async createStorageContainer(accessToken: string, containerTypeId: string, displayName: string, description: string) {
+        const containerData = {
+            "displayName": displayName,
+            "description": description,
+            "containerTypeId": containerTypeId
+        }
+        const options = {
+            headers: {
+                Authorization: `Bearer ${accessToken}`,
+                'Content-Type': 'application/json'
+            }
+        };
+        try {
+            const response: AxiosResponse = await axios.post(`https://graph.microsoft.com/beta/storage/fileStorage/containers`,
+            JSON.stringify(containerData),
+            options);
+            return response.data;
+        } catch (error) {
+            console.error(`Error creating container: ${displayName} on Container Type ${containerTypeId}`, error);
+            throw error;
+        }
+    };
+
+    static async getStorageContainer(accessToken: string, containerId: string) {
+        const options = {
+            headers: {
+                Authorization: `Bearer ${accessToken}`,
+                'Content-Type': 'application/json'
+            }
+        };
+        try {
+            const response: AxiosResponse = await axios.get(`https://graph.microsoft.com/beta/storage/fileStorage/containers/${containerId}`, options);
+            return response.data;
+        } catch (error) {
+            console.error(`Error fetching container ${containerId}`, error);
             throw error;
         }
     };

@@ -113,9 +113,10 @@ export default class PnPProvider {
 
             // Accept Terms of Service for SharePoint Embedded Services prior to management calls
             try {
-                await sp.admin.tenant.call("DeleteSPOContainerTypeById", {
+                const result = await sp.admin.tenant.call("DeleteSPOContainerTypeById", {
                     containerTypeId: containerTypeId
                 })
+                return result;
             } catch (error: any) {
                 console.log(error.message);
                 throw error;

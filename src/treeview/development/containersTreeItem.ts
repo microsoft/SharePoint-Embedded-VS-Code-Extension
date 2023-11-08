@@ -11,10 +11,10 @@ import ThirdPartyAuthProvider from "../../services/3PAuthProvider";
 import { ContainerTypeListKey, OwningAppIdKey } from "../../utils/constants";
 import GraphProvider from "../../services/GraphProvider";
 import { ContainerType } from "../../models/ContainerType";
+import { Container } from "../../models/Container";
 
 export class ContainersTreeItem extends vscode.TreeItem {
     private containerItems?: ContainerTreeItem[];
-    private createAppServiceProvider: CreateAppProvider;
 
     constructor(
         public containerType: ContainerType,
@@ -25,33 +25,17 @@ export class ContainersTreeItem extends vscode.TreeItem {
     ) {
         super(label, collapsibleState)
         this.setImagetoIcon();
-        this.createAppServiceProvider = CreateAppProvider.getInstance(ext.context);
-        this.containerItems = []
+        this.containerItems = [];
+        this.contextValue = "containers";
     }
 
     public async getChildren() {
-        const containersGraphResponse: any = []
-        this.containerItems = containersGraphResponse.value.map((container: any) => {
-            return new ContainerTreeItem(container.displayName, vscode.TreeItemCollapsibleState.None,  {name: "symbol-field", custom: false });
+        const containers: Container[] = await this.containerType.getContainers();
+        this.containerItems = containers.map((container: Container) => {
+            return new ContainerTreeItem(container.displayName, container.description, vscode.TreeItemCollapsibleState.None,  {name: "symbol-field", custom: false });
         })
         return this.containerItems;
     }
-
-    private async getContainers(): Promise<any> {
-        const owningAppId: string = this.createAppServiceProvider.globalStorageManager.getValue(OwningAppIdKey);
-        const containerTypeDict: { [key: string]: any } = this.createAppServiceProvider.globalStorageManager.getValue(ContainerTypeListKey) || {};
-
-        if (owningAppId == null || owningAppId == undefined) {
-            return [];
-        }
-
-        const secrets = await this.createAppServiceProvider.getSecretsByAppId(owningAppId);
-        const provider = new ThirdPartyAuthProvider(owningAppId, secrets.thumbprint, secrets.privateKey);
-        const token = await provider.getToken(['FileStorageContainer.Selected']);
-        const containers = await GraphProvider.listStorageContainers(token, containerTypeDict[owningAppId].ContainerTypeId);
-        return containers;
-    }
-
     private setImagetoIcon() {
         if (this.image !== undefined) {
             if (!this.image.custom) {

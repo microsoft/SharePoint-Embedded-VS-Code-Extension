@@ -43,7 +43,7 @@ export class DevelopmentTreeViewProvider implements vscode.TreeDataProvider<Cont
             // @ts-ignore
             return Promise.resolve(element.getChildren());
         } else {
-            return Promise.resolve(this.commands);
+            return Promise.resolve(this.getDevelopmentTreeViewChildren());
         }
     }
 

@@ -116,6 +116,16 @@
           "command": "spe.createSecondaryApp",
           "when": "view == spe-development && viewItem == secondaryApplications",
           "group": "inline@1"
+        },
+        {
+          "command": "spe.refreshContainerList",
+          "when": "view == spe-development && viewItem == containers",
+          "group": "inline@1"
+        },
+        {
+          "command": "spe.createContainer",
+          "when": "view == spe-development && viewItem == containers",
+          "group": "inline@2"
         }
       ]
     },
@@ -131,6 +141,10 @@
       {
         "command": "spe.uploadCertificate",
         "title": "SharePoint Embedded: Upload Certificate"
+      },
+      {
+        "command": "spe.createContainerTypeOnApplication",
+        "title": "SharePoint Embedded: Create Container Type on Existing Application"
       },
       {
         "command": "spe.registerContainerType",
@@ -161,6 +175,16 @@
         "command": "spe.createSecondaryApp",
         "title": "Create secondary app",
         "icon": "$(plus)"
+      },
+      {
+        "command": "spe.createContainer",
+        "title": "Create container",
+        "icon": "$(plus)"
+      },
+      {
+        "command": "spe.refreshContainerList",
+        "title": "Refresh containers",
+        "icon": "$(refresh)"
       },
       {
         "command": "spe.cloneRepo",

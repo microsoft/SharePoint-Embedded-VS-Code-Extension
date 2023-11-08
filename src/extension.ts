@@ -87,7 +87,6 @@ export async function activate(context: vscode.ExtensionContext) {
             return;
         }
 
-
         // Create AAD application 
         const account = Account.get()!;
         let app: App | undefined;
@@ -145,7 +144,47 @@ export async function activate(context: vscode.ExtensionContext) {
         }
 
         vscode.window.showInformationMessage(`Container Type ${containerTypeName} successfully created and registerd on Azure AD App: ${appName}`);
+        developmentTreeViewProvider.refresh();
     });
+
+    const createContainerTypeOnApplicationCommand = vscode.commands.registerCommand('spe.createContainerTypeOnApplication', async () => {
+         // Create Container Type
+         const account = Account.get()!;
+         const app = account.apps.find(app => app.displayName === 'Owning')!; 
+
+         const containerTypeName = await vscode.window.showInputBox({
+            prompt: 'Free Trial Container Type Name:'
+        });
+
+        if (!containerTypeName) {
+            vscode.window.showErrorMessage('No Container Type name provided');
+            return;
+        }
+
+         let containerType: ContainerType | undefined;
+         try {
+             containerType = await account.createContainerType(app.clientId, containerTypeName, BillingClassification.FreeTrial);
+         } catch (error: any) {
+             vscode.window.showErrorMessage("Unable to create Free Trial Container Type: " + error.message);
+             //account.deleteApp(app);
+             return;
+         }
+ 
+         if (!containerType) {
+             vscode.window.showErrorMessage("Unable to create Free Trial Container Type");
+             return;
+         }
+ 
+         // Register Container Type
+         try {
+             await containerType.addTenantRegistration(account.tenantId, app, ["full"], ["full"]);
+         } catch (error: any) {
+             vscode.window.showErrorMessage("Unable to register Free Trial Container Type: " + error.message);
+         }
+ 
+         vscode.window.showInformationMessage(`Container Type ${containerTypeName} successfully created and registerd on Azure AD App: ${app.displayName}`);
+        developmentTreeViewProvider.refresh();
+    })
 
     const registerContainerTypeCommand = vscode.commands.registerCommand('spe.registerContainerType', async () => {
         const account = Account.get()!;
@@ -173,29 +212,39 @@ export async function activate(context: vscode.ExtensionContext) {
             return;
         }
 
-        const delegatedOptions = [
-            { "label": "None" },
-            { "label": "ReadContent" },
-            { "label": "WriteContent" },
-            { "label": "Create" },
-            { "label": "Delete" },
-            { "label": "Read" },
-            { "label": "Write" },
-            { "label": "AddPermissions" },
-            { "label": "UpdatePermissions" },
-            { "label": "DeletePermissions" },
-            { "label": "DeleteOwnPermissions" },
-            { "label": "ManagePermissions" },
-            { "label": "Full" }
+        const permissionsOptions = [
+            { "label": "none" },
+            { "label": "readcontent" },
+            { "label": "writecontent" },
+            { "label": "create" },
+            { "label": "delete" },
+            { "label": "read" },
+            { "label": "write" },
+            { "label": "addpermissions" },
+            { "label": "updatepermissions" },
+            { "label": "deletepermissions" },
+            { "label": "deleteownpermissions" },
+            { "label": "managepermissions" },
+            { "label": "full" }
         ]
 
-        const props = {
+        const delegatedProps = {
             title: 'Delegated Permissions',
-            placeholder: 'Select an option...',
+            placeholder: 'Select options...',
             canPickMany: true 
         }
 
-        const targets: any = await vscode.window.showQuickPick(delegatedOptions, props);
+        const applicationProps = {
+            title: 'Application Permissions',
+            placeholder: 'Select options...',
+            canPickMany: true 
+        }
+
+        const delegatedSelections: any = await vscode.window.showQuickPick(permissionsOptions, delegatedProps);
+        const delegatedPermissions = delegatedSelections.map((item: any) => item.label);
+
+        const applicationSelections: any = await vscode.window.showQuickPick(permissionsOptions, applicationProps);
+        const applicationPermissions = applicationSelections.map((item: any) => item.label);
 
         // Create AAD application 
         const account = Account.get()!;
@@ -246,21 +295,24 @@ export async function activate(context: vscode.ExtensionContext) {
 
         // Register Container Type
         try {
-            await containerType.addTenantRegistration(account.tenantId, app, ["full"], ["full"]);
+            await containerType.addTenantRegistration(account.tenantId, app, delegatedPermissions, applicationPermissions);
         } catch (error: any) {
             vscode.window.showErrorMessage("Unable to register Free Trial Container Type: " + error.message);
         }
 
         vscode.window.showInformationMessage(`Container Type ${"containerTypeName"} successfully created and registerd on Azure AD App: ${appName}`);
+        developmentTreeViewProvider.refresh();
     });
 
-    const deleteContainerTypeCommand = vscode.commands.registerCommand('spe.deleteContainerType', async () => {
+    const deleteContainerTypeCommand = vscode.commands.registerCommand('spe.deleteContainerType', async (containerTypeViewModel) => {
         const account = Account.get()!;
-        const containerType = account.containerTypes[0]
+        const containerType = containerTypeViewModel.containerType;
 
         try {
             const containerTypeDetails = await account.getContainerTypeById(containerType.owningApp!.clientId, containerType.containerTypeId);
-            await account.deleteContainerTypeById(containerType.owningApp!.clientId, containerType.containerTypeId);
+            const result = await account.deleteContainerTypeById(containerType.owningApp!.clientId, containerType.containerTypeId);
+            developmentTreeViewProvider.refresh();
+
             //await account.deleteContainerTypeById(containerType.owningApp!.clientId, containerType.containerTypeId);
         } catch (error: any) {
             vscode.window.showErrorMessage("Unable to create Azure AD application: " + error.message);
@@ -269,11 +321,9 @@ export async function activate(context: vscode.ExtensionContext) {
 
     });
 
-    const renameContainerTypeCommand = vscode.commands.registerCommand('spe.renameContainerType', async (param) => {
-        console.log(param);
+    const renameContainerTypeCommand = vscode.commands.registerCommand('spe.renameContainerType', async (containerTypeViewModel) => {
         const account = Account.get()!;
-        const containerType = account.containerTypes[0]
-
+        const containerType = containerTypeViewModel.containerType;
         try {
             const containerTypeDetails = await account.getContainerTypeById(containerType.owningApp!.clientId, containerType.containerTypeId);
             console.log(containerTypeDetails);
@@ -282,89 +332,48 @@ export async function activate(context: vscode.ExtensionContext) {
             vscode.window.showErrorMessage("Unable to create Azure AD application: " + error.message);
             return;
         }
-    })
-
-    const createNewContainerTypeCommand = vscode.commands.registerCommand('spe.createNewContainerTypeCommand', async () => {
-        const account = Account.get()!;
-        const applications: App[] = account.apps;
-        const options: any = [];
-        applications.forEach((app: App) => {
-            options.push({
-                label: app.displayName,
-                appId: app.clientId
-            })
-        });
-
-        const props = {
-            title: 'Select owning Azure AD app',
-            placeholder: 'Select an option...'
-        }
-
-        const target: any = await vscode.window.showQuickPick(options, props);
-        const containerTypeName: string | undefined = await vscode.window.showInputBox({
-            prompt: 'Container Type name'
-        });
-
-        if (!containerTypeName) {
-            vscode.window.showErrorMessage('No Container Type Name provided.');
-            return;
-        }
-
-        const containerTypeCreated = await createAppServiceProvider.createContainerType(target.appId, containerTypeName!);
-
-        if (!containerTypeCreated) {
-            vscode.window.showErrorMessage('ContainerType creation failed. Please try again');
-            return;
-        }
-
-        developmentTreeViewProvider.refresh();
     });
 
-    const registerContainerTypeOnGuestAppCommand = vscode.commands.registerCommand('spe.registerContainerTypeOnGuestAppCommand', async () => {
-        const appDict: { [key: string]: any } = createAppServiceProvider.globalStorageManager.getValue(ThirdPartyAppListKey) || {};
-        const options: any = [];
-        Object.keys(appDict).forEach(key => {
-            options.push({
-                label: appDict[key].displayName,
-                appId: key
-            })
-        });
-
-        const props = {
-            title: 'Select owning Azure AD app',
-            placeholder: 'Select an option...'
-        }
-
-        const target: any = await vscode.window.showQuickPick(options, props);
-
-        const containerTypeCreated = await createAppServiceProvider.createContainerType(target.appId, "");
-
-        if (!containerTypeCreated) {
-            vscode.window.showErrorMessage('ContainerType creation failed. Please try again');
+    const refreshContainerListCommand = vscode.commands.registerCommand('spe.refreshContainerList', async (containersViewModel) => {
+        const containerType: ContainerType = containersViewModel.containerType;
+        try {
+            await containerType.getContainers();
+            developmentTreeViewProvider.refresh();
+        } catch (error: any) {
+            vscode.window.showErrorMessage("Unable to refresh containers list " + error.message);
             return;
         }
+
     });
 
-    const createGuestAdApp = vscode.commands.registerCommand('spe.createGuestAdApp', async (owningAppId, guestAppId) => {
+    const createContainerCommand = vscode.commands.registerCommand('spe.createContainer', async (containersViewModel) => {
+        const containerType: ContainerType = containersViewModel.containerType;
+        const containerDisplayName = await vscode.window.showInputBox({
+            prompt: 'Display name:'
+        });
 
-        const appId: string = await vscode.commands.executeCommand('spe.createNewAadApp', false)
-
-        // if (!applicationCreated) {
-        //     vscode.window.showErrorMessage('Application creation failed. Please try again');
-        //     return;
-        // }
-
-        await vscode.commands.executeCommand('spe.registerContainerTypeOnGuestAppCommand')
-
-        const containerTypeRegistered = await createAppServiceProvider.registerContainerType(owningAppId, appId)
-        if (!containerTypeRegistered) {
-            vscode.window.showErrorMessage('ContainerType registration failed. Please try again');
+        if (!containerDisplayName) {
+            vscode.window.showErrorMessage('No container display name provided');
             return;
         }
 
-        //Update Development TreeView
-        developmentTreeViewProvider.refresh();
-    })
+        let containerDescription = await vscode.window.showInputBox({
+            prompt: 'Optional description:'
+        });
+
+        if (!containerDescription) {
+            containerDescription = '';
+        }
+
+        try {
+            await containerType.createContainer(containerDisplayName, containerDescription);
+            developmentTreeViewProvider.refresh();
+        } catch (error: any) {
+            vscode.window.showErrorMessage("Unable to create container object: " + error.message);
+            return;
+        }
+
+    });
 
     const cloneRepoCommand = vscode.commands.registerCommand('spe.cloneRepo', async (applicationTreeItem) => {
         try {
@@ -615,30 +624,6 @@ export async function activate(context: vscode.ExtensionContext) {
 
     const getCertPK = vscode.commands.registerCommand('spe.getCertPK', async () => {
         try {
-            const delegatedOptions = [
-                { "label": "None" },
-                { "label": "ReadContent" },
-                { "label": "WriteContent" },
-                { "label": "Create" },
-                { "label": "Delete" },
-                { "label": "Read" },
-                { "label": "Write" },
-                { "label": "AddPermissions" },
-                { "label": "UpdatePermissions" },
-                { "label": "DeletePermissions" },
-                { "label": "DeleteOwnPermissions" },
-                { "label": "ManagePermissions" },
-                { "label": "Full" }
-            ]
-
-            const props = {
-                title: 'Delegated Permission',
-                placeholder: 'Select an option...',
-                canPickMany: true 
-            }
-
-            const targets: any = await vscode.window.showQuickPick(delegatedOptions, props);
-
             const keys = StorageProvider.get().global.getAllKeys();
             //createAppServiceProvider.globalStorageManager.setValue(RegisteredContainerTypeSetKey, []);
 
@@ -673,12 +658,13 @@ export async function activate(context: vscode.ExtensionContext) {
         deleteContainerTypeCommand,
         registerContainerTypeCommand,
         renameContainerTypeCommand,
+        createContainerTypeOnApplicationCommand,
         createSecondaryApplicationCommand,
-        createNewContainerTypeCommand,
+        createContainerCommand,
+        refreshContainerListCommand,
         callMSGraphCommand,
         exportPostmanConfig,
-        callSpeTosCommand,
-        createGuestAdApp,
+        callSpeTosCommand
         // generateCertificateCommand,
         // getSPToken
     );
