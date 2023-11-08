@@ -27,6 +27,9 @@ export class ContainerTypeRegistration {
         const registrationString: string = StorageProvider.get().global.getValue(key);
         if (registrationString) {
             const registration = JSON.parse(registrationString);
+            registration.applicationPermissions = registration.applicationPermissions.map((permissionObj: ApplicationPermissions) => {
+                return new ApplicationPermissions(permissionObj.appId, permissionObj.delegated, permissionObj.appOnly)
+            })
             return new ContainerTypeRegistration(registration.containerTypeId, registration.tenantId, registration.applicationPermissions)
         }
         return undefined;

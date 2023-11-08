@@ -19,7 +19,7 @@ export class ContainerTypeTreeItem extends vscode.TreeItem {
 
     ) {
         super(label, collapsibleState);
-        if (containerType.registrationIds.length > 0) {
+        if (containerType.containers.length === 0) {
             vscode.commands.executeCommand('setContext', 'spe:showDeleteContainerType', true);
         }
 
@@ -29,17 +29,14 @@ export class ContainerTypeTreeItem extends vscode.TreeItem {
         //this.tooltip = containerType.d
         this.setImagetoIcon();
         this.contextValue = "containerType";
-       
     }
 
     public async getChildren() {
-
         const owningApplicationTreeItem = new OwningApplicationTreeItem(this.containerType.owningApp!, this.containerType, `${this.containerType.owningApp!.displayName}`, vscode.TreeItemCollapsibleState.None, { name: "extensions-star-full", custom: false });
         const secondaryAppsTreeItem = new SecondaryApplicationsTreeItem(this.containerType, 'Secondary Apps', vscode.TreeItemCollapsibleState.Collapsed);
         const containersTreeItem = new ContainersTreeItem(this.containerType, 'Containers', vscode.TreeItemCollapsibleState.Collapsed);
 
         return [owningApplicationTreeItem, secondaryAppsTreeItem, containersTreeItem];
-
     }
 
     private setImagetoIcon() {

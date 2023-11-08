@@ -19,7 +19,7 @@ export class ContainersTreeItem extends vscode.TreeItem {
     constructor(
         public containerType: ContainerType,
         public readonly label: string,
-        public readonly collapsibleState: vscode.TreeItemCollapsibleState,
+        public collapsibleState: vscode.TreeItemCollapsibleState,
         public image?: { name: string; custom: boolean }
 
     ) {

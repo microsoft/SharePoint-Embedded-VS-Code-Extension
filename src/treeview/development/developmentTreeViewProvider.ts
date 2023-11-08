@@ -17,12 +17,6 @@ export class DevelopmentTreeViewProvider implements vscode.TreeDataProvider<Cont
     readonly onDidChangeTreeData: vscode.Event<ContainerTypesTreeItem| undefined | void> =
         this._onDidChangeTreeData.event;
 
-    private commands: ContainerTypesTreeItem[];
-
-    public constructor() {
-        this.commands = this.getDevelopmentTreeViewChildren();
-    }
-
     public static getInstance() {
         if (!DevelopmentTreeViewProvider.instance) {
             DevelopmentTreeViewProvider.instance = new DevelopmentTreeViewProvider();
@@ -58,7 +52,7 @@ export class DevelopmentTreeViewProvider implements vscode.TreeDataProvider<Cont
         if (containerTypes && containerTypes.length > 0) {
             const containerTypesTreeItem = new ContainerTypesTreeItem(
                 `Container Types`,
-                vscode.TreeItemCollapsibleState.Collapsed
+                vscode.TreeItemCollapsibleState.Expanded
             )
             return [containerTypesTreeItem];
         }

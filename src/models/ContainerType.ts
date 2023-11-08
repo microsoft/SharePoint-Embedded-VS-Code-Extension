@@ -104,7 +104,7 @@ export class ContainerType {
             }
 
             // Save Container Type registration to storage
-            await containerTypeRegistration.saveToStorage()
+            await containerTypeRegistration.saveToStorage();
 
             if (this.owningAppId != app.clientId) {
                 this.secondaryAppIds.push(app.clientId);
@@ -117,12 +117,10 @@ export class ContainerType {
         } catch (error: any) {
             //vscode.window.showErrorMessage('Failed to register ContainerType');
             console.error('Error:', error);
-
+            throw error;
             // TODO
             // remove registered app id from global storage?
             // remove application that failed registration from global storage?
-
-            return false;
         }
 
     }

@@ -24,6 +24,9 @@ import GraphProvider from './services/GraphProvider';
 import { App } from './models/App';
 import PnPProvider from './services/PnPProvider';
 import { BillingClassification, ContainerType } from './models/ContainerType';
+import { timeoutForSeconds } from './utils/timeout';
+import { SecondaryApplicationsTreeItem } from './treeview/development/secondaryApplicationsTreeItem';
+import { ContainersTreeItem } from './treeview/development/containersTreeItem';
 
 let accessTokenPanel: vscode.WebviewPanel | undefined;
 let firstPartyAppAuthProvider: FirstPartyAuthProvider;
@@ -124,10 +127,15 @@ export async function activate(context: vscode.ExtensionContext) {
                 vscode.window.showErrorMessage(`Consent failed on app ${app.clientId}`);
                 throw new Error();
             }
+            
+            await vscode.commands.executeCommand('spe.callSpeTosCommand', app);
+
+            // Wait for 10 seconds 
+            await ToSDelay();
             containerType = await account.createContainerType(app.clientId, containerTypeName, BillingClassification.FreeTrial);
         } catch (error: any) {
             vscode.window.showErrorMessage("Unable to create Free Trial Container Type: " + error.message);
-            account.deleteApp(app);
+            await account.deleteApp(app);
             return;
         }
 
@@ -143,16 +151,16 @@ export async function activate(context: vscode.ExtensionContext) {
             vscode.window.showErrorMessage("Unable to register Free Trial Container Type: " + error.message);
         }
 
-        vscode.window.showInformationMessage(`Container Type ${containerTypeName} successfully created and registerd on Azure AD App: ${appName}`);
         developmentTreeViewProvider.refresh();
+        vscode.window.showInformationMessage(`Container Type ${containerTypeName} successfully created and registerd on Azure AD App: ${appName}`);
     });
 
     const createContainerTypeOnApplicationCommand = vscode.commands.registerCommand('spe.createContainerTypeOnApplication', async () => {
-         // Create Container Type
-         const account = Account.get()!;
-         const app = account.apps.find(app => app.displayName === 'Owning')!; 
+        // Create Container Type
+        const account = Account.get()!;
+        const app = account.apps.find(app => app.displayName === 'Owning')!;
 
-         const containerTypeName = await vscode.window.showInputBox({
+        const containerTypeName = await vscode.window.showInputBox({
             prompt: 'Free Trial Container Type Name:'
         });
 
@@ -161,28 +169,28 @@ export async function activate(context: vscode.ExtensionContext) {
             return;
         }
 
-         let containerType: ContainerType | undefined;
-         try {
-             containerType = await account.createContainerType(app.clientId, containerTypeName, BillingClassification.FreeTrial);
-         } catch (error: any) {
-             vscode.window.showErrorMessage("Unable to create Free Trial Container Type: " + error.message);
-             //account.deleteApp(app);
-             return;
-         }
- 
-         if (!containerType) {
-             vscode.window.showErrorMessage("Unable to create Free Trial Container Type");
-             return;
-         }
- 
-         // Register Container Type
-         try {
-             await containerType.addTenantRegistration(account.tenantId, app, ["full"], ["full"]);
-         } catch (error: any) {
-             vscode.window.showErrorMessage("Unable to register Free Trial Container Type: " + error.message);
-         }
- 
-         vscode.window.showInformationMessage(`Container Type ${containerTypeName} successfully created and registerd on Azure AD App: ${app.displayName}`);
+        let containerType: ContainerType | undefined;
+        try {
+            containerType = await account.createContainerType(app.clientId, containerTypeName, BillingClassification.FreeTrial);
+        } catch (error: any) {
+            vscode.window.showErrorMessage("Unable to create Free Trial Container Type: " + error.message);
+            //account.deleteApp(app);
+            return;
+        }
+
+        if (!containerType) {
+            vscode.window.showErrorMessage("Unable to create Free Trial Container Type");
+            return;
+        }
+
+        // Register Container Type
+        try {
+            await containerType.addTenantRegistration(account.tenantId, app, ["full"], ["full"]);
+        } catch (error: any) {
+            vscode.window.showErrorMessage("Unable to register Free Trial Container Type: " + error.message);
+        }
+
+        vscode.window.showInformationMessage(`Container Type ${containerTypeName} successfully created and registerd on Azure AD App: ${app.displayName}`);
         developmentTreeViewProvider.refresh();
     })
 
@@ -192,15 +200,16 @@ export async function activate(context: vscode.ExtensionContext) {
 
         try {
             const registrationComplete = await containerType.addTenantRegistration(account.tenantId, containerType.owningApp!, ["full"], ["full"])
-            vscode.window.showInformationMessage(`Container Type ${containerType.displayName} successfully created and registerd on Azure AD App: ${containerType.owningApp?.displayName}`);
+            vscode.window.showInformationMessage(`Container Type ${containerType.displayName} successfully created and registered on Azure AD App: ${containerType.owningApp?.displayName}`);
+            developmentTreeViewProvider.refresh();
         } catch (error: any) {
-            vscode.window.showErrorMessage("Unable to create Azure AD application: " + error.message);
+            vscode.window.showErrorMessage(`Unable to register Container Type ${containerType.displayName}: ${error.response.data.error.message}`)
             return;
         }
 
     });
 
-    const createSecondaryApplicationCommand = vscode.commands.registerCommand('spe.createSecondaryApp', async (secondaryApplicationsModel) => {
+    const createSecondaryApplicationCommand = vscode.commands.registerCommand('spe.createSecondaryApp', async (secondaryApplicationsModel: SecondaryApplicationsTreeItem) => {
         const containerType: ContainerType = secondaryApplicationsModel.containerType;
 
         const appName = await vscode.window.showInputBox({
@@ -231,13 +240,13 @@ export async function activate(context: vscode.ExtensionContext) {
         const delegatedProps = {
             title: 'Delegated Permissions',
             placeholder: 'Select options...',
-            canPickMany: true 
+            canPickMany: true
         }
 
         const applicationProps = {
             title: 'Application Permissions',
             placeholder: 'Select options...',
-            canPickMany: true 
+            canPickMany: true
         }
 
         const delegatedSelections: any = await vscode.window.showQuickPick(permissionsOptions, delegatedProps);
@@ -263,7 +272,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
         // 20-second progress to allow app propagation before consent flow
         await showProgress();
-        
+
         // Consent
         try {
             const message = "Grant consent to your new Azure AD application? This step is required in order to create a Free Trial Container Type. This will open a new web browser where you can grant consent with the administrator account on your tenant"
@@ -301,6 +310,7 @@ export async function activate(context: vscode.ExtensionContext) {
             return;
         }
         developmentTreeViewProvider.refresh();
+        secondaryApplicationsModel.collapsibleState = vscode.TreeItemCollapsibleState.Expanded;
         vscode.window.showInformationMessage(`Container Type ${"containerTypeName"} successfully created and registerd on Azure AD App: ${appName}`);
     });
 
@@ -346,7 +356,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
     });
 
-    const createContainerCommand = vscode.commands.registerCommand('spe.createContainer', async (containersViewModel) => {
+    const createContainerCommand = vscode.commands.registerCommand('spe.createContainer', async (containersViewModel: ContainersTreeItem) => {
         const containerType: ContainerType = containersViewModel.containerType;
         const containerDisplayName = await vscode.window.showInputBox({
             prompt: 'Display name:'
@@ -367,6 +377,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
         try {
             await containerType.createContainer(containerDisplayName, containerDescription);
+            containersViewModel.collapsibleState = vscode.TreeItemCollapsibleState.Expanded;
             developmentTreeViewProvider.refresh();
         } catch (error: any) {
             vscode.window.showErrorMessage("Unable to create container object: " + error.message);
@@ -578,43 +589,36 @@ export async function activate(context: vscode.ExtensionContext) {
 
     const callMSGraphCommand = vscode.commands.registerCommand('spe.callMSGraphCommand', async () => {
         try {
-            const thirdPartyAppId: any = createAppServiceProvider.globalStorageManager.getValue(CurrentApplicationKey);
-            if (typeof createAppServiceProvider.thirdPartyAuthProvider == "undefined" || createAppServiceProvider.thirdPartyAuthProvider == null) {
-                const serializedSecrets = await createAppServiceProvider.getSecretsByAppId(thirdPartyAppId);
-                createAppServiceProvider.thirdPartyAuthProvider = new ThirdPartyAuthProvider(thirdPartyAppId, serializedSecrets.thumbprint, serializedSecrets.privateKey)
-            }
-
-            const accessToken = await createAppServiceProvider.thirdPartyAuthProvider.getToken(['https://graph.microsoft.com/.default']);
-
-            const gResponse = await GraphProvider.checkAdminMemberObjects(accessToken)
-            console.log(gResponse);
-            showAccessTokenWebview(`Obtained Graph Token successfully: ${accessToken}`);
+            const account = Account.get()!;
+            const app = account.apps.find(app => app.displayName === 'Owning APp')!;
+            await account.deleteApp(app);
         } catch (error) {
             vscode.window.showErrorMessage('Failed to obtain access token.');
             console.error('Error:', error);
         }
     })
 
-    const callSpeTosCommand = vscode.commands.registerCommand('spe.callSpeTosCommand', async () => {
+    const callSpeTosCommand = vscode.commands.registerCommand('spe.callSpeTosCommand', async (app: App) => {
         try {
-            const thirdPartyAppId: any = createAppServiceProvider.globalStorageManager.getValue(CurrentApplicationKey);
-            if (typeof createAppServiceProvider.thirdPartyAuthProvider == "undefined" || createAppServiceProvider.thirdPartyAuthProvider == null) {
-                const serializedSecrets = await createAppServiceProvider.getSecretsByAppId(thirdPartyAppId);
-                createAppServiceProvider.thirdPartyAuthProvider = new ThirdPartyAuthProvider(thirdPartyAppId, serializedSecrets.thumbprint, serializedSecrets.privateKey)
+            const account = Account.get()!;
+            const appId = app.clientId;
+            const appSecretsString = await StorageProvider.get().secrets.get(appId);
+            if (!appSecretsString) {
+                return undefined;
             }
+            const appSecrets = JSON.parse(appSecretsString);
+            const thirdPartyAuthProvider = new ThirdPartyAuthProvider(appId, appSecrets.thumbprint, appSecrets.privateKey)
 
-            const consentToken = await createAppServiceProvider.thirdPartyAuthProvider.getToken(['00000003-0000-0ff1-ce00-000000000000/.default']);
-            //const consentToken = await this.thirdPartyAuthProvider.getToken(['00000003-0000-0ff1-ce00-000000000000/.default']);
-            const graphAccessToken = await createAppServiceProvider.thirdPartyAuthProvider.getToken(["00000003-0000-0000-c000-000000000000/Organization.Read.All", "00000003-0000-0000-c000-000000000000/Application.ReadWrite.All"]);
-
+            //const consentToken = await thirdPartyAuthProvider.getToken(['00000003-0000-0ff1-ce00-000000000000/.default']);
+            const graphAccessToken = await thirdPartyAuthProvider.getToken(["00000003-0000-0000-c000-000000000000/Organization.Read.All", "00000003-0000-0000-c000-000000000000/Application.ReadWrite.All"]);
             const tenantDomain = await GraphProvider.getOwningTenantDomain(graphAccessToken);
             const parts = tenantDomain.split('.');
             const domain = parts[0];
 
-            const spToken = await createAppServiceProvider.thirdPartyAuthProvider.getToken([`https://${domain}-admin.sharepoint.com/.default`]);
+            const spToken = await thirdPartyAuthProvider.getToken([`https://${domain}-admin.sharepoint.com/.default`]);
 
-            await PnPProvider.acceptSpeTos(spToken, domain, thirdPartyAppId)
-            vscode.window.showInformationMessage(`Successfully accepted ToS on application: ${thirdPartyAppId}`);
+            await PnPProvider.acceptSpeTos(spToken, domain, appId)
+            vscode.window.showInformationMessage(`Successfully accepted ToS on application: ${appId}`);
         } catch (error) {
             vscode.window.showErrorMessage('Failed to obtain access token.');
             console.error('Error:', error);
@@ -682,10 +686,11 @@ async function showProgress() {
 
         const progressSteps = [
             { increment: 0, message: "Creation started" },
-            { increment: 25, message: "Configuring properties..." },
-            { increment: 25, message: "Configuring properties..." },
-            { increment: 25, message: "Configuring properties..." },
-            { increment: 25, message: "Almost there..." }
+            { increment: 20, message: "Configuring properties..." },
+            { increment: 20, message: "Configuring properties..." },
+            { increment: 20, message: "Configuring properties..." },
+            { increment: 20, message: "Configuring properties..." },
+            { increment: 20, message: "Almost there..." }
         ];
 
         const reportProgress = (step: any, delay: number) => {
@@ -695,13 +700,47 @@ async function showProgress() {
         };
 
         for (let i = 0; i < progressSteps.length; i++) {
-            reportProgress(progressSteps[i], i * 5000); // Adjust the delay as needed
+            reportProgress(progressSteps[i], i * 6000); // Adjust the delay as needed
         }
 
         return new Promise<void>((resolve) => {
             setTimeout(() => {
                 resolve();
-            }, progressSteps.length * 5000);
+            }, progressSteps.length * 6000);
+        });
+    });
+}
+
+async function ToSDelay() {
+    await vscode.window.withProgress({
+        location: vscode.ProgressLocation.Notification,
+        title: "Terms of Service Status",
+        cancellable: true
+    }, (progress, token) => {
+        token.onCancellationRequested(() => {
+            console.log("User canceled the long running operation");
+        });
+
+        const progressSteps = [
+            { increment: 33, message: "Propagating Terms of Service..." },
+            { increment: 33, message: "Please wait..." },
+            { increment: 34, message: "Almost done..." },
+        ];
+
+        const reportProgress = (step: any, delay: number) => {
+            setTimeout(() => {
+                progress.report(step);
+            }, delay);
+        };
+
+        for (let i = 0; i < progressSteps.length; i++) {
+            reportProgress(progressSteps[i], i * 3000); // Adjust the delay as needed
+        }
+
+        return new Promise<void>((resolve) => {
+            setTimeout(() => {
+                resolve();
+            }, progressSteps.length * 3000);
         });
     });
 }

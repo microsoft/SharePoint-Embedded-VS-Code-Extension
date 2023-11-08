@@ -175,8 +175,6 @@ export class Account {
 
         const spToken = await thirdPartyAuthProvider.getToken([`https://${domain}-admin.sharepoint.com/.default`]);
 
-
-
         // Create ContainerType if none exist in global store, else register application on existing ContainerType
         if (this.containerTypeIds.length === 0) {
             const containerTypeDetails = await PnPProvider.createNewContainerType(spToken, domain, appId, containerTypeName, billingClassification);
@@ -202,8 +200,6 @@ export class Account {
             await this.saveToStorage();
 
             return containerType;
-            //await StorageProvider.get().global.setValue(OwningAppIdKey, appId);
-            //vscode.window.showInformationMessage(`ContainerType ${containerTypeDetails.ContainerTypeId} created successfully`);
         }
     }
 
@@ -276,13 +272,23 @@ export class Account {
     }
 
     public async deleteApp(app: App): Promise<void> {
-        const token = await Account.authProvider.getToken(Account.scopes);
         try {
-            await GraphProvider.deleteApplication(token, app.clientId);
+            const appSecretsString = await StorageProvider.get().secrets.get(app.clientId);
+            if (!appSecretsString) {
+                return undefined;
+            }
+            const appSecrets = JSON.parse(appSecretsString);
+            const thirdPartyAuthProvider = new ThirdPartyAuthProvider(app.clientId, appSecrets.thumbprint, appSecrets.privateKey)
+
+            //const consentToken = await thirdPartyAuthProvider.getToken(['00000003-0000-0ff1-ce00-000000000000/.default']);
+            const graphAccessToken = await thirdPartyAuthProvider.getToken(["00000003-0000-0000-c000-000000000000/Organization.Read.All", "00000003-0000-0000-c000-000000000000/Application.ReadWrite.All"]);
+
+            await GraphProvider.deleteApplication(graphAccessToken, app.clientId);
             await StorageProvider.get().global.setValue(app.clientId, undefined);
             await StorageProvider.get().secrets.delete(app.clientId);
             this.apps = this.apps.filter(storedApp => storedApp.clientId !== app.clientId);
             this.appIds = this.appIds.filter(id => id !== app.clientId);
+            await this.saveToStorage();
         } catch (error: any) {
             console.log(error);
             return;
