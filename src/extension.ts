@@ -300,9 +300,8 @@ export async function activate(context: vscode.ExtensionContext) {
             vscode.window.showErrorMessage("Unable to register Free Trial Container Type: " + error.message);
             return;
         }
-
-        vscode.window.showInformationMessage(`Container Type ${"containerTypeName"} successfully created and registerd on Azure AD App: ${appName}`);
         developmentTreeViewProvider.refresh();
+        vscode.window.showInformationMessage(`Container Type ${"containerTypeName"} successfully created and registerd on Azure AD App: ${appName}`);
     });
 
     const deleteContainerTypeCommand = vscode.commands.registerCommand('spe.deleteContainerType', async (containerTypeViewModel) => {
@@ -630,7 +629,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
             const account = Account.get();
             const dets = StorageProvider.get().global.getValue("account");
-            const a = StorageProvider.get().global.getValue("8415b804-a220-4113-8483-371b01d446ad");
+            const a = StorageProvider.get().global.getValue('d6daab70-24cf-0147-0fe9-ee2d222663b0_52cf1374-86ef-4054-8b6a-d93623f2251d');
             const a_s = await StorageProvider.get().secrets.get("8415b804-a220-4113-8483-371b01d446ad")
             //createAppServiceProvider.globalStorageManager.setValue("apps", apps);
             console.log('hi');

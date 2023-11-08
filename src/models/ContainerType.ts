@@ -92,17 +92,19 @@ export class ContainerType {
             if (!containerTypeRegistration) {
                 containerTypeRegistration = new ContainerTypeRegistration(this.containerTypeId, tenantId, [new ApplicationPermissions(app.clientId, ["full"], ["full"])])
                 await VroomProvider.registerContainerType(vroomAccessToken, this.owningAppId, `https://${domain}.sharepoint.com`, this.containerTypeId, containerTypeRegistration.applicationPermissions);
+                this.registrationIds.push(`${this.containerTypeId}_${tenantId}`);
+                this.registrations.push(containerTypeRegistration);
             } else {
                 containerTypeRegistration.applicationPermissions.push(new ApplicationPermissions(app.clientId, delegatedPermissions, applicationPermissions));
                 await VroomProvider.registerContainerType(vroomAccessToken, this.owningAppId, `https://${domain}.sharepoint.com`, this.containerTypeId, containerTypeRegistration.applicationPermissions);
+
+                // find existing registration in instance, and update it
+                const indexToReplace = this.registrations.findIndex(registration => registration.id === containerTypeRegistration.id);
+                this.registrations[indexToReplace] = containerTypeRegistration;
             }
 
             // Save Container Type registration to storage
             await containerTypeRegistration.saveToStorage()
-
-            // Update properties on ContainerType 
-            this.registrationIds.push(`${this.containerTypeId}_${tenantId}`)
-            this.registrations.push(containerTypeRegistration);
 
             if (this.owningAppId != app.clientId) {
                 this.secondaryAppIds.push(app.clientId);
