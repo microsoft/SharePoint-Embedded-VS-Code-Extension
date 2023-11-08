@@ -115,8 +115,9 @@ export class Account {
         return undefined;
     }
 
-    public static async logout(): Promise<void> {
+    public async logout(): Promise<void> {
         await Account.authProvider.logout();
+        await this.deleteFromStorage();
         Account.instance = undefined;
         Account.notifyLogout();
     }
@@ -375,7 +376,8 @@ export class Account {
 
     public async deleteFromStorage(): Promise<void> {
         const secretPromises: Thenable<void>[] = [];
-
+       
+        //same for CTs
         this.appIds.forEach(async appId => {
             secretPromises.push(StorageProvider.get().global.setValue(appId, undefined));
             secretPromises.push(StorageProvider.get().secrets.delete(appId));

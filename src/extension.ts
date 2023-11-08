@@ -63,8 +63,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
     const aadLogoutCommand = vscode.commands.registerCommand('spe.signOut', async () => {
         try {
-            await Account.get()?.deleteFromStorage();
-            await Account.logout();
+            await Account.get()!.logout();
             developmentTreeViewProvider.refresh();
         } catch (error) {
             vscode.window.showErrorMessage('Failed to obtain access token.');
