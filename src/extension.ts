@@ -27,6 +27,7 @@ import { BillingClassification, ContainerType } from './models/ContainerType';
 import { timeoutForSeconds } from './utils/timeout';
 import { SecondaryApplicationsTreeItem } from './treeview/development/secondaryApplicationsTreeItem';
 import { ContainersTreeItem } from './treeview/development/containersTreeItem';
+import { ContainerTypeTreeItem } from './treeview/development/containerTypeTreeItem';
 
 let accessTokenPanel: vscode.WebviewPanel | undefined;
 let firstPartyAppAuthProvider: FirstPartyAuthProvider;
@@ -324,19 +325,18 @@ export async function activate(context: vscode.ExtensionContext) {
         }
         developmentTreeViewProvider.refresh();
         secondaryApplicationsModel.collapsibleState = vscode.TreeItemCollapsibleState.Expanded;
-        vscode.window.showInformationMessage(`Container Type ${"containerTypeName"} successfully created and registerd on Azure AD App: ${appName}`);
+        vscode.window.showInformationMessage(`Container Type ${"containerTypeName"} successfully created and registered on Azure AD App: ${appName}`);
     });
 
-    const deleteContainerTypeCommand = vscode.commands.registerCommand('spe.deleteContainerType', async (containerTypeViewModel) => {
+    const deleteContainerTypeCommand = vscode.commands.registerCommand('spe.deleteContainerType', async (containerTypeViewModel: ContainerTypeTreeItem) => {
         const account = Account.get()!;
         const containerType = containerTypeViewModel.containerType;
 
         try {
             const containerTypeDetails = await account.getContainerTypeById(containerType.owningApp!.clientId, containerType.containerTypeId);
             const result = await account.deleteContainerTypeById(containerType.owningApp!.clientId, containerType.containerTypeId);
+            vscode.window.showInformationMessage(`Container Type ${containerType.displayName} successfully created`);
             developmentTreeViewProvider.refresh();
-
-            //await account.deleteContainerTypeById(containerType.owningApp!.clientId, containerType.containerTypeId);
         } catch (error: any) {
             vscode.window.showErrorMessage("Unable to create Azure AD application: " + error.message);
             return;
