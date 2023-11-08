@@ -47,20 +47,20 @@ export abstract class BaseAuthProvider {
 
         const authCodeUrlParameters: AuthorizationUrlRequest = {
             scopes: request.scopes,
-            redirectUri: 'http://localhost:12345/redirect',
+            redirectUri: '',
             codeChallengeMethod: 'S256',
             codeChallenge: challenge, // PKCE Code Challenge
             prompt: 'select_account',
         };
 
-        const authCodeUrl = await this.clientApplication.getAuthCodeUrl(authCodeUrlParameters);
+        //const authCodeUrl = await this.clientApplication.getAuthCodeUrl(authCodeUrlParameters);
 
         try {
-            const code = await this.listenForAuthCode(authCodeUrl);
+            const code = await this.listenForAuthCode(authCodeUrlParameters);
             const tokenResponse = await this.clientApplication.acquireTokenByCode({
                 code,
                 scopes: request.scopes,
-                redirectUri: 'http://localhost:12345/redirect',
+                redirectUri: authCodeUrlParameters.redirectUri,
                 codeVerifier: verifier // PKCE Code Verifier
             });
             return tokenResponse;
@@ -119,7 +119,7 @@ export abstract class BaseAuthProvider {
         }
     }
 
-    async listenForAuthCode(authCodeUrl: string): Promise<string> {
+    async listenForAuthCode(authRequest: AuthorizationUrlRequest): Promise<string> {
         return new Promise<string>((resolve, reject) => {
             const server = http.createServer(async (req, res) => {
                 const queryParams = url.parse(req.url || '', true).query as { code?: string };
@@ -144,8 +144,12 @@ export abstract class BaseAuthProvider {
                 }
             });
 
-            const serverPort = 12345; // Adjust the port as needed
-            server.listen(serverPort, () => {
+            //const serverPort = 12345; // Adjust the port as needed
+            server.listen(0, async () => {
+                const port = (<any>server.address()).port;
+                console.log(`Listening on port ${port}`);
+                authRequest.redirectUri = `http://localhost:${port}/redirect`;
+                const authCodeUrl = await this.clientApplication.getAuthCodeUrl(authRequest);
                 vscode.env.openExternal(vscode.Uri.parse(authCodeUrl));
             });
         });
