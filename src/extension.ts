@@ -201,7 +201,7 @@ export async function activate(context: vscode.ExtensionContext) {
     });
 
     const createSecondaryApplicationCommand = vscode.commands.registerCommand('spe.createSecondaryApp', async (secondaryApplicationsModel) => {
-        const containerType = secondaryApplicationsModel.containerType;
+        const containerType: ContainerType = secondaryApplicationsModel.containerType;
 
         const appName = await vscode.window.showInputBox({
             prompt: 'Azure AD Application Name:'
@@ -298,6 +298,7 @@ export async function activate(context: vscode.ExtensionContext) {
             await containerType.addTenantRegistration(account.tenantId, app, delegatedPermissions, applicationPermissions);
         } catch (error: any) {
             vscode.window.showErrorMessage("Unable to register Free Trial Container Type: " + error.message);
+            return;
         }
 
         vscode.window.showInformationMessage(`Container Type ${"containerTypeName"} successfully created and registerd on Azure AD App: ${appName}`);

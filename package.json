@@ -99,17 +99,17 @@
         },
         {
           "command": "spe.renameADApplication",
-          "when": "view == spe-development && viewItem == owningApplication",
+          "when": "view == spe-development && (viewItem == owningApplication || viewItem == secondaryApplication)",
           "group": "inline@1"
         },
         {
           "command": "spe.cloneRepo",
-          "when": "view == spe-development && viewItem == owningApplication",
+          "when": "view == spe-development && (viewItem == owningApplication || viewItem == secondaryApplication)",
           "group": "inline@2"
         },
         {
           "command": "spe.exportPostmanConfig",
-          "when": "view == spe-development && viewItem == owningApplication",
+          "when": "view == spe-development && (viewItem == owningApplication || viewItem == secondaryApplication)",
           "group": "inline@3"
         },
         {

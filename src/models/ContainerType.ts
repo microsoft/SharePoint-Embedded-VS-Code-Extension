@@ -71,12 +71,12 @@ export class ContainerType {
 
     public async addTenantRegistration(tenantId: string, app: App, delegatedPermissions: string[], applicationPermissions: string[]): Promise<boolean> {
         try {
-            const appSecretsString = await StorageProvider.get().secrets.get(app.clientId);
+            const appSecretsString = await StorageProvider.get().secrets.get(this.owningAppId);
             if (!appSecretsString) {
                 return false;
             }
             const appSecrets = JSON.parse(appSecretsString);
-            const thirdPartyAuthProvider = new ThirdPartyAuthProvider(app.clientId, appSecrets.thumbprint, appSecrets.privateKey)
+            const thirdPartyAuthProvider = new ThirdPartyAuthProvider(this.owningAppId, appSecrets.thumbprint, appSecrets.privateKey)
 
             const accessToken = await thirdPartyAuthProvider.getToken(["00000003-0000-0000-c000-000000000000/Organization.Read.All", "00000003-0000-0000-c000-000000000000/Application.ReadWrite.All"]);
 
@@ -84,17 +84,17 @@ export class ContainerType {
             const parts = tenantDomain.split('.');
             const domain = parts[0];
 
-            const certThumbprint = await GraphProvider.getCertThumbprintFromApplication(accessToken, app.clientId);
-            const vroomAccessToken = appSecrets.privateKey && await acquireAppOnlyCertSPOToken(certThumbprint, app.clientId, domain, appSecrets.privateKey, tenantId)
+            const certThumbprint = await GraphProvider.getCertThumbprintFromApplication(accessToken, this.owningAppId);
+            const vroomAccessToken = appSecrets.privateKey && await acquireAppOnlyCertSPOToken(certThumbprint, this.owningAppId, domain, appSecrets.privateKey, tenantId)
 
             let containerTypeRegistration = ContainerTypeRegistration.loadFromStorage(`${this.containerTypeId}_${tenantId}`)!;
 
             if (!containerTypeRegistration) {
                 containerTypeRegistration = new ContainerTypeRegistration(this.containerTypeId, tenantId, [new ApplicationPermissions(app.clientId, ["full"], ["full"])])
-                await VroomProvider.registerContainerType(vroomAccessToken, app.clientId, `https://${domain}.sharepoint.com`, this.containerTypeId, containerTypeRegistration.applicationPermissions);
+                await VroomProvider.registerContainerType(vroomAccessToken, this.owningAppId, `https://${domain}.sharepoint.com`, this.containerTypeId, containerTypeRegistration.applicationPermissions);
             } else {
                 containerTypeRegistration.applicationPermissions.push(new ApplicationPermissions(app.clientId, delegatedPermissions, applicationPermissions));
-                await VroomProvider.registerContainerType(vroomAccessToken, app.clientId, `https://${domain}.sharepoint.com`, this.containerTypeId, containerTypeRegistration.applicationPermissions);
+                await VroomProvider.registerContainerType(vroomAccessToken, this.owningAppId, `https://${domain}.sharepoint.com`, this.containerTypeId, containerTypeRegistration.applicationPermissions);
             }
 
             // Save Container Type registration to storage
