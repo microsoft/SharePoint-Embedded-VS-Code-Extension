@@ -132,6 +132,19 @@ export async function activate(context: vscode.ExtensionContext) {
 
             // Wait for 10 seconds 
             await ToSDelay();
+
+            // delete existing Container Types
+            const trialContainerTypes: ContainerType[] = await account.getAllContainerTypes(app.clientId);
+
+            for (const containerType of trialContainerTypes) {
+                try {
+                    const result = await account.deleteContainerTypeById(app!.clientId, containerType.containerTypeId);
+                    console.log(result);
+                } catch (error) {
+                    console.error(`Error deleting container type: ${error}`);
+                }
+            }
+
             containerType = await account.createContainerType(app.clientId, containerTypeName, BillingClassification.FreeTrial);
         } catch (error: any) {
             vscode.window.showErrorMessage("Unable to create Free Trial Container Type: " + error.message);
@@ -722,9 +735,10 @@ async function ToSDelay() {
         });
 
         const progressSteps = [
-            { increment: 33, message: "Propagating Terms of Service..." },
-            { increment: 33, message: "Please wait..." },
-            { increment: 34, message: "Almost done..." },
+            { increment: 25, message: "Propagating Terms of Service..." },
+            { increment: 25, message: "Please wait..." },
+            { increment: 25, message: "Please wait..." },
+            { increment: 25, message: "Almost done..." },
         ];
 
         const reportProgress = (step: any, delay: number) => {
@@ -734,13 +748,13 @@ async function ToSDelay() {
         };
 
         for (let i = 0; i < progressSteps.length; i++) {
-            reportProgress(progressSteps[i], i * 3000); // Adjust the delay as needed
+            reportProgress(progressSteps[i], i * 5000); // Adjust the delay as needed
         }
 
         return new Promise<void>((resolve) => {
             setTimeout(() => {
                 resolve();
-            }, progressSteps.length * 3000);
+            }, progressSteps.length * 5000);
         });
     });
 }

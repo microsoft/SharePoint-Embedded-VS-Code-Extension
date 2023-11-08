@@ -224,6 +224,42 @@ export class Account {
         return containerTypeDetails;
     }
 
+    public async getAllContainerTypes(appId: string): Promise<ContainerType[]> {
+        const appSecretsString = await StorageProvider.get().secrets.get(appId);
+        if (!appSecretsString) {
+            return [];
+        }
+        const appSecrets = JSON.parse(appSecretsString);
+        const thirdPartyAuthProvider = new ThirdPartyAuthProvider(appId, appSecrets.thumbprint, appSecrets.privateKey)
+        const tid: any = StorageProvider.get().global.getValue(TenantIdKey);
+
+        //const consentToken = await thirdPartyAuthProvider.getToken(['00000003-0000-0ff1-ce00-000000000000/.default']);
+        const graphAccessToken = await thirdPartyAuthProvider.getToken(["00000003-0000-0000-c000-000000000000/Organization.Read.All", "00000003-0000-0000-c000-000000000000/Application.ReadWrite.All"]);
+        const tenantDomain = await GraphProvider.getOwningTenantDomain(graphAccessToken);
+        const parts = tenantDomain.split('.');
+        const domain = parts[0];
+
+        const spToken = await thirdPartyAuthProvider.getToken([`https://${domain}-admin.sharepoint.com/.default`]);
+        const containerTypeList = await PnPProvider.getContainerTypes(spToken, domain);
+        const containerTypes: ContainerType[] = [];
+        containerTypeList.map((containerTypeProps: any) => {
+            const containerType = new ContainerType(
+                containerTypeProps.ContainerTypeId,
+                containerTypeProps.OwningAppId,
+                containerTypeProps.DisplayName,
+                containerTypeProps.SPContainerTypeBillingClassification,
+                containerTypeProps.OwningTenantId,
+                undefined,
+                containerTypeProps.AzureSubscriptionId,
+                containerTypeProps.CreationDate,
+                containerTypeProps.ExpiryDate,
+                containerTypeProps.IsBillingProfileRequired);
+                containerTypes.push(containerType);
+        });
+        
+        return containerTypes;
+    }
+
     public async deleteContainerTypeById(appId: string, containerTypeId: string): Promise<ContainerType | undefined> {
         const appSecretsString = await StorageProvider.get().secrets.get(appId);
         if (!appSecretsString) {
@@ -249,13 +285,14 @@ export class Account {
         this.containerTypes = this.containerTypes.filter(ct => ct.containerTypeId !== containerTypeId);
 
         await StorageProvider.get().global.setValue(containerTypeId, undefined);
-        containerType.registrationIds.forEach(async registrationId => {
+        containerType.registrationIds && containerType.registrationIds.forEach(async registrationId => {
             deletionPromises.push(StorageProvider.get().global.setValue(registrationId, undefined));
         });
 
         await Promise.all(deletionPromises);
 
         await this.saveToStorage();
+        return containerTypeDetails;
     }
 
     private static async createApp(displayName: string, token: string, isOwningApp: boolean): Promise<App | undefined> {
