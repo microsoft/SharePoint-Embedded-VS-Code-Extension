@@ -174,7 +174,7 @@ export class Account {
         const parts = tenantDomain.split('.');
         const domain = parts[0];
 
-        const spToken = await thirdPartyAuthProvider.getToken([`https://${domain}-admin.sharepoint.com/.default`]);
+        const spToken = await thirdPartyAuthProvider.getToken([`https://${domain}-admin.sharepoint.com/AllSites.Write`]);
 
         // Create ContainerType if none exist in global store, else register application on existing ContainerType
         if (this.containerTypeIds.length === 0) {
@@ -219,7 +219,7 @@ export class Account {
         const parts = tenantDomain.split('.');
         const domain = parts[0];
 
-        const spToken = await thirdPartyAuthProvider.getToken([`https://${domain}-admin.sharepoint.com/.default`]);
+        const spToken = await thirdPartyAuthProvider.getToken([`https://${domain}-admin.sharepoint.com/AllSites.Write`]);
         const containerTypeDetails = await PnPProvider.getContainerTypeById(spToken, domain, containerTypeId);
 
         return containerTypeDetails;
@@ -240,7 +240,7 @@ export class Account {
         const parts = tenantDomain.split('.');
         const domain = parts[0];
 
-        const spToken = await thirdPartyAuthProvider.getToken([`https://${domain}-admin.sharepoint.com/.default`]);
+        const spToken = await thirdPartyAuthProvider.getToken([`https://${domain}-admin.sharepoint.com/AllSites.Write`]);
         const containerTypeList = await PnPProvider.getContainerTypes(spToken, domain);
         const containerTypes: ContainerType[] = [];
         containerTypeList.map((containerTypeProps: any) => {
@@ -255,9 +255,9 @@ export class Account {
                 containerTypeProps.CreationDate,
                 containerTypeProps.ExpiryDate,
                 containerTypeProps.IsBillingProfileRequired);
-                containerTypes.push(containerType);
+            containerTypes.push(containerType);
         });
-        
+
         return containerTypes;
     }
 
@@ -268,7 +268,6 @@ export class Account {
         }
         const appSecrets = JSON.parse(appSecretsString);
         const thirdPartyAuthProvider = new ThirdPartyAuthProvider(appId, appSecrets.thumbprint, appSecrets.privateKey)
-        const tid: any = StorageProvider.get().global.getValue(TenantIdKey);
 
         //const consentToken = await thirdPartyAuthProvider.getToken(['00000003-0000-0ff1-ce00-000000000000/.default']);
         const graphAccessToken = await thirdPartyAuthProvider.getToken(["00000003-0000-0000-c000-000000000000/Organization.Read.All", "00000003-0000-0000-c000-000000000000/Application.ReadWrite.All"]);
@@ -276,19 +275,22 @@ export class Account {
         const parts = tenantDomain.split('.');
         const domain = parts[0];
 
-        const spToken = await thirdPartyAuthProvider.getToken([`https://${domain}-admin.sharepoint.com/.default`]);
+        const spToken = await thirdPartyAuthProvider.getToken([`https://${domain}-admin.sharepoint.com/AllSites.Write`]);
 
         const containerTypeDetails = await PnPProvider.deleteContainerTypeById(spToken, domain, containerTypeId);
 
         const deletionPromises: Thenable<void>[] = [];
-        const containerType = this.containerTypes.find(ct => ct.containerTypeId === containerTypeId)!;
+        const containerType = this.containerTypes.find(ct => ct.containerTypeId === containerTypeId);
         this.containerTypeIds = this.containerTypeIds.filter(id => id !== containerTypeId);
         this.containerTypes = this.containerTypes.filter(ct => ct.containerTypeId !== containerTypeId);
 
         await StorageProvider.get().global.setValue(containerTypeId, undefined);
-        containerType.registrationIds && containerType.registrationIds.forEach(async registrationId => {
-            deletionPromises.push(StorageProvider.get().global.setValue(registrationId, undefined));
-        });
+
+        if (containerType && containerType.registrationIds) {
+            containerType.registrationIds.forEach(async registrationId => {
+                deletionPromises.push(StorageProvider.get().global.setValue(registrationId, undefined));
+            });
+        }
 
         await Promise.all(deletionPromises);
 
@@ -376,27 +378,16 @@ export class Account {
 
     public async deleteFromStorage(): Promise<void> {
         const secretPromises: Thenable<void>[] = [];
-       
-        //same for CTs
-        this.appIds.forEach(async appId => {
-            secretPromises.push(StorageProvider.get().global.setValue(appId, undefined));
-            secretPromises.push(StorageProvider.get().secrets.delete(appId));
+
+        this.apps.forEach(async app => {
+            secretPromises.push(app.deleteFromStorage());
         })
 
-        this.containerTypeIds.forEach(async containerTypeId => {
-            secretPromises.push(StorageProvider.get().global.setValue(containerTypeId, undefined));
+        this.containerTypes.forEach(async containerType => {
+            secretPromises.push(containerType.deleteFromStorage());
         })
 
-        this.containerTypes.forEach(containerType => {
-            containerType.registrationIds.forEach(async registrationId => {
-                secretPromises.push(StorageProvider.get().global.setValue(registrationId, undefined));
-            });
-            containerType.secondaryAppIds.forEach(async secondaryAppId => {
-                secretPromises.push(StorageProvider.get().global.setValue(secondaryAppId, undefined));
-            })
-        })
         await Promise.all(secretPromises);
-
         await StorageProvider.get().global.setValue(Account.storageKey, undefined);
     }
 }

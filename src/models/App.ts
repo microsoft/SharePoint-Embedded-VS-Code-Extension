@@ -67,7 +67,7 @@ export class App {
         const consentToken = await thirdPartyAuthProvider.getToken(['00000003-0000-0ff1-ce00-000000000000/.default']);
         const graphAccessToken = await thirdPartyAuthProvider.getToken(["00000003-0000-0000-c000-000000000000/Organization.Read.All", "00000003-0000-0000-c000-000000000000/Application.ReadWrite.All"]);
 
-        return consentToken && graphAccessToken;
+        return typeof consentToken === 'string' && typeof graphAccessToken === 'string';
     }
 
     public static async loadFromStorage(clientId: string): Promise<App | undefined> {
@@ -97,5 +97,10 @@ export class App {
         };
         const appSecretsString = JSON.stringify(appSecrets);
         await StorageProvider.get().secrets.store(this.clientId, appSecretsString);
+    }
+
+    public async deleteFromStorage(): Promise<void> {
+        await StorageProvider.get().global.setValue(this.clientId, undefined);
+        await StorageProvider.get().secrets.delete(this.clientId);
     }
 }

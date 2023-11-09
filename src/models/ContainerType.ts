@@ -210,7 +210,6 @@ export class ContainerType {
         const unfilteredContainerTypeRegistrations: (ContainerTypeRegistration | undefined)[] = await Promise.all(containerTypeRegistrationPromises);
         const registrations = unfilteredContainerTypeRegistrations.filter(ct => ct !== undefined) as ContainerTypeRegistration[];
         const registrationsInstances = registrations.map(registrationProps => {
-            // Storage loads App props, so we use props to instantiate App instances 
             return new ContainerTypeRegistration(registrationProps.containerTypeId, registrationProps.tenantId, registrationProps.applicationPermissions);
         });
 
@@ -226,7 +225,19 @@ export class ContainerType {
         await StorageProvider.get().global.setValue(this.containerTypeId, containerType);
     }
 
-    public static loadAllContainerTypesFromStorage(): { [key: string]: any } | {} {
-        return StorageProvider.get().global.getValue(ContainerTypeListKey) || {};
+    public async deleteFromStorage(): Promise<void> {
+        const secretPromises: Thenable<void>[] = [];
+
+        secretPromises.push(StorageProvider.get().global.setValue(this.containerTypeId, undefined));
+
+        this.registrationIds.forEach(async registrationId => {
+            secretPromises.push(StorageProvider.get().global.setValue(registrationId, undefined));
+        });
+
+        this.secondaryAppIds.forEach(async secondaryAppId => {
+            secretPromises.push(StorageProvider.get().global.setValue(secondaryAppId, undefined));
+        });
+
+        await Promise.all(secretPromises);
     }
 }

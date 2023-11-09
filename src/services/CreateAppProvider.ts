@@ -93,7 +93,7 @@ export class CreateAppProvider {
             const parts = tenantDomain.split('.');
             const domain = parts[0];
 
-            const spToken = await this.thirdPartyAuthProvider.getToken([`https://${domain}-admin.sharepoint.com/.default`]);
+            const spToken = await this.thirdPartyAuthProvider.getToken([`https://${domain}-admin.sharepoint.com/AllSites.Write`]);
 
             const containerTypeDict: { [key: string]: any } = this.globalStorageManager.getValue(ContainerTypeListKey) || {};
             const appPermissionsDict: { [key: string]: ApplicationPermissions[] } = this.globalStorageManager.getValue(AppPermissionsListKey) || {};

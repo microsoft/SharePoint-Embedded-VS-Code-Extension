@@ -136,9 +136,9 @@ export async function activate(context: vscode.ExtensionContext) {
             // delete existing Container Types
             const trialContainerTypes: ContainerType[] = await account.getAllContainerTypes(app.clientId);
 
-            for (const containerType of trialContainerTypes) {
+            for (const ct of trialContainerTypes) {
                 try {
-                    const result = await account.deleteContainerTypeById(app!.clientId, containerType.containerTypeId);
+                    const result = await account.deleteContainerTypeById(app!.clientId, ct.containerTypeId);
                     console.log(result);
                 } catch (error) {
                     console.error(`Error deleting container type: ${error}`);
@@ -272,7 +272,7 @@ export async function activate(context: vscode.ExtensionContext) {
         const account = Account.get()!;
         let app: App | undefined;
         try {
-            app = await account.createApp(appName, true);
+            app = await account.createApp(appName, false);
         } catch (error: any) {
             vscode.window.showErrorMessage("Unable to create Azure AD application: " + error.message);
             return;
@@ -337,7 +337,7 @@ export async function activate(context: vscode.ExtensionContext) {
             vscode.window.showInformationMessage(`Container Type ${containerType.displayName} successfully created`);
             developmentTreeViewProvider.refresh();
         } catch (error: any) {
-            vscode.window.showErrorMessage("Unable to create Azure AD application: " + error.message);
+            vscode.window.showErrorMessage(`Unable to delete Container Type ${containerType.displayName} : ${error.message}`);
             return;
         }
 
@@ -349,7 +349,6 @@ export async function activate(context: vscode.ExtensionContext) {
         try {
             const containerTypeDetails = await account.getContainerTypeById(containerType.owningApp!.clientId, containerType.containerTypeId);
             console.log(containerTypeDetails);
-            //await account.deleteContainerTypeById(containerType.owningApp!.clientId, containerType.containerTypeId);
         } catch (error: any) {
             vscode.window.showErrorMessage("Unable to create Azure AD application: " + error.message);
             return;
@@ -627,7 +626,7 @@ export async function activate(context: vscode.ExtensionContext) {
             const parts = tenantDomain.split('.');
             const domain = parts[0];
 
-            const spToken = await thirdPartyAuthProvider.getToken([`https://${domain}-admin.sharepoint.com/.default`]);
+            const spToken = await thirdPartyAuthProvider.getToken([`https://${domain}-admin.sharepoint.com/AllSites.Write`]);
 
             await PnPProvider.acceptSpeTos(spToken, domain, appId)
             vscode.window.showInformationMessage(`Successfully accepted ToS on application: ${appId}`);
@@ -645,7 +644,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
             const account = Account.get();
             const dets = StorageProvider.get().global.getValue("account");
-            const a = StorageProvider.get().global.getValue('d6daab70-24cf-0147-0fe9-ee2d222663b0_52cf1374-86ef-4054-8b6a-d93623f2251d');
+            const a = StorageProvider.get().global.getValue('72f245a1-ce6d-0601-3d1b-1b932d14625f');
             const a_s = await StorageProvider.get().secrets.get("8415b804-a220-4113-8483-371b01d446ad")
             //createAppServiceProvider.globalStorageManager.setValue("apps", apps);
             console.log('hi');

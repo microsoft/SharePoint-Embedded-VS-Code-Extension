@@ -2,16 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as vscode from 'vscode';
 import { BillingClassification } from '../models/ContainerType';
-let sp: any = null;
 
 async function getPnPProvider(accessToken: any, tenantName: any) {
-
-    if (typeof sp !== "undefined" && sp !== null) {
-        return sp;
-    }
-
     // eslint-disable-next-line @typescript-eslint/naming-convention
     const { spfi, DefaultInit, DefaultHeaders, SPFI } = await import("@pnp/sp/index.js");
     // eslint-disable-next-line @typescript-eslint/naming-convention
@@ -21,7 +14,7 @@ async function getPnPProvider(accessToken: any, tenantName: any) {
     await import("@pnp/sp/webs/index.js");
     await import("@pnp/sp-admin/index.js");
 
-    sp = spfi(`https://${tenantName}-admin.sharepoint.com/`).using(
+    const sp = spfi(`https://${tenantName}-admin.sharepoint.com/`).using(
         BearerToken(accessToken),
         DefaultHeaders(),
         DefaultInit(),
@@ -139,6 +132,12 @@ export default class PnPProvider {
                 const result = await sp.admin.tenant.call("DeleteSPOContainerTypeById", {
                     containerTypeId: containerTypeId
                 })
+
+                // const result = await sp.admin.tenant.call("RemoveSPOContainerType", {
+                //     spDeletedContainerTypeProperties: {
+                //         ContainerTypeId: containerTypeId
+                //     }
+                // });
                 return result;
             } catch (error: any) {
                 console.log(error.message);
