@@ -65,7 +65,14 @@ export class App {
         const tid: any = StorageProvider.get().global.getValue(TenantIdKey);
         
         const consentToken = await thirdPartyAuthProvider.getToken(['00000003-0000-0ff1-ce00-000000000000/.default']);
-        const graphAccessToken = await thirdPartyAuthProvider.getToken(["00000003-0000-0000-c000-000000000000/Organization.Read.All", "00000003-0000-0000-c000-000000000000/Application.ReadWrite.All"]);
+        const graphAccessToken = await thirdPartyAuthProvider.getToken(["https://graph.microsoft.com/.default"]);
+
+        // store tenant domain
+        const tenantDomain = await GraphProvider.getOwningTenantDomain(graphAccessToken);
+        const parts = tenantDomain.split('.');
+        const domain = parts[0];
+
+        await StorageProvider.get().global.setValue("tenantDomain", domain);
 
         return typeof consentToken === 'string' && typeof graphAccessToken === 'string';
     }

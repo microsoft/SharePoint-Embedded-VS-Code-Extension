@@ -78,7 +78,7 @@ export class ContainerType {
             const appSecrets = JSON.parse(appSecretsString);
             const thirdPartyAuthProvider = new ThirdPartyAuthProvider(this.owningAppId, appSecrets.thumbprint, appSecrets.privateKey)
 
-            const accessToken = await thirdPartyAuthProvider.getToken(["00000003-0000-0000-c000-000000000000/Organization.Read.All", "00000003-0000-0000-c000-000000000000/Application.ReadWrite.All"]);
+            const accessToken = await thirdPartyAuthProvider.getToken(["00000003-0000-0000-c000-000000000000/.default"]);
 
             const tenantDomain = await GraphProvider.getOwningTenantDomain(accessToken);
             const parts = tenantDomain.split('.');
@@ -132,7 +132,7 @@ export class ContainerType {
             }
         const appSecrets = JSON.parse(appSecretsString);
         const provider = new ThirdPartyAuthProvider(this.owningApp!.clientId, appSecrets.thumbprint, appSecrets.privateKey);
-        const token = await provider.getToken(['FileStorageContainer.Selected']);
+        const token = await provider.getToken(["00000003-0000-0000-c000-000000000000/.default"]);
         const sparseContainers: any[] = await GraphProvider.listStorageContainers(token, this.containerTypeId);
 
         const containerPromises = sparseContainers.map(container => {
@@ -155,7 +155,7 @@ export class ContainerType {
             }
         const appSecrets = JSON.parse(appSecretsString);
         const provider = new ThirdPartyAuthProvider(this.owningApp!.clientId, appSecrets.thumbprint, appSecrets.privateKey);
-        const token = await provider.getToken(['FileStorageContainer.Selected']);
+        const token = await provider.getToken(["00000003-0000-0000-c000-000000000000/.default"]);
         const createdContainer = await GraphProvider.createStorageContainer(token, this.containerTypeId, displayName, description);
         const createdContainerInstance = new Container(createdContainer.id, createdContainer.displayName, createdContainer.description, this.containerTypeId, createdContainer.status, createdContainer.createdDateTime);
         this.containers.push(createdContainerInstance);

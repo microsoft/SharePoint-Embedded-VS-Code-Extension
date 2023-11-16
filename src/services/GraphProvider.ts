@@ -116,23 +116,25 @@ export default class GraphProvider {
                     // https://microsoft.sharepoint.com
                     "resourceAppId": "00000003-0000-0ff1-ce00-000000000000",
                     "resourceAccess": [
-                        {
-                            //AllSites.Write
-                            "id": "640ddd16-e5b7-4d71-9690-3f4022699ee7",
-                            "type": "Scope"
-                        },
+                            // Container.Selected - delegated
                         {
                             "id": "4d114b1a-3649-4764-9dfb-be1e236ff371",
                             "type": "Scope"
                         },
+                            // Container.Selected - application
                         {
                             "id": "19766c1b-905b-43af-8756-06526ab42875",
                             "type": "Role"
                         },
-                        // AllSites.Write - application
+                            // AllSites.Write - application
+                        // {
+                        //     "id": "fbcd29d2-fcca-4405-aded-518d457caae4",
+                        //     "type": "Role"
+                        // },
                         {
-                            "id": "fbcd29d2-fcca-4405-aded-518d457caae4",
-                            "type": "Role"
+                            //AllSites.Write - delegated
+                            "id": "640ddd16-e5b7-4d71-9690-3f4022699ee7",
+                            "type": "Scope"
                         }
                     ]
                 },
@@ -155,30 +157,25 @@ export default class GraphProvider {
                             "type": "Scope"
                         },
                         // delegated - Application.ReadWrite.All ** CHANGE TO Application.Read.All (c79f8feb-a9db-4090-85f9-90d820caa0eb) when 1P app available 
-                        {
-                            "id": "bdfbf15f-ee85-4955-8675-146e8e5296b5",
-                            "type": "Scope"
-                        },
+                        // {
+                        //     "id": "bdfbf15f-ee85-4955-8675-146e8e5296b5",
+                        //     "type": "Scope"
+                        // },
                         // delegated - FileStorageContainer.Selected
                         {
                             "id": "085ca537-6565-41c2-aca7-db852babc212",
                             "type": "Scope"
                         },
-                        // delegated - Files.Read
+                        // delegated - User.Read
                         {
-                            "id": "10465720-29dd-4523-a11a-6a75c743c9d9",
+                            "id": "e1fe6dd8-ba31-4d61-89e7-88639da4683d",
                             "type": "Scope"
                         },
-                        // application - Organization.Read.All
-                        {
-                            "id": "498476ce-e0fe-48b0-b801-37ba7e2685c6",
-                            "type": "Role"
-                        },
                         // application - Sites.ReadWrite.All
-                        {
-                            "id": "9492366f-7969-46a4-8d15-ed1a20078fff",
-                            "type": "Role"
-                        },
+                        // {
+                        //     "id": "9492366f-7969-46a4-8d15-ed1a20078fff",
+                        //     "type": "Role"
+                        // },
                         // application - FileStorageContainer.Selected
                         {
                             "id": "40dc41bc-0f7e-42ff-89bd-d9516947e474",

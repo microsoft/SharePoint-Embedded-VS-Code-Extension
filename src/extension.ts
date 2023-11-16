@@ -128,10 +128,10 @@ export async function activate(context: vscode.ExtensionContext) {
                 throw new Error();
             }
             
-            await vscode.commands.executeCommand('spe.callSpeTosCommand', app);
+            // await vscode.commands.executeCommand('spe.callSpeTosCommand', app);
 
-            // Wait for 10 seconds 
-            await ToSDelay();
+            // // Wait for 10 seconds 
+            // await ToSDelay();
 
             // delete existing Container Types
             const trialContainerTypes: ContainerType[] = await account.getAllContainerTypes(app.clientId);
@@ -324,7 +324,7 @@ export async function activate(context: vscode.ExtensionContext) {
         }
         developmentTreeViewProvider.refresh();
         secondaryApplicationsModel.collapsibleState = vscode.TreeItemCollapsibleState.Expanded;
-        vscode.window.showInformationMessage(`Container Type ${"containerTypeName"} successfully created and registered on Azure AD App: ${appName}`);
+        vscode.window.showInformationMessage(`Container Type ${containerType.displayName} successfully created and registered on Azure AD App: ${appName}`);
     });
 
     const deleteContainerTypeCommand = vscode.commands.registerCommand('spe.deleteContainerType', async (containerTypeViewModel: ContainerTypeTreeItem) => {
@@ -334,7 +334,7 @@ export async function activate(context: vscode.ExtensionContext) {
         try {
             const containerTypeDetails = await account.getContainerTypeById(containerType.owningApp!.clientId, containerType.containerTypeId);
             const result = await account.deleteContainerTypeById(containerType.owningApp!.clientId, containerType.containerTypeId);
-            vscode.window.showInformationMessage(`Container Type ${containerType.displayName} successfully created`);
+            vscode.window.showInformationMessage(`Container Type ${containerType.displayName} successfully deleted`);
             developmentTreeViewProvider.refresh();
         } catch (error: any) {
             vscode.window.showErrorMessage(`Unable to delete Container Type ${containerType.displayName} : ${error.message}`);
@@ -621,12 +621,13 @@ export async function activate(context: vscode.ExtensionContext) {
             const thirdPartyAuthProvider = new ThirdPartyAuthProvider(appId, appSecrets.thumbprint, appSecrets.privateKey)
 
             //const consentToken = await thirdPartyAuthProvider.getToken(['00000003-0000-0ff1-ce00-000000000000/.default']);
-            const graphAccessToken = await thirdPartyAuthProvider.getToken(["00000003-0000-0000-c000-000000000000/Organization.Read.All", "00000003-0000-0000-c000-000000000000/Application.ReadWrite.All"]);
-            const tenantDomain = await GraphProvider.getOwningTenantDomain(graphAccessToken);
-            const parts = tenantDomain.split('.');
-            const domain = parts[0];
+            // const graphAccessToken = await thirdPartyAuthProvider.getToken(["00000003-0000-0000-c000-000000000000/.default"]);
+            // const tenantDomain = await GraphProvider.getOwningTenantDomain(graphAccessToken);
+            // const parts = tenantDomain.split('.');
+            // const domain = parts[0];
 
-            const spToken = await thirdPartyAuthProvider.getToken([`https://${domain}-admin.sharepoint.com/AllSites.Write`]);
+            const domain = await StorageProvider.get().global.getValue("tenantDomain");
+            const spToken = await thirdPartyAuthProvider.getToken([`https://${domain}-admin.sharepoint.com/.default`]);
 
             await PnPProvider.acceptSpeTos(spToken, domain, appId)
             vscode.window.showInformationMessage(`Successfully accepted ToS on application: ${appId}`);

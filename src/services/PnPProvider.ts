@@ -129,15 +129,15 @@ export default class PnPProvider {
 
             // Accept Terms of Service for SharePoint Embedded Services prior to management calls
             try {
-                const result = await sp.admin.tenant.call("DeleteSPOContainerTypeById", {
-                    containerTypeId: containerTypeId
-                })
-
-                // const result = await sp.admin.tenant.call("RemoveSPOContainerType", {
-                //     spDeletedContainerTypeProperties: {
-                //         ContainerTypeId: containerTypeId
-                //     }
+                // const result = await sp.admin.tenant.call("DeleteSPOContainerTypeById", {
+                //     containerTypeId: containerTypeId
                 // });
+
+                const result = await sp.admin.tenant.call("RemoveSPOContainerType", {
+                    spDeletedContainerTypeProperties: {
+                        ContainerTypeId: containerTypeId
+                    }
+                });
                 return result;
             } catch (error: any) {
                 console.log(error.message);
