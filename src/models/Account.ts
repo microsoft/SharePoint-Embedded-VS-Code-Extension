@@ -15,7 +15,7 @@ import { generateCertificateAndPrivateKey, createCertKeyCredential } from '../ce
 import GraphProvider from '../services/GraphProvider';
 import ThirdPartyAuthProvider from '../services/3PAuthProvider';
 import PnPProvider from '../services/PnPProvider';
-import { TenantIdKey, OwningAppIdKey } from '../utils/constants';
+import { TenantIdKey, OwningAppIdKey, TenantDomain } from '../utils/constants';
 import { ApplicationPermissions } from './ApplicationPermissions';
 import { ContainerTypeRegistration } from './ContainerTypeRegistration';
 
@@ -145,6 +145,10 @@ export class Account {
         });
     }
 
+    public static async getFirstPartyAccessToken() {
+        return await Account.authProvider.getToken(Account.scopes);
+    }
+
     public async createApp(appName: string, isOwningApp: boolean): Promise<App | undefined> {
         const token = await Account.authProvider.getToken(Account.scopes);
         if (token) {
@@ -169,12 +173,13 @@ export class Account {
         const thirdPartyAuthProvider = new ThirdPartyAuthProvider(appId, appSecrets.thumbprint, appSecrets.privateKey)
 
         //const consentToken = await thirdPartyAuthProvider.getToken(['00000003-0000-0ff1-ce00-000000000000/.default']);
-        const graphAccessToken = await thirdPartyAuthProvider.getToken(["00000003-0000-0000-c000-000000000000/Organization.Read.All", "00000003-0000-0000-c000-000000000000/Application.ReadWrite.All"]);
-        const tenantDomain = await GraphProvider.getOwningTenantDomain(graphAccessToken);
-        const parts = tenantDomain.split('.');
-        const domain = parts[0];
+        // const graphAccessToken = await thirdPartyAuthProvider.getToken(["00000003-0000-0000-c000-000000000000/.default"]);
+        // const tenantDomain = await GraphProvider.getOwningTenantDomain(graphAccessToken);
+        // const parts = tenantDomain.split('.');
+        // const domain = parts[0];
 
-        const spToken = await thirdPartyAuthProvider.getToken([`https://${domain}-admin.sharepoint.com/AllSites.Write`]);
+        const domain = await StorageProvider.get().global.getValue(TenantDomain);
+        const spToken = await thirdPartyAuthProvider.getToken([`https://${domain}-admin.sharepoint.com/.default`]);
 
         // Create ContainerType if none exist in global store, else register application on existing ContainerType
         if (this.containerTypeIds.length === 0) {
@@ -214,12 +219,14 @@ export class Account {
         const tid: any = StorageProvider.get().global.getValue(TenantIdKey);
 
         //const consentToken = await thirdPartyAuthProvider.getToken(['00000003-0000-0ff1-ce00-000000000000/.default']);
-        const graphAccessToken = await thirdPartyAuthProvider.getToken(["00000003-0000-0000-c000-000000000000/Organization.Read.All", "00000003-0000-0000-c000-000000000000/Application.ReadWrite.All"]);
-        const tenantDomain = await GraphProvider.getOwningTenantDomain(graphAccessToken);
-        const parts = tenantDomain.split('.');
-        const domain = parts[0];
+        // const graphAccessToken = await thirdPartyAuthProvider.getToken(["00000003-0000-0000-c000-000000000000/.default"]);
+        // const tenantDomain = await GraphProvider.getOwningTenantDomain(graphAccessToken);
+        // const parts = tenantDomain.split('.');
+        // const domain = parts[0];
 
-        const spToken = await thirdPartyAuthProvider.getToken([`https://${domain}-admin.sharepoint.com/AllSites.Write`]);
+        const domain: string = await StorageProvider.get().global.getValue(TenantDomain);
+
+        const spToken = await thirdPartyAuthProvider.getToken([`https://${domain}-admin.sharepoint.com/.default`]);
         const containerTypeDetails = await PnPProvider.getContainerTypeById(spToken, domain, containerTypeId);
 
         return containerTypeDetails;
@@ -235,12 +242,15 @@ export class Account {
         const tid: any = StorageProvider.get().global.getValue(TenantIdKey);
 
         //const consentToken = await thirdPartyAuthProvider.getToken(['00000003-0000-0ff1-ce00-000000000000/.default']);
-        const graphAccessToken = await thirdPartyAuthProvider.getToken(["00000003-0000-0000-c000-000000000000/Organization.Read.All", "00000003-0000-0000-c000-000000000000/Application.ReadWrite.All"]);
-        const tenantDomain = await GraphProvider.getOwningTenantDomain(graphAccessToken);
-        const parts = tenantDomain.split('.');
-        const domain = parts[0];
+        //const graphAccessToken = await thirdPartyAuthProvider.getToken(["00000003-0000-0000-c000-000000000000/.default"]);
+        // const tenantDomain = await GraphProvider.getOwningTenantDomain(graphAccessToken);
+        // const parts = tenantDomain.split('.');
+        // const domain = parts[0];
 
-        const spToken = await thirdPartyAuthProvider.getToken([`https://${domain}-admin.sharepoint.com/AllSites.Write`]);
+        const domain: string = await StorageProvider.get().global.getValue(TenantDomain);
+
+        const spToken = await thirdPartyAuthProvider.getToken([`https://${domain}-admin.sharepoint.com/.default`]);
+
         const containerTypeList = await PnPProvider.getContainerTypes(spToken, domain);
         const containerTypes: ContainerType[] = [];
         containerTypeList.map((containerTypeProps: any) => {
@@ -270,12 +280,13 @@ export class Account {
         const thirdPartyAuthProvider = new ThirdPartyAuthProvider(appId, appSecrets.thumbprint, appSecrets.privateKey)
 
         //const consentToken = await thirdPartyAuthProvider.getToken(['00000003-0000-0ff1-ce00-000000000000/.default']);
-        const graphAccessToken = await thirdPartyAuthProvider.getToken(["00000003-0000-0000-c000-000000000000/Organization.Read.All", "00000003-0000-0000-c000-000000000000/Application.ReadWrite.All"]);
-        const tenantDomain = await GraphProvider.getOwningTenantDomain(graphAccessToken);
-        const parts = tenantDomain.split('.');
-        const domain = parts[0];
+        // const graphAccessToken = await thirdPartyAuthProvider.getToken(["00000003-0000-0000-c000-000000000000/.default"]);
+        // const tenantDomain = await GraphProvider.getOwningTenantDomain(graphAccessToken);
+        // const parts = tenantDomain.split('.');
+        // const domain = parts[0];
 
-        const spToken = await thirdPartyAuthProvider.getToken([`https://${domain}-admin.sharepoint.com/AllSites.Write`]);
+        const domain: string = await StorageProvider.get().global.getValue(TenantDomain);
+        const spToken = await thirdPartyAuthProvider.getToken([`https://${domain}-admin.sharepoint.com/.default`]);
 
         const containerTypeDetails = await PnPProvider.deleteContainerTypeById(spToken, domain, containerTypeId);
 
@@ -321,7 +332,7 @@ export class Account {
             const thirdPartyAuthProvider = new ThirdPartyAuthProvider(app.clientId, appSecrets.thumbprint, appSecrets.privateKey)
 
             //const consentToken = await thirdPartyAuthProvider.getToken(['00000003-0000-0ff1-ce00-000000000000/.default']);
-            const graphAccessToken = await thirdPartyAuthProvider.getToken(["00000003-0000-0000-c000-000000000000/Organization.Read.All", "00000003-0000-0000-c000-000000000000/Application.ReadWrite.All"]);
+            const graphAccessToken = await thirdPartyAuthProvider.getToken(["00000003-0000-0000-c000-000000000000/.default"]);
 
             await GraphProvider.deleteApplication(graphAccessToken, app.clientId);
             await StorageProvider.get().global.setValue(app.clientId, undefined);
@@ -389,6 +400,8 @@ export class Account {
 
         await Promise.all(secretPromises);
         await StorageProvider.get().global.setValue(Account.storageKey, undefined);
+        await StorageProvider.get().global.setValue(TenantIdKey, undefined);
+        await StorageProvider.get().global.setValue(TenantDomain, undefined);
     }
 }
 

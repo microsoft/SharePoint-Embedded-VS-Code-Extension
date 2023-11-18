@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { AppPermissionsListKey, ContainerTypeListKey, CurrentApplicationKey, OwningAppIdKey, RegisteredContainerTypeSetKey, TenantIdKey, ThirdPartyAppListKey, clientId } from '../utils/constants';
+import { AppPermissionsListKey, ContainerTypeListKey, CurrentApplicationKey, OwningAppIdKey, RegisteredContainerTypeSetKey, TenantDomain, TenantIdKey, ThirdPartyAppListKey, clientId } from '../utils/constants';
 import FirstPartyAuthProvider from './1PAuthProvider';
 import GraphProvider from './GraphProvider';
 import ThirdPartyAuthProvider from './3PAuthProvider';
@@ -12,7 +12,7 @@ import PnPProvider from './PnPProvider';
 import VroomProvider from './VroomProvider';
 import { generateCertificateAndPrivateKey, createCertKeyCredential, acquireAppOnlyCertSPOToken } from '../cert';
 import { ext } from '../utils/extensionVariables';
-import { LocalStorageService } from './StorageProvider';
+import { LocalStorageService, StorageProvider } from './StorageProvider';
 import { ApplicationPermissions } from '../utils/models';
 import { BillingClassification } from '../models/ContainerType';
 
@@ -41,7 +41,7 @@ export class CreateAppProvider {
 
     async createAadApplication(applicationName: string): Promise<[boolean, string]> {
         try {
-            const accessToken = await this.firstPartyAppAuthProvider.getToken(['Application.ReadWrite.All']);
+            const accessToken = await this.firstPartyAppAuthProvider.getToken(["00000003-0000-0000-c000-000000000000/.default"]);
             const { certificatePEM, privateKey, thumbprint } = generateCertificateAndPrivateKey();
 
             const certKeyCredential = createCertKeyCredential(certificatePEM);
@@ -80,7 +80,7 @@ export class CreateAppProvider {
             }
 
             const consentToken = await this.thirdPartyAuthProvider.getToken(['00000003-0000-0ff1-ce00-000000000000/.default']);
-            const graphAccessToken = await this.thirdPartyAuthProvider.getToken(["00000003-0000-0000-c000-000000000000/Organization.Read.All", "00000003-0000-0000-c000-000000000000/Application.ReadWrite.All"]);
+            const graphAccessToken = await this.thirdPartyAuthProvider.getToken(["00000003-0000-0000-c000-000000000000/.default"]);
 
             const passwordCredential: any = await GraphProvider.addPasswordWithRetry(graphAccessToken, thirdPartyAppId);
             await GraphProvider.addIdentifierUri(graphAccessToken, thirdPartyAppId);
@@ -89,11 +89,9 @@ export class CreateAppProvider {
             secrets.clientSecret = passwordCredential.secretText;
             await ext.context.secrets.store(thirdPartyAppId, JSON.stringify(secrets));
 
-            const tenantDomain = await GraphProvider.getOwningTenantDomain(graphAccessToken);
-            const parts = tenantDomain.split('.');
-            const domain = parts[0];
+            const domain = await StorageProvider.get().global.getValue(TenantDomain);
 
-            const spToken = await this.thirdPartyAuthProvider.getToken([`https://${domain}-admin.sharepoint.com/AllSites.Write`]);
+            const spToken = await this.thirdPartyAuthProvider.getToken([`https://${domain}-admin.sharepoint.com/.default`]);
 
             const containerTypeDict: { [key: string]: any } = this.globalStorageManager.getValue(ContainerTypeListKey) || {};
             const appPermissionsDict: { [key: string]: ApplicationPermissions[] } = this.globalStorageManager.getValue(AppPermissionsListKey) || {};
@@ -144,7 +142,7 @@ export class CreateAppProvider {
             const secrets = await this.getSecretsByAppId(guestAppId);
             const thirdPartyAuthProvider = new ThirdPartyAuthProvider(guestAppId, secrets.thumbprint, secrets.privateKey)
 
-            const accessToken = await thirdPartyAuthProvider.getToken(["00000003-0000-0000-c000-000000000000/Organization.Read.All", "00000003-0000-0000-c000-000000000000/Application.ReadWrite.All"]);
+            const accessToken = await thirdPartyAuthProvider.getToken(["00000003-0000-0000-c000-000000000000/.default"]);
 
             const tenantDomain = await GraphProvider.getOwningTenantDomain(accessToken);
             const parts = tenantDomain.split('.');

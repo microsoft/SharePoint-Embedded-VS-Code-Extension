@@ -6,8 +6,9 @@
 import ThirdPartyAuthProvider from "../services/3PAuthProvider";
 import GraphProvider from "../services/GraphProvider";
 import { StorageProvider } from "../services/StorageProvider";
-import { OwningAppIdKey, OwningAppIdsListKey, TenantIdKey } from "../utils/constants";
+import { OwningAppIdKey, OwningAppIdsListKey, TenantDomain, TenantIdKey } from "../utils/constants";
 import _ from 'lodash';
+import { Account } from "./Account";
 
 // Class that represents an Azure AD application object persisted in the global storage provider
 export class App {
@@ -62,10 +63,16 @@ export class App {
         }
         const appSecrets = JSON.parse(appSecretsString);
         const thirdPartyAuthProvider = new ThirdPartyAuthProvider(this.clientId, appSecrets.thumbprint, appSecrets.privateKey)
-        const tid: any = StorageProvider.get().global.getValue(TenantIdKey);
         
         const consentToken = await thirdPartyAuthProvider.getToken(['00000003-0000-0ff1-ce00-000000000000/.default']);
-        const graphAccessToken = await thirdPartyAuthProvider.getToken(["00000003-0000-0000-c000-000000000000/Organization.Read.All", "00000003-0000-0000-c000-000000000000/Application.ReadWrite.All"]);
+        //const graphAccessToken = await thirdPartyAuthProvider.getToken(["https://graph.microsoft.com/User.Read"]);
+        const graphAccessToken = await Account.getFirstPartyAccessToken();
+
+        // store tenant domain
+        const tenantDomain = await GraphProvider.getOwningTenantDomain(graphAccessToken);
+        const parts = tenantDomain.split('.');
+        const domain = parts[0];
+        await StorageProvider.get().global.setValue(TenantDomain, domain);
 
         return typeof consentToken === 'string' && typeof graphAccessToken === 'string';
     }

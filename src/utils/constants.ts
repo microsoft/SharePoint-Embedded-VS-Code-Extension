@@ -11,3 +11,4 @@ export const AppPermissionsListKey = "AppPermissions";
 export const CurrentApplicationKey = "CurrentApplication";
 export const OwningAppIdKey = "OwningAppId";
 export const TenantIdKey = "tid";
+export const TenantDomain = "tenantDomain";

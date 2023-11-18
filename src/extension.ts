@@ -7,9 +7,9 @@ import * as vscode from 'vscode';
 import { v4 as uuidv4 } from 'uuid';
 import * as fs from 'fs';
 import * as path from 'path';
-import { generateCertificateAndPrivateKey, acquireAppOnlyCertSPOToken, createCertKeyCredential } from './cert';
+import { generateCertificateAndPrivateKey } from './cert';
 
-import { AppPermissionsListKey, ContainerTypeListKey, CurrentApplicationKey, OwningAppIdKey, OwningAppIdsListKey, RegisteredContainerTypeSetKey, TenantIdKey, ThirdPartyAppListKey, clientId } from './utils/constants';
+import { TenantDomain } from './utils/constants';
 import { ext } from './utils/extensionVariables';
 import { ExtensionContext, window } from 'vscode';
 import FirstPartyAuthProvider from './services/1PAuthProvider';
@@ -17,14 +17,11 @@ import ThirdPartyAuthProvider from './services/3PAuthProvider';
 import { AccountTreeViewProvider } from './treeview/account/accountTreeViewProvider';
 import { DevelopmentTreeViewProvider } from './treeview/development/developmentTreeViewProvider';
 import { CreateAppProvider } from './services/CreateAppProvider';
-import { checkJwtForAdminClaim, decodeJwt, getJwtTenantId, } from './utils/token';
 import { LocalStorageService, StorageProvider } from './services/StorageProvider';
 import { Account } from './models/Account';
-import GraphProvider from './services/GraphProvider';
 import { App } from './models/App';
 import PnPProvider from './services/PnPProvider';
 import { BillingClassification, ContainerType } from './models/ContainerType';
-import { timeoutForSeconds } from './utils/timeout';
 import { SecondaryApplicationsTreeItem } from './treeview/development/secondaryApplicationsTreeItem';
 import { ContainersTreeItem } from './treeview/development/containersTreeItem';
 import { ContainerTypeTreeItem } from './treeview/development/containerTypeTreeItem';
@@ -128,10 +125,10 @@ export async function activate(context: vscode.ExtensionContext) {
                 throw new Error();
             }
             
-            await vscode.commands.executeCommand('spe.callSpeTosCommand', app);
+            // await vscode.commands.executeCommand('spe.callSpeTosCommand', app);
 
-            // Wait for 10 seconds 
-            await ToSDelay();
+            // // Wait for 10 seconds 
+            // await ToSDelay();
 
             // delete existing Container Types
             const trialContainerTypes: ContainerType[] = await account.getAllContainerTypes(app.clientId);
@@ -203,7 +200,7 @@ export async function activate(context: vscode.ExtensionContext) {
             vscode.window.showErrorMessage("Unable to register Free Trial Container Type: " + error.message);
         }
 
-        vscode.window.showInformationMessage(`Container Type ${containerTypeName} successfully created and registerd on Azure AD App: ${app.displayName}`);
+        vscode.window.showInformationMessage(`Container Type ${containerTypeName} successfully created and registered on Azure AD App: ${app.displayName}`);
         developmentTreeViewProvider.refresh();
     })
 
@@ -324,7 +321,7 @@ export async function activate(context: vscode.ExtensionContext) {
         }
         developmentTreeViewProvider.refresh();
         secondaryApplicationsModel.collapsibleState = vscode.TreeItemCollapsibleState.Expanded;
-        vscode.window.showInformationMessage(`Container Type ${"containerTypeName"} successfully created and registered on Azure AD App: ${appName}`);
+        vscode.window.showInformationMessage(`Container Type ${containerType.displayName} successfully created and registered on Azure AD App: ${appName}`);
     });
 
     const deleteContainerTypeCommand = vscode.commands.registerCommand('spe.deleteContainerType', async (containerTypeViewModel: ContainerTypeTreeItem) => {
@@ -334,7 +331,7 @@ export async function activate(context: vscode.ExtensionContext) {
         try {
             const containerTypeDetails = await account.getContainerTypeById(containerType.owningApp!.clientId, containerType.containerTypeId);
             const result = await account.deleteContainerTypeById(containerType.owningApp!.clientId, containerType.containerTypeId);
-            vscode.window.showInformationMessage(`Container Type ${containerType.displayName} successfully created`);
+            vscode.window.showInformationMessage(`Container Type ${containerType.displayName} successfully deleted`);
             developmentTreeViewProvider.refresh();
         } catch (error: any) {
             vscode.window.showErrorMessage(`Unable to delete Container Type ${containerType.displayName} : ${error.message}`);
@@ -399,6 +396,25 @@ export async function activate(context: vscode.ExtensionContext) {
 
     const cloneRepoCommand = vscode.commands.registerCommand('spe.cloneRepo', async (applicationTreeItem) => {
         try {
+            //TODO: update icon paths after demo
+            const sampleAppOptions = [
+                { "label": "JavaScript + React + Node.js" , iconPath: vscode.Uri.parse('https://cdn4.iconfinder.com/data/icons/logos-3/600/React.js_logo-512.png')},
+                { "label": "ASP.NET + C#" , iconPath: vscode.Uri.parse('https://upload.wikimedia.org/wikipedia/commons/0/0e/Microsoft_.NET_logo.png')},
+                { "label": "Teams + SharePoint repository services" },
+                { "label": "Fluid on SharePoint repository servces" },
+            ]
+    
+            const sampleAppProps = {
+                title: 'Choose a sample app',
+                placeholder: 'Select app...',
+                canPickMany: false
+            }
+    
+            const sampleAppSelection: any = await vscode.window.showQuickPick(sampleAppOptions, sampleAppProps);
+
+            if (!sampleAppSelection) 
+                return;
+
             const appId = applicationTreeItem && applicationTreeItem.app && applicationTreeItem.app.clientId;
             const containerTypeId = applicationTreeItem && applicationTreeItem.containerType && applicationTreeItem.containerType.containerTypeId;
             const clientSecret = applicationTreeItem && applicationTreeItem.app && applicationTreeItem.app.clientSecret;
@@ -407,12 +423,18 @@ export async function activate(context: vscode.ExtensionContext) {
                 canSelectFiles: false,
                 canSelectFolders: true,
                 canSelectMany: false,
-                openLabel: 'Clone Here',
+                openLabel: 'Save',
             });
 
             if (folders && folders.length > 0) {
+
                 const destinationPath = folders[0].fsPath;
+                const subfolder = 'syntex-repository-services/samples/raas-spa-azurefunction/';
+
+                const folderPathInRepository = path.join(destinationPath, subfolder);
                 await vscode.commands.executeCommand('git.clone', repoUrl, destinationPath);
+                await vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(folderPathInRepository));
+
                 console.log(`Repository cloned to: ${destinationPath}`);
 
                 writeLocalSettingsJsonFile(destinationPath, appId, containerTypeId, clientSecret);
@@ -434,11 +456,7 @@ export async function activate(context: vscode.ExtensionContext) {
         const containerType = applicationTreeItem && applicationTreeItem.containerType;
 
         const tid = account.tenantId;
-        const thirdPartyAuthProvider = new ThirdPartyAuthProvider(app.clientId, app.thumbprint, app.privateKey)
-        const accessToken = await thirdPartyAuthProvider.getToken(["Organization.Read.All"]);
-        const tenantDomain = await GraphProvider.getOwningTenantDomain(accessToken);
-        const parts = tenantDomain.split('.');
-        const domain = parts[0];
+        const domain = await StorageProvider.get().global.getValue(TenantDomain);
 
         const values: any[] = [];
         values.push(
@@ -535,7 +553,7 @@ export async function activate(context: vscode.ExtensionContext) {
                 FUNCTIONS_WORKER_RUNTIME: "node",
                 APP_CLIENT_ID: `${appId}`,
                 APP_AUTHORITY: "https://login.microsoftonline.com/common",
-                APP_AUDIENCE: `api/${appId}`,
+                APP_AUDIENCE: `api://${appId}`,
                 APP_CLIENT_SECRET: `${secretText}`,
                 APP_CONTAINER_TYPE_ID: containerTypeId
             },
@@ -621,12 +639,13 @@ export async function activate(context: vscode.ExtensionContext) {
             const thirdPartyAuthProvider = new ThirdPartyAuthProvider(appId, appSecrets.thumbprint, appSecrets.privateKey)
 
             //const consentToken = await thirdPartyAuthProvider.getToken(['00000003-0000-0ff1-ce00-000000000000/.default']);
-            const graphAccessToken = await thirdPartyAuthProvider.getToken(["00000003-0000-0000-c000-000000000000/Organization.Read.All", "00000003-0000-0000-c000-000000000000/Application.ReadWrite.All"]);
-            const tenantDomain = await GraphProvider.getOwningTenantDomain(graphAccessToken);
-            const parts = tenantDomain.split('.');
-            const domain = parts[0];
+            // const graphAccessToken = await thirdPartyAuthProvider.getToken(["00000003-0000-0000-c000-000000000000/.default"]);
+            // const tenantDomain = await GraphProvider.getOwningTenantDomain(graphAccessToken);
+            // const parts = tenantDomain.split('.');
+            // const domain = parts[0];
 
-            const spToken = await thirdPartyAuthProvider.getToken([`https://${domain}-admin.sharepoint.com/AllSites.Write`]);
+            const domain = await StorageProvider.get().global.getValue(TenantDomain);
+            const spToken = await thirdPartyAuthProvider.getToken([`https://${domain}-admin.sharepoint.com/.default`]);
 
             await PnPProvider.acceptSpeTos(spToken, domain, appId)
             vscode.window.showInformationMessage(`Successfully accepted ToS on application: ${appId}`);

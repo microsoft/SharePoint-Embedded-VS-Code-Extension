@@ -32,7 +32,7 @@ export default class ThirdPartyAuthProvider extends BaseAuthProvider {
             },
             system: {
                 loggerOptions: {
-                    logLevel: LogLevel.Trace,
+                    logLevel: LogLevel.Verbose,
                     loggerCallback: (level: LogLevel, message: string, containsPii: boolean) => {
                         if (containsPii) {
                             return;

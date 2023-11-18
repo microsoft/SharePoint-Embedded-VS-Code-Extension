@@ -21,12 +21,16 @@ export class ContainerTypeTreeItem extends vscode.TreeItem {
         super(label, collapsibleState);
         if (containerType.containers.length === 0) {
             vscode.commands.executeCommand('setContext', 'spe:showDeleteContainerType', true);
+        } else {
+            vscode.commands.executeCommand('setContext', 'spe:showDeleteContainerType', false);
         }
 
         if (containerType.registrationIds.length === 0) {
             vscode.commands.executeCommand('setContext', 'spe:showRegisterContainerType', true);
+        } else {
+            vscode.commands.executeCommand('setContext', 'spe:showRegisterContainerType', false);
         }
-        //this.tooltip = containerType.d
+
         this.setImagetoIcon();
         this.contextValue = "containerType";
     }
