@@ -15,7 +15,7 @@ import { generateCertificateAndPrivateKey, createCertKeyCredential } from '../ce
 import GraphProvider from '../services/GraphProvider';
 import ThirdPartyAuthProvider from '../services/3PAuthProvider';
 import PnPProvider from '../services/PnPProvider';
-import { TenantIdKey, OwningAppIdKey } from '../utils/constants';
+import { TenantIdKey, OwningAppIdKey, TenantDomain } from '../utils/constants';
 import { ApplicationPermissions } from './ApplicationPermissions';
 import { ContainerTypeRegistration } from './ContainerTypeRegistration';
 
@@ -145,6 +145,10 @@ export class Account {
         });
     }
 
+    public static async getFirstPartyAccessToken() {
+        return await Account.authProvider.getToken(Account.scopes);
+    }
+
     public async createApp(appName: string, isOwningApp: boolean): Promise<App | undefined> {
         const token = await Account.authProvider.getToken(Account.scopes);
         if (token) {
@@ -174,8 +178,7 @@ export class Account {
         // const parts = tenantDomain.split('.');
         // const domain = parts[0];
 
-        const domain = await StorageProvider.get().global.getValue("tenantDomain");
-
+        const domain = await StorageProvider.get().global.getValue(TenantDomain);
         const spToken = await thirdPartyAuthProvider.getToken([`https://${domain}-admin.sharepoint.com/.default`]);
 
         // Create ContainerType if none exist in global store, else register application on existing ContainerType
@@ -221,7 +224,7 @@ export class Account {
         // const parts = tenantDomain.split('.');
         // const domain = parts[0];
 
-        const domain: string = await StorageProvider.get().global.getValue("tenantDomain");
+        const domain: string = await StorageProvider.get().global.getValue(TenantDomain);
 
         const spToken = await thirdPartyAuthProvider.getToken([`https://${domain}-admin.sharepoint.com/.default`]);
         const containerTypeDetails = await PnPProvider.getContainerTypeById(spToken, domain, containerTypeId);
@@ -244,9 +247,10 @@ export class Account {
         // const parts = tenantDomain.split('.');
         // const domain = parts[0];
 
-        const domain: string = await StorageProvider.get().global.getValue("tenantDomain");
+        const domain: string = await StorageProvider.get().global.getValue(TenantDomain);
 
         const spToken = await thirdPartyAuthProvider.getToken([`https://${domain}-admin.sharepoint.com/.default`]);
+
         const containerTypeList = await PnPProvider.getContainerTypes(spToken, domain);
         const containerTypes: ContainerType[] = [];
         containerTypeList.map((containerTypeProps: any) => {
@@ -281,7 +285,7 @@ export class Account {
         // const parts = tenantDomain.split('.');
         // const domain = parts[0];
 
-        const domain: string = await StorageProvider.get().global.getValue("tenantDomain");
+        const domain: string = await StorageProvider.get().global.getValue(TenantDomain);
         const spToken = await thirdPartyAuthProvider.getToken([`https://${domain}-admin.sharepoint.com/.default`]);
 
         const containerTypeDetails = await PnPProvider.deleteContainerTypeById(spToken, domain, containerTypeId);
@@ -396,6 +400,8 @@ export class Account {
 
         await Promise.all(secretPromises);
         await StorageProvider.get().global.setValue(Account.storageKey, undefined);
+        await StorageProvider.get().global.setValue(TenantIdKey, undefined);
+        await StorageProvider.get().global.setValue(TenantDomain, undefined);
     }
 }
 

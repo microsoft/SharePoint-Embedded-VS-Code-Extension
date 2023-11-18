@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { AppPermissionsListKey, ContainerTypeListKey, CurrentApplicationKey, OwningAppIdKey, RegisteredContainerTypeSetKey, TenantIdKey, ThirdPartyAppListKey, clientId } from '../utils/constants';
+import { AppPermissionsListKey, ContainerTypeListKey, CurrentApplicationKey, OwningAppIdKey, RegisteredContainerTypeSetKey, TenantDomain, TenantIdKey, ThirdPartyAppListKey, clientId } from '../utils/constants';
 import FirstPartyAuthProvider from './1PAuthProvider';
 import GraphProvider from './GraphProvider';
 import ThirdPartyAuthProvider from './3PAuthProvider';
@@ -89,7 +89,7 @@ export class CreateAppProvider {
             secrets.clientSecret = passwordCredential.secretText;
             await ext.context.secrets.store(thirdPartyAppId, JSON.stringify(secrets));
 
-            const domain = await StorageProvider.get().global.getValue("tenantDomain");
+            const domain = await StorageProvider.get().global.getValue(TenantDomain);
 
             const spToken = await this.thirdPartyAuthProvider.getToken([`https://${domain}-admin.sharepoint.com/.default`]);
 

@@ -10,11 +10,12 @@ import GraphProvider from "../services/GraphProvider";
 import PnPProvider from "../services/PnPProvider";
 import { StorageProvider } from "../services/StorageProvider";
 import VroomProvider from "../services/VroomProvider";
-import { AppPermissionsListKey, ContainerTypeListKey, CurrentApplicationKey, OwningAppIdKey, RegisteredContainerTypeSetKey, TenantIdKey } from "../utils/constants";
 import { App } from "./App";
 import { ApplicationPermissions } from "./ApplicationPermissions";
 import { ContainerTypeRegistration } from "./ContainerTypeRegistration";
 import { Container } from './Container';
+import { Account } from './Account';
+import { TenantDomain } from '../utils/constants';
 
 export enum BillingClassification {
     Paid = 0,
@@ -76,15 +77,10 @@ export class ContainerType {
                 return false;
             }
             const appSecrets = JSON.parse(appSecretsString);
-            const thirdPartyAuthProvider = new ThirdPartyAuthProvider(this.owningAppId, appSecrets.thumbprint, appSecrets.privateKey)
+            const domain: string = await StorageProvider.get().global.getValue(TenantDomain);
+            const token = await Account.getFirstPartyAccessToken();
 
-            const accessToken = await thirdPartyAuthProvider.getToken(["00000003-0000-0000-c000-000000000000/.default"]);
-
-            const tenantDomain = await GraphProvider.getOwningTenantDomain(accessToken);
-            const parts = tenantDomain.split('.');
-            const domain = parts[0];
-
-            const certThumbprint = await GraphProvider.getCertThumbprintFromApplication(accessToken, this.owningAppId);
+            const certThumbprint = await GraphProvider.getCertThumbprintFromApplication(token, this.owningAppId);
             const vroomAccessToken = appSecrets.privateKey && await acquireAppOnlyCertSPOToken(certThumbprint, this.owningAppId, domain, appSecrets.privateKey, tenantId)
 
             let containerTypeRegistration = ContainerTypeRegistration.loadFromStorage(`${this.containerTypeId}_${tenantId}`)!;
@@ -95,7 +91,13 @@ export class ContainerType {
                 this.registrationIds.push(`${this.containerTypeId}_${tenantId}`);
                 this.registrations.push(containerTypeRegistration);
             } else {
-                containerTypeRegistration.applicationPermissions.push(new ApplicationPermissions(app.clientId, delegatedPermissions, applicationPermissions));
+                const applicationPermissionIndex = containerTypeRegistration.applicationPermissions.findIndex((permission) => permission.appId === app.clientId);
+                if (applicationPermissionIndex === -1) {
+                    containerTypeRegistration.applicationPermissions.push(new ApplicationPermissions(app.clientId, delegatedPermissions, applicationPermissions));
+                } else {
+                    containerTypeRegistration.applicationPermissions[applicationPermissionIndex] = new ApplicationPermissions(app.clientId, delegatedPermissions, applicationPermissions);
+                }
+
                 await VroomProvider.registerContainerType(vroomAccessToken, this.owningAppId, `https://${domain}.sharepoint.com`, this.containerTypeId, containerTypeRegistration.applicationPermissions);
 
                 // find existing registration in instance, and update it
@@ -112,7 +114,6 @@ export class ContainerType {
             }
 
             await this.saveToStorage();
-            //vscode.window.showInformationMessage(`Successfully registered ContainerType ${containerTypeDict[owningAppId].ContainerTypeId} on 3P application: ${this.globalStorageManager.getValue(CurrentApplicationKey)}`);
             return true;
         } catch (error: any) {
             //vscode.window.showErrorMessage('Failed to register ContainerType');
