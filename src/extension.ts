@@ -25,6 +25,7 @@ import { BillingClassification, ContainerType } from './models/ContainerType';
 import { SecondaryApplicationsTreeItem } from './treeview/development/secondaryApplicationsTreeItem';
 import { ContainersTreeItem } from './treeview/development/containersTreeItem';
 import { ContainerTypeTreeItem } from './treeview/development/containerTypeTreeItem';
+import { timeoutForSeconds } from './utils/timeout';
 
 let accessTokenPanel: vscode.WebviewPanel | undefined;
 let firstPartyAppAuthProvider: FirstPartyAuthProvider;
@@ -193,12 +194,32 @@ export async function activate(context: vscode.ExtensionContext) {
             return;
         }
 
-        // Register Container Type
-        try {
-            await containerType.addTenantRegistration(account.tenantId, app, ["full"], ["full"]);
-        } catch (error: any) {
-            vscode.window.showErrorMessage("Unable to register Free Trial Container Type: " + error.message);
+        //TODO: understand why CT registration on first run occasionally on a new tenant
+        const maxRetries = 3;
+        const retryDelay = 5;
+        for (let retry = 0; retry < maxRetries; retry++) {
+            try {
+                await containerType.addTenantRegistration(account.tenantId, app, ["full"], ["full"]);
+                // If registration is successful, break out of the loop
+                break;
+            } catch (error: any) {
+                if (retry < maxRetries - 1) {
+                    console.error(`Error registering Container Type. Retrying in ${retryDelay / 1000} seconds. Error: ${error.message}`);
+                    await timeoutForSeconds(retryDelay);
+                } else {
+                    vscode.window.showErrorMessage("Unable to register Free Trial Container Type: " + error.message);
+                    developmentTreeViewProvider.refresh();
+                    return;
+                }
+            }
         }
+
+        // Register Container Type
+        // try {
+        //     await containerType.addTenantRegistration(account.tenantId, app, ["full"], ["full"]);
+        // } catch (error: any) {
+        //     vscode.window.showErrorMessage("Unable to register Free Trial Container Type: " + error.message);
+        // }
 
         vscode.window.showInformationMessage(`Container Type ${containerTypeName} successfully created and registered on Azure AD App: ${app.displayName}`);
         developmentTreeViewProvider.refresh();
