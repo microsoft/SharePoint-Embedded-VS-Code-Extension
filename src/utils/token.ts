@@ -22,7 +22,10 @@ export function checkJwtForAdminClaim(decodedToken: any): boolean {
 
 export function checkJwtForTenantAdminScope(decodedToken: any): boolean {
   try {
-    if (decodedToken.wids && Array.isArray(decodedToken.wids) && decodedToken.wids.includes(globalAdminGuid)) {
+    if (!decodedToken.scp)
+      return false;
+    const scopes = decodedToken.scp as string
+    if (scopes.includes("AllSites.Write")) {
       return true;
     } else {
       return false;

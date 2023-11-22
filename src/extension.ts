@@ -368,7 +368,7 @@ export async function activate(context: vscode.ExtensionContext) {
         const account = Account.get()!;
         const containerType = containerTypeViewModel.containerType;
         try {
-            const containerTypeDetails = await account.getContainerTypeById(containerType.owningApp!.clientId, containerType.containerTypeId);
+            const containerTypeDetails = await account.getAllContainerTypes(containerType.owningApp!.clientId);
             console.log(containerTypeDetails);
         } catch (error: any) {
             vscode.window.showErrorMessage("Unable to create Azure AD application: " + error.message);

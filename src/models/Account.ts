@@ -7,7 +7,7 @@
 import { AccountInfo, ProtocolMode } from '@azure/msal-node';
 import FirstPartyAuthProvider from '../services/1PAuthProvider';
 import { BaseAuthProvider } from '../services/BaseAuthProvider';
-import { checkJwtForAdminClaim, decodeJwt, getJwtTenantId } from '../utils/token';
+import { checkJwtForAdminClaim, checkJwtForTenantAdminScope, decodeJwt, getJwtTenantId } from '../utils/token';
 import { App } from './App';
 import { StorageProvider } from '../services/StorageProvider';
 import { BillingClassification, ContainerType } from './ContainerType';
@@ -16,6 +16,7 @@ import GraphProvider from '../services/GraphProvider';
 import ThirdPartyAuthProvider from '../services/3PAuthProvider';
 import SPAdminProvider from '../services/SPAdminProvider';
 import { TenantIdKey, OwningAppIdKey, TenantDomain } from '../utils/constants';
+import { timeoutForSeconds } from '../utils/timeout';
 
 
 type StoredAccount = {
@@ -171,15 +172,24 @@ export class Account {
         }
         const appSecrets = JSON.parse(appSecretsString);
         const thirdPartyAuthProvider = new ThirdPartyAuthProvider(appId, appSecrets.thumbprint, appSecrets.privateKey)
-
-        //const consentToken = await thirdPartyAuthProvider.getToken(['00000003-0000-0ff1-ce00-000000000000/.default']);
-        // const graphAccessToken = await thirdPartyAuthProvider.getToken(["00000003-0000-0000-c000-000000000000/.default"]);
-        // const tenantDomain = await GraphProvider.getOwningTenantDomain(graphAccessToken);
-        // const parts = tenantDomain.split('.');
-        // const domain = parts[0];
-
         const domain = await StorageProvider.get().global.getValue(TenantDomain);
-        const spToken = await thirdPartyAuthProvider.getToken([`https://${domain}-admin.sharepoint.com/.default`]);
+        
+        let spToken = await thirdPartyAuthProvider.getToken([`https://${domain}-admin.sharepoint.com/.default`]);
+        let decodedToken = decodeJwt(spToken);
+        let retries = 0;
+        const maxRetries = 3;
+        while (!checkJwtForTenantAdminScope(decodedToken) && retries < maxRetries) {
+            retries++;
+            console.log(`Attempt ${retries}: 'AllSites' scope not found on token fetch for NewContainerType. Waiting for 5 seconds...`);
+            await timeoutForSeconds(5);
+            // Get a new token
+            spToken = await thirdPartyAuthProvider.getToken([`https://${domain}-admin.sharepoint.com/.default`]);
+            decodedToken = decodeJwt(spToken);
+        }
+
+        if (!checkJwtForTenantAdminScope(decodedToken)) {
+            throw new Error("'AllSites' scope not found on token fetch for NewContainerType.")
+        }
 
         // Create ContainerType if none exist in global store, else register application on existing ContainerType
         if (this.containerTypeIds.length === 0) {
@@ -225,8 +235,22 @@ export class Account {
         // const domain = parts[0];
 
         const domain: string = await StorageProvider.get().global.getValue(TenantDomain);
+        let spToken = await thirdPartyAuthProvider.getToken([`https://${domain}-admin.sharepoint.com/.default`]);
+        let decodedToken = decodeJwt(spToken);
+        let retries = 0;
+        const maxRetries = 3;
+        while (!checkJwtForTenantAdminScope(decodedToken) && retries < maxRetries) {
+            retries++;
+            console.log(`Attempt ${retries}: 'AllSites' scope not found on token fetch for GetContainerTypeById. Waiting for 5 seconds...`);
+            await timeoutForSeconds(5);
+            // Get a new token
+            spToken = await thirdPartyAuthProvider.getToken([`https://${domain}-admin.sharepoint.com/.default`]);
+            decodedToken = decodeJwt(spToken);
+        }
 
-        const spToken = await thirdPartyAuthProvider.getToken([`https://${domain}-admin.sharepoint.com/.default`]);
+        if (!checkJwtForTenantAdminScope(decodedToken)) {
+            throw new Error("'AllSites' scope not found on token fetch for NewContainerType.")
+        }
         const containerTypeDetails = await SPAdminProvider.getContainerTypeById(spToken, domain, containerTypeId);
 
         return containerTypeDetails;
@@ -239,17 +263,24 @@ export class Account {
         }
         const appSecrets = JSON.parse(appSecretsString);
         const thirdPartyAuthProvider = new ThirdPartyAuthProvider(appId, appSecrets.thumbprint, appSecrets.privateKey)
-        const tid: any = StorageProvider.get().global.getValue(TenantIdKey);
-
-        //const consentToken = await thirdPartyAuthProvider.getToken(['00000003-0000-0ff1-ce00-000000000000/.default']);
-        //const graphAccessToken = await thirdPartyAuthProvider.getToken(["00000003-0000-0000-c000-000000000000/.default"]);
-        // const tenantDomain = await GraphProvider.getOwningTenantDomain(graphAccessToken);
-        // const parts = tenantDomain.split('.');
-        // const domain = parts[0];
-
         const domain: string = await StorageProvider.get().global.getValue(TenantDomain);
+        
+        let spToken = await thirdPartyAuthProvider.getToken([`https://${domain}-admin.sharepoint.com/.default`]);
+        let decodedToken = decodeJwt(spToken);
+        let retries = 0;
+        const maxRetries = 3;
+        while (!checkJwtForTenantAdminScope(decodedToken) && retries < maxRetries) {
+            retries++;
+            console.log(`Attempt ${retries}: 'AllSites' scope not found on token fetch for GetSPOContainerTypes. Waiting for 5 seconds...`);
+            await timeoutForSeconds(5);
+            // Get a new token
+            spToken = await thirdPartyAuthProvider.getToken([`https://${domain}-admin.sharepoint.com/.default`]);
+            decodedToken = decodeJwt(spToken);
+        }
 
-        const spToken = await thirdPartyAuthProvider.getToken([`https://${domain}-admin.sharepoint.com/.default`]);
+        if (!checkJwtForTenantAdminScope(decodedToken)) {
+            throw new Error("'AllSites' scope not found on token fetch for NewContainerType.")
+        }
 
         const containerTypeList = await SPAdminProvider.getContainerTypes(spToken, domain);
         const containerTypes: ContainerType[] = [];
@@ -277,16 +308,25 @@ export class Account {
             return undefined;
         }
         const appSecrets = JSON.parse(appSecretsString);
-        const thirdPartyAuthProvider = new ThirdPartyAuthProvider(appId, appSecrets.thumbprint, appSecrets.privateKey)
-
-        //const consentToken = await thirdPartyAuthProvider.getToken(['00000003-0000-0ff1-ce00-000000000000/.default']);
-        // const graphAccessToken = await thirdPartyAuthProvider.getToken(["00000003-0000-0000-c000-000000000000/.default"]);
-        // const tenantDomain = await GraphProvider.getOwningTenantDomain(graphAccessToken);
-        // const parts = tenantDomain.split('.');
-        // const domain = parts[0];
-
+        const thirdPartyAuthProvider = new ThirdPartyAuthProvider(appId, appSecrets.thumbprint, appSecrets.privateKey);
         const domain: string = await StorageProvider.get().global.getValue(TenantDomain);
-        const spToken = await thirdPartyAuthProvider.getToken([`https://${domain}-admin.sharepoint.com/.default`]);
+
+        let spToken = await thirdPartyAuthProvider.getToken([`https://${domain}-admin.sharepoint.com/.default`]);
+        let decodedToken = decodeJwt(spToken);
+        let retries = 0;
+        const maxRetries = 3;
+        while (!checkJwtForTenantAdminScope(decodedToken) && retries < maxRetries) {
+            retries++;
+            console.log(`Attempt ${retries}: 'AllSites' scope not found on token fetch for RemoveSPOContainerType. Waiting for 5 seconds...`);
+            await timeoutForSeconds(5);
+            // Get a new token
+            spToken = await thirdPartyAuthProvider.getToken([`https://${domain}-admin.sharepoint.com/.default`]);
+            decodedToken = decodeJwt(spToken);
+        }
+
+        if (!checkJwtForTenantAdminScope(decodedToken)) {
+            throw new Error("'AllSites' scope not found on token fetch for NewContainerType.")
+        }
 
         const containerTypeDetails = await SPAdminProvider.deleteContainerTypeById(spToken, domain, containerTypeId);
 

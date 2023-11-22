@@ -92,8 +92,8 @@ export default class SPAdminProvider {
                 JSON.stringify(containerTypeData),
                 options
             );
-            console.log('Success getting container type', response.data.value);
-            return response.data.value;
+            console.log('Success getting container type', response.data);
+            return response.data;
         } catch (error) {
             console.error('Error getting container type', error);
             throw error;
