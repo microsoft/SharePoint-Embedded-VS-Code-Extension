@@ -7,7 +7,6 @@ import _ from 'lodash';
 import { acquireAppOnlyCertSPOToken } from "../cert";
 import ThirdPartyAuthProvider from "../services/3PAuthProvider";
 import GraphProvider from "../services/GraphProvider";
-import PnPProvider from "../services/PnPProvider";
 import { StorageProvider } from "../services/StorageProvider";
 import VroomProvider from "../services/VroomProvider";
 import { App } from "./App";

@@ -20,7 +20,7 @@ import { CreateAppProvider } from './services/CreateAppProvider';
 import { LocalStorageService, StorageProvider } from './services/StorageProvider';
 import { Account } from './models/Account';
 import { App } from './models/App';
-import PnPProvider from './services/PnPProvider';
+import SPAdminProvider from './services/SPAdminProvider';
 import { BillingClassification, ContainerType } from './models/ContainerType';
 import { SecondaryApplicationsTreeItem } from './treeview/development/secondaryApplicationsTreeItem';
 import { ContainersTreeItem } from './treeview/development/containersTreeItem';
@@ -131,15 +131,18 @@ export async function activate(context: vscode.ExtensionContext) {
             // // Wait for 10 seconds 
             // await ToSDelay();
 
-            // delete existing Container Types
-            const trialContainerTypes: ContainerType[] = await account.getAllContainerTypes(app.clientId);
+            // delete existing Trial Container Types
+            const containerTypes: ContainerType[] = await account.getAllContainerTypes(app.clientId);
 
-            for (const ct of trialContainerTypes) {
+            for (const ct of containerTypes) {
                 try {
-                    const result = await account.deleteContainerTypeById(app!.clientId, ct.containerTypeId);
-                    console.log(result);
+                    if (ct.billingClassification === BillingClassification.FreeTrial) {
+                        const result = await account.deleteContainerTypeById(app!.clientId, ct.containerTypeId);
+                        console.log(result);
+                    }    
                 } catch (error) {
                     console.error(`Error deleting container type: ${error}`);
+                    return;
                 }
             }
 
@@ -668,7 +671,7 @@ export async function activate(context: vscode.ExtensionContext) {
             const domain = await StorageProvider.get().global.getValue(TenantDomain);
             const spToken = await thirdPartyAuthProvider.getToken([`https://${domain}-admin.sharepoint.com/.default`]);
 
-            await PnPProvider.acceptSpeTos(spToken, domain, appId)
+            //await SPAdminProvider.acceptSpeTos(spToken, domain, appId)
             vscode.window.showInformationMessage(`Successfully accepted ToS on application: ${appId}`);
         } catch (error) {
             vscode.window.showErrorMessage('Failed to obtain access token.');

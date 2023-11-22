@@ -97,6 +97,7 @@ export abstract class BaseAuthProvider {
             const accounts = await cache.getAllAccounts();
             const account = accounts[0];
             await cache.removeAccount(account);
+            this.account = undefined;
             return true
         } catch (e) {
             console.error('Error logging out', e);

@@ -14,10 +14,9 @@ import { BillingClassification, ContainerType } from './ContainerType';
 import { generateCertificateAndPrivateKey, createCertKeyCredential } from '../cert';
 import GraphProvider from '../services/GraphProvider';
 import ThirdPartyAuthProvider from '../services/3PAuthProvider';
-import PnPProvider from '../services/PnPProvider';
+import SPAdminProvider from '../services/SPAdminProvider';
 import { TenantIdKey, OwningAppIdKey, TenantDomain } from '../utils/constants';
-import { ApplicationPermissions } from './ApplicationPermissions';
-import { ContainerTypeRegistration } from './ContainerTypeRegistration';
+
 
 type StoredAccount = {
     appIds: string[],
@@ -35,6 +34,7 @@ export class Account {
     // Storage key for the account
     public static readonly storageKey: string = "account";
     private static readonly firstPartyAppId: string = "aba7eb80-02fe-4070-8fca-b729f428166f";
+    //private static readonly firstPartyAppId: string = "e354d98a-0a53-480d-b6cb-cc66ac4d4c88";
     private static readonly authProvider: BaseAuthProvider = new FirstPartyAuthProvider(Account.firstPartyAppId, Account.storageKey);
     private static readonly scopes: string[] = ['Application.ReadWrite.All', 'User.Read'];
     private static instance: Account | undefined;
@@ -183,7 +183,7 @@ export class Account {
 
         // Create ContainerType if none exist in global store, else register application on existing ContainerType
         if (this.containerTypeIds.length === 0) {
-            const containerTypeDetails = await PnPProvider.createNewContainerType(spToken, domain, appId, containerTypeName, billingClassification);
+            const containerTypeDetails = await SPAdminProvider.createNewContainerType(spToken, domain, appId, containerTypeName, billingClassification);
             const owningApp = this.apps.find(app => app.clientId === appId)!;
             const containerType = new ContainerType(
                 containerTypeDetails.ContainerTypeId,
@@ -227,7 +227,7 @@ export class Account {
         const domain: string = await StorageProvider.get().global.getValue(TenantDomain);
 
         const spToken = await thirdPartyAuthProvider.getToken([`https://${domain}-admin.sharepoint.com/.default`]);
-        const containerTypeDetails = await PnPProvider.getContainerTypeById(spToken, domain, containerTypeId);
+        const containerTypeDetails = await SPAdminProvider.getContainerTypeById(spToken, domain, containerTypeId);
 
         return containerTypeDetails;
     }
@@ -251,7 +251,7 @@ export class Account {
 
         const spToken = await thirdPartyAuthProvider.getToken([`https://${domain}-admin.sharepoint.com/.default`]);
 
-        const containerTypeList = await PnPProvider.getContainerTypes(spToken, domain);
+        const containerTypeList = await SPAdminProvider.getContainerTypes(spToken, domain);
         const containerTypes: ContainerType[] = [];
         containerTypeList.map((containerTypeProps: any) => {
             const containerType = new ContainerType(
@@ -288,7 +288,7 @@ export class Account {
         const domain: string = await StorageProvider.get().global.getValue(TenantDomain);
         const spToken = await thirdPartyAuthProvider.getToken([`https://${domain}-admin.sharepoint.com/.default`]);
 
-        const containerTypeDetails = await PnPProvider.deleteContainerTypeById(spToken, domain, containerTypeId);
+        const containerTypeDetails = await SPAdminProvider.deleteContainerTypeById(spToken, domain, containerTypeId);
 
         const deletionPromises: Thenable<void>[] = [];
         const containerType = this.containerTypes.find(ct => ct.containerTypeId === containerTypeId);

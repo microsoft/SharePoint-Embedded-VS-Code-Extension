@@ -8,7 +8,7 @@ import { AppPermissionsListKey, ContainerTypeListKey, CurrentApplicationKey, Own
 import FirstPartyAuthProvider from './1PAuthProvider';
 import GraphProvider from './GraphProvider';
 import ThirdPartyAuthProvider from './3PAuthProvider';
-import PnPProvider from './PnPProvider';
+import SPAdminProvider from './SPAdminProvider';
 import VroomProvider from './VroomProvider';
 import { generateCertificateAndPrivateKey, createCertKeyCredential, acquireAppOnlyCertSPOToken } from '../cert';
 import { ext } from '../utils/extensionVariables';
@@ -111,7 +111,7 @@ export class CreateAppProvider {
                 vscode.window.showInformationMessage(`Registering App ${thirdPartyAppId} on ContainerType ${containerTypeDict[thirdPartyAppId]}`);
                 return true;
             } else {
-                const containerTypeDetails = await PnPProvider.createNewContainerType(spToken, domain, thirdPartyAppId, containerTypeName, BillingClassification.FreeTrial);
+                const containerTypeDetails = await SPAdminProvider.createNewContainerType(spToken, domain, thirdPartyAppId, containerTypeName, BillingClassification.FreeTrial);
                 containerTypeDict[thirdPartyAppId] = containerTypeDetails;
                 appPermissionsDict[containerTypeDetails.ContainerTypeId] = [{
                     appId: thirdPartyAppId,
