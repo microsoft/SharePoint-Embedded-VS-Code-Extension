@@ -60,7 +60,7 @@
         },
         {
           "id": "spe-accounts",
-          "name": "Accounts",
+          "name": "Account",
           "when": "spe:isAdminLoggedIn"
         },
         {

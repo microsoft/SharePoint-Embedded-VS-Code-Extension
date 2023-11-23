@@ -424,8 +424,8 @@ export async function activate(context: vscode.ExtensionContext) {
             const sampleAppOptions = [
                 { "label": "JavaScript + React + Node.js" , iconPath: vscode.Uri.parse('https://cdn4.iconfinder.com/data/icons/logos-3/600/React.js_logo-512.png')},
                 { "label": "ASP.NET + C#" , iconPath: vscode.Uri.parse('https://upload.wikimedia.org/wikipedia/commons/0/0e/Microsoft_.NET_logo.png')},
-                { "label": "Teams + SharePoint repository services" },
-                { "label": "Fluid on SharePoint repository servces" },
+                { "label": "Teams + SharePoint Embedded" },
+                { "label": "Fluid on SharePoint Embedded" },
             ]
     
             const sampleAppProps = {
