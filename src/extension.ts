@@ -22,7 +22,7 @@ import { Account } from './models/Account';
 import { App } from './models/App';
 import SPAdminProvider from './services/SPAdminProvider';
 import { BillingClassification, ContainerType } from './models/ContainerType';
-import { SecondaryApplicationsTreeItem } from './treeview/development/secondaryApplicationsTreeItem';
+import { GuestApplicationsTreeItem } from './treeview/development/guestApplicationsTreeItem';
 import { ContainersTreeItem } from './treeview/development/containersTreeItem';
 import { ContainerTypeTreeItem } from './treeview/development/containerTypeTreeItem';
 import { timeoutForSeconds } from './utils/timeout';
@@ -243,8 +243,8 @@ export async function activate(context: vscode.ExtensionContext) {
 
     });
 
-    const createSecondaryApplicationCommand = vscode.commands.registerCommand('spe.createSecondaryApp', async (secondaryApplicationsModel: SecondaryApplicationsTreeItem) => {
-        const containerType: ContainerType = secondaryApplicationsModel.containerType;
+    const createGuestApplicationCommand = vscode.commands.registerCommand('spe.createGuestApp', async (guestApplicationsModel: GuestApplicationsTreeItem) => {
+        const containerType: ContainerType = guestApplicationsModel.containerType;
 
         const appName = await vscode.window.showInputBox({
             prompt: 'Azure AD Application Name:'
@@ -344,7 +344,7 @@ export async function activate(context: vscode.ExtensionContext) {
             return;
         }
         developmentTreeViewProvider.refresh();
-        secondaryApplicationsModel.collapsibleState = vscode.TreeItemCollapsibleState.Expanded;
+        guestApplicationsModel.collapsibleState = vscode.TreeItemCollapsibleState.Expanded;
         vscode.window.showInformationMessage(`Container Type ${containerType.displayName} successfully created and registered on Azure AD App: ${appName}`);
     });
 
@@ -717,7 +717,7 @@ export async function activate(context: vscode.ExtensionContext) {
         registerContainerTypeCommand,
         renameContainerTypeCommand,
         createContainerTypeOnApplicationCommand,
-        createSecondaryApplicationCommand,
+        createGuestApplicationCommand,
         createContainerCommand,
         refreshContainerListCommand,
         callMSGraphCommand,

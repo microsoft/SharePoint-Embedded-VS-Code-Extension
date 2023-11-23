@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from "vscode";
-import { SecondaryApplicationTreeItem } from "./secondaryApplicationTreeItem";
+import { GuestApplicationTreeItem } from "./guestApplicationTreeItem";
 import { ContainerType } from "../../models/ContainerType";
 
-export class SecondaryApplicationsTreeItem extends vscode.TreeItem {
-    private appsItem?: SecondaryApplicationTreeItem[];
+export class GuestApplicationsTreeItem extends vscode.TreeItem {
+    private appsItem?: GuestApplicationTreeItem[];
 
     constructor(
         public containerType: ContainerType,
@@ -18,7 +18,7 @@ export class SecondaryApplicationsTreeItem extends vscode.TreeItem {
 
     ) {
         super(label, collapsibleState);
-        this.contextValue = "secondaryApplications";
+        this.contextValue = "guestApplications";
         this.setImagetoIcon();
         this.appsItem = [];
     }
@@ -29,9 +29,9 @@ export class SecondaryApplicationsTreeItem extends vscode.TreeItem {
     }
 
     private getApps() {
-        const appItems = this.containerType.secondaryApps.map(
+        const appItems = this.containerType.guestApps.map(
             (app) => {
-                return new SecondaryApplicationTreeItem(app, this.containerType, app.displayName, vscode.TreeItemCollapsibleState.None, { name: "console", custom: false })
+                return new GuestApplicationTreeItem(app, this.containerType, app.displayName, vscode.TreeItemCollapsibleState.None, { name: "console", custom: false })
             }
         )
         return appItems;

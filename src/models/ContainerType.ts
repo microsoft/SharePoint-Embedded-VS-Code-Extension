@@ -33,11 +33,11 @@ export class ContainerType {
     public readonly creationDate?: string;
     public readonly expiryDate?: string;
     public readonly isBillingProfileRequired?: boolean;
-    public secondaryAppIds: string[];
+    public guestAppIds: string[];
     public registrationIds: string[];
 
     public owningApp: App | undefined;
-    public secondaryApps: App[];
+    public guestApps: App[];
     public registrations: ContainerTypeRegistration[];
     public containers: Container[];
 
@@ -52,7 +52,7 @@ export class ContainerType {
         expiryDate?: string,
         isBillingProfileRequired?: boolean,
         registrationIds?: string[],
-        secondaryAppIds?: string[]) {
+        guestAppIds?: string[]) {
         this.azureSubscriptionId = azureSubscriptionId;
         this.displayName = displayName
         this.owningAppId = owningAppId;
@@ -62,8 +62,8 @@ export class ContainerType {
         this.creationDate = creationDate;
         this.expiryDate = expiryDate;
         this.owningApp = owningApp;
-        this.secondaryAppIds = secondaryAppIds ? secondaryAppIds : [];
-        this.secondaryApps = [];
+        this.guestAppIds = guestAppIds ? guestAppIds : [];
+        this.guestApps = [];
         this.registrationIds = registrationIds ? registrationIds : [];
         this.registrations = [];
         this.containers = [];
@@ -108,8 +108,8 @@ export class ContainerType {
             await containerTypeRegistration.saveToStorage();
 
             if (this.owningAppId != app.clientId) {
-                this.secondaryAppIds.push(app.clientId);
-                this.secondaryApps.push(app);
+                this.guestAppIds.push(app.clientId);
+                this.guestApps.push(app);
             }
 
             await this.saveToStorage();
@@ -177,7 +177,7 @@ export class ContainerType {
                 containerTypeProps.expiryDate,
                 containerTypeProps.isBillingProfileRequired,
                 containerTypeProps.registrationIds,
-                containerTypeProps.secondaryAppIds)
+                containerTypeProps.guestAppIds)
             containerType = await containerType.loadFromStorageInstance(containerType);
             return containerType;
         }
@@ -191,13 +191,13 @@ export class ContainerType {
             containerType.owningApp = new App(appProps.clientId, appProps.displayName, appProps.objectId, appProps.tenantId, appProps.isOwningApp, appProps.clientSecret, appProps.thumbprint, appProps.privateKey);
 
         // hydrate App objects
-        const appPromises = containerType.secondaryAppIds.map(async (appId) => {
+        const appPromises = containerType.guestAppIds.map(async (appId) => {
             const app = App.loadFromStorage(appId);
             return app;
         });
         const unfilteredApps: (App | undefined)[] = await Promise.all(appPromises);
-        const secondaryApps = unfilteredApps.filter(app => app !== undefined) as App[];
-        const secondaryAppsInstances = secondaryApps.map(appProps => {
+        const guestApps = unfilteredApps.filter(app => app !== undefined) as App[];
+        const guestAppsInstances = guestApps.map(appProps => {
             // Storage loads App props, so we use props to instantiate App instances 
             return new App(appProps.clientId, appProps.displayName, appProps.objectId, appProps.tenantId, appProps.isOwningApp, appProps.clientSecret, appProps.thumbprint, appProps.privateKey);
         });
@@ -213,7 +213,7 @@ export class ContainerType {
             return new ContainerTypeRegistration(registrationProps.containerTypeId, registrationProps.tenantId, registrationProps.applicationPermissions);
         });
 
-        containerType.secondaryApps = secondaryAppsInstances;
+        containerType.guestApps = guestAppsInstances;
         containerType.registrations = registrationsInstances;
 
         return containerType;
@@ -221,7 +221,7 @@ export class ContainerType {
 
     public async saveToStorage(): Promise<void> {
         const containerTypeCopy = _.cloneDeep(this);
-        const { owningApp, secondaryApps, registrations, ...containerType } = containerTypeCopy;
+        const { owningApp, guestApps, registrations, ...containerType } = containerTypeCopy;
         await StorageProvider.get().global.setValue(this.containerTypeId, containerType);
     }
 
@@ -234,8 +234,8 @@ export class ContainerType {
             secretPromises.push(StorageProvider.get().global.setValue(registrationId, undefined));
         });
 
-        this.secondaryAppIds.forEach(async secondaryAppId => {
-            secretPromises.push(StorageProvider.get().global.setValue(secondaryAppId, undefined));
+        this.guestAppIds.forEach(async guestAppId => {
+            secretPromises.push(StorageProvider.get().global.setValue(guestAppId, undefined));
         });
 
         await Promise.all(secretPromises);

@@ -7,7 +7,7 @@ import * as vscode from "vscode";
 import { ContainersTreeItem } from "./containersTreeItem";
 import { OwningApplicationTreeItem } from "./owningApplicationTreeItem";
 import { ContainerType } from "../../models/ContainerType";
-import { SecondaryApplicationsTreeItem } from "./secondaryApplicationsTreeItem";
+import { GuestApplicationsTreeItem } from "./guestApplicationsTreeItem";
 
 export class ContainerTypeTreeItem extends vscode.TreeItem {
     constructor(
@@ -37,10 +37,10 @@ export class ContainerTypeTreeItem extends vscode.TreeItem {
 
     public async getChildren() {
         const owningApplicationTreeItem = new OwningApplicationTreeItem(this.containerType.owningApp!, this.containerType, `${this.containerType.owningApp!.displayName}`, vscode.TreeItemCollapsibleState.None, { name: "extensions-star-full", custom: false });
-        const secondaryAppsTreeItem = new SecondaryApplicationsTreeItem(this.containerType, 'Secondary Apps', vscode.TreeItemCollapsibleState.Collapsed);
+        const guestAppsTreeItem = new GuestApplicationsTreeItem(this.containerType, 'Guest Apps', vscode.TreeItemCollapsibleState.Collapsed);
         const containersTreeItem = new ContainersTreeItem(this.containerType, 'Containers', vscode.TreeItemCollapsibleState.Collapsed);
 
-        return [owningApplicationTreeItem, secondaryAppsTreeItem, containersTreeItem];
+        return [owningApplicationTreeItem, guestAppsTreeItem, containersTreeItem];
     }
 
     private setImagetoIcon() {

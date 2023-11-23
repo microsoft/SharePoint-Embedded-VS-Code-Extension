@@ -8,7 +8,7 @@ import { TreeViewCommand } from "./treeViewCommand";
 import { App } from "../../models/App";
 import { ContainerType } from "../../models/ContainerType";
 
-export class SecondaryApplicationTreeItem extends vscode.TreeItem {
+export class GuestApplicationTreeItem extends vscode.TreeItem {
     constructor(
         public app: App,
         public containerType: ContainerType,
@@ -19,7 +19,7 @@ export class SecondaryApplicationTreeItem extends vscode.TreeItem {
     ) {
         super(label, collapsibleState)
         this.setImagetoIcon();
-        this.contextValue = "secondaryApplication";
+        this.contextValue = "guestApplication";
     }
 
     public async getChildren() {
