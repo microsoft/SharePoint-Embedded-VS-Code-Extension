@@ -15,6 +15,8 @@ import { ContainerTypeRegistration } from "./ContainerTypeRegistration";
 import { Container } from './Container';
 import { Account } from './Account';
 import { TenantDomain } from '../utils/constants';
+import { timeoutForSeconds } from '../utils/timeout';
+import { decodeJwt, checkJwtForTenantAdminScope, checkJwtForAppOnlyRole } from '../utils/token';
 
 export enum BillingClassification {
     Paid = 0,
@@ -80,7 +82,22 @@ export class ContainerType {
             const token = await Account.getFirstPartyAccessToken();
 
             const certThumbprint = await GraphProvider.getCertThumbprintFromApplication(token, this.owningAppId);
-            const vroomAccessToken = appSecrets.privateKey && await acquireAppOnlyCertSPOToken(certThumbprint, this.owningAppId, domain, appSecrets.privateKey, tenantId)
+            let vroomAccessToken = appSecrets.privateKey && await acquireAppOnlyCertSPOToken(certThumbprint, this.owningAppId, domain, appSecrets.privateKey, tenantId);
+            let decodedToken = decodeJwt(vroomAccessToken);
+            let retries = 0;
+            const maxRetries = 3;
+            while (!checkJwtForAppOnlyRole(decodedToken, "Container.Selected") && retries < maxRetries) {
+                retries++;
+                console.log(`Attempt ${retries}: 'Container.Selected' role not found on token fetch for Container Type Registration. Waiting for 5 seconds...`);
+                await timeoutForSeconds(5);
+                // Get a new token
+                vroomAccessToken = await acquireAppOnlyCertSPOToken(certThumbprint, this.owningAppId, domain, appSecrets.privateKey, tenantId);
+                decodedToken = decodeJwt(vroomAccessToken);
+            }
+
+            if (!checkJwtForAppOnlyRole(decodedToken, "Container.Selected")) {
+                throw new Error("'Container.Selected' role not found on token fetch for Container Type Registration.")
+            }
 
             let containerTypeRegistration = ContainerTypeRegistration.loadFromStorage(`${this.containerTypeId}_${tenantId}`)!;
 
@@ -127,9 +144,9 @@ export class ContainerType {
 
     public async getContainers(): Promise<Container[]> {
         const appSecretsString = await StorageProvider.get().secrets.get(this.owningApp!.clientId);
-            if (!appSecretsString) {
-                return [];
-            }
+        if (!appSecretsString) {
+            return [];
+        }
         const appSecrets = JSON.parse(appSecretsString);
         const provider = new ThirdPartyAuthProvider(this.owningApp!.clientId, appSecrets.thumbprint, appSecrets.privateKey);
         const token = await provider.getToken(["00000003-0000-0000-c000-000000000000/.default"]);
@@ -140,7 +157,7 @@ export class ContainerType {
         })
 
         const containers = await Promise.all(containerPromises)
-        
+
         this.containers = containers.map(container => {
             return new Container(container.id, container.displayName, container.description, this.containerTypeId, container.status, container.createdDateTime);
         });
@@ -150,9 +167,9 @@ export class ContainerType {
 
     public async createContainer(displayName: string, description: string) {
         const appSecretsString = await StorageProvider.get().secrets.get(this.owningApp!.clientId);
-            if (!appSecretsString) {
-                return false;
-            }
+        if (!appSecretsString) {
+            return false;
+        }
         const appSecrets = JSON.parse(appSecretsString);
         const provider = new ThirdPartyAuthProvider(this.owningApp!.clientId, appSecrets.thumbprint, appSecrets.privateKey);
         const token = await provider.getToken(["00000003-0000-0000-c000-000000000000/.default"]);
@@ -166,12 +183,12 @@ export class ContainerType {
         let containerTypeProps: ContainerType | undefined = StorageProvider.get().global.getValue<ContainerType>(containerTypeId);
         if (containerTypeProps) {
             let containerType = new ContainerType(
-                containerTypeProps.containerTypeId, 
-                containerTypeProps.owningAppId, 
-                containerTypeProps.displayName, 
+                containerTypeProps.containerTypeId,
+                containerTypeProps.owningAppId,
+                containerTypeProps.displayName,
                 containerTypeProps.billingClassification,
-                containerTypeProps.owningTenantId, 
-                undefined, 
+                containerTypeProps.owningTenantId,
+                undefined,
                 containerTypeProps.azureSubscriptionId,
                 containerTypeProps.creationDate,
                 containerTypeProps.expiryDate,

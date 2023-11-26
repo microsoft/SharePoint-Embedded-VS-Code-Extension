@@ -9,7 +9,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { generateCertificateAndPrivateKey } from './cert';
 
-import { TenantDomain } from './utils/constants';
+import { TenantDomain, IsContainerTypeCreatingKey } from './utils/constants';
 import { ext } from './utils/extensionVariables';
 import { ExtensionContext, window } from 'vscode';
 import FirstPartyAuthProvider from './services/1PAuthProvider';
@@ -61,6 +61,16 @@ export async function activate(context: vscode.ExtensionContext) {
 
     const aadLogoutCommand = vscode.commands.registerCommand('spe.signOut', async () => {
         try {
+            const message = "Are you sure you want to log out? All your SharePoint Embedded data will be forgotten."
+            const userChoice = await vscode.window.showInformationMessage(
+                message,
+                'OK', 'Cancel'
+            );
+
+            if (userChoice === 'Cancel') {
+                return;
+            }
+
             await Account.get()!.logout();
             developmentTreeViewProvider.refresh();
         } catch (error) {
@@ -70,6 +80,13 @@ export async function activate(context: vscode.ExtensionContext) {
     });
 
     const createTrialContainerTypeCommand = vscode.commands.registerCommand('spe.createTrialContainerType', async () => {
+        const isContainerTypeCreating = StorageProvider.get().local.getValue(IsContainerTypeCreatingKey);
+
+        if (isContainerTypeCreating) {
+            vscode.window.showWarningMessage('Please wait for the current operation to finish');
+            return;
+        }
+
         const appName = await vscode.window.showInputBox({
             prompt: 'Azure AD Application Name:'
         });
@@ -88,6 +105,9 @@ export async function activate(context: vscode.ExtensionContext) {
             return;
         }
 
+        await StorageProvider.get().local.setValue(IsContainerTypeCreatingKey, true);
+        vscode.window.showInformationMessage(`Azure AD Application creation starting...`);
+
         // Create AAD application 
         const account = Account.get()!;
         let app: App | undefined;
@@ -95,11 +115,13 @@ export async function activate(context: vscode.ExtensionContext) {
             app = await account.createApp(appName, true);
         } catch (error: any) {
             vscode.window.showErrorMessage("Unable to create Azure AD application: " + error.message);
+            await StorageProvider.get().local.setValue(IsContainerTypeCreatingKey, false);
             return;
         }
 
         if (!app) {
             vscode.window.showErrorMessage("Unable to create Azure AD application");
+            await StorageProvider.get().local.setValue(IsContainerTypeCreatingKey, false);
             return;
         }
 
@@ -115,17 +137,19 @@ export async function activate(context: vscode.ExtensionContext) {
                 'OK', 'Cancel'
             );
 
-            if (userChoice === 'Cancel') {
+            if (userChoice !== 'OK') {
                 vscode.window.showWarningMessage('You must consent to your new Azure AD application to continue.');
+                await StorageProvider.get().local.setValue(IsContainerTypeCreatingKey, false);
                 return;
             }
 
             const result = await app.consent();
             if (!result) {
                 vscode.window.showErrorMessage(`Consent failed on app ${app.clientId}`);
+                await StorageProvider.get().local.setValue(IsContainerTypeCreatingKey, false);
                 throw new Error();
             }
-            
+
             // await vscode.commands.executeCommand('spe.callSpeTosCommand', app);
 
             // // Wait for 10 seconds 
@@ -139,34 +163,48 @@ export async function activate(context: vscode.ExtensionContext) {
                     if (ct.billingClassification === BillingClassification.FreeTrial) {
                         const result = await account.deleteContainerTypeById(app!.clientId, ct.containerTypeId);
                         console.log(result);
-                    }    
+                    }
                 } catch (error) {
                     console.error(`Error deleting container type: ${error}`);
+                    await StorageProvider.get().local.setValue(IsContainerTypeCreatingKey, false);
                     return;
                 }
             }
 
+            vscode.window.showInformationMessage(`Container Type creation starting...`);
             containerType = await account.createContainerType(app.clientId, containerTypeName, BillingClassification.FreeTrial);
         } catch (error: any) {
-            vscode.window.showErrorMessage("Unable to create Free Trial Container Type: " + error.message);
-            await account.deleteApp(app);
+            if (error.name === 'TermsOfServiceError') {
+                vscode.window.showErrorMessage(error.message);
+            } else {
+                vscode.window.showErrorMessage("Unable to create Free Trial Container Type: " + error.message);
+            }
+
+            //await account.deleteApp(app);
+            await StorageProvider.get().local.setValue(IsContainerTypeCreatingKey, false);
             return;
         }
 
         if (!containerType) {
             vscode.window.showErrorMessage("Unable to create Free Trial Container Type");
+            await StorageProvider.get().local.setValue(IsContainerTypeCreatingKey, false);
             return;
         }
 
         // Register Container Type
+        vscode.window.showInformationMessage(`Container Type Registration starting...`);
         try {
             await containerType.addTenantRegistration(account.tenantId, app, ["full"], ["full"]);
         } catch (error: any) {
             vscode.window.showErrorMessage("Unable to register Free Trial Container Type: " + error.message);
+            await StorageProvider.get().local.setValue(IsContainerTypeCreatingKey, false);
+            developmentTreeViewProvider.refresh();
+            return;
         }
 
+        await StorageProvider.get().local.setValue(IsContainerTypeCreatingKey, false);
         developmentTreeViewProvider.refresh();
-        vscode.window.showInformationMessage(`Container Type ${containerTypeName} successfully created and registerd on Azure AD App: ${appName}`);
+        vscode.window.showInformationMessage(`Container Type ${containerTypeName} successfully created and registered on Azure AD App: ${appName}`);
     });
 
     const createContainerTypeOnApplicationCommand = vscode.commands.registerCommand('spe.createContainerTypeOnApplication', async () => {
@@ -237,7 +275,7 @@ export async function activate(context: vscode.ExtensionContext) {
             vscode.window.showInformationMessage(`Container Type ${containerType.displayName} successfully created and registered on Azure AD App: ${containerType.owningApp?.displayName}`);
             developmentTreeViewProvider.refresh();
         } catch (error: any) {
-            vscode.window.showErrorMessage(`Unable to register Container Type ${containerType.displayName}: ${error.response.data.error.message}`)
+            vscode.window.showErrorMessage(`Unable to register Container Type ${containerType.displayName}: ${error}`)
             return;
         }
 
@@ -256,20 +294,19 @@ export async function activate(context: vscode.ExtensionContext) {
         }
 
         const permissionsOptions = [
-            { "label": "none" },
-            { "label": "readcontent" },
-            { "label": "writecontent" },
-            { "label": "create" },
-            { "label": "delete" },
-            { "label": "read" },
-            { "label": "write" },
-            { "label": "addpermissions" },
-            { "label": "updatepermissions" },
-            { "label": "deletepermissions" },
-            { "label": "deleteownpermissions" },
-            { "label": "managepermissions" },
-            { "label": "full" }
-        ]
+            { label: "Full", value: "full" },
+            { label: "ReadContent", value: "readcontent" },
+            { label: "WriteContent", value: "writecontent" },
+            { label: "Create", value: "create" },
+            { label: "Delete", value: "delete" },
+            { label: "Read", value: "read" },
+            { label: "Write", value: "write" },
+            { label: "AddPermissions", value: "addpermissions" },
+            { label: "UpdatePermissions", value: "updatepermissions" },
+            { label: "DeletePermissions", value: "deletepermissions" },
+            { label: "DeleteDwnPermissions", value: "deleteownpermissions" },
+            { label: "ManagePermissions", value: "managepermissions" }
+        ];
 
         const delegatedProps = {
             title: 'Delegated Permissions',
@@ -284,10 +321,26 @@ export async function activate(context: vscode.ExtensionContext) {
         }
 
         const delegatedSelections: any = await vscode.window.showQuickPick(permissionsOptions, delegatedProps);
-        const delegatedPermissions = delegatedSelections.map((item: any) => item.label);
+        const isFullDelegatedSelected = delegatedSelections.some((option: any) => option.value === "full");
+        let delegatedPermissions = [];
+        if (isFullDelegatedSelected) {
+            // If "Full" is selected, include only "Full" in the permissions array
+            delegatedPermissions = ["full"];
+        } else {
+            // Include all selected options in the permissions array
+            delegatedPermissions = delegatedSelections.map((item: any) => item.value);
+        }
 
         const applicationSelections: any = await vscode.window.showQuickPick(permissionsOptions, applicationProps);
-        const applicationPermissions = applicationSelections.map((item: any) => item.label);
+        const isFullApplicationSelected = applicationSelections.some((option: any) => option.value === "full");
+        let applicationPermissions = [];
+        if (isFullApplicationSelected) {
+            // If "Full" is selected, include only "Full" in the permissions array
+            applicationPermissions = ["full"];
+        } else {
+            // Include all selected options in the permissions array
+            applicationPermissions = applicationSelections.map((item: any) => item.value);
+        }
 
         // Create AAD application 
         const account = Account.get()!;
@@ -349,6 +402,18 @@ export async function activate(context: vscode.ExtensionContext) {
     });
 
     const deleteContainerTypeCommand = vscode.commands.registerCommand('spe.deleteContainerType', async (containerTypeViewModel: ContainerTypeTreeItem) => {
+        const message = "Are you sure you delete this Container Type?"
+        const userChoice = await vscode.window.showInformationMessage(
+            message,
+            'OK', 'Cancel'
+        );
+
+        if (userChoice === 'Cancel') {
+            return;
+        }
+
+        vscode.window.showInformationMessage(`Container Type deletion starting...`);
+
         const account = Account.get()!;
         const containerType = containerTypeViewModel.containerType;
 
@@ -419,24 +484,34 @@ export async function activate(context: vscode.ExtensionContext) {
     });
 
     const cloneRepoCommand = vscode.commands.registerCommand('spe.cloneRepo', async (applicationTreeItem) => {
+        const message = "This will clone the selected sample and put your app's secret and other settings in plain text in a configuration file on your local machine. Are you sure you want to continue?"
+        const userChoice = await vscode.window.showInformationMessage(
+            message,
+            'OK', 'Cancel'
+        );
+
+        if (userChoice === 'Cancel') {
+            return;
+        }
+
         try {
             //TODO: update icon paths after demo
             const sampleAppOptions = [
-                { "label": "JavaScript + React + Node.js" , iconPath: vscode.Uri.parse('https://cdn4.iconfinder.com/data/icons/logos-3/600/React.js_logo-512.png')},
-                { "label": "ASP.NET + C#" , iconPath: vscode.Uri.parse('https://upload.wikimedia.org/wikipedia/commons/0/0e/Microsoft_.NET_logo.png')},
+                { "label": "JavaScript + React + Node.js", iconPath: vscode.Uri.parse('https://cdn4.iconfinder.com/data/icons/logos-3/600/React.js_logo-512.png') },
+                { "label": "ASP.NET + C#", iconPath: vscode.Uri.parse('https://upload.wikimedia.org/wikipedia/commons/0/0e/Microsoft_.NET_logo.png') },
                 { "label": "Teams + SharePoint Embedded" },
                 { "label": "Fluid on SharePoint Embedded" },
             ]
-    
+
             const sampleAppProps = {
                 title: 'Choose a sample app',
                 placeholder: 'Select app...',
                 canPickMany: false
             }
-    
+
             const sampleAppSelection: any = await vscode.window.showQuickPick(sampleAppOptions, sampleAppProps);
 
-            if (!sampleAppSelection) 
+            if (!sampleAppSelection)
                 return;
 
             const appId = applicationTreeItem && applicationTreeItem.app && applicationTreeItem.app.clientId;
@@ -451,7 +526,6 @@ export async function activate(context: vscode.ExtensionContext) {
             });
 
             if (folders && folders.length > 0) {
-
                 const destinationPath = folders[0].fsPath;
                 const subfolder = 'syntex-repository-services/samples/raas-spa-azurefunction/';
 
@@ -474,6 +548,16 @@ export async function activate(context: vscode.ExtensionContext) {
     });
 
     const exportPostmanConfig = vscode.commands.registerCommand('spe.exportPostmanConfig', async (applicationTreeItem) => {
+        const message = "This will put your app's secret and other settings in a plain text Postman environment file on your local machine. Are you sure you want to continue?"
+        const userChoice = await vscode.window.showInformationMessage(
+            message,
+            'OK', 'Cancel'
+        );
+
+        if (userChoice === 'Cancel') {
+            return;
+        }
+
         const account = Account.get()!;
 
         const app = applicationTreeItem && applicationTreeItem.app && applicationTreeItem.app;
@@ -681,26 +765,12 @@ export async function activate(context: vscode.ExtensionContext) {
     })
 
     const getCertPK = vscode.commands.registerCommand('spe.getCertPK', async () => {
-        try {
+            await StorageProvider.get().local.setValue(IsContainerTypeCreatingKey, false);
             const keys = StorageProvider.get().global.getAllKeys();
-            //createAppServiceProvider.globalStorageManager.setValue(RegisteredContainerTypeSetKey, []);
-
             const account = Account.get();
             const dets = StorageProvider.get().global.getValue("account");
-            const a = StorageProvider.get().global.getValue('72f245a1-ce6d-0601-3d1b-1b932d14625f');
-            const a_s = await StorageProvider.get().secrets.get("8415b804-a220-4113-8483-371b01d446ad")
-            //createAppServiceProvider.globalStorageManager.setValue("apps", apps);
             console.log('hi');
-            if (false) {
-                keys.forEach(key => {
-                    createAppServiceProvider.globalStorageManager.setValue(key, undefined);
-                })
-            }
-        } catch (error) {
-            vscode.window.showErrorMessage('Failed to obtain access token.');
-            console.error('Error:', error);
-        }
-    })
+    });
 
     const generateCertificateCommand =
         vscode.commands.registerCommand('spe.generateCertificate', () => {

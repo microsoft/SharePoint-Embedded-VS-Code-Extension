@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import axios, { AxiosResponse } from 'axios';
 import { BillingClassification } from '../models/ContainerType';
+import { TermsOfServiceError } from '../utils/errors';
 
 export default class SPAdminProvider {
     static async createNewContainerType(accessToken: any, tenantName: any, owningAppId: string, displayName: string, billingClassification: BillingClassification) {
@@ -34,14 +35,18 @@ export default class SPAdminProvider {
                 const errorMessage = error.message;
                 if (errorMessage.includes("Maximum number of allowed Trial Container Types has been exceeded.")) {
                     throw new Error("Maximum number of allowed Trial Container Types has been exceeded.")
-                } else if (errorMessage.inclues("")) {
+                } else if (errorMessage.includes("")) {
                     throw new Error("Maximum number of allowed Trial Container Types has been exceeded.")
                 }
             }
             else if (error.response && error.response.status === 400) {
-                const errorMessage = error.message;
-                if (errorMessage.includes("Accept the terms of service in SharePoint admin center to continue")) {
-                    throw new Error("SharePoint Embedded Terms of Service have not been accepted. Visit https://aka.ms/enable-spe")
+                if (error.response && error.response.data && error.response.data["odata.error"] && error.response.data["odata.error"].message) {
+                    const errorMessage = error.response.data["odata.error"].message.value
+                    if (errorMessage.includes("Accept the terms of service in SharePoint admin center to continue")) {
+                        throw new TermsOfServiceError();
+                    }
+                } else {
+                    throw new Error(error.message);
                 }
             } else {
                 throw new Error(error.message);
@@ -66,7 +71,7 @@ export default class SPAdminProvider {
                 JSON.stringify(containerTypeData),
                 options
             );
-            console.log('Success getting container type', response.data.value);
+            console.log('Success getting container types on tenant: ', response.data.value);
             return response.data.value;
         } catch (error) {
             console.error('Error getting container type', error);

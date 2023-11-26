@@ -66,7 +66,7 @@ export class Account {
         this.name = name;
         this.isAdmin = isAdmin;
 
-        this.loadFromStorage()
+        this.loadFromStorage();
     }
 
     public static get(): Account | undefined {
@@ -173,12 +173,12 @@ export class Account {
         const appSecrets = JSON.parse(appSecretsString);
         const thirdPartyAuthProvider = new ThirdPartyAuthProvider(appId, appSecrets.thumbprint, appSecrets.privateKey)
         const domain = await StorageProvider.get().global.getValue(TenantDomain);
-        
+
         let spToken = await thirdPartyAuthProvider.getToken([`https://${domain}-admin.sharepoint.com/.default`]);
         let decodedToken = decodeJwt(spToken);
         let retries = 0;
         const maxRetries = 3;
-        while (!checkJwtForTenantAdminScope(decodedToken) && retries < maxRetries) {
+        while (!checkJwtForTenantAdminScope(decodedToken, "AllSites.Write") && retries < maxRetries) {
             retries++;
             console.log(`Attempt ${retries}: 'AllSites' scope not found on token fetch for NewContainerType. Waiting for 5 seconds...`);
             await timeoutForSeconds(5);
@@ -187,35 +187,39 @@ export class Account {
             decodedToken = decodeJwt(spToken);
         }
 
-        if (!checkJwtForTenantAdminScope(decodedToken)) {
+        if (!checkJwtForTenantAdminScope(decodedToken, "AllSites.Write")) {
             throw new Error("'AllSites' scope not found on token fetch for NewContainerType.")
         }
 
-        // Create ContainerType if none exist in global store, else register application on existing ContainerType
-        if (this.containerTypeIds.length === 0) {
-            const containerTypeDetails = await SPAdminProvider.createNewContainerType(spToken, domain, appId, containerTypeName, billingClassification);
-            const owningApp = this.apps.find(app => app.clientId === appId)!;
-            const containerType = new ContainerType(
-                containerTypeDetails.ContainerTypeId,
-                containerTypeDetails.OwningAppId,
-                containerTypeDetails.DisplayName,
-                containerTypeDetails.SPContainerTypeBillingClassification,
-                containerTypeDetails.OwningTenantId,
-                owningApp,
-                containerTypeDetails.AzureSubscriptionId,
-                containerTypeDetails.CreationDate,
-                containerTypeDetails.ExpiryDate,
-                containerTypeDetails.IsBillingProfileRequired);
+        try {
+            // Create ContainerType if none exist in global store, else register application on existing ContainerType
+            if (this.containerTypeIds.length === 0) {
+                const containerTypeDetails = await SPAdminProvider.createNewContainerType(spToken, domain, appId, containerTypeName, billingClassification);
+                const owningApp = this.apps.find(app => app.clientId === appId)!;
+                const containerType = new ContainerType(
+                    containerTypeDetails.ContainerTypeId,
+                    containerTypeDetails.OwningAppId,
+                    containerTypeDetails.DisplayName,
+                    containerTypeDetails.SPContainerTypeBillingClassification,
+                    containerTypeDetails.OwningTenantId,
+                    owningApp,
+                    containerTypeDetails.AzureSubscriptionId,
+                    containerTypeDetails.CreationDate,
+                    containerTypeDetails.ExpiryDate,
+                    containerTypeDetails.IsBillingProfileRequired);
 
-            // Store new Container Type
-            await containerType.saveToStorage();
+                // Store new Container Type
+                await containerType.saveToStorage();
 
-            // Update Account with ContainerTypeId
-            this.containerTypeIds.push(containerType.containerTypeId);
-            this.containerTypes.push(containerType);
-            await this.saveToStorage();
+                // Update Account with ContainerTypeId
+                this.containerTypeIds.push(containerType.containerTypeId);
+                this.containerTypes.push(containerType);
+                await this.saveToStorage();
 
-            return containerType;
+                return containerType;
+            }
+        } catch (error: any) {
+            throw error;
         }
     }
 
@@ -239,7 +243,7 @@ export class Account {
         let decodedToken = decodeJwt(spToken);
         let retries = 0;
         const maxRetries = 3;
-        while (!checkJwtForTenantAdminScope(decodedToken) && retries < maxRetries) {
+        while (!checkJwtForTenantAdminScope(decodedToken, "AllSites.Write") && retries < maxRetries) {
             retries++;
             console.log(`Attempt ${retries}: 'AllSites' scope not found on token fetch for GetContainerTypeById. Waiting for 5 seconds...`);
             await timeoutForSeconds(5);
@@ -248,7 +252,7 @@ export class Account {
             decodedToken = decodeJwt(spToken);
         }
 
-        if (!checkJwtForTenantAdminScope(decodedToken)) {
+        if (!checkJwtForTenantAdminScope(decodedToken, "AllSites.Write")) {
             throw new Error("'AllSites' scope not found on token fetch for NewContainerType.")
         }
         const containerTypeDetails = await SPAdminProvider.getContainerTypeById(spToken, domain, containerTypeId);
@@ -264,12 +268,12 @@ export class Account {
         const appSecrets = JSON.parse(appSecretsString);
         const thirdPartyAuthProvider = new ThirdPartyAuthProvider(appId, appSecrets.thumbprint, appSecrets.privateKey)
         const domain: string = await StorageProvider.get().global.getValue(TenantDomain);
-        
+
         let spToken = await thirdPartyAuthProvider.getToken([`https://${domain}-admin.sharepoint.com/.default`]);
         let decodedToken = decodeJwt(spToken);
         let retries = 0;
         const maxRetries = 3;
-        while (!checkJwtForTenantAdminScope(decodedToken) && retries < maxRetries) {
+        while (!checkJwtForTenantAdminScope(decodedToken, "AllSites.Write") && retries < maxRetries) {
             retries++;
             console.log(`Attempt ${retries}: 'AllSites' scope not found on token fetch for GetSPOContainerTypes. Waiting for 5 seconds...`);
             await timeoutForSeconds(5);
@@ -278,28 +282,31 @@ export class Account {
             decodedToken = decodeJwt(spToken);
         }
 
-        if (!checkJwtForTenantAdminScope(decodedToken)) {
+        if (!checkJwtForTenantAdminScope(decodedToken, "AllSites.Write")) {
             throw new Error("'AllSites' scope not found on token fetch for NewContainerType.")
         }
 
-        const containerTypeList = await SPAdminProvider.getContainerTypes(spToken, domain);
-        const containerTypes: ContainerType[] = [];
-        containerTypeList.map((containerTypeProps: any) => {
-            const containerType = new ContainerType(
-                containerTypeProps.ContainerTypeId,
-                containerTypeProps.OwningAppId,
-                containerTypeProps.DisplayName,
-                containerTypeProps.SPContainerTypeBillingClassification,
-                containerTypeProps.OwningTenantId,
-                undefined,
-                containerTypeProps.AzureSubscriptionId,
-                containerTypeProps.CreationDate,
-                containerTypeProps.ExpiryDate,
-                containerTypeProps.IsBillingProfileRequired);
-            containerTypes.push(containerType);
-        });
-
-        return containerTypes;
+        try {
+            const containerTypeList = await SPAdminProvider.getContainerTypes(spToken, domain);
+            const containerTypes: ContainerType[] = [];
+            containerTypeList.map((containerTypeProps: any) => {
+                const containerType = new ContainerType(
+                    containerTypeProps.ContainerTypeId,
+                    containerTypeProps.OwningAppId,
+                    containerTypeProps.DisplayName,
+                    containerTypeProps.SPContainerTypeBillingClassification,
+                    containerTypeProps.OwningTenantId,
+                    undefined,
+                    containerTypeProps.AzureSubscriptionId,
+                    containerTypeProps.CreationDate,
+                    containerTypeProps.ExpiryDate,
+                    containerTypeProps.IsBillingProfileRequired);
+                containerTypes.push(containerType);
+            });
+            return containerTypes;
+        } catch (error: any) {
+            throw error;
+        }
     }
 
     public async deleteContainerTypeById(appId: string, containerTypeId: string): Promise<ContainerType | undefined> {
@@ -315,7 +322,7 @@ export class Account {
         let decodedToken = decodeJwt(spToken);
         let retries = 0;
         const maxRetries = 3;
-        while (!checkJwtForTenantAdminScope(decodedToken) && retries < maxRetries) {
+        while (!checkJwtForTenantAdminScope(decodedToken, "AllSites.Write") && retries < maxRetries) {
             retries++;
             console.log(`Attempt ${retries}: 'AllSites' scope not found on token fetch for RemoveSPOContainerType. Waiting for 5 seconds...`);
             await timeoutForSeconds(5);
@@ -324,29 +331,33 @@ export class Account {
             decodedToken = decodeJwt(spToken);
         }
 
-        if (!checkJwtForTenantAdminScope(decodedToken)) {
+        if (!checkJwtForTenantAdminScope(decodedToken, "AllSites.Write")) {
             throw new Error("'AllSites' scope not found on token fetch for NewContainerType.")
         }
 
-        const containerTypeDetails = await SPAdminProvider.deleteContainerTypeById(spToken, domain, containerTypeId);
+        try {
+            const containerTypeDetails = await SPAdminProvider.deleteContainerTypeById(spToken, domain, containerTypeId);
 
-        const deletionPromises: Thenable<void>[] = [];
-        const containerType = this.containerTypes.find(ct => ct.containerTypeId === containerTypeId);
-        this.containerTypeIds = this.containerTypeIds.filter(id => id !== containerTypeId);
-        this.containerTypes = this.containerTypes.filter(ct => ct.containerTypeId !== containerTypeId);
-
-        await StorageProvider.get().global.setValue(containerTypeId, undefined);
-
-        if (containerType && containerType.registrationIds) {
-            containerType.registrationIds.forEach(async registrationId => {
-                deletionPromises.push(StorageProvider.get().global.setValue(registrationId, undefined));
-            });
+            const deletionPromises: Thenable<void>[] = [];
+            const containerType = this.containerTypes.find(ct => ct.containerTypeId === containerTypeId);
+            this.containerTypeIds = this.containerTypeIds.filter(id => id !== containerTypeId);
+            this.containerTypes = this.containerTypes.filter(ct => ct.containerTypeId !== containerTypeId);
+    
+            await StorageProvider.get().global.setValue(containerTypeId, undefined);
+    
+            if (containerType && containerType.registrationIds) {
+                containerType.registrationIds.forEach(async registrationId => {
+                    deletionPromises.push(StorageProvider.get().global.setValue(registrationId, undefined));
+                });
+            }
+    
+            await Promise.all(deletionPromises);
+    
+            await this.saveToStorage();
+            return containerTypeDetails;
+        } catch (error: any) {
+            throw error;
         }
-
-        await Promise.all(deletionPromises);
-
-        await this.saveToStorage();
-        return containerTypeDetails;
     }
 
     private static async createApp(displayName: string, token: string, isOwningApp: boolean): Promise<App | undefined> {

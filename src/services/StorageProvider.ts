@@ -33,11 +33,11 @@ export class LocalStorageService {
     
     constructor(private storage: Memento) { }   
     
-    public getValue<T>(key : string) : T{
+    public getValue<T>(key : string) : T {
         return this.storage.get<T>(key, null as unknown as T);
     }
 
-    public async setValue<T>(key : string, value : T){
+    public async setValue<T>(key : string, value : T) {
         await this.storage.update(key, value );
     }
 
