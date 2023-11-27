@@ -4,9 +4,116 @@
  *--------------------------------------------------------------------------------------------*/
 
 import axios, { AxiosResponse } from "axios";
+import { forEach } from "lodash";
 import { v4 as uuidv4 } from 'uuid';
 
 export default class GraphProvider {
+
+    private static readonly baseAppSettings = {
+        web: {
+            redirectUris: [
+                'http://localhost/redirect',
+                'https://oauth.pstmn.io/v1/browser-callback',
+                'https://oauth.pstmn.io/v1/callback'
+            ],
+        },
+        spa: {
+            redirectUris: [
+                'https://localhost/signin-oidc',
+                'http://localhost/'
+            ]
+        },
+        api: {
+            oauth2PermissionScopes: [
+                {
+                    "id": uuidv4(),
+                    "type": "User",
+                    "value": "Container.Manage",
+                    "userConsentDisplayName": "Create and manage storage containers",
+                    "userConsentDescription": "Create and manage storage containers",
+                    "adminConsentDisplayName": "Create and manage storage containers",
+                    "adminConsentDescription": "Create and manage storage containers"
+                }
+            ],
+            requestedAccessTokenVersion: "2"
+        },
+        keyCredentials: [],
+        requiredResourceAccess: [
+            {
+                // https://microsoft.sharepoint.com
+                "resourceAppId": "00000003-0000-0ff1-ce00-000000000000",
+                "resourceAccess": [
+                        // Container.Selected - delegated
+                    {
+                        "id": "4d114b1a-3649-4764-9dfb-be1e236ff371",
+                        "type": "Scope"
+                    },
+                        // Container.Selected - application
+                    {
+                        "id": "19766c1b-905b-43af-8756-06526ab42875",
+                        "type": "Role"
+                    },
+                        // AllSites.Write - application
+                    // {
+                    //     "id": "fbcd29d2-fcca-4405-aded-518d457caae4",
+                    //     "type": "Role"
+                    // },
+                    {
+                        //AllSites.Write - delegated
+                        "id": "640ddd16-e5b7-4d71-9690-3f4022699ee7",
+                        "type": "Scope"
+                    }
+                ]
+            },
+            {
+                "resourceAppId": "00000003-0000-0000-c000-000000000000",
+                "resourceAccess": [
+                    // delegated - openid
+                    {
+                        "id": "37f7f235-527c-4136-accd-4a02d197296e",
+                        "type": "Scope"
+                    },
+                    // delegated - profile
+                    {
+                        "id": "14dad69e-099b-42c9-810b-d002981feec1",
+                        "type": "Scope"
+                    },
+                    // delegated - offline_access
+                    {
+                        "id": "7427e0e9-2fba-42fe-b0c0-848c9e6a8182",
+                        "type": "Scope"
+                    },
+                    // delegated - Application.ReadWrite.All ** CHANGE TO Application.Read.All (c79f8feb-a9db-4090-85f9-90d820caa0eb) when 1P app available 
+                    // {
+                    //     "id": "bdfbf15f-ee85-4955-8675-146e8e5296b5",
+                    //     "type": "Scope"
+                    // },
+                    // delegated - FileStorageContainer.Selected
+                    {
+                        "id": "085ca537-6565-41c2-aca7-db852babc212",
+                        "type": "Scope"
+                    },
+                    // delegated - User.Read
+                    {
+                        "id": "e1fe6dd8-ba31-4d61-89e7-88639da4683d",
+                        "type": "Scope"
+                    },
+                    // application - Sites.ReadWrite.All
+                    // {
+                    //     "id": "9492366f-7969-46a4-8d15-ed1a20078fff",
+                    //     "type": "Role"
+                    // },
+                    // application - FileStorageContainer.Selected
+                    {
+                        "id": "40dc41bc-0f7e-42ff-89bd-d9516947e474",
+                        "type": "Role"
+                    }
+                ]
+            }
+        ],
+
+    };
+
 
     static async checkAdminMemberObjects(accessToken: string) {
         const options = {
@@ -68,124 +175,59 @@ export default class GraphProvider {
         }
     };
 
+    private static getCreateAppSettings(applicationName: string, certKeyCredential: any) {
+        const applicationData = {
+            ...this.baseAppSettings,
+            displayName: applicationName,
+            keyCredentials: [certKeyCredential]
+        };
+        applicationData.api.oauth2PermissionScopes[0].id = uuidv4();
+        return applicationData;
+    }
+
+    private static async getUpdateAppSettings(accessToken: string, appId: string, certKeyCredential: any) {
+        const existing = await GraphProvider.getApplicationById(accessToken, appId);
+        let merged = { 
+            ...GraphProvider.baseAppSettings,
+            requiredResourceAccess: [],
+            keyCredentials: [...existing.keyCredentials, certKeyCredential]
+        } as any;
+        merged.web.redirectUris = [...new Set([...merged.web.redirectUris, ...existing.web.redirectUris])];
+        merged.spa.redirectUris = [...new Set([...merged.spa.redirectUris, ...existing.spa.redirectUris])];
+        merged.identifierUris = [...new Set([...existing.identifierUris, `api://${appId}`])];
+        if (existing.api.oauth2PermissionScopes.find((scope: any) => scope.value === "Container.Manage") !== undefined) {
+            delete merged.api;
+        } else {
+            merged.api.oauth2PermissionScopes[0].id = uuidv4();
+        }
+
+        forEach(GraphProvider.baseAppSettings.requiredResourceAccess, (resourceAccess: any) => {
+            const existingResourceAccess = existing.requiredResourceAccess.find((existingResourceAccess: any) => existingResourceAccess.resourceAppId === resourceAccess.resourceAppId);
+            if (existingResourceAccess) {
+                const mergedResourceAccess = {
+                    resourceAppId: resourceAccess.resourceAppId,
+                    resourceAccess: [...new Set([...resourceAccess.resourceAccess, ...existingResourceAccess.resourceAccess])]
+                };
+                merged.requiredResourceAccess.push(mergedResourceAccess);
+            } else {
+                merged.requiredResourceAccess.push(resourceAccess);
+            }
+        });
+
+        return merged;
+    }
+
     static async createAadApplication(applicationName: string, accessToken: string, certKeyCredential: any) {
         const options = {
             headers: {
-                Authorization: `Bearer ${accessToken}`,
-                'Content-Type': 'application/json'
+                // eslint-disable-next-line @typescript-eslint/naming-convention
+                "Authorization": `Bearer ${accessToken}`,
+                // eslint-disable-next-line @typescript-eslint/naming-convention
+                "Content-Type": 'application/json'
             }
         };
 
-        const applicationData = {
-            displayName: applicationName,
-            // publicClient: {
-            //     redirectUris: [
-            //         'http://localhost/redirect'
-            //     ],
-            // },
-            web: {
-                redirectUris: [
-                    'http://localhost/redirect',
-                    'https://oauth.pstmn.io/v1/browser-callback',
-                    'https://oauth.pstmn.io/v1/callback'
-                ],
-            },
-            spa: {
-                redirectUris: [
-                    'https://localhost/signin-oidc',
-                    'http://localhost/'
-                ]
-            },
-            "api": {
-                "oauth2PermissionScopes": [
-                    {
-                        "id": uuidv4(),
-                        "type": "User",
-                        "value": "Container.Manage",
-                        "userConsentDisplayName": "Create and manage storage containers",
-                        "userConsentDescription": "Create and manage storage containers",
-                        "adminConsentDisplayName": "Create and manage storage containers",
-                        "adminConsentDescription": "Create and manage storage containers"
-                    }
-                ],
-                "requestedAccessTokenVersion": "2"
-            },
-            keyCredentials: [certKeyCredential],
-            requiredResourceAccess: [
-                {
-                    // https://microsoft.sharepoint.com
-                    "resourceAppId": "00000003-0000-0ff1-ce00-000000000000",
-                    "resourceAccess": [
-                            // Container.Selected - delegated
-                        {
-                            "id": "4d114b1a-3649-4764-9dfb-be1e236ff371",
-                            "type": "Scope"
-                        },
-                            // Container.Selected - application
-                        {
-                            "id": "19766c1b-905b-43af-8756-06526ab42875",
-                            "type": "Role"
-                        },
-                            // AllSites.Write - application
-                        // {
-                        //     "id": "fbcd29d2-fcca-4405-aded-518d457caae4",
-                        //     "type": "Role"
-                        // },
-                        {
-                            //AllSites.Write - delegated
-                            "id": "640ddd16-e5b7-4d71-9690-3f4022699ee7",
-                            "type": "Scope"
-                        }
-                    ]
-                },
-                {
-                    "resourceAppId": "00000003-0000-0000-c000-000000000000",
-                    "resourceAccess": [
-                        // delegated - openid
-                        {
-                            "id": "37f7f235-527c-4136-accd-4a02d197296e",
-                            "type": "Scope"
-                        },
-                        // delegated - profile
-                        {
-                            "id": "14dad69e-099b-42c9-810b-d002981feec1",
-                            "type": "Scope"
-                        },
-                        // delegated - offline_access
-                        {
-                            "id": "7427e0e9-2fba-42fe-b0c0-848c9e6a8182",
-                            "type": "Scope"
-                        },
-                        // delegated - Application.ReadWrite.All ** CHANGE TO Application.Read.All (c79f8feb-a9db-4090-85f9-90d820caa0eb) when 1P app available 
-                        // {
-                        //     "id": "bdfbf15f-ee85-4955-8675-146e8e5296b5",
-                        //     "type": "Scope"
-                        // },
-                        // delegated - FileStorageContainer.Selected
-                        {
-                            "id": "085ca537-6565-41c2-aca7-db852babc212",
-                            "type": "Scope"
-                        },
-                        // delegated - User.Read
-                        {
-                            "id": "e1fe6dd8-ba31-4d61-89e7-88639da4683d",
-                            "type": "Scope"
-                        },
-                        // application - Sites.ReadWrite.All
-                        // {
-                        //     "id": "9492366f-7969-46a4-8d15-ed1a20078fff",
-                        //     "type": "Role"
-                        // },
-                        // application - FileStorageContainer.Selected
-                        {
-                            "id": "40dc41bc-0f7e-42ff-89bd-d9516947e474",
-                            "type": "Role"
-                        }
-                    ]
-                }
-            ],
-
-        };
+        const applicationData = GraphProvider.getCreateAppSettings(applicationName, certKeyCredential);
         try {
             const response: AxiosResponse = await axios.post("https://graph.microsoft.com/v1.0/applications",
                 JSON.stringify(applicationData),
@@ -199,16 +241,49 @@ export default class GraphProvider {
         }
     }
 
-    static async listApplications(accessToken: string): Promise<any> {
+    public static async configureAadApplication(appId: string, accessToken: string, certKeyCredential: any) {
+        try {
+            const applicationData = await GraphProvider.getUpdateAppSettings(accessToken, appId, certKeyCredential);
+            console.log(JSON.stringify(applicationData));
+            const response = await axios({
+                method: 'patch',
+                url: `https://graph.microsoft.com/v1.0/applications(appId='${appId}')`,
+                data: JSON.stringify(applicationData),
+                headers: {
+                    // eslint-disable-next-line @typescript-eslint/naming-convention
+                    "Authorization": `Bearer ${accessToken}`,
+                    // eslint-disable-next-line @typescript-eslint/naming-convention
+                    "Content-Type": 'application/json'
+                }
+            });
+            console.log('App updated successfully:', response.data);
+            return await GraphProvider.getApplicationById(accessToken, appId);
+        }  catch (error: any) {
+            console.error('Error updating app:', error.response.data);
+            throw error;
+        }
+    }
+
+    static async listApplications(accessToken: string, query?: string): Promise<any> {
         try {
             const config = {
                 headers: {
+                    // eslint-disable-next-line @typescript-eslint/naming-convention
                     Authorization: `Bearer ${accessToken}`,
+                    // eslint-disable-next-line @typescript-eslint/naming-convention
+                    ConsistencyLevel: 'eventual'
                 },
             };
-
-            const response = await axios.get("https://graph.microsoft.com/v1.0/applications", config);
-            return response.data;
+            let url = "https://graph.microsoft.com/v1.0/applications?";
+            if (query) {
+                const encodedQuery = encodeURIComponent(query);
+                url += `$search="displayName:${encodedQuery}" OR "appId:${encodedQuery}"&`;
+                url += "$orderBy=createdDateTime DESC&";
+            }
+            url += "$select=id,appId,displayName,createdDateTime";
+            //url += "$orderby=createdDateTime desc";
+            const response = await axios.get(url, config);
+            return response.data.value;
         } catch (error) {
             console.error('Error creating application:', error);
             throw error;

@@ -26,6 +26,7 @@ import { GuestApplicationsTreeItem } from './treeview/development/guestApplicati
 import { ContainersTreeItem } from './treeview/development/containersTreeItem';
 import { ContainerTypeTreeItem } from './treeview/development/containerTypeTreeItem';
 import { timeoutForSeconds } from './utils/timeout';
+import { ContainerTypeCreationFlow, ContainerTypeCreationFlowState } from './qp/UxFlows';
 
 let accessTokenPanel: vscode.WebviewPanel | undefined;
 let firstPartyAppAuthProvider: FirstPartyAuthProvider;
@@ -87,74 +88,64 @@ export async function activate(context: vscode.ExtensionContext) {
             return;
         }
 
-        const appName = await vscode.window.showInputBox({
-            prompt: 'Azure AD Application Name:'
-        });
-
-        if (!appName) {
-            vscode.window.showErrorMessage('No Azure AD Application name provided');
+        let account = Account.get()!;
+        let ctCreationState: ContainerTypeCreationFlowState | undefined;
+        try {
+            ctCreationState = await new ContainerTypeCreationFlow().run();
+            if (ctCreationState === undefined) {
+                return;
+            }
+        } catch (error) {
             return;
         }
 
-        const containerTypeName = await vscode.window.showInputBox({
-            prompt: 'Free Trial Container Type Name:'
-        });
-
-        if (!containerTypeName) {
-            vscode.window.showErrorMessage('No Container Type name provided');
-            return;
-        }
-
-        await StorageProvider.get().local.setValue(IsContainerTypeCreatingKey, true);
-        vscode.window.showInformationMessage(`Azure AD Application creation starting...`);
-
-        // Create AAD application 
-        const account = Account.get()!;
+        // Create or import Azure app
         let app: App | undefined;
         try {
-            app = await account.createApp(appName, true);
+            let invokeAppConsent = async () => {
+                const message = "Grant consent to your new Azure AD application? This step is required in order to create a Free Trial Container Type. This will open a new web browser where you can grant consent with the administrator account on your tenant"
+                const userChoice = await vscode.window.showInformationMessage(
+                    message,
+                    'OK', 'Cancel'
+                );
+
+                if (userChoice !== 'OK') {
+                    vscode.window.showWarningMessage('You must consent to your new Azure AD application to continue.');
+                    return false;
+                }
+                return await app!.consent();
+            };
+
+            if (ctCreationState.reconfigureApp) {
+                app = await account.importApp(ctCreationState.appId!, true);
+                // 20-second progress to allow app propagation before consent flow
+                await showProgress();
+            } else if (ctCreationState.shouldCreateNewApp()) {
+                app = await account.createApp(ctCreationState.appName!, true);
+                // 20-second progress to allow app propagation before consent flow
+                await showProgress();
+            } else {
+                // Only other case is the app is already known -- try to get it from Account (should already be consented)
+                app = account.apps.find(app => app.clientId === ctCreationState!.appId!);
+            }
+
+            if (!app) {
+                vscode.window.showErrorMessage("Unable to create Azure AD application");
+                return;
+            }
+
+            if (!(await invokeAppConsent())) {
+                return;
+            }
+            
         } catch (error: any) {
-            vscode.window.showErrorMessage("Unable to create Azure AD application: " + error.message);
-            await StorageProvider.get().local.setValue(IsContainerTypeCreatingKey, false);
+            vscode.window.showErrorMessage("Unable to create or import Azure AD application: " + error.message);
             return;
         }
-
-        if (!app) {
-            vscode.window.showErrorMessage("Unable to create Azure AD application");
-            await StorageProvider.get().local.setValue(IsContainerTypeCreatingKey, false);
-            return;
-        }
-
-        // 20-second progress to allow app propagation before consent flow
-        await showProgress();
 
         // Create Container Type 
         let containerType: ContainerType | undefined;
         try {
-            const message = "Grant consent to your new Azure AD application? This step is required in order to create a Free Trial Container Type. This will open a new web browser where you can grant consent with the administrator account on your tenant"
-            const userChoice = await vscode.window.showInformationMessage(
-                message,
-                'OK', 'Cancel'
-            );
-
-            if (userChoice !== 'OK') {
-                vscode.window.showWarningMessage('You must consent to your new Azure AD application to continue.');
-                await StorageProvider.get().local.setValue(IsContainerTypeCreatingKey, false);
-                return;
-            }
-
-            const result = await app.consent();
-            if (!result) {
-                vscode.window.showErrorMessage(`Consent failed on app ${app.clientId}`);
-                await StorageProvider.get().local.setValue(IsContainerTypeCreatingKey, false);
-                throw new Error();
-            }
-
-            // await vscode.commands.executeCommand('spe.callSpeTosCommand', app);
-
-            // // Wait for 10 seconds 
-            // await ToSDelay();
-
             // delete existing Trial Container Types
             const containerTypes: ContainerType[] = await account.getAllContainerTypes(app.clientId);
 
@@ -172,7 +163,7 @@ export async function activate(context: vscode.ExtensionContext) {
             }
 
             vscode.window.showInformationMessage(`Container Type creation starting...`);
-            containerType = await account.createContainerType(app.clientId, containerTypeName, BillingClassification.FreeTrial);
+            containerType = await account.createContainerType(app.clientId, ctCreationState.containerTypeName!, BillingClassification.FreeTrial);
         } catch (error: any) {
             if (error.name === 'TermsOfServiceError') {
                 vscode.window.showErrorMessage(error.message);
@@ -204,7 +195,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
         await StorageProvider.get().local.setValue(IsContainerTypeCreatingKey, false);
         developmentTreeViewProvider.refresh();
-        vscode.window.showInformationMessage(`Container Type ${containerTypeName} successfully created and registered on Azure AD App: ${appName}`);
+        vscode.window.showInformationMessage(`Container Type ${ctCreationState.containerTypeName} successfully created and registered on Azure AD App: ${app.displayName}`);
     });
 
     const createContainerTypeOnApplicationCommand = vscode.commands.registerCommand('spe.createContainerTypeOnApplication', async () => {

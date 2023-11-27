@@ -53,7 +53,7 @@ export class DevelopmentTreeViewProvider implements vscode.TreeDataProvider<Cont
             const containerTypesTreeItem = new ContainerTypesTreeItem(
                 `Container Types`,
                 vscode.TreeItemCollapsibleState.Expanded
-            )
+            );
             return [containerTypesTreeItem];
         }
 
