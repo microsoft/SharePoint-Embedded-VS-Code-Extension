@@ -28,6 +28,34 @@
           "fontPath": "./media/spe.woff",
           "fontCharacter": "\\ED18"
         }
+      },
+      "containertype-icon": {
+        "description": "Container Type icon",
+        "default": {
+          "fontPath": "./media/spe.woff",
+          "fontCharacter": "\\F1AA"
+        }
+      },
+      "app-icon": {
+        "description": "App icon",
+        "default": {
+          "fontPath": "./media/spe.woff",
+          "fontCharacter": "\\ECAA"
+        }
+      },
+      "owningapp-icon": {
+        "description": "Owning App icon",
+        "default": {
+          "fontPath": "./media/spe.woff",
+          "fontCharacter": "\\E657"
+        }
+      },
+      "container-icon": {
+        "description": "Container icon",
+        "default": {
+          "fontPath": "./media/spe.woff",
+          "fontCharacter": "\\EED6"
+        }
       }
     },
     "viewsContainers": {
