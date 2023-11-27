@@ -16,7 +16,7 @@ export class ContainerTypesTreeItem extends vscode.TreeItem {
         public image?: { name: string; custom: boolean }
 
     ) {
-        super(label, collapsibleState)
+        super(label, collapsibleState);
         this.setImagetoIcon();
     }
 
@@ -24,7 +24,7 @@ export class ContainerTypesTreeItem extends vscode.TreeItem {
         const containerTypes: ContainerType[] = Account.get()!.containerTypes;
 
         const containerTypeTreeItems = [...containerTypes.map(containerType => {
-            const containerTypeTreeItem = new ContainerTypeTreeItem(containerType, containerType.displayName, containerType.displayName, vscode.TreeItemCollapsibleState.Collapsed, { name: "symbol-function", custom: false })
+            const containerTypeTreeItem = new ContainerTypeTreeItem(containerType, containerType.displayName, containerType.displayName, vscode.TreeItemCollapsibleState.Expanded, { name: "symbol-function", custom: false })
             return containerTypeTreeItem;
         })]
 

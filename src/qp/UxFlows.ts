@@ -1,7 +1,18 @@
 
 import { formatDistanceToNow, parseISO } from "date-fns";
-import { window, QuickPickItem, QuickPickItemKind, ThemeIcon, Uri } from "vscode";
+import { window, QuickPickItem, QuickPickItemKind, ThemeIcon, Uri, QuickInputButtons, QuickInputButton } from "vscode";
 import { Account } from "../models/Account";
+
+
+
+type UxInputStepResult = -1 | 0 | 1; // -1 = back, 0 = cancel, 1 = next
+abstract class UxInputStep {
+    // eslint-disable-next-line @typescript-eslint/naming-convention
+    public static readonly BackEvent = 'back';
+    // eslint-disable-next-line @typescript-eslint/naming-convention
+    public static readonly CancelEvent = 'cancel';
+    public abstract collectInput(state: UxFlowState): Promise<UxInputStepResult>;
+}
 
 abstract class LinearUxFlow { 
     protected state!: UxFlowState; 
@@ -19,6 +30,7 @@ abstract class LinearUxFlow {
     }
 
     public async run(): Promise<UxFlowState | undefined> {
+        this.state.totalSteps = this.steps.length;
         while (this.step < this.steps.length) {
             if (this.step < 0) {
                 throw new Error("Invalid step index: " + this.step);
@@ -28,8 +40,9 @@ abstract class LinearUxFlow {
                 this.previousStep();
             } else if (result === 0) {
                 return undefined;
+            } else {
+                this.nextStep();
             }
-            this.nextStep();
         }
         return this.state;
     };
@@ -84,16 +97,98 @@ export class ContainerTypeCreationFlow extends LinearUxFlow {
     }
 }
 
-type UxInputStepResult = -1 | 0 | 1; // -1 = back, 0 = cancel, 1 = next
-abstract class UxInputStep {
-    // eslint-disable-next-line @typescript-eslint/naming-convention
-    public static readonly BackEvent = 'back';
-    // eslint-disable-next-line @typescript-eslint/naming-convention
-    public static readonly CancelEvent = 'cancel';
-    public abstract collectInput(state: UxFlowState): Promise<UxInputStepResult>;
+export class AddGuestAppFlowState extends AppSelectionFlowState {
+    public delegatedPerms: string[] = [];
+    public applicationPerms: string[] = [];
 }
 
+export class AddGuestAppFlow extends LinearUxFlow {
+    public constructor() {
+        super();
+        this.state = new AddGuestAppFlowState();
+        this.state.step = 1;
+        this.steps = [
+            new ImportOrCreateAppQuickPick(),
+            new AddGuestAppPermissionsInput('Delegated'),
+            new AddGuestAppPermissionsInput('Application')
+        ];
+    }
 
+    public async run(): Promise<AddGuestAppFlowState> {
+        return super.run() as Promise<AddGuestAppFlowState>;
+    }
+}
+
+interface ApplicationPermissionOption extends QuickPickItem {
+    value: string;
+}
+
+class AddGuestAppPermissionsInput extends UxInputStep {
+    
+    private readonly permChoices: ApplicationPermissionOption[] = [
+        { label: "ReadContent", value: "readcontent", detail: "Read content within all storage containers" },
+        { label: "WriteContent", value: "writecontent", detail: "Write content within all storage containers"  },
+        { label: "Create", value: "create", detail: "Create storage containers"  },
+        { label: "Delete", value: "delete", detail: "Delete storage containers"  },
+        { label: "Read", value: "read", detail: "List storage containers"  },
+        { label: "Write", value: "write", detail: "Update properties on storage containers"  },
+        { label: "AddPermissions", value: "addpermissions", detail: "Add users and groups to permission roles on storage containers"  },
+        { label: "UpdatePermissions", value: "updatepermissions", detail: "Update user and group permission roles on storage containers"  },
+        { label: "DeletePermissions", value: "deletepermissions", detail: "Delete users and groups from permission roles on storage containers"  },
+        { label: "DeleteOwnPermissions", value: "deleteownpermissions", detail: "TODO: What is this one?"  },
+        { label: "ManagePermissions", value: "managepermissions", detail: "Manage all permissions on storage containers"  }
+    ];
+    private readonly fullPermChoiceValue = 'full';
+
+    public constructor(private readonly permissionType: 'Delegated' | 'Application') {
+        super();
+    }
+
+    public collectInput(state: AddGuestAppFlowState): Promise<UxInputStepResult> {
+        return new Promise<UxInputStepResult>((resolve, reject) => { 
+            const qp = window.createQuickPick<ApplicationPermissionOption>();
+            qp.title = `Select ${this.permissionType} Permissions`;
+            qp.step = state.step;
+            qp.totalSteps = state.totalSteps;
+            qp.canSelectMany = true;
+            qp.ignoreFocusOut = true;
+            qp.placeholder = `Select one or more ${this.permissionType} permissions for your app`;
+            qp.buttons = [...(state.totalSteps && state.totalSteps > 1 ? [QuickInputButtons.Back] : [])];
+            qp.selectedItems = qp.items = this.permChoices;
+            let selectedPerms: string[] = [];
+            qp.onDidTriggerButton((button: QuickInputButton) => {
+                if (button === QuickInputButtons.Back) {
+                    qp.hide();
+                    resolve(-1);
+                }
+            });
+            qp.onDidAccept(() => {
+                selectedPerms = [this.fullPermChoiceValue];
+                if (qp.selectedItems.length !== this.permChoices.length) {
+                    selectedPerms = qp.selectedItems.map(item => item.value);
+                }
+                if (selectedPerms.length === 0) {
+                    return;
+                }
+                if (this.permissionType === 'Delegated') {
+                    state.delegatedPerms = selectedPerms;
+                } else {
+                    state.applicationPerms = selectedPerms;
+                }
+                qp.hide();
+                resolve(1);
+            });
+            qp.onDidHide(() => {
+                qp.dispose();
+                if (selectedPerms.length === 0) {
+                    resolve(0);
+                }
+            });
+            qp.show();
+        });
+    }
+
+}
 
 class ImportOrCreateAppQuickPick extends UxInputStep {
     private readonly defaultAppName = 'SharePoint Embedded App';
@@ -119,10 +214,19 @@ class ImportOrCreateAppQuickPick extends UxInputStep {
     };
 
     public async collectInput(state: AppSelectionFlowState): Promise<UxInputStepResult> {
-        const qp = window.createQuickPick<AppQuickPickItem>();
-        return new Promise<UxInputStepResult>((resolve, reject) => {
+        return new Promise<UxInputStepResult>((resolve, reject) => {       
+            const qp = window.createQuickPick<AppQuickPickItem>();
             qp.title = 'Create or Choose an Azure Application';
+            qp.step = state.step;
+            qp.totalSteps = state.totalSteps;
             qp.placeholder = 'Enter a new app name or search for an existing app by name or Id';
+            qp.buttons = [...(state.totalSteps && state.totalSteps > 1 ? [QuickInputButtons.Back] : [])];
+            qp.onDidTriggerButton((button: QuickInputButton) => {
+                if (button === QuickInputButtons.Back) {
+                    qp.hide();
+                    resolve(-1);
+                }
+            });
             this.recentApps = Account.get()!.apps.map(app => (
                 {
                     id: app.clientId,

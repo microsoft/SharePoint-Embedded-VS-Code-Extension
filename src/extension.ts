@@ -26,7 +26,7 @@ import { GuestApplicationsTreeItem } from './treeview/development/guestApplicati
 import { ContainersTreeItem } from './treeview/development/containersTreeItem';
 import { ContainerTypeTreeItem } from './treeview/development/containerTypeTreeItem';
 import { timeoutForSeconds } from './utils/timeout';
-import { ContainerTypeCreationFlow, ContainerTypeCreationFlowState } from './qp/UxFlows';
+import { AddGuestAppFlow, AddGuestAppFlowState, ContainerTypeCreationFlow, ContainerTypeCreationFlowState } from './qp/UxFlows';
 
 let accessTokenPanel: vscode.WebviewPanel | undefined;
 let firstPartyAppAuthProvider: FirstPartyAuthProvider;
@@ -274,122 +274,52 @@ export async function activate(context: vscode.ExtensionContext) {
 
     const createGuestApplicationCommand = vscode.commands.registerCommand('spe.createGuestApp', async (guestApplicationsModel: GuestApplicationsTreeItem) => {
         const containerType: ContainerType = guestApplicationsModel.containerType;
-
-        const appName = await vscode.window.showInputBox({
-            prompt: 'Azure AD Application Name:'
-        });
-
-        if (!appName) {
-            vscode.window.showErrorMessage('No Azure AD Application name provided');
-            return;
-        }
-
-        const permissionsOptions = [
-            { label: "Full", value: "full" },
-            { label: "ReadContent", value: "readcontent" },
-            { label: "WriteContent", value: "writecontent" },
-            { label: "Create", value: "create" },
-            { label: "Delete", value: "delete" },
-            { label: "Read", value: "read" },
-            { label: "Write", value: "write" },
-            { label: "AddPermissions", value: "addpermissions" },
-            { label: "UpdatePermissions", value: "updatepermissions" },
-            { label: "DeletePermissions", value: "deletepermissions" },
-            { label: "DeleteDwnPermissions", value: "deleteownpermissions" },
-            { label: "ManagePermissions", value: "managepermissions" }
-        ];
-
-        const delegatedProps = {
-            title: 'Delegated Permissions',
-            placeholder: 'Select options...',
-            canPickMany: true
-        }
-
-        const applicationProps = {
-            title: 'Application Permissions',
-            placeholder: 'Select options...',
-            canPickMany: true
-        }
-
-        const delegatedSelections: any = await vscode.window.showQuickPick(permissionsOptions, delegatedProps);
-        const isFullDelegatedSelected = delegatedSelections.some((option: any) => option.value === "full");
-        let delegatedPermissions = [];
-        if (isFullDelegatedSelected) {
-            // If "Full" is selected, include only "Full" in the permissions array
-            delegatedPermissions = ["full"];
-        } else {
-            // Include all selected options in the permissions array
-            delegatedPermissions = delegatedSelections.map((item: any) => item.value);
-        }
-
-        const applicationSelections: any = await vscode.window.showQuickPick(permissionsOptions, applicationProps);
-        const isFullApplicationSelected = applicationSelections.some((option: any) => option.value === "full");
-        let applicationPermissions = [];
-        if (isFullApplicationSelected) {
-            // If "Full" is selected, include only "Full" in the permissions array
-            applicationPermissions = ["full"];
-        } else {
-            // Include all selected options in the permissions array
-            applicationPermissions = applicationSelections.map((item: any) => item.value);
-        }
-
-        // Create AAD application 
-        const account = Account.get()!;
-        let app: App | undefined;
+        
+        let account = Account.get()!;
+        let addGuestAppState: AddGuestAppFlowState | undefined;
         try {
-            app = await account.createApp(appName, false);
-        } catch (error: any) {
-            vscode.window.showErrorMessage("Unable to create Azure AD application: " + error.message);
-            return;
-        }
-
-        if (!app) {
-            vscode.window.showErrorMessage("Unable to create Azure AD application");
-            return;
-        }
-
-        // 20-second progress to allow app propagation before consent flow
-        await showProgress();
-
-        // Consent
-        try {
-            const message = "Grant consent to your new Azure AD application? This step is required in order to create a Free Trial Container Type. This will open a new web browser where you can grant consent with the administrator account on your tenant"
-            const userChoice = await vscode.window.showInformationMessage(
-                message,
-                'OK', 'Cancel'
-            );
-
-            if (userChoice === 'Cancel') {
-                vscode.window.showWarningMessage('You must consent to your new Azure AD application to continue.');
+            addGuestAppState = await new AddGuestAppFlow().run();
+            if (addGuestAppState === undefined) {
                 return;
             }
-
-            const result = await app.consent();
-            if (!result) {
-                vscode.window.showErrorMessage(`Consent failed on app ${app.clientId}`);
-                throw new Error();
-            }
-        } catch (error: any) {
-            vscode.window.showErrorMessage("Unable to consent on app " + error.message);
-            account.deleteApp(app);
+        } catch (error) {
             return;
         }
 
-        if (!containerType) {
-            vscode.window.showErrorMessage("Unable to create Free Trial Container Type");
+        // Create or import Azure app
+        let app: App | undefined;
+        try {
+            if (addGuestAppState.reconfigureApp) {
+                app = await account.importApp(addGuestAppState.appId!, true);
+                // 20-second progress to allow app propagation before consent flow
+                await showProgress();
+            } else if (addGuestAppState.shouldCreateNewApp()) {
+                app = await account.createApp(addGuestAppState.appName!, true);
+                // 20-second progress to allow app propagation before consent flow
+                await showProgress();
+            } else {
+                // Only other case is the app is already known -- try to get it from Account (should already be consented)
+                app = account.apps.find(app => app.clientId === addGuestAppState!.appId!);
+            }
+
+            if (!app) {
+                throw new Error("");
+            }
+            
+        } catch (error: any) {
+            vscode.window.showErrorMessage("Unable to create or import Azure AD application: " + error.message);
             return;
         }
 
         // Register Container Type
         try {
-            await containerType.addTenantRegistration(account.tenantId, app, delegatedPermissions, applicationPermissions);
+            await containerType.addTenantRegistration(account.tenantId, app, addGuestAppState.delegatedPerms, addGuestAppState.applicationPerms);
         } catch (error: any) {
             vscode.window.showErrorMessage("Unable to register Free Trial Container Type: " + error.message);
             return;
         }
         developmentTreeViewProvider.refresh();
         guestApplicationsModel.collapsibleState = vscode.TreeItemCollapsibleState.Expanded;
-        vscode.window.showInformationMessage(`Container Type ${containerType.displayName} successfully created and registered on Azure AD App: ${appName}`);
     });
 
     const deleteContainerTypeCommand = vscode.commands.registerCommand('spe.deleteContainerType', async (containerTypeViewModel: ContainerTypeTreeItem) => {
