@@ -62,7 +62,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
     const aadLogoutCommand = vscode.commands.registerCommand('spe.signOut', async () => {
         try {
-            const message = "Are you sure you want to log out? All your SharePoint Embedded data will be forgotten."
+            const message = "Are you sure you want to log out? All your SharePoint Embedded data will be forgotten.";
             const userChoice = await vscode.window.showInformationMessage(
                 message,
                 'OK', 'Cancel'
@@ -81,121 +81,118 @@ export async function activate(context: vscode.ExtensionContext) {
     });
 
     const createTrialContainerTypeCommand = vscode.commands.registerCommand('spe.createTrialContainerType', async () => {
-        const isContainerTypeCreating = StorageProvider.get().local.getValue(IsContainerTypeCreatingKey);
+        let account = Account.get()!;
 
-        if (isContainerTypeCreating) {
-            vscode.window.showWarningMessage('Please wait for the current operation to finish');
-            return;
+        // Try to use an existing app to see if there's already a Free CT
+        let freeCT: ContainerType | undefined;
+        try {
+            freeCT = await account.getFreeContainerType();
+        } catch (error) {
+            console.error(`Error fetching Free Trial Container Type: ${error}`);
         }
 
-        let account = Account.get()!;
+        // Get parameters for new App and Container Type or owning App on existing Container Type
         let ctCreationState: ContainerTypeCreationFlowState | undefined;
         try {
-            ctCreationState = await new ContainerTypeCreationFlow().run();
-            if (ctCreationState === undefined) {
-                return;
+            ctCreationState = await new ContainerTypeCreationFlow(freeCT).run();
+            if (!ctCreationState) {
+                throw new Error("Ux flow cancelled and state is undefined");
             }
         } catch (error) {
+            console.error(`Error with Container Type creation Ux Flow: ${error}`);
             return;
         }
 
-        // Create or import Azure app
-        let app: App | undefined;
+        // Try to get a working application from the Ux flow state provided
+        let [app, shouldDelay]: [App | undefined, boolean] = [undefined, false];
         try {
-            let invokeAppConsent = async () => {
-                const message = "Grant consent to your new Azure AD application? This step is required in order to create a Free Trial Container Type. This will open a new web browser where you can grant consent with the administrator account on your tenant"
-                const userChoice = await vscode.window.showInformationMessage(
-                    message,
-                    'OK', 'Cancel'
-                );
-
-                if (userChoice !== 'OK') {
-                    vscode.window.showWarningMessage('You must consent to your new Azure AD application to continue.');
-                    return false;
-                }
-                return await app!.consent();
-            };
-
-            if (ctCreationState.reconfigureApp) {
-                app = await account.importApp(ctCreationState.appId!, true);
-                // 20-second progress to allow app propagation before consent flow
-                await showProgress();
-            } else if (ctCreationState.shouldCreateNewApp()) {
-                app = await account.createApp(ctCreationState.appName!, true);
-                // 20-second progress to allow app propagation before consent flow
-                await showProgress();
-            } else {
-                // Only other case is the app is already known -- try to get it from Account (should already be consented)
-                app = account.apps.find(app => app.clientId === ctCreationState!.appId!);
-            }
-
+            //let shouldDelay = false;
+            [app, shouldDelay] = await ctCreationState?.createGetOrImportApp();
             if (!app) {
-                vscode.window.showErrorMessage("Unable to create Azure AD application");
-                return;
+                throw new Error("App is undefined");
             }
-
-            if (!(await invokeAppConsent())) {
-                return;
+            if (shouldDelay) {
+                await showProgress();
             }
-            
-        } catch (error: any) {
-            vscode.window.showErrorMessage("Unable to create or import Azure AD application: " + error.message);
+            await app.consent();
+        } catch (error) {
+            console.error(`Unable to get app: ${error}`);
             return;
         }
 
-        // Create Container Type 
-        let containerType: ContainerType | undefined;
+        // We should have an app to query Container Types at this point -- use it to do a final check for existing Free CT
         try {
-            // delete existing Trial Container Types
-            const containerTypes: ContainerType[] = await account.getAllContainerTypes(app.clientId);
+            freeCT = await account.getFreeContainerType(app.clientId);
+        } catch (error) {
+            console.error(`Error fetching Free Trial Container Type: ${error}`);
+        }
 
-            for (const ct of containerTypes) {
+        // If we have a Free CT we need to import it instead of creating a new one
+        if (freeCT) {
+            // If the owning app on the Free CT is not the app we have, we need to import the owning app
+            if (freeCT.owningAppId !== app.clientId) {
                 try {
-                    if (ct.billingClassification === BillingClassification.FreeTrial) {
-                        const result = await account.deleteContainerTypeById(app!.clientId, ct.containerTypeId);
-                        console.log(result);
+                    ctCreationState = await new ContainerTypeCreationFlow(freeCT).run();
+                    if (!ctCreationState) {
+                        throw new Error("Ux Flow State is undefined");
                     }
                 } catch (error) {
-                    console.error(`Error deleting container type: ${error}`);
-                    await StorageProvider.get().local.setValue(IsContainerTypeCreatingKey, false);
+                    console.error(`Error with Container Type creation Ux Flow: ${error}`);
+                    return;
+                }
+    
+                try {
+                    [app, shouldDelay] = await ctCreationState?.createGetOrImportApp();
+                    if (!app) {
+                        throw new Error("App is undefined");
+                    }
+                    if (shouldDelay) {
+                        await showProgress();
+                    }
+                    await app.consent();
+                } catch (error) {
+                    console.error(`Unable to get app: ${error}`);
                     return;
                 }
             }
 
-            vscode.window.showInformationMessage(`Container Type creation starting...`);
-            containerType = await account.createContainerType(app.clientId, ctCreationState.containerTypeName!, BillingClassification.FreeTrial);
-        } catch (error: any) {
-            if (error.name === 'TermsOfServiceError') {
-                vscode.window.showErrorMessage(error.message);
-            } else {
-                vscode.window.showErrorMessage("Unable to create Free Trial Container Type: " + error.message);
+            try {
+                freeCT = await account.importContainerType(freeCT, app);
+                if (!freeCT) {
+                    throw new Error("Free CT is undefined");
+                }
+            } catch (error) {             
+                console.error(`Error importing Free Trial Container Type: ${error}`);
+                return;
             }
 
-            //await account.deleteApp(app);
-            await StorageProvider.get().local.setValue(IsContainerTypeCreatingKey, false);
-            return;
+        } else {
+            // If we don't have a Free CT, we need to create one
+            try {
+                vscode.window.showInformationMessage(`${ctCreationState.containerTypeName!} Container Type creation starting...`);
+                freeCT = await account.createContainerType(app.clientId, ctCreationState.containerTypeName!, BillingClassification.FreeTrial);
+                if (!freeCT) {
+                    throw new Error("Free CT is undefined");
+                }
+            } catch (error: any) {
+                if (error.name === 'TermsOfServiceError') {
+                    vscode.window.showErrorMessage(error.message);
+                } else {
+                    vscode.window.showErrorMessage("Unable to create Free Trial Container Type: " + error.message);
+                }
+                return;
+            }
         }
 
-        if (!containerType) {
-            vscode.window.showErrorMessage("Unable to create Free Trial Container Type");
-            await StorageProvider.get().local.setValue(IsContainerTypeCreatingKey, false);
-            return;
-        }
-
-        // Register Container Type
+        // We should have a working app and a Free CT by this point -- now we register the CT on the owning tenant
         vscode.window.showInformationMessage(`Container Type Registration starting...`);
         try {
-            await containerType.addTenantRegistration(account.tenantId, app, ["full"], ["full"]);
+            await freeCT.addTenantRegistration(account.tenantId, app, ["full"], ["full"]);
         } catch (error: any) {
             vscode.window.showErrorMessage("Unable to register Free Trial Container Type: " + error.message);
-            await StorageProvider.get().local.setValue(IsContainerTypeCreatingKey, false);
-            developmentTreeViewProvider.refresh();
-            return;
         }
 
-        await StorageProvider.get().local.setValue(IsContainerTypeCreatingKey, false);
         developmentTreeViewProvider.refresh();
-        vscode.window.showInformationMessage(`Container Type ${ctCreationState.containerTypeName} successfully created and registered on Azure AD App: ${app.displayName}`);
     });
 
     const createContainerTypeOnApplicationCommand = vscode.commands.registerCommand('spe.createContainerTypeOnApplication', async () => {
@@ -278,7 +275,7 @@ export async function activate(context: vscode.ExtensionContext) {
         let account = Account.get()!;
         let addGuestAppState: AddGuestAppFlowState | undefined;
         try {
-            addGuestAppState = await new AddGuestAppFlow().run();
+            addGuestAppState = await new AddGuestAppFlow(containerType).run();
             if (addGuestAppState === undefined) {
                 return;
             }

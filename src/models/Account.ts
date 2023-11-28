@@ -247,13 +247,27 @@ export class Account {
         }
     }
 
+    public async importContainerType(containerType: ContainerType, owningApp: App) {
+        containerType.owningApp = owningApp;
+
+        // Store new Container Type
+        await containerType.saveToStorage();
+
+        // Update Account with ContainerTypeId
+        this.containerTypeIds.push(containerType.containerTypeId);
+        this.containerTypes.push(containerType);
+        await this.saveToStorage();
+
+        return containerType;
+    }
+
     public async getContainerTypeById(appId: string, containerTypeId: string): Promise<ContainerType | undefined> {
         const appSecretsString = await StorageProvider.get().secrets.get(appId);
         if (!appSecretsString) {
             return undefined;
         }
         const appSecrets = JSON.parse(appSecretsString);
-        const thirdPartyAuthProvider = new ThirdPartyAuthProvider(appId, appSecrets.thumbprint, appSecrets.privateKey)
+        const thirdPartyAuthProvider = new ThirdPartyAuthProvider(appId, appSecrets.thumbprint, appSecrets.privateKey);
         const tid: any = StorageProvider.get().global.getValue(TenantIdKey);
 
         //const consentToken = await thirdPartyAuthProvider.getToken(['00000003-0000-0ff1-ce00-000000000000/.default']);
@@ -331,6 +345,17 @@ export class Account {
         } catch (error: any) {
             throw error;
         }
+    }
+
+    public async getFreeContainerType(appId?: string): Promise<ContainerType | undefined> {
+        if (!appId && this.appIds.length > 0) {
+            appId = this.appIds[this.appIds.length - 1];
+        }
+        if (!appId) {
+            return;
+        }
+        const cts = await this.getAllContainerTypes(appId);
+        return cts.find(ct => ct.billingClassification === BillingClassification.FreeTrial);
     }
 
     public async deleteContainerTypeById(appId: string, containerTypeId: string): Promise<ContainerType | undefined> {

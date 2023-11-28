@@ -2,15 +2,19 @@
 import { formatDistanceToNow, parseISO } from "date-fns";
 import { window, QuickPickItem, QuickPickItemKind, ThemeIcon, Uri, QuickInputButtons, QuickInputButton } from "vscode";
 import { Account } from "../models/Account";
+import { App } from "../models/App";
+import { ContainerType } from "../models/ContainerType";
 
 
 
-type UxInputStepResult = -1 | 0 | 1; // -1 = back, 0 = cancel, 1 = next
+type UxInputStepResult = -1 | 0 | 1;
 abstract class UxInputStep {
     // eslint-disable-next-line @typescript-eslint/naming-convention
-    public static readonly BackEvent = 'back';
+    public static readonly Back = -1;
     // eslint-disable-next-line @typescript-eslint/naming-convention
-    public static readonly CancelEvent = 'cancel';
+    public static readonly Cancel = 0;
+    // eslint-disable-next-line @typescript-eslint/naming-convention
+    public static readonly Next = 1;
     public abstract collectInput(state: UxFlowState): Promise<UxInputStepResult>;
 }
 
@@ -57,8 +61,27 @@ export class AppSelectionFlowState extends UxFlowState {
     public appId?: string;
     public appName?: string;
     public reconfigureApp?: boolean;
+
+    public complete(): boolean {
+        return this.appId !== undefined || this.appName !== undefined;
+    }
+
     public shouldCreateNewApp(): boolean {
         return this.appId === 'new' && this.appName !== undefined;
+    }
+
+    public async createGetOrImportApp(): Promise<[ App | undefined, boolean]> {
+        if (!this.complete()) {
+            return [undefined, false];
+        }
+
+        if (this.shouldCreateNewApp()) {
+            return [await Account.get()!.createApp(this.appName!, true), true];
+        } else if (Account.get()!.appIds.includes(this.appId!)) {
+            return [Account.get()!.apps.find(app => app.clientId === this.appId), false];
+        } else {
+            return [await Account.get()!.importApp(this.appId!, true), true];
+        }
     }
 }
 
@@ -82,14 +105,22 @@ export class ContainerTypeCreationFlowState extends AppSelectionFlowState {
 }
 
 export class ContainerTypeCreationFlow extends LinearUxFlow {
-    public constructor() {
+    public constructor(freeCT?: ContainerType) {
         super();
         this.state = new ContainerTypeCreationFlowState();
         this.state.step = 1;
-        this.steps = [
-            new ImportOrCreateAppQuickPick(),
-            new ContainerTypeDetailsInput()
-        ];
+        if (freeCT) {
+            (this.state as ContainerTypeCreationFlowState).appId = freeCT.owningAppId;
+            this.steps = [
+                new ConfirmContainerTypeImport(freeCT),
+                new ImportOrCreateAppQuickPick(freeCT?.owningAppId)
+            ];
+        } else {
+            this.steps = [
+                new ImportOrCreateAppQuickPick(),
+                new ContainerTypeDetailsInput()
+            ];
+        }
     }
 
     public async run(): Promise<ContainerTypeCreationFlowState> {
@@ -103,12 +134,17 @@ export class AddGuestAppFlowState extends AppSelectionFlowState {
 }
 
 export class AddGuestAppFlow extends LinearUxFlow {
-    public constructor() {
+    public constructor(private readonly containerType: ContainerType) {
         super();
         this.state = new AddGuestAppFlowState();
         this.state.step = 1;
+        const appExclusions: Set<string> = new Set();
+        appExclusions.add(this.containerType.owningAppId);
+        for (const guestApp of this.containerType.guestApps) {
+            appExclusions.add(guestApp.clientId);
+        }
         this.steps = [
-            new ImportOrCreateAppQuickPick(),
+            new ImportOrCreateAppQuickPick(undefined, appExclusions),
             new AddGuestAppPermissionsInput('Delegated'),
             new AddGuestAppPermissionsInput('Application')
         ];
@@ -213,8 +249,36 @@ class ImportOrCreateAppQuickPick extends UxInputStep {
         id: 'all'
     };
 
+    public constructor(private readonly existingAppId?: string, private readonly appExclusions?: Set<string>) {
+        super();
+    }
+
     public async collectInput(state: AppSelectionFlowState): Promise<UxInputStepResult> {
-        return new Promise<UxInputStepResult>((resolve, reject) => {       
+        const confirmAppImport = async (appId: string): Promise<boolean> => {
+            if (!Account.get()!.appIds.includes(appId!)) {
+                const continueResult = "Continue";
+                const result = await window.showInformationMessage(
+                    `The selected Azure with AppId: ${appId} app will need to be configured for use with this extension. This will create a new secret and certificate credential, add the Container.Selected permission role, and add a new redirect URI on it. Proceeding is not recommended on production applications.`, 
+                    continueResult, 
+                    "Cancel"
+                );
+                if (result !== continueResult) {
+                    return false;
+                }
+            }
+            return true;
+        };
+
+        if (this.existingAppId) {
+            if (!(await confirmAppImport(this.existingAppId))) {
+                return UxInputStep.Cancel;
+            }
+            state.reconfigureApp = true;
+            return UxInputStep.Next;
+        }
+
+        return new Promise<UxInputStepResult>((resolve, reject) => {
+            
             const qp = window.createQuickPick<AppQuickPickItem>();
             qp.title = 'Create or Choose an Azure Application';
             qp.step = state.step;
@@ -224,7 +288,7 @@ class ImportOrCreateAppQuickPick extends UxInputStep {
             qp.onDidTriggerButton((button: QuickInputButton) => {
                 if (button === QuickInputButtons.Back) {
                     qp.hide();
-                    resolve(-1);
+                    resolve(UxInputStep.Back);
                 }
             });
             this.recentApps = Account.get()!.apps.map(app => (
@@ -235,6 +299,9 @@ class ImportOrCreateAppQuickPick extends UxInputStep {
                     iconPath: new ThemeIcon('extensions-view-icon')
                 }
             ));
+            if (this.appExclusions) {
+                this.recentApps = this.recentApps.filter(app => !this.appExclusions!.has(app.id));
+            }
             const loadAzureApps = async (query?: string) => {
                 qp.busy = true;
                 const appData = await Account.get()!.searchApps(query, true);
@@ -247,6 +314,9 @@ class ImportOrCreateAppQuickPick extends UxInputStep {
                         iconPath: new ThemeIcon('extensions-view-icon')
                     }
                 ));
+                if (this.appExclusions) {
+                    this.azureApps = this.azureApps.filter(app => !this.appExclusions!.has(app.id));
+                }
                 updateDisplayedItems();
                 qp.busy = false;
             };
@@ -258,7 +328,7 @@ class ImportOrCreateAppQuickPick extends UxInputStep {
                     ...(this.azureApps.length > 0 ? [this.azureAppsSeparator, ...this.azureApps] : [])
                 ];
             };
-            
+
             qp.onDidChangeSelection(selectedItems => {
                 state.appId = selectedItems[0].id;
                 state.appName = selectedItems[0].name;
@@ -268,25 +338,17 @@ class ImportOrCreateAppQuickPick extends UxInputStep {
             qp.onDidHide(async () => {
                 qp.dispose();
                 if (state.appId === undefined) {
-                    reject(0);
+                    reject(UxInputStep.Cancel);
                     return;
                 }
                 if (!state.shouldCreateNewApp()) {
-                    if (!Account.get()!.appIds.includes(state.appId!)) {
-                        const continueResult = "Continue";
-                        const result = await window.showInformationMessage(
-                            "The selected Azure app will need to be configured for use with this extension. This will create a new secret and certificate credential, add the Container.Selected permission role, and add a new redirect URI on it. Proceeding is not recommended on production applications.", 
-                            continueResult, 
-                            "Cancel"
-                        );
-                        if (result !== continueResult) {
-                            reject(0);
-                            return;
-                        }
-                        state.reconfigureApp = true;
+                    if (!(await confirmAppImport(state.appId!))) {
+                        reject(UxInputStep.Cancel);
+                        return;
                     }
+                    state.reconfigureApp = true;
                 }
-                resolve(1);
+                resolve(UxInputStep.Next);
             });
     
             const debounceDelayMs = 500;
@@ -322,19 +384,52 @@ interface AppQuickPickItem extends QuickPickItem {
     name?: string;
 }
 
+class ConfirmContainerTypeImport extends UxInputStep {
+    
+    public constructor(private readonly containerType: ContainerType) {
+        super();
+    }
+    
+    public async collectInput(state: UxFlowState): Promise<UxInputStepResult> {
+        const continueResult = "OK";
+        const result = await window.showInformationMessage(
+            `There is already a Free Trial Container Type on your tenant.\n\nContainerTypeId: ${this.containerType.containerTypeId}\nContainerTypeName: ${this.containerType.displayName}\nOwning AppId: ${this.containerType.owningAppId}\n\nDo you want to try importing it and its owning app into your workspace?`, 
+            continueResult, 
+            "Cancel"
+        );
+        if (result !== continueResult) {
+            return UxInputStep.Cancel;
+        }
+        return UxInputStep.Next;
+    }
+
+}
+
 export class ContainerTypeDetailsInput extends UxInputStep {
     public async collectInput(state: ContainerTypeCreationFlowState): Promise<UxInputStepResult> {
         return new Promise<UxInputStepResult>(async (resolve, reject) => {
-            const containerTypeName = await window.showInputBox({
-                prompt: 'Free Trial Container Type Name:',
-                value: 'Free Trial Container Type'
+            const qp = window.createQuickPick();
+            qp.title = 'Free Trial Container Type Name:';
+            qp.value = 'SharePoint Embedded Free Trial Container Type';
+            qp.step = state.step;
+            qp.totalSteps = state.totalSteps;
+            qp.placeholder = 'Enter your Free Trial Container Type name';
+            qp.buttons = [...(state.totalSteps && state.totalSteps > 1 ? [QuickInputButtons.Back] : [])];
+            qp.onDidAccept(() => {
+                if (!qp.value) {
+                    return;
+                }
+                state.containerTypeName = qp.value;
+                qp.hide();
+                resolve(UxInputStep.Next);
             });
-            if (containerTypeName === undefined) {
-                reject(0);
-                return;
-            }
-            state.containerTypeName = containerTypeName;
-            resolve(1);
+            qp.onDidHide(() => {
+                qp.dispose();
+                if (!state.containerTypeName) {
+                    resolve(UxInputStep.Cancel);
+                }
+            });
+            qp.show();
         });
     }
 }
