@@ -72,6 +72,7 @@ export default class SPAdminProvider {
                 options
             );
             console.log('Success getting container types on tenant: ', response.data.value);
+            console.log('Response object: ', response);
             return response.data.value;
         } catch (error) {
             console.error('Error getting container type', error);

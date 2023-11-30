@@ -24,6 +24,11 @@ export class AccountTreeViewProvider implements vscode.TreeDataProvider<DynamicN
         }
         return AccountTreeViewProvider.instance;
     }
+
+    public refresh(): void {
+        this._onDidChangeTreeData.fire();
+    }
+    
     public getTreeItem(element: DynamicNode): vscode.TreeItem | Promise<vscode.TreeItem> {
         return element.getTreeItem();
     }

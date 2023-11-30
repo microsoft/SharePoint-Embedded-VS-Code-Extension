@@ -9,7 +9,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { generateCertificateAndPrivateKey } from './cert';
 
-import { TenantDomain, IsContainerTypeCreatingKey } from './utils/constants';
+import { TenantDomain } from './utils/constants';
 import { ext } from './utils/extensionVariables';
 import { ExtensionContext, window } from 'vscode';
 import FirstPartyAuthProvider from './services/1PAuthProvider';
@@ -53,7 +53,9 @@ export async function activate(context: vscode.ExtensionContext) {
 
     const aadLoginCommand = vscode.commands.registerCommand('spe.login', async () => {
         try {
-            Account.login();
+            vscode.commands.executeCommand('setContext', 'spe:isLoggingIn', true);
+            await Account.login(); 
+            vscode.commands.executeCommand('setContext', 'spe:isLoggingIn', false);
         } catch (error) {
             vscode.window.showErrorMessage('Failed to obtain access token.');
             console.error('Error:', error);
@@ -683,7 +685,6 @@ export async function activate(context: vscode.ExtensionContext) {
     })
 
     const getCertPK = vscode.commands.registerCommand('spe.getCertPK', async () => {
-            await StorageProvider.get().local.setValue(IsContainerTypeCreatingKey, false);
             const keys = StorageProvider.get().global.getAllKeys();
             const account = Account.get();
             const dets = StorageProvider.get().global.getValue("account");
@@ -711,9 +712,93 @@ export async function activate(context: vscode.ExtensionContext) {
         callMSGraphCommand,
         exportPostmanConfig,
         callSpeTosCommand
-        // generateCertificateCommand,
-        // getSPToken
     );
+}
+
+async function writePostman(app: App) {
+    const account = Account.get()!;
+    const tid = account.tenantId;
+    const domain = await StorageProvider.get().global.getValue(TenantDomain);
+
+    const values: any[] = [];
+    values.push(
+        {
+            key: "ClientID",
+            value: app.clientId,
+            type: "default",
+            enabled: true
+        },
+        {
+            key: "ClientSecret",
+            value: app.clientSecret,
+            type: "secret",
+            enabled: true
+        },
+        {
+            key: "ConsumingTenantId",
+            value: tid,
+            type: "default",
+            enabled: true
+        },
+        {
+            key: "RootSiteUrl",
+            value: `https://${domain}.sharepoint.com/`,
+            type: "default",
+            enabled: true
+        },
+        {
+            key: "TenantName",
+            value: domain,
+            type: "default",
+            enabled: true
+        },
+
+        {
+            key: "CertThumbprint",
+            value: app.thumbprint,
+            type: "default",
+            enabled: true
+        },
+        {
+            key: "CertPrivateKey",
+            value: app.privateKey,
+            type: "secret",
+            enabled: true
+        }
+    );
+
+    const pmEnv = {
+        id: uuidv4(),
+        name: app.clientId,
+        values: values,
+        _postman_variable_scope: "environment",
+        _postman_exported_at: (new Date()).toISOString(),
+        _postman_exported_using: "Postman/10.13.5"
+    };
+
+    try {
+        const folders = await vscode.window.showOpenDialog({
+            canSelectFiles: false,
+            canSelectFolders: true,
+            canSelectMany: false,
+            openLabel: 'Save Here',
+        });
+
+        if (folders && folders.length > 0) {
+            const destinationPath = folders[0].fsPath;
+            const postmanEnvJson = JSON.stringify(pmEnv, null, 2);
+            const postmanEnvPath = path.join(destinationPath, `${app.clientId}_postman_environment.json`);
+
+            fs.writeFileSync(postmanEnvPath, postmanEnvJson, 'utf8');
+            console.log(`${app.clientId}_postman_environment.json written successfully`);
+            vscode.window.showInformationMessage(`Postman environment created successfully for Application ${app.clientId}`);
+        } else {
+            console.log('No destination folder selected. Saving canceled.');
+        }
+    } catch (error) {
+        vscode.window.showErrorMessage('Failed to download Postman environment');
+        console.error('Error:', error);
+    }
 }
 
 async function showProgress() {
@@ -786,45 +871,4 @@ async function ToSDelay() {
             }, progressSteps.length * 5000);
         });
     });
-}
-
-export function showAccessTokenWebview(accessToken: string) {
-    if (accessTokenPanel) {
-        accessTokenPanel.webview.html = getAccessTokenHtml(accessToken);
-        accessTokenPanel.reveal(vscode.ViewColumn.Beside);
-    } else {
-        accessTokenPanel = vscode.window.createWebviewPanel(
-            'accessToken', // Identifies the type of the webview
-            'Access Token', // Title of the panel displayed to the user
-            vscode.ViewColumn.Beside, // Editor column to show the webview panel in
-            {
-                enableScripts: true // Enable JavaScript in the webview
-            }
-        );
-
-        accessTokenPanel.webview.html = getAccessTokenHtml(accessToken);
-
-        accessTokenPanel.onDidDispose(() => {
-            accessTokenPanel = undefined;
-        });
-    }
-}
-
-function getAccessTokenHtml(accessToken: string): string {
-    return `
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <style>
-            body {
-                font-family: Arial, sans-serif;
-                padding: 20px;
-            }
-        </style>
-    </head>
-    <body>
-        <h1>Access Token</h1>
-        <p>${accessToken}</p>
-    </body> 
-`;
-}
+};
