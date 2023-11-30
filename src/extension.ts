@@ -336,7 +336,7 @@ export async function activate(context: vscode.ExtensionContext) {
         const containerType = containerTypeViewModel.containerType;
 
         try {
-            const containerTypeDetails = await account.getContainerTypeById(containerType.owningApp!.clientId, containerType.containerTypeId);
+            const containerTypeDetails = await account.getContainerTypeDetailsById(containerType.owningApp!.clientId, containerType.containerTypeId);
             const result = await account.deleteContainerTypeById(containerType.owningApp!.clientId, containerType.containerTypeId);
             vscode.window.showInformationMessage(`Container Type ${containerType.displayName} successfully deleted`);
             developmentTreeViewProvider.refresh();

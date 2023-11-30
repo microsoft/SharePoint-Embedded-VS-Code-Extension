@@ -29,6 +29,15 @@ export default class SPAdminProvider {
                 options
             );
             console.log('Success creating container type', response.data);
+            /*
+            // Try fetching the new Container Type from the service because the creation response does
+            // not include the CreationDate and ExpiryDate properties (server bug).
+            try {
+                return await SPAdminProvider.getContainerTypeById(accessToken, tenantName, response.data.ContainerTypeId);
+            } catch (error) {
+                console.error('Error getting new container type', error);
+            }
+            */
             return response.data;
         } catch (error: any) {
             if (error.response && error.response.status === 500) {

@@ -30,7 +30,8 @@ export class ContainerTypeTreeItem extends vscode.TreeItem {
         } else {
             vscode.commands.executeCommand('setContext', 'spe:showRegisterContainerType', false);
         }
-
+        console.log(`ExpiryDate: ${containerType.expiryDate}`);
+        console.log(`CreationDate: ${containerType.creationDate}`);
         this.setImagetoIcon();
         this.contextValue = "containerType";
     }

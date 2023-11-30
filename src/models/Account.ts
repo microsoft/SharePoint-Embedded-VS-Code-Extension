@@ -247,21 +247,37 @@ export class Account {
         }
     }
 
-    public async importContainerType(containerType: ContainerType, owningApp: App) {
-        containerType.owningApp = owningApp;
+    public async importContainerType(containerType: ContainerType, owningApp: App): Promise<ContainerType | undefined> {
+        // Re-fetch the Container Type from the service to get the CreationDate and ExpiryDate properties
+        // TODO: Remove this line when the server bug is fixed
+        const ctDetails = await this.getContainerTypeDetailsById(owningApp.clientId, containerType.containerTypeId)!;
+        if (!ctDetails) {
+            throw new Error(`Unable to get Container Type ${containerType.containerTypeId} from service.`);
+        }
+        const ct = new ContainerType(
+            ctDetails.ContainerTypeId,
+            ctDetails.OwningAppId,
+            ctDetails.DisplayName,
+            ctDetails.SPContainerTypeBillingClassification,
+            ctDetails.OwningTenantId,
+            owningApp,
+            ctDetails.AzureSubscriptionId,
+            ctDetails.CreationDate,
+            ctDetails.ExpiryDate,
+            ctDetails.IsBillingProfileRequired);
 
         // Store new Container Type
-        await containerType.saveToStorage();
+        await ct.saveToStorage();
 
         // Update Account with ContainerTypeId
-        this.containerTypeIds.push(containerType.containerTypeId);
-        this.containerTypes.push(containerType);
+        this.containerTypeIds.push(ct.containerTypeId);
+        this.containerTypes.push(ct);
         await this.saveToStorage();
 
-        return containerType;
+        return ct;
     }
 
-    public async getContainerTypeById(appId: string, containerTypeId: string): Promise<ContainerType | undefined> {
+    public async getContainerTypeDetailsById(appId: string, containerTypeId: string): Promise<any> {
         const appSecretsString = await StorageProvider.get().secrets.get(appId);
         if (!appSecretsString) {
             return undefined;
@@ -269,12 +285,6 @@ export class Account {
         const appSecrets = JSON.parse(appSecretsString);
         const thirdPartyAuthProvider = new ThirdPartyAuthProvider(appId, appSecrets.thumbprint, appSecrets.privateKey);
         const tid: any = StorageProvider.get().global.getValue(TenantIdKey);
-
-        //const consentToken = await thirdPartyAuthProvider.getToken(['00000003-0000-0ff1-ce00-000000000000/.default']);
-        // const graphAccessToken = await thirdPartyAuthProvider.getToken(["00000003-0000-0000-c000-000000000000/.default"]);
-        // const tenantDomain = await GraphProvider.getOwningTenantDomain(graphAccessToken);
-        // const parts = tenantDomain.split('.');
-        // const domain = parts[0];
 
         const domain: string = await StorageProvider.get().global.getValue(TenantDomain);
         let spToken = await thirdPartyAuthProvider.getToken([`https://${domain}-admin.sharepoint.com/AllSites.Write`]);

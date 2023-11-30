@@ -194,14 +194,14 @@ export class ContainerType {
                 containerTypeProps.expiryDate,
                 containerTypeProps.isBillingProfileRequired,
                 containerTypeProps.registrationIds,
-                containerTypeProps.guestAppIds)
-            containerType = await containerType.loadFromStorageInstance(containerType);
+                containerTypeProps.guestAppIds);
+            containerType = await containerType._loadFromStorage(containerType);
             return containerType;
         }
         return undefined;
     }
 
-    public async loadFromStorageInstance(containerType: ContainerType): Promise<ContainerType> {
+    private async _loadFromStorage(containerType: ContainerType): Promise<ContainerType> {
         // hydrate owning App
         const appProps = await App.loadFromStorage(containerType.owningAppId);
         if (appProps)
