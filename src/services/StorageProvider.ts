@@ -11,6 +11,7 @@ export class StorageProvider {
     public readonly global: LocalStorageService;
     public readonly local: LocalStorageService;
     public readonly secrets: SecretStorage;
+    public readonly temp: Map<string, any> = new Map<string, any>();
 
     public constructor(global: LocalStorageService, local: LocalStorageService, secrets: SecretStorage) {
         this.global = global;

@@ -71,7 +71,7 @@
       {
         "view": "spe-welcome",
         "contents": "Sign into your Microsoft 365 tenant with an adminstrator account to get started.\n[Sign into Microsoft 365](command:spe.login) \n\n\n If you don't have adminstrator access to a Microsoft 365 tenant, [get your own tenant with the Microsoft 365 Developer Program](https://developer.microsoft.com/en-us/microsoft-365/dev-program).",
-        "when": "!spe:isAdminLoggedIn"
+        "when": "!spe:isAdminLoggedIn && !spe:isLoggingIn"
       },
       {
         "view": "spe-development",
@@ -84,12 +84,12 @@
         {
           "id": "spe-welcome",
           "name": "",
-          "when": "!spe:isAdminLoggedIn"
+          "when": "!spe:isAdminLoggedIn && !spe:isLoggingIn"
         },
         {
           "id": "spe-accounts",
           "name": "Account",
-          "when": "spe:isAdminLoggedIn"
+          "when": "spe:isAdminLoggedIn || spe:isLoggingIn"
         },
         {
           "id": "spe-development",
@@ -275,6 +275,7 @@
     "@pnp/sp": "^3.17.0",
     "@pnp/sp-admin": "^3.17.0",
     "axios": "^1.4.0",
+    "date-fns": "^2.30.0",
     "jsrsasign": "^10.8.6",
     "jsrsasign-util": "^1.0.5",
     "jwt-decode": "^3.1.2",

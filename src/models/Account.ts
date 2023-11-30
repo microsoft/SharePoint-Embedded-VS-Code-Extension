@@ -15,9 +15,8 @@ import { generateCertificateAndPrivateKey, createCertKeyCredential } from '../ce
 import GraphProvider from '../services/GraphProvider';
 import ThirdPartyAuthProvider from '../services/3PAuthProvider';
 import SPAdminProvider from '../services/SPAdminProvider';
-import { TenantIdKey, OwningAppIdKey, TenantDomain } from '../utils/constants';
+import { TenantIdKey, OwningAppIdKey, TenantDomain, IsContainerTypeCreatingKey } from '../utils/constants';
 import { timeoutForSeconds } from '../utils/timeout';
-
 
 type StoredAccount = {
     appIds: string[],
@@ -39,7 +38,7 @@ export class Account {
     private static readonly authProvider: BaseAuthProvider = new FirstPartyAuthProvider(Account.firstPartyAppId, Account.storageKey);
     private static readonly scopes: string[] = ['Application.ReadWrite.All', 'User.Read'];
     private static instance: Account | undefined;
-    private static subscribers: AccountChangeListener[] = [];
+    private static subscribers: LoginChangeListener[] = [];
     private static readonly storage: StorageProvider;
 
     public readonly homeAccountId: string;
@@ -123,11 +122,11 @@ export class Account {
         Account.notifyLogout();
     }
 
-    public static subscribe(listener: AccountChangeListener): void {
+    public static subscribeLoginListener(listener: LoginChangeListener): void {
         Account.subscribers.push(listener);
     }
 
-    public static unsubscribe(listener: AccountChangeListener): void {
+    public static unsubscribeLoginListener(listener: LoginChangeListener): void {
         const index = Account.subscribers.indexOf(listener);
         if (index > -1) {
             Account.subscribers.splice(index, 1);
@@ -144,6 +143,18 @@ export class Account {
         Account.subscribers.forEach((listener) => {
             listener.onLogout();
         });
+    }
+
+    public static  onContainerTypeCreationStart(): void {
+        StorageProvider.get().temp.set(IsContainerTypeCreatingKey, true);
+    }
+
+    public static  onContainerTypeCreationFinish(): void {
+         StorageProvider.get().temp.set(IsContainerTypeCreatingKey, false);
+    }
+
+    public static getContainerTypeCreationState(): any {
+        return StorageProvider.get().temp.get(IsContainerTypeCreatingKey);
     }
 
     public static async getFirstPartyAccessToken() {
@@ -524,7 +535,7 @@ export class Account {
     }
 }
 
-export abstract class AccountChangeListener {
+export abstract class LoginChangeListener {
     public abstract onLogin(account: Account): void;
     public abstract onLogout(): void;
 }
