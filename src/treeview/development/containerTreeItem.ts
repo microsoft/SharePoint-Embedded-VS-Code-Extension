@@ -9,29 +9,16 @@ export class ContainerTreeItem extends vscode.TreeItem {
     constructor(
         public readonly label: string,
         public readonly tooltip: string,
-        public readonly collapsibleState: vscode.TreeItemCollapsibleState,
-        public image?: { name: string; custom: boolean }
+        public readonly collapsibleState: vscode.TreeItemCollapsibleState
 
     ) {
         super(label, collapsibleState);
         this.tooltip = tooltip;
-        this.setImagetoIcon();
+        this.iconPath = new vscode.ThemeIcon("container-icon");
         this.contextValue = "container";
     }
 
     public async getChildren() {
         return [this];
     }
-
-    private setImagetoIcon() {
-        if (this.image !== undefined) {
-            if (!this.image.custom) {
-                this.iconPath = new vscode.ThemeIcon(
-                    this.image.name,
-                    new vscode.ThemeColor("icon.foreground")
-                );
-            }
-        }
-    }
-
 }

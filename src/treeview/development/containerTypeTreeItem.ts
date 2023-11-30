@@ -15,7 +15,6 @@ export class ContainerTypeTreeItem extends vscode.TreeItem {
         public readonly label: string,
         public readonly tooltip: string,
         public readonly collapsibleState: vscode.TreeItemCollapsibleState,
-        public image?: { name: string; custom: boolean }
 
     ) {
         super(label, collapsibleState);
@@ -32,27 +31,15 @@ export class ContainerTypeTreeItem extends vscode.TreeItem {
         }
         console.log(`ExpiryDate: ${containerType.expiryDate}`);
         console.log(`CreationDate: ${containerType.creationDate}`);
-        this.setImagetoIcon();
+        this.iconPath = new vscode.ThemeIcon("containertype-icon")
         this.contextValue = "containerType";
     }
 
     public async getChildren() {
-        const owningApplicationTreeItem = new OwningApplicationTreeItem(this.containerType.owningApp!, this.containerType, `${this.containerType.owningApp!.displayName}`, vscode.TreeItemCollapsibleState.None, { name: "extensions-star-full", custom: false });
+        const owningApplicationTreeItem = new OwningApplicationTreeItem(this.containerType.owningApp!, this.containerType, `${this.containerType.owningApp!.displayName}`, vscode.TreeItemCollapsibleState.None);
         const guestAppsTreeItem = new GuestApplicationsTreeItem(this.containerType, 'Guest Apps', vscode.TreeItemCollapsibleState.Collapsed);
         const containersTreeItem = new ContainersTreeItem(this.containerType, 'Containers', vscode.TreeItemCollapsibleState.Collapsed);
 
         return [owningApplicationTreeItem, guestAppsTreeItem, containersTreeItem];
     }
-
-    private setImagetoIcon() {
-        if (this.image !== undefined) {
-            if (!this.image.custom) {
-                this.iconPath = new vscode.ThemeIcon(
-                    this.image.name,
-                    new vscode.ThemeColor("icon.foreground")
-                );
-            }
-        }
-    }
-
 }

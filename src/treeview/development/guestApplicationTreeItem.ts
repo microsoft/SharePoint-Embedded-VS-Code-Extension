@@ -13,28 +13,14 @@ export class GuestApplicationTreeItem extends vscode.TreeItem {
         public app: App,
         public containerType: ContainerType,
         public readonly label: string,
-        public readonly collapsibleState: vscode.TreeItemCollapsibleState,
-        public image?: { name: string; custom: boolean }
-
+        public readonly collapsibleState: vscode.TreeItemCollapsibleState
     ) {
         super(label, collapsibleState)
-        this.setImagetoIcon();
+        this.iconPath = new vscode.ThemeIcon("app-icon");
         this.contextValue = "guestApplication";
     }
 
     public async getChildren() {
         [this]
     }
-
-    private setImagetoIcon() {
-        if (this.image !== undefined) {
-            if (!this.image.custom) {
-                this.iconPath = new vscode.ThemeIcon(
-                    this.image.name,
-                    new vscode.ThemeColor("icon.foreground")
-                );
-            }
-        }
-    }
-
 }

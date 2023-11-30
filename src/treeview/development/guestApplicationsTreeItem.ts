@@ -13,13 +13,11 @@ export class GuestApplicationsTreeItem extends vscode.TreeItem {
     constructor(
         public containerType: ContainerType,
         public readonly label: string,
-        public collapsibleState: vscode.TreeItemCollapsibleState,
-        public image?: { name: string; custom: boolean }
+        public collapsibleState: vscode.TreeItemCollapsibleState
 
     ) {
         super(label, collapsibleState);
         this.contextValue = "guestApplications";
-        this.setImagetoIcon();
         this.appsItem = [];
     }
 
@@ -31,21 +29,9 @@ export class GuestApplicationsTreeItem extends vscode.TreeItem {
     private getApps() {
         const appItems = this.containerType.guestApps.map(
             (app) => {
-                return new GuestApplicationTreeItem(app, this.containerType, app.displayName, vscode.TreeItemCollapsibleState.None, { name: "console", custom: false })
+                return new GuestApplicationTreeItem(app, this.containerType, app.displayName, vscode.TreeItemCollapsibleState.None)
             }
         )
         return appItems;
     }
-
-    private setImagetoIcon() {
-        if (this.image !== undefined) {
-            if (!this.image.custom) {
-                this.iconPath = new vscode.ThemeIcon(
-                    this.image.name,
-                    new vscode.ThemeColor("icon.foreground")
-                );
-            }
-        }
-    }
-
 }

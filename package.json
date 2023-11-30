@@ -18,42 +18,42 @@
       "spe-m365": {
         "description": "Microsoft 365 icon in command tree view",
         "default": {
-          "fontPath": "./media/spe.woff",
+          "fontPath": "./media/fabric-icons.woff",
           "fontCharacter": "\\ED72"
         }
       },
       "spe-logo": {
         "description": "Activity Bar logo",
         "default": {
-          "fontPath": "./media/spe.woff",
+          "fontPath": "./media/fabric-icons.woff",
           "fontCharacter": "\\ED18"
         }
       },
       "containertype-icon": {
         "description": "Container Type icon",
         "default": {
-          "fontPath": "./media/spe.woff",
+          "fontPath": "./media/fabric-icons.woff",
           "fontCharacter": "\\F1AA"
         }
       },
       "app-icon": {
         "description": "App icon",
         "default": {
-          "fontPath": "./media/spe.woff",
+          "fontPath": "./media/fabric-icons.woff",
           "fontCharacter": "\\ECAA"
         }
       },
       "owningapp-icon": {
         "description": "Owning App icon",
         "default": {
-          "fontPath": "./media/spe.woff",
+          "fontPath": "./media/fabric-icons.woff",
           "fontCharacter": "\\E657"
         }
       },
       "container-icon": {
         "description": "Container icon",
         "default": {
-          "fontPath": "./media/spe.woff",
+          "fontPath": "./media/fabric-icons.woff",
           "fontCharacter": "\\EED6"
         }
       }

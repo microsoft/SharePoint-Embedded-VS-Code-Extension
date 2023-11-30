@@ -19,12 +19,10 @@ export class ContainersTreeItem extends vscode.TreeItem {
     constructor(
         public containerType: ContainerType,
         public readonly label: string,
-        public collapsibleState: vscode.TreeItemCollapsibleState,
-        public image?: { name: string; custom: boolean }
+        public collapsibleState: vscode.TreeItemCollapsibleState
 
     ) {
         super(label, collapsibleState)
-        this.setImagetoIcon();
         this.containerItems = [];
         this.contextValue = "containers";
     }
@@ -32,19 +30,8 @@ export class ContainersTreeItem extends vscode.TreeItem {
     public async getChildren() {
         const containers: Container[] = await this.containerType.getContainers();
         this.containerItems = containers.map((container: Container) => {
-            return new ContainerTreeItem(container.displayName, container.description, vscode.TreeItemCollapsibleState.None,  {name: "symbol-field", custom: false });
+            return new ContainerTreeItem(container.displayName, container.description, vscode.TreeItemCollapsibleState.None);
         })
         return this.containerItems;
     }
-    private setImagetoIcon() {
-        if (this.image !== undefined) {
-            if (!this.image.custom) {
-                this.iconPath = new vscode.ThemeIcon(
-                    this.image.name,
-                    new vscode.ThemeColor("icon.foreground")
-                );
-            }
-        }
-    }
-
 }
