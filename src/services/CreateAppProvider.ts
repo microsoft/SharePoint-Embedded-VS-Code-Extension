@@ -58,7 +58,7 @@ export class CreateAppProvider {
                 thumbprint: thumbprint,
                 privateKey: privateKey,
                 certificatePEM: certificatePEM
-            }
+            };
             const serializedSecrets = JSON.stringify(secrets);
             await ext.context.secrets.store(applicationProps.appId, serializedSecrets);
 
@@ -74,9 +74,9 @@ export class CreateAppProvider {
     async createContainerType(appId: string, containerTypeName: string): Promise<boolean> {
         try {
             const thirdPartyAppId: any = appId;
-            if (typeof this.thirdPartyAuthProvider == "undefined" || this.thirdPartyAuthProvider == null) {
+            if (typeof this.thirdPartyAuthProvider === "undefined" || this.thirdPartyAuthProvider === null) {
                 const serializedSecrets = await this.getSecretsByAppId(thirdPartyAppId);
-                this.thirdPartyAuthProvider = new ThirdPartyAuthProvider(thirdPartyAppId, serializedSecrets.thumbprint, serializedSecrets.privateKey)
+                this.thirdPartyAuthProvider = new ThirdPartyAuthProvider(thirdPartyAppId, serializedSecrets.thumbprint, serializedSecrets.privateKey);
             }
 
             const consentToken = await this.thirdPartyAuthProvider.getToken(['00000003-0000-0ff1-ce00-000000000000/.default']);
@@ -100,7 +100,7 @@ export class CreateAppProvider {
             if (Object.keys(containerTypeDict).length !== 0) { 
                 // Currently, we support only 1 trial ContainerType per tenant, so we extract the first item in the permissions dictionary
                 const owningAppId: string = this.globalStorageManager.getValue(OwningAppIdKey);
-                const containerTypeId = containerTypeDict[owningAppId].ContainerTypeId
+                const containerTypeId = containerTypeDict[owningAppId].ContainerTypeId;
                 appPermissionsDict[containerTypeId].push({
                     appId: thirdPartyAppId,
                     delegated: ["full"],
@@ -122,7 +122,7 @@ export class CreateAppProvider {
                 this.globalStorageManager.setValue(AppPermissionsListKey, appPermissionsDict);
                 this.globalStorageManager.setValue(OwningAppIdKey, thirdPartyAppId);
                 vscode.window.showInformationMessage(`ContainerType ${containerTypeDetails.ContainerTypeId} created successfully`);
-                return true
+                return true;
             }
         } catch (error: any) {
             console.error('Error:', error);
@@ -140,7 +140,7 @@ export class CreateAppProvider {
             }
             const tid: any = this.globalStorageManager.getValue(TenantIdKey);
             const secrets = await this.getSecretsByAppId(guestAppId);
-            const thirdPartyAuthProvider = new ThirdPartyAuthProvider(guestAppId, secrets.thumbprint, secrets.privateKey)
+            const thirdPartyAuthProvider = new ThirdPartyAuthProvider(guestAppId, secrets.thumbprint, secrets.privateKey);
 
             const accessToken = await thirdPartyAuthProvider.getToken(["00000003-0000-0000-c000-000000000000/.default"]);
 
@@ -149,7 +149,7 @@ export class CreateAppProvider {
             const domain = parts[0];
 
             const certThumbprint = await GraphProvider.getCertThumbprintFromApplication(accessToken, guestAppId);
-            const vroomAccessToken = secrets.privateKey && await acquireAppOnlyCertSPOToken(certThumbprint, owningAppId, domain, secrets.privateKey, tid)
+            const vroomAccessToken = secrets.privateKey && await acquireAppOnlyCertSPOToken(certThumbprint, owningAppId, domain, secrets.privateKey, tid);
             const containerTypeDict: { [key: string]: any } = this.globalStorageManager.getValue(ContainerTypeListKey);
             const appPermissionsDict: { [key: string]: any} = this.globalStorageManager.getValue(AppPermissionsListKey);
             const containerTypeId = containerTypeDict[owningAppId].ContainerTypeId;

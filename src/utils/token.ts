@@ -22,9 +22,10 @@ export function checkJwtForAdminClaim(decodedToken: any): boolean {
 
 export function checkJwtForTenantAdminScope(decodedToken: any, scope: string): boolean {
   try {
-    if (!decodedToken.scp)
+    if (!decodedToken.scp) {
       return false;
-    const scopes = decodedToken.scp as string
+    }
+    const scopes = decodedToken.scp as string;
     if (scopes.includes(scope)) {
       return true;
     } else {
@@ -38,9 +39,10 @@ export function checkJwtForTenantAdminScope(decodedToken: any, scope: string): b
 
 export function checkJwtForAppOnlyRole(decodedToken: any, role: string): boolean {
   try {
-    if (!decodedToken.roles)
+    if (!decodedToken.roles) {
       return false;
-    const roles = decodedToken.roles as string[]
+    }
+    const roles = decodedToken.roles as string[];
     if (roles.includes(role)) {
       return true;
     } else {

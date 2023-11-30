@@ -81,10 +81,10 @@ export abstract class BaseAuthProvider {
 
         if (currentAccounts.length > 1) {
             console.log("Multiple accounts detected");
-            this.account = currentAccounts[0]
+            this.account = currentAccounts[0];
             return currentAccounts[0];
         } else if (currentAccounts.length === 1) {
-            this.account = currentAccounts[0]
+            this.account = currentAccounts[0];
             return currentAccounts[0];
         } else {
             return null;
@@ -98,7 +98,7 @@ export abstract class BaseAuthProvider {
             const account = accounts[0];
             await cache.removeAccount(account);
             this.account = undefined;
-            return true
+            return true;
         } catch (e) {
             console.error('Error logging out', e);
             return false;
@@ -127,6 +127,7 @@ export abstract class BaseAuthProvider {
                 const authCode = queryParams.code;
 
                 if (authCode) {
+                    // eslint-disable-next-line @typescript-eslint/naming-convention
                     res.writeHead(200, { 'Content-Type': 'text/html' });
                     res.end(htmlString);
 
@@ -137,6 +138,7 @@ export abstract class BaseAuthProvider {
                     });
                 } 
                 else {
+                    // eslint-disable-next-line @typescript-eslint/naming-convention
                     res.writeHead(400, { 'Content-Type': 'text/html' });
                     res.end('Authentication failed.');
                     server.close(() => {
@@ -145,46 +147,12 @@ export abstract class BaseAuthProvider {
                 }
             });
 
-            //const serverPort = 12345; // Adjust the port as needed
             server.listen(0, async () => {
                 const port = (<any>server.address()).port;
                 console.log(`Listening on port ${port}`);
                 authRequest.redirectUri = `http://localhost:${port}/redirect`;
                 const authCodeUrl = await this.clientApplication.getAuthCodeUrl(authRequest);
                 vscode.env.openExternal(vscode.Uri.parse(authCodeUrl));
-            });
-        });
-    }
-
-    async applyAdminGrant(url: string): Promise<string> {
-        return new Promise<string>((resolve, reject) => {
-            const server = http.createServer(async (req, res) => {
-                //const queryParams = url.parse(req.url || '', true).query as { code?: string };
-                //const authCode = queryParams.code;
-
-                console.log(req.url);
-                console.log(res);
-
-                // if (authCode) {
-                //     res.writeHead(200, { 'Content-Type': 'text/html' });
-                //     res.end('Authentication successful! You can close this window.');
-                //     resolve(authCode);
-
-                //     server.close(() => {
-                //         resolve(authCode);
-                //     });
-                // } else {
-                //     res.writeHead(400, { 'Content-Type': 'text/html' });
-                //     res.end('Authentication failed.');
-                //     server.close(() => {
-                //         reject(new Error('No authorization code received.'));
-                //     });
-                // }
-            });
-
-            const serverPort = 12345; // Adjust the port as needed
-            server.listen(serverPort, () => {
-                vscode.env.openExternal(vscode.Uri.parse(url));
             });
         });
     }

@@ -34,33 +34,15 @@ export class AccountTreeViewProvider implements vscode.TreeDataProvider<DynamicN
     }
     public getChildren(element?: any): Thenable<DynamicNode[]> {
         if (!element) {
-            const nodes = this.getAccountNodes();
+            const nodes = this._getAccountNodes();
             return Promise.resolve(nodes);
         }
         return element.getChildren();
     }
 
-    private getAccountNodes(): DynamicNode[] {
+    private _getAccountNodes(): DynamicNode[] {
         return [this.m365AccountNode];
     }
 }
-
-// export async function m365AccountStatusChangeHandler(
-//     status: string,
-//     accountInfo?: AccountInfo | null
-// ) {
-//     const instance = AccountTreeViewProvider.getInstance();
-//     if (status === "SignedIn") {
-//         if (accountInfo) {
-//             instance.m365AccountNode.setSignedIn(
-//                 (accountInfo.username as string) ? (accountInfo.username as string) : ""
-//             );
-//         }
-//     } else if (status === "SignedOut") {
-//         instance.m365AccountNode.setSignedOut();
-//     }
-//     return Promise.resolve();
-// }
-
 
 export default AccountTreeViewProvider.getInstance();

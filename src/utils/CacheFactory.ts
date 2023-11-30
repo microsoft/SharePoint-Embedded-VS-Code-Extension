@@ -10,7 +10,7 @@ export class CachePluginFactory implements ICachePlugin {
     private namespace: string; 
 
     constructor(namespace: string) {
-        this.namespace = namespace
+        this.namespace = namespace;
     }
 
     public async beforeCacheAccess(cacheContext: TokenCacheContext): Promise<void> {

@@ -15,12 +15,12 @@ export class GuestApplicationTreeItem extends vscode.TreeItem {
         public readonly label: string,
         public readonly collapsibleState: vscode.TreeItemCollapsibleState
     ) {
-        super(label, collapsibleState)
+        super(label, collapsibleState);
         this.iconPath = new vscode.ThemeIcon("app-icon");
         this.contextValue = "guestApplication";
     }
 
     public async getChildren() {
-        [this]
+        [this];
     }
 }

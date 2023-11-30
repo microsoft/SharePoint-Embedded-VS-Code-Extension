@@ -119,6 +119,7 @@ export default class GraphProvider {
         const options = {
             headers: {
                 Authorization: `Bearer ${accessToken}`,
+                // eslint-disable-next-line @typescript-eslint/naming-convention
                 'Content-Type': 'application/json'
             }
         };
@@ -128,7 +129,7 @@ export default class GraphProvider {
                 "62e90394-69f5-4237-9190-012177145e10",
                 "f28a1f50-f6e7-4571-818b-6a12f2af6b6c"
             ]
-        }
+        };
 
         try {
             const response: AxiosResponse = await axios.post(`https://graph.microsoft.com/v1.0/me/checkMemberObjects`,
@@ -175,7 +176,7 @@ export default class GraphProvider {
         }
     };
 
-    private static getCreateAppSettings(applicationName: string, certKeyCredential: any) {
+    private static _getCreateAppSettings(applicationName: string, certKeyCredential: any) {
         const applicationData = {
             ...this.baseAppSettings,
             displayName: applicationName,
@@ -185,7 +186,7 @@ export default class GraphProvider {
         return applicationData;
     }
 
-    private static async getUpdateAppSettings(accessToken: string, appId: string, certKeyCredential: any) {
+    private static async _getUpdateAppSettings(accessToken: string, appId: string, certKeyCredential: any) {
         const existing = await GraphProvider.getApplicationById(accessToken, appId);
         let merged = { 
             ...GraphProvider.baseAppSettings,
@@ -227,7 +228,7 @@ export default class GraphProvider {
             }
         };
 
-        const applicationData = GraphProvider.getCreateAppSettings(applicationName, certKeyCredential);
+        const applicationData = GraphProvider._getCreateAppSettings(applicationName, certKeyCredential);
         try {
             const response: AxiosResponse = await axios.post("https://graph.microsoft.com/v1.0/applications",
                 JSON.stringify(applicationData),
@@ -243,7 +244,7 @@ export default class GraphProvider {
 
     public static async configureAadApplication(appId: string, accessToken: string, certKeyCredential: any) {
         try {
-            const applicationData = await GraphProvider.getUpdateAppSettings(accessToken, appId, certKeyCredential);
+            const applicationData = await GraphProvider._getUpdateAppSettings(accessToken, appId, certKeyCredential);
             console.log(JSON.stringify(applicationData));
             const response = await axios({
                 method: 'patch',
@@ -356,6 +357,7 @@ export default class GraphProvider {
         const options = {
             headers: {
                 Authorization: `Bearer ${accessToken}`,
+                // eslint-disable-next-line @typescript-eslint/naming-convention
                 'Content-Type': 'application/json'
             }
         };
@@ -368,10 +370,8 @@ export default class GraphProvider {
         const applicationData = {
             "passwordCredential": {
                 displayName: 'VS Code Extension Secret',
-                // startDateTime: currentDate, 
-                // endDateTime: newEndDateTime
             }
-        }
+        };
 
         try {
             const response: AxiosResponse = await axios.post(`https://graph.microsoft.com/v1.0/applications(appId='${clientId}')/addPassword`,
@@ -438,10 +438,11 @@ export default class GraphProvider {
             "displayName": displayName,
             "description": description,
             "containerTypeId": containerTypeId
-        }
+        };
         const options = {
             headers: {
                 Authorization: `Bearer ${accessToken}`,
+                // eslint-disable-next-line @typescript-eslint/naming-convention
                 'Content-Type': 'application/json'
             }
         };
@@ -460,6 +461,7 @@ export default class GraphProvider {
         const options = {
             headers: {
                 Authorization: `Bearer ${accessToken}`,
+                // eslint-disable-next-line @typescript-eslint/naming-convention
                 'Content-Type': 'application/json'
             }
         };

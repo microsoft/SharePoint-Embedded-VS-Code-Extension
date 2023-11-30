@@ -22,16 +22,16 @@ export class GuestApplicationsTreeItem extends vscode.TreeItem {
     }
 
     public async getChildren() {
-        this.appsItem = this.getApps();
+        this.appsItem = this._getApps();
         return this.appsItem;
     }
 
-    private getApps() {
+    private _getApps() {
         const appItems = this.containerType.guestApps.map(
             (app) => {
-                return new GuestApplicationTreeItem(app, this.containerType, app.displayName, vscode.TreeItemCollapsibleState.None)
+                return new GuestApplicationTreeItem(app, this.containerType, app.displayName, vscode.TreeItemCollapsibleState.None);
             }
-        )
+        );
         return appItems;
     }
 }

@@ -61,17 +61,17 @@ export default class ThirdPartyAuthProvider extends BaseAuthProvider {
             }
         });
         this.account = null;
-        this.authCodeUrlParams = { scopes: [], redirectUri: 'http://localhost:12345/redirect' }
+        this.authCodeUrlParams = { scopes: [], redirectUri: 'http://localhost:12345/redirect' };
     }
 
     async getAppToken(scope: string = "https://graph.microsoft.com/.default"): Promise<string> {
         const config = {
             scopes: [scope],
             skipCache: true
-        }
+        };
         let accessToken;
         try {
-            accessToken = await this.clientApplication.acquireTokenByClientCredential(config)
+            accessToken = await this.clientApplication.acquireTokenByClientCredential(config);
         } catch (error: any) {
             return error.message;
         }

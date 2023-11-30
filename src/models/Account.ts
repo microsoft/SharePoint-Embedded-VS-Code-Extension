@@ -21,12 +21,12 @@ import { timeoutForSeconds } from '../utils/timeout';
 type StoredAccount = {
     appIds: string[],
     containerTypeIds: string[]
-}
+};
 
 type AccountData = {
     apps: App[]
     containerTypes: ContainerType[]
-}
+};
 
 
 // Account class that represents an msal AccountInfo object from the FirstPartyAuthProvider
@@ -77,11 +77,11 @@ export class Account {
     }
 
     public static async hasSavedAccount(): Promise<boolean> {
-        const accountInfo = await Account.getSavedAccount();
+        const accountInfo = await Account._getSavedAccount();
         return accountInfo !== undefined && accountInfo !== null;
     }
 
-    private static async getSavedAccount(): Promise<AccountInfo | null> {
+    private static async _getSavedAccount(): Promise<AccountInfo | null> {
         return await Account.authProvider.getAccount();
     }
 
@@ -94,11 +94,11 @@ export class Account {
     public static async login(): Promise<Account | undefined> {
         const token = await Account.authProvider.getToken(Account.scopes);
         if (token) {
-            const accountInfo = await Account.getSavedAccount();
+            const accountInfo = await Account._getSavedAccount();
             if (accountInfo) {
                 const decodedToken = decodeJwt(token);
                 const isAdmin = checkJwtForAdminClaim(decodedToken);
-                const tid = getJwtTenantId(decodedToken)
+                const tid = getJwtTenantId(decodedToken);
                 Account.instance = new Account(accountInfo.homeAccountId,
                     accountInfo.environment,
                     accountInfo.tenantId,
@@ -107,7 +107,7 @@ export class Account {
                     isAdmin,
                     accountInfo.name
                 );
-                Account.notifyLogin();
+                Account._notifyLogin();
                 return Account.get();
             }
 
@@ -119,7 +119,7 @@ export class Account {
         await Account.authProvider.logout();
         await this.deleteFromStorage();
         Account.instance = undefined;
-        Account.notifyLogout();
+        Account._notifyLogout();
     }
 
     public static subscribeLoginListener(listener: LoginChangeListener): void {
@@ -133,13 +133,13 @@ export class Account {
         }
     }
 
-    private static notifyLogin(): void {
+    private static _notifyLogin(): void {
         Account.subscribers.forEach((listener) => {
             listener.onLogin(Account.get()!);
         });
     }
 
-    private static notifyLogout(): void {
+    private static _notifyLogout(): void {
         Account.subscribers.forEach((listener) => {
             listener.onLogout();
         });
@@ -164,12 +164,12 @@ export class Account {
     public async createApp(appName: string, isOwningApp: boolean): Promise<App | undefined> {
         const token = await Account.authProvider.getToken(Account.scopes);
         if (token) {
-            const app = await Account.createApp(appName, token, isOwningApp);
+            const app = await Account._createApp(appName, token, isOwningApp);
             if (app) {
                 // Save updated app IDs to storage
                 this.appIds.push(app.clientId);
                 this.apps.push(app);
-                await this.saveToStorage()
+                await this.saveToStorage();
                 return app;
             }
         }
@@ -206,7 +206,7 @@ export class Account {
             return undefined;
         }
         const appSecrets = JSON.parse(appSecretsString);
-        const thirdPartyAuthProvider = new ThirdPartyAuthProvider(appId, appSecrets.thumbprint, appSecrets.privateKey)
+        const thirdPartyAuthProvider = new ThirdPartyAuthProvider(appId, appSecrets.thumbprint, appSecrets.privateKey);
         const domain = await StorageProvider.get().global.getValue(TenantDomain);
 
         let spToken = await thirdPartyAuthProvider.getToken([`https://${domain}-admin.sharepoint.com/AllSites.Write`]);
@@ -223,7 +223,7 @@ export class Account {
         }
 
         if (!checkJwtForTenantAdminScope(decodedToken, "AllSites.Write")) {
-            throw new Error("'AllSites' scope not found on token fetch for NewContainerType.")
+            throw new Error("'AllSites' scope not found on token fetch for NewContainerType.");
         }
 
         try {
@@ -312,7 +312,7 @@ export class Account {
         }
 
         if (!checkJwtForTenantAdminScope(decodedToken, "AllSites.Write")) {
-            throw new Error("'AllSites' scope not found on token fetch for NewContainerType.")
+            throw new Error("'AllSites' scope not found on token fetch for NewContainerType.");
         }
         const containerTypeDetails = await SPAdminProvider.getContainerTypeById(spToken, domain, containerTypeId);
 
@@ -325,7 +325,7 @@ export class Account {
             return [];
         }
         const appSecrets = JSON.parse(appSecretsString);
-        const thirdPartyAuthProvider = new ThirdPartyAuthProvider(appId, appSecrets.thumbprint, appSecrets.privateKey)
+        const thirdPartyAuthProvider = new ThirdPartyAuthProvider(appId, appSecrets.thumbprint, appSecrets.privateKey);
         const domain: string = await StorageProvider.get().global.getValue(TenantDomain);
 
         let spToken = await thirdPartyAuthProvider.getToken([`https://${domain}-admin.sharepoint.com/AllSites.Write`]);
@@ -342,7 +342,7 @@ export class Account {
         }
 
         if (!checkJwtForTenantAdminScope(decodedToken, "AllSites.Write")) {
-            throw new Error("'AllSites' scope not found on token fetch for NewContainerType.")
+            throw new Error("'AllSites' scope not found on token fetch for NewContainerType.");
         }
 
         try {
@@ -402,7 +402,7 @@ export class Account {
         }
 
         if (!checkJwtForTenantAdminScope(decodedToken, "AllSites.Write")) {
-            throw new Error("'AllSites' scope not found on token fetch for NewContainerType.")
+            throw new Error("'AllSites' scope not found on token fetch for NewContainerType.");
         }
 
         try {
@@ -430,7 +430,7 @@ export class Account {
         }
     }
 
-    private static async createApp(displayName: string, token: string, isOwningApp: boolean): Promise<App | undefined> {
+    private static async _createApp(displayName: string, token: string, isOwningApp: boolean): Promise<App | undefined> {
         const { certificatePEM, privateKey, thumbprint } = generateCertificateAndPrivateKey();
         const certKeyCredential = createCertKeyCredential(certificatePEM);
         const properties = await GraphProvider.createAadApplication(displayName, token, certKeyCredential);
@@ -450,7 +450,7 @@ export class Account {
                 return undefined;
             }
             const appSecrets = JSON.parse(appSecretsString);
-            const thirdPartyAuthProvider = new ThirdPartyAuthProvider(app.clientId, appSecrets.thumbprint, appSecrets.privateKey)
+            const thirdPartyAuthProvider = new ThirdPartyAuthProvider(app.clientId, appSecrets.thumbprint, appSecrets.privateKey);
 
             //const consentToken = await thirdPartyAuthProvider.getToken(['00000003-0000-0ff1-ce00-000000000000/.default']);
             const graphAccessToken = await thirdPartyAuthProvider.getToken(["00000003-0000-0000-c000-000000000000/.default"]);
@@ -479,8 +479,9 @@ export class Account {
     public async loadFromStorage(): Promise<void> {
         const storedAccount: StoredAccount = JSON.parse(StorageProvider.get().global.getValue(Account.storageKey));
 
-        if (!storedAccount)
+        if (!storedAccount) {
             return;
+        }
 
         // hydrate App objects
         const appPromises = storedAccount.appIds.map(async (appId) => {
@@ -511,7 +512,7 @@ export class Account {
         const storedAccount = {
             appIds: this.appIds,
             containerTypeIds: this.containerTypeIds
-        }
+        };
 
         const accountString = JSON.stringify(storedAccount);
         await StorageProvider.get().global.setValue(Account.storageKey, accountString);
@@ -522,11 +523,11 @@ export class Account {
 
         this.apps.forEach(async app => {
             secretPromises.push(app.deleteFromStorage());
-        })
+        });
 
         this.containerTypes.forEach(async containerType => {
             secretPromises.push(containerType.deleteFromStorage());
-        })
+        });
 
         await Promise.all(secretPromises);
         await StorageProvider.get().global.setValue(Account.storageKey, undefined);

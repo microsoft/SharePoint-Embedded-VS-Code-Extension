@@ -53,6 +53,6 @@ export default class FirstPartyAuthProvider extends BaseAuthProvider {
             }
         });
         this.account = null;
-        this.authCodeUrlParams = { scopes: [], redirectUri: 'http://localhost:12345/redirect' }
+        this.authCodeUrlParams = { scopes: [], redirectUri: 'http://localhost:12345/redirect' };
     }
 }

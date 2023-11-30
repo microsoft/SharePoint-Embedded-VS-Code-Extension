@@ -31,7 +31,7 @@ export class ContainerTypeTreeItem extends vscode.TreeItem {
         }
         console.log(`ExpiryDate: ${containerType.expiryDate}`);
         console.log(`CreationDate: ${containerType.creationDate}`);
-        this.iconPath = new vscode.ThemeIcon("containertype-icon")
+        this.iconPath = new vscode.ThemeIcon("containertype-icon");
         this.contextValue = "containerType";
     }
 

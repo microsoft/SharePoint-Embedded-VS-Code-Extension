@@ -11,6 +11,7 @@ export default class SPAdminProvider {
         const options = {
             headers: {
                 Authorization: `Bearer ${accessToken}`,
+                // eslint-disable-next-line @typescript-eslint/naming-convention
                 'Content-Type': 'application/json'
             }
         };
@@ -21,7 +22,7 @@ export default class SPAdminProvider {
                 OwningAppId: owningAppId,
                 SPContainerTypeBillingClassification: billingClassification
             }
-        }
+        };
 
         try {
             const response: AxiosResponse = await axios.post(`https://${tenantName}-admin.sharepoint.com/_api/SPO.Tenant/NewSPOContainerType`,
@@ -43,14 +44,14 @@ export default class SPAdminProvider {
             if (error.response && error.response.status === 500) {
                 const errorMessage = error.message;
                 if (errorMessage.includes("Maximum number of allowed Trial Container Types has been exceeded.")) {
-                    throw new Error("Maximum number of allowed Trial Container Types has been exceeded.")
+                    throw new Error("Maximum number of allowed Trial Container Types has been exceeded.");
                 } else if (errorMessage.includes("")) {
-                    throw new Error("Maximum number of allowed Trial Container Types has been exceeded.")
+                    throw new Error("Maximum number of allowed Trial Container Types has been exceeded.");
                 }
             }
             else if (error.response && error.response.status === 400) {
                 if (error.response && error.response.data && error.response.data["odata.error"] && error.response.data["odata.error"].message) {
-                    const errorMessage = error.response.data["odata.error"].message.value
+                    const errorMessage = error.response.data["odata.error"].message.value;
                     if (errorMessage.includes("Accept the terms of service in SharePoint admin center to continue")) {
                         throw new TermsOfServiceError();
                     }
@@ -67,13 +68,14 @@ export default class SPAdminProvider {
         const options = {
             headers: {
                 Authorization: `Bearer ${accessToken}`,
+                // eslint-disable-next-line @typescript-eslint/naming-convention
                 'Content-Type': 'application/json'
             }
         };
 
         const containerTypeData = {
             containerTenantType: 1
-        }
+        };
 
         try {
             const response: AxiosResponse = await axios.post(`https://${tenantName}-admin.sharepoint.com/_api/SPO.Tenant/GetSPOContainerTypes`,
@@ -93,6 +95,7 @@ export default class SPAdminProvider {
         const options = {
             headers: {
                 Authorization: `Bearer ${accessToken}`,
+                // eslint-disable-next-line @typescript-eslint/naming-convention
                 'Content-Type': 'application/json'
             }
         };
@@ -100,7 +103,7 @@ export default class SPAdminProvider {
         const containerTypeData = {
             containerTypeId: containerTypeId,
             containerTenantType: 1
-        }
+        };
 
         try {
             const response: AxiosResponse = await axios.post(`https://${tenantName}-admin.sharepoint.com/_api/SPO.Tenant/GetSPOContainerTypeById`,
@@ -119,6 +122,7 @@ export default class SPAdminProvider {
         const options = {
             headers: {
                 Authorization: `Bearer ${accessToken}`,
+                // eslint-disable-next-line @typescript-eslint/naming-convention
                 'Content-Type': 'application/json'
             }
         };
@@ -127,11 +131,7 @@ export default class SPAdminProvider {
             spDeletedContainerTypeProperties: {
                 ContainerTypeId: containerTypeId
             }
-        }
-
-        // const containerTypeData = {
-        //     containerTypeId: containerTypeId
-        // }
+        };
 
         try {
             const response: AxiosResponse = await axios.post(`https://${tenantName}-admin.sharepoint.com/_api/SPO.Tenant/RemoveSPOContainerType`,
@@ -139,10 +139,6 @@ export default class SPAdminProvider {
                 options
             );
 
-            // const response: AxiosResponse = await axios.post(`https://${tenantName}-admin.sharepoint.com/_api/SPO.Tenant/DeleteSPOContainerTypeById`,
-            //     JSON.stringify(containerTypeData),
-            //     options
-            // );
             console.log(`Success deleting Container Type ${containerTypeId}`, response.data);
             return response.data;
         } catch (error) {

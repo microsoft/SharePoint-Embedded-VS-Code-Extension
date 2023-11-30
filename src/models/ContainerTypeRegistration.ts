@@ -28,9 +28,9 @@ export class ContainerTypeRegistration {
         if (registrationString) {
             const registration = JSON.parse(registrationString);
             registration.applicationPermissions = registration.applicationPermissions.map((permissionObj: ApplicationPermissions) => {
-                return new ApplicationPermissions(permissionObj.appId, permissionObj.delegated, permissionObj.appOnly)
-            })
-            return new ContainerTypeRegistration(registration.containerTypeId, registration.tenantId, registration.applicationPermissions)
+                return new ApplicationPermissions(permissionObj.appId, permissionObj.delegated, permissionObj.appOnly);
+            });
+            return new ContainerTypeRegistration(registration.containerTypeId, registration.tenantId, registration.applicationPermissions);
         }
         return undefined;
     }
@@ -40,8 +40,8 @@ export class ContainerTypeRegistration {
             containerTypeId: this.containerTypeId,
             tenantId: this.tenantId,
             applicationPermissions: this.applicationPermissions
-        }
-        const registrationString = JSON.stringify(registration)
+        };
+        const registrationString = JSON.stringify(registration);
         await StorageProvider.get().global.setValue(this.containerTypeId + '_' + this.tenantId, registrationString);
     }
 }

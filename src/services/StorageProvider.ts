@@ -7,7 +7,7 @@
 import { Memento, SecretStorage } from "vscode";
 
 export class StorageProvider {
-    private static instance: StorageProvider
+    private static instance: StorageProvider;
     public readonly global: LocalStorageService;
     public readonly local: LocalStorageService;
     public readonly secrets: SecretStorage;
@@ -32,17 +32,17 @@ export class StorageProvider {
 }
 export class LocalStorageService {
     
-    constructor(private storage: Memento) { }   
+    constructor(private _storage: Memento) { }   
     
     public getValue<T>(key : string) : T {
-        return this.storage.get<T>(key, null as unknown as T);
+        return this._storage.get<T>(key, null as unknown as T);
     }
 
     public async setValue<T>(key : string, value : T) {
-        await this.storage.update(key, value );
+        await this._storage.update(key, value );
     }
 
     public getAllKeys(): readonly string[] {
-        return this.storage.keys();
+        return this._storage.keys();
     }
 }

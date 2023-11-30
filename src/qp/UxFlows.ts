@@ -23,12 +23,12 @@ abstract class LinearUxFlow {
     protected steps!: UxInputStep[];
     protected step: number = 0;
 
-    private nextStep(): void {
+    private _nextStep(): void {
         this.step++;
         this.state.step++;
     }
 
-    private previousStep(): void {
+    private _previousStep(): void {
         this.step--;
         this.state.step--;
     }
@@ -41,11 +41,11 @@ abstract class LinearUxFlow {
             }
             let result = await this.steps[this.step].collectInput(this.state);
             if (result === -1) {
-                this.previousStep();
+                this._previousStep();
             } else if (result === 0) {
                 return undefined;
             } else {
-                this.nextStep();
+                this._nextStep();
             }
         }
         return this.state;
@@ -134,13 +134,13 @@ export class AddGuestAppFlowState extends AppSelectionFlowState {
 }
 
 export class AddGuestAppFlow extends LinearUxFlow {
-    public constructor(private readonly containerType: ContainerType) {
+    public constructor(private readonly _containerType: ContainerType) {
         super();
         this.state = new AddGuestAppFlowState();
         this.state.step = 1;
         const appExclusions: Set<string> = new Set();
-        appExclusions.add(this.containerType.owningAppId);
-        for (const guestApp of this.containerType.guestApps) {
+        appExclusions.add(this._containerType.owningAppId);
+        for (const guestApp of this._containerType.guestApps) {
             appExclusions.add(guestApp.clientId);
         }
         this.steps = [
@@ -176,19 +176,19 @@ class AddGuestAppPermissionsInput extends UxInputStep {
     ];
     private readonly fullPermChoiceValue = 'full';
 
-    public constructor(private readonly permissionType: 'Delegated' | 'Application') {
+    public constructor(private readonly _permissionType: 'Delegated' | 'Application') {
         super();
     }
 
     public collectInput(state: AddGuestAppFlowState): Promise<UxInputStepResult> {
         return new Promise<UxInputStepResult>((resolve, reject) => { 
             const qp = window.createQuickPick<ApplicationPermissionOption>();
-            qp.title = `Select ${this.permissionType} Permissions`;
+            qp.title = `Select ${this._permissionType} Permissions`;
             qp.step = state.step;
             qp.totalSteps = state.totalSteps;
             qp.canSelectMany = true;
             qp.ignoreFocusOut = true;
-            qp.placeholder = `Select one or more ${this.permissionType} permissions for your app`;
+            qp.placeholder = `Select one or more ${this._permissionType} permissions for your app`;
             qp.buttons = [...(state.totalSteps && state.totalSteps > 1 ? [QuickInputButtons.Back] : [])];
             qp.selectedItems = qp.items = this.permChoices;
             let selectedPerms: string[] = [];
@@ -206,7 +206,7 @@ class AddGuestAppPermissionsInput extends UxInputStep {
                 if (selectedPerms.length === 0) {
                     return;
                 }
-                if (this.permissionType === 'Delegated') {
+                if (this._permissionType === 'Delegated') {
                     state.delegatedPerms = selectedPerms;
                 } else {
                     state.applicationPerms = selectedPerms;
@@ -249,7 +249,7 @@ class ImportOrCreateAppQuickPick extends UxInputStep {
         id: 'all'
     };
 
-    public constructor(private readonly existingAppId?: string, private readonly appExclusions?: Set<string>) {
+    public constructor(private readonly _existingAppId?: string, private readonly _appExclusions?: Set<string>) {
         super();
     }
 
@@ -269,8 +269,8 @@ class ImportOrCreateAppQuickPick extends UxInputStep {
             return true;
         };
 
-        if (this.existingAppId) {
-            if (!(await confirmAppImport(this.existingAppId))) {
+        if (this._existingAppId) {
+            if (!(await confirmAppImport(this._existingAppId))) {
                 return UxInputStep.Cancel;
             }
             state.reconfigureApp = true;
@@ -299,8 +299,8 @@ class ImportOrCreateAppQuickPick extends UxInputStep {
                     iconPath: new ThemeIcon('extensions-view-icon')
                 }
             ));
-            if (this.appExclusions) {
-                this.recentApps = this.recentApps.filter(app => !this.appExclusions!.has(app.id));
+            if (this._appExclusions) {
+                this.recentApps = this.recentApps.filter(app => !this._appExclusions!.has(app.id));
             }
             const loadAzureApps = async (query?: string) => {
                 qp.busy = true;
@@ -314,8 +314,8 @@ class ImportOrCreateAppQuickPick extends UxInputStep {
                         iconPath: new ThemeIcon('extensions-view-icon')
                     }
                 ));
-                if (this.appExclusions) {
-                    this.azureApps = this.azureApps.filter(app => !this.appExclusions!.has(app.id));
+                if (this._appExclusions) {
+                    this.azureApps = this.azureApps.filter(app => !this._appExclusions!.has(app.id));
                 }
                 updateDisplayedItems();
                 qp.busy = false;
@@ -386,14 +386,14 @@ interface AppQuickPickItem extends QuickPickItem {
 
 class ConfirmContainerTypeImport extends UxInputStep {
     
-    public constructor(private readonly containerType: ContainerType) {
+    public constructor(private readonly _containerType: ContainerType) {
         super();
     }
     
     public async collectInput(state: UxFlowState): Promise<UxInputStepResult> {
         const continueResult = "OK";
         const result = await window.showInformationMessage(
-            `There is already a Free Trial Container Type on your tenant.\n\nContainerTypeId: ${this.containerType.containerTypeId}\nContainerTypeName: ${this.containerType.displayName}\nOwning AppId: ${this.containerType.owningAppId}\n\nDo you want to try importing it and its owning app into your workspace?`, 
+            `There is already a Free Trial Container Type on your tenant.\n\nContainerTypeId: ${this._containerType.containerTypeId}\nContainerTypeName: ${this._containerType.displayName}\nOwning AppId: ${this._containerType.owningAppId}\n\nDo you want to try importing it and its owning app into your workspace?`, 
             continueResult, 
             "Cancel"
         );

@@ -62,7 +62,7 @@ export class App {
             return false;
         }
         const appSecrets = JSON.parse(appSecretsString);
-        const thirdPartyAuthProvider = new ThirdPartyAuthProvider(this.clientId, appSecrets.thumbprint, appSecrets.privateKey)
+        const thirdPartyAuthProvider = new ThirdPartyAuthProvider(this.clientId, appSecrets.thumbprint, appSecrets.privateKey);
         
         const consentToken = await thirdPartyAuthProvider.getToken(['00000003-0000-0ff1-ce00-000000000000/.default']);
         //const graphAccessToken = await thirdPartyAuthProvider.getToken(["https://graph.microsoft.com/User.Read"]);

@@ -22,7 +22,7 @@ export class ContainersTreeItem extends vscode.TreeItem {
         public collapsibleState: vscode.TreeItemCollapsibleState
 
     ) {
-        super(label, collapsibleState)
+        super(label, collapsibleState);
         this.containerItems = [];
         this.contextValue = "containers";
     }
@@ -31,7 +31,7 @@ export class ContainersTreeItem extends vscode.TreeItem {
         const containers: Container[] = await this.containerType.getContainers();
         this.containerItems = containers.map((container: Container) => {
             return new ContainerTreeItem(container.displayName, container.description, vscode.TreeItemCollapsibleState.None);
-        })
+        });
         return this.containerItems;
     }
 }

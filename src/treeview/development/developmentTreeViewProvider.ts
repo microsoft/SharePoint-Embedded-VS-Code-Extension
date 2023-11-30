@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from "vscode"
+import * as vscode from "vscode";
 
 
 import { ContainerTypesTreeItem } from "./containerTypesTreeItem";
@@ -37,15 +37,16 @@ export class DevelopmentTreeViewProvider implements vscode.TreeDataProvider<Cont
             // @ts-ignore
             return Promise.resolve(element.getChildren());
         } else {
-            return Promise.resolve(this.getDevelopmentTreeViewChildren());
+            return Promise.resolve(this._getDevelopmentTreeViewChildren());
         }
     }
 
-    private getDevelopmentTreeViewChildren(): (ContainerTypesTreeItem | vscode.TreeItem)[]{
+    private _getDevelopmentTreeViewChildren(): (ContainerTypesTreeItem | vscode.TreeItem)[]{
         const account = Account.get();
 
-        if (!account)
+        if (!account) {
             return [];
+        }
 
         const isContainerTypeCreating = Account.getContainerTypeCreationState();
         const containerTypes: ContainerType[] = Account.get()!.containerTypes;
@@ -53,7 +54,7 @@ export class DevelopmentTreeViewProvider implements vscode.TreeDataProvider<Cont
         if (isContainerTypeCreating) {
             const containerTypeCreatingButton = new vscode.TreeItem("Creating Container Type...", vscode.TreeItemCollapsibleState.None);
             containerTypeCreatingButton.iconPath = new vscode.ThemeIcon("loading~spin");
-            return [containerTypeCreatingButton]
+            return [containerTypeCreatingButton];
         } else if (!isContainerTypeCreating && containerTypes && containerTypes.length > 0) {
             const containerTypesTreeItem = new ContainerTypesTreeItem(
                 `Container Types`,

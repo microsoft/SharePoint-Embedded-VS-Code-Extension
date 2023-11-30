@@ -12,7 +12,9 @@ export function sendFile(res: http.ServerResponse, filepath: string, contentType
         console.error(err.message);
       } else {
         res.writeHead(200, {
+          // eslint-disable-next-line @typescript-eslint/naming-convention
           "Content-Length": body.length,
+          // eslint-disable-next-line @typescript-eslint/naming-convention
           "Content-Type": contentType,
         });
         res.end(body);

@@ -124,7 +124,7 @@ export async function activate(context: vscode.ExtensionContext) {
             if (shouldDelay) {
                 await showProgress();
             }
-            const message = "Grant consent to your new Azure AD application? This step is required in order to create a Free Trial Container Type. This will open a new web browser where you can grant consent with the administrator account on your tenant"
+            const message = "Grant consent to your new Azure AD application? This step is required in order to create a Free Trial Container Type. This will open a new web browser where you can grant consent with the administrator account on your tenant";
             const userChoice = await vscode.window.showInformationMessage(
                 message,
                 'OK', 'Cancel'
@@ -176,7 +176,7 @@ export async function activate(context: vscode.ExtensionContext) {
                     if (shouldDelay) {
                         await showProgress();
                     }
-                    const message = "Grant consent to your new Azure AD application? This step is required in order to create a Free Trial Container Type. This will open a new web browser where you can grant consent with the administrator account on your tenant"
+                    const message = "Grant consent to your new Azure AD application? This step is required in order to create a Free Trial Container Type. This will open a new web browser where you can grant consent with the administrator account on your tenant";
                     const userChoice = await vscode.window.showInformationMessage(
                         message,
                         'OK', 'Cancel'
@@ -297,18 +297,18 @@ export async function activate(context: vscode.ExtensionContext) {
 
         vscode.window.showInformationMessage(`Container Type ${containerTypeName} successfully created and registered on Azure AD App: ${app.displayName}`);
         developmentTreeViewProvider.refresh();
-    })
+    });
 
     const registerContainerTypeCommand = vscode.commands.registerCommand('spe.registerContainerType', async () => {
         const account = Account.get()!;
-        const containerType = account.containerTypes[0]
+        const containerType = account.containerTypes[0];
 
         try {
-            const registrationComplete = await containerType.addTenantRegistration(account.tenantId, containerType.owningApp!, ["full"], ["full"])
+            const registrationComplete = await containerType.addTenantRegistration(account.tenantId, containerType.owningApp!, ["full"], ["full"]);
             vscode.window.showInformationMessage(`Container Type ${containerType.displayName} successfully created and registered on Azure AD App: ${containerType.owningApp?.displayName}`);
             developmentTreeViewProvider.refresh();
         } catch (error: any) {
-            vscode.window.showErrorMessage(`Unable to register Container Type ${containerType.displayName}: ${error}`)
+            vscode.window.showErrorMessage(`Unable to register Container Type ${containerType.displayName}: ${error}`);
             return;
         }
 
@@ -365,7 +365,7 @@ export async function activate(context: vscode.ExtensionContext) {
     });
 
     const deleteContainerTypeCommand = vscode.commands.registerCommand('spe.deleteContainerType', async (containerTypeViewModel: ContainerTypeTreeItem) => {
-        const message = "Are you sure you delete this Container Type?"
+        const message = "Are you sure you delete this Container Type?";
         const userChoice = await vscode.window.showInformationMessage(
             message,
             'OK', 'Cancel'
@@ -447,7 +447,7 @@ export async function activate(context: vscode.ExtensionContext) {
     });
 
     const cloneRepoCommand = vscode.commands.registerCommand('spe.cloneRepo', async (applicationTreeItem) => {
-        const message = "This will clone the selected sample and put your app's secret and other settings in plain text in a configuration file on your local machine. Are you sure you want to continue?"
+        const message = "This will clone the selected sample and put your app's secret and other settings in plain text in a configuration file on your local machine. Are you sure you want to continue?";
         const userChoice = await vscode.window.showInformationMessage(
             message,
             'OK', 'Cancel'
@@ -464,18 +464,19 @@ export async function activate(context: vscode.ExtensionContext) {
                 { "label": "ASP.NET + C#", iconPath: vscode.Uri.parse('https://upload.wikimedia.org/wikipedia/commons/0/0e/Microsoft_.NET_logo.png') },
                 { "label": "Teams + SharePoint Embedded" },
                 { "label": "Fluid on SharePoint Embedded" },
-            ]
+            ];
 
             const sampleAppProps = {
                 title: 'Choose a sample app',
                 placeholder: 'Select app...',
                 canPickMany: false
-            }
+            };
 
             const sampleAppSelection: any = await vscode.window.showQuickPick(sampleAppOptions, sampleAppProps);
 
-            if (!sampleAppSelection)
+            if (!sampleAppSelection) {
                 return;
+            }
 
             const appId = applicationTreeItem && applicationTreeItem.app && applicationTreeItem.app.clientId;
             const containerTypeId = applicationTreeItem && applicationTreeItem.containerType && applicationTreeItem.containerType.containerTypeId;
@@ -511,7 +512,7 @@ export async function activate(context: vscode.ExtensionContext) {
     });
 
     const exportPostmanConfig = vscode.commands.registerCommand('spe.exportPostmanConfig', async (applicationTreeItem) => {
-        const message = "This will put your app's secret and other settings in a plain text Postman environment file on your local machine. Are you sure you want to continue?"
+        const message = "This will put your app's secret and other settings in a plain text Postman environment file on your local machine. Are you sure you want to continue?";
         const userChoice = await vscode.window.showInformationMessage(
             message,
             'OK', 'Cancel'
@@ -586,8 +587,11 @@ export async function activate(context: vscode.ExtensionContext) {
             id: uuidv4(),
             name: app.clientId,
             values: values,
+            // eslint-disable-next-line @typescript-eslint/naming-convention
             _postman_variable_scope: "environment",
+            // eslint-disable-next-line @typescript-eslint/naming-convention
             _postman_exported_at: (new Date()).toISOString(),
+            // eslint-disable-next-line @typescript-eslint/naming-convention
             _postman_exported_using: "Postman/10.13.5"
         };
 
@@ -658,6 +662,7 @@ export async function activate(context: vscode.ExtensionContext) {
                 LogLevel: {
                     Default: "Information",
                     Microsoft: "Warning",
+                    // eslint-disable-next-line @typescript-eslint/naming-convention
                     "Microsoft.Hosting.Lifetime": "Information"
                 }
             },
@@ -670,7 +675,7 @@ export async function activate(context: vscode.ExtensionContext) {
                 AppDBConnStr: "Data Source=(localdb)\\MSSQLLocalDB;Initial Catalog=DemoAppDb;Integrated Security=True;Connect Timeout=30;",
             },
             Urls: "https://localhost:57750"
-        }
+        };
 
         const localSettingsJson = JSON.stringify(appSettings, null, 2);
         const localSettingsPath = path.join(destinationPath, 'syntex-repository-services', 'samples', 'syntex.rs-asp.net-webservice', 'appsettings.json');
@@ -696,7 +701,7 @@ export async function activate(context: vscode.ExtensionContext) {
             vscode.window.showErrorMessage('Failed to obtain access token.');
             console.error('Error:', error);
         }
-    })
+    });
 
     const callSpeTosCommand = vscode.commands.registerCommand('spe.callSpeTosCommand', async (app: App) => {
         try {
@@ -707,25 +712,18 @@ export async function activate(context: vscode.ExtensionContext) {
                 return undefined;
             }
             const appSecrets = JSON.parse(appSecretsString);
-            const thirdPartyAuthProvider = new ThirdPartyAuthProvider(appId, appSecrets.thumbprint, appSecrets.privateKey)
-
-            //const consentToken = await thirdPartyAuthProvider.getToken(['00000003-0000-0ff1-ce00-000000000000/.default']);
-            // const graphAccessToken = await thirdPartyAuthProvider.getToken(["00000003-0000-0000-c000-000000000000/.default"]);
-            // const tenantDomain = await GraphProvider.getOwningTenantDomain(graphAccessToken);
-            // const parts = tenantDomain.split('.');
-            // const domain = parts[0];
+            const thirdPartyAuthProvider = new ThirdPartyAuthProvider(appId, appSecrets.thumbprint, appSecrets.privateKey);
 
             const domain = await StorageProvider.get().global.getValue(TenantDomain);
             const spToken = await thirdPartyAuthProvider.getToken([`https://${domain}-admin.sharepoint.com/.default`]);
 
-            //await SPAdminProvider.acceptSpeTos(spToken, domain, appId)
             vscode.window.showInformationMessage(`Successfully accepted ToS on application: ${appId}`);
         } catch (error) {
             vscode.window.showErrorMessage('Failed to obtain access token.');
             console.error('Error:', error);
             return false;
         }
-    })
+    });
 
     const getCertPK = vscode.commands.registerCommand('spe.getCertPK', async () => {
         const keys = StorageProvider.get().global.getAllKeys();
@@ -814,8 +812,11 @@ async function writePostman(app: App) {
         id: uuidv4(),
         name: app.clientId,
         values: values,
+        // eslint-disable-next-line @typescript-eslint/naming-convention
         _postman_variable_scope: "environment",
+        // eslint-disable-next-line @typescript-eslint/naming-convention
         _postman_exported_at: (new Date()).toISOString(),
+        // eslint-disable-next-line @typescript-eslint/naming-convention
         _postman_exported_using: "Postman/10.13.5"
     };
 
@@ -880,38 +881,3 @@ async function showProgress() {
         });
     });
 }
-
-async function ToSDelay() {
-    await vscode.window.withProgress({
-        location: vscode.ProgressLocation.Notification,
-        title: "Terms of Service Status",
-        cancellable: true
-    }, (progress, token) => {
-        token.onCancellationRequested(() => {
-            console.log("User canceled the long running operation");
-        });
-
-        const progressSteps = [
-            { increment: 25, message: "Propagating Terms of Service..." },
-            { increment: 25, message: "Please wait..." },
-            { increment: 25, message: "Please wait..." },
-            { increment: 25, message: "Almost done..." },
-        ];
-
-        const reportProgress = (step: any, delay: number) => {
-            setTimeout(() => {
-                progress.report(step);
-            }, delay);
-        };
-
-        for (let i = 0; i < progressSteps.length; i++) {
-            reportProgress(progressSteps[i], i * 5000); // Adjust the delay as needed
-        }
-
-        return new Promise<void>((resolve) => {
-            setTimeout(() => {
-                resolve();
-            }, progressSteps.length * 5000);
-        });
-    });
-};

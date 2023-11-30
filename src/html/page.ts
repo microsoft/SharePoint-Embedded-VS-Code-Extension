@@ -182,4 +182,4 @@ export const htmlString = `<!DOCTYPE html>
       }
     </style>
   </body>
-</html>`
+</html>`;

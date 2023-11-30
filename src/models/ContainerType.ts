@@ -56,7 +56,7 @@ export class ContainerType {
         registrationIds?: string[],
         guestAppIds?: string[]) {
         this.azureSubscriptionId = azureSubscriptionId;
-        this.displayName = displayName
+        this.displayName = displayName;
         this.owningAppId = owningAppId;
         this.billingClassification = billingClassification;
         this.containerTypeId = containerTypeId;
@@ -96,13 +96,13 @@ export class ContainerType {
             }
 
             if (!checkJwtForAppOnlyRole(decodedToken, "Container.Selected")) {
-                throw new Error("'Container.Selected' role not found on token fetch for Container Type Registration.")
+                throw new Error("'Container.Selected' role not found on token fetch for Container Type Registration.");
             }
 
             let containerTypeRegistration = ContainerTypeRegistration.loadFromStorage(`${this.containerTypeId}_${tenantId}`)!;
 
             if (!containerTypeRegistration) {
-                containerTypeRegistration = new ContainerTypeRegistration(this.containerTypeId, tenantId, [new ApplicationPermissions(app.clientId, ["full"], ["full"])])
+                containerTypeRegistration = new ContainerTypeRegistration(this.containerTypeId, tenantId, [new ApplicationPermissions(app.clientId, ["full"], ["full"])]);
                 await VroomProvider.registerContainerType(vroomAccessToken, this.owningAppId, `https://${domain}.sharepoint.com`, this.containerTypeId, containerTypeRegistration.applicationPermissions);
                 this.registrationIds.push(`${this.containerTypeId}_${tenantId}`);
                 this.registrations.push(containerTypeRegistration);
@@ -124,7 +124,7 @@ export class ContainerType {
             // Save Container Type registration to storage
             await containerTypeRegistration.saveToStorage();
 
-            if (this.owningAppId != app.clientId) {
+            if (this.owningAppId !== app.clientId) {
                 this.guestAppIds.push(app.clientId);
                 this.guestApps.push(app);
             }
@@ -153,10 +153,10 @@ export class ContainerType {
         const sparseContainers: any[] = await GraphProvider.listStorageContainers(token, this.containerTypeId);
 
         const containerPromises = sparseContainers.map(container => {
-            return GraphProvider.getStorageContainer(token, container.id)
-        })
+            return GraphProvider.getStorageContainer(token, container.id);
+        });
 
-        const containers = await Promise.all(containerPromises)
+        const containers = await Promise.all(containerPromises);
 
         this.containers = containers.map(container => {
             return new Container(container.id, container.displayName, container.description, this.containerTypeId, container.status, container.createdDateTime);
@@ -204,9 +204,10 @@ export class ContainerType {
     private async _loadFromStorage(containerType: ContainerType): Promise<ContainerType> {
         // hydrate owning App
         const appProps = await App.loadFromStorage(containerType.owningAppId);
-        if (appProps)
+        if (appProps) {
             containerType.owningApp = new App(appProps.clientId, appProps.displayName, appProps.objectId, appProps.tenantId, appProps.isOwningApp, appProps.clientSecret, appProps.thumbprint, appProps.privateKey);
-
+        }
+        
         // hydrate App objects
         const appPromises = containerType.guestAppIds.map(async (appId) => {
             const app = App.loadFromStorage(appId);

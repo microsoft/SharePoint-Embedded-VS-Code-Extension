@@ -10,7 +10,7 @@ import { Account, LoginChangeListener } from "../../models/Account";
 
 export class M365AccountNode extends DynamicNode implements LoginChangeListener {
 
-  constructor(private eventEmitter: vscode.EventEmitter<DynamicNode | undefined | void>) {
+  constructor(private _eventEmitter: vscode.EventEmitter<DynamicNode | undefined | void>) {
     super("Logging into account...");
     Account.subscribeLoginListener(this);
     this.iconPath = new vscode.ThemeIcon("loading~spin");
@@ -22,15 +22,15 @@ export class M365AccountNode extends DynamicNode implements LoginChangeListener 
     this.iconPath = m365Icon;
     this.contextValue = "signedinM365";
     vscode.commands.executeCommand('setContext', 'spe:isAdminLoggedIn', account.isAdmin);
-    this.eventEmitter.fire(this);
+    this._eventEmitter.fire(this);
   }
 
   public onLogout(): void {
-    this.label = "Logging into account..."
+    this.label = "Logging into account...";
     this.iconPath = new vscode.ThemeIcon("loading~spin");
     this.contextValue = "";
     vscode.commands.executeCommand('setContext', 'spe:isAdminLoggedIn', false);
-    this.eventEmitter.fire(this);
+    this._eventEmitter.fire(this);
   }
 
   public getChildren(): vscode.ProviderResult<DynamicNode[]> {

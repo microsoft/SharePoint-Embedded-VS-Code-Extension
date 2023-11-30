@@ -9,20 +9,20 @@ export class TreeViewCommand extends vscode.TreeItem {
   public children?: TreeViewCommand[];
 
   constructor(
-    private readyLabel: string,
-    private readyTooltip: string | vscode.MarkdownString,
+    private _readyLabel: string,
+    private _readyTooltip: string | vscode.MarkdownString,
     public commandId?: string,
     public commandArguments?: any[],
     public image?: { name: string; custom: boolean }
   ) {
-    super(readyLabel, vscode.TreeItemCollapsibleState.None);
+    super(_readyLabel, vscode.TreeItemCollapsibleState.None);
 
-    this.tooltip = this.readyTooltip;
-    this.setImagetoIcon();
+    this.tooltip = this._readyTooltip;
+    this._setImagetoIcon();
 
     if (commandId) {
       this.command = {
-        title: readyLabel,
+        title: _readyLabel,
         command: commandId,
         arguments: commandArguments
       };
@@ -30,7 +30,7 @@ export class TreeViewCommand extends vscode.TreeItem {
     }
   }
 
-  private setImagetoIcon() {
+  private _setImagetoIcon() {
     if (this.image !== undefined) {
       if (!this.image.custom) {
         this.iconPath = new vscode.ThemeIcon(

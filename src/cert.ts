@@ -5,7 +5,7 @@
 
 import * as forge from 'node-forge';
 import { v4 as uuidv4 } from 'uuid';
-import * as rsa from 'jsrsasign'
+import * as rsa from 'jsrsasign';
 import axios from 'axios';
 
 export function generateCertificateAndPrivateKey(): { certificatePEM: string, privateKey: string, thumbprint: string} {
@@ -42,7 +42,7 @@ export function generateCertificateAndPrivateKey(): { certificatePEM: string, pr
     const thumbprint = md.digest().toHex();
     console.log(thumbprint);
 
-    return { 'certificatePEM': certPem, 'privateKey': privateKeyPem, 'thumbprint': thumbprint}
+    return { 'certificatePEM': certPem, 'privateKey': privateKeyPem, 'thumbprint': thumbprint};
 }
 
 export function createCertKeyCredential(certString: string) {
@@ -73,16 +73,21 @@ export async function acquireAppOnlyCertSPOToken(certThumbprint: string, clientI
     console.log(jwt);
 
     const tokenRequestBody = new URLSearchParams({
+        // eslint-disable-next-line @typescript-eslint/naming-convention
         client_assertion_type: 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer',
+        // eslint-disable-next-line @typescript-eslint/naming-convention
         client_assertion: jwt,
+        // eslint-disable-next-line @typescript-eslint/naming-convention
         client_id: clientId,
         scope: `https://${domain}.sharepoint.com/.default`,
         //scope: 'https://graph.microsoft.com/.default',
+        // eslint-disable-next-line @typescript-eslint/naming-convention
         grant_type: 'client_credentials'
     });
 
     const tokenRequestOptions = {
         headers: {
+            // eslint-disable-next-line @typescript-eslint/naming-convention
             'Content-Type': 'application/x-www-form-urlencoded'
         }
     };
@@ -119,11 +124,8 @@ function getRequestJwt(thumbprint: string, clientId: string, privateKey: string,
         'iat': now
     };
 
-    var encryptedPk = privateKey
+    var encryptedPk = privateKey;
     var decryptedPk = encryptedPk;
-    // if (pm.environment.has('CertPassword') && pm.environment.get('CertPassword') !== '') {
-    //     decryptedPk = rsa.KEYUTIL.getKey(encryptedPk, pm.environment.get('CertPassword'));
-    // }
     var sHeader = JSON.stringify(header);
     var sPayload = JSON.stringify(payload);
     return rsa.KJUR.jws.JWS.sign(header.alg, sHeader, sPayload, decryptedPk);
@@ -144,7 +146,7 @@ function safeBase64EncodedThumbprint(thumbprint: string) {
     var hexString = thumbprint.toLowerCase().replace(/:/g, '').replace(/ /g, '');
 
     if (!thumbprintSizes[hexString.length] || !thumbprintRegExp.test(hexString)) {
-        throw 'The thumbprint does not match a known format';
+        throw new Error('The thumbprint does not match a known format');
     }
 
     var base64 = (Buffer.from(hexString, 'hex')).toString('base64');
