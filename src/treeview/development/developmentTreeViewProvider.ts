@@ -10,11 +10,11 @@ import { ContainerTypesTreeItem } from "./containerTypesTreeItem";
 import { Account } from "../../models/Account";
 import { ContainerType } from "../../models/ContainerType";
 
-export class DevelopmentTreeViewProvider implements vscode.TreeDataProvider<ContainerTypesTreeItem> {
+export class DevelopmentTreeViewProvider implements vscode.TreeDataProvider<ContainerTypesTreeItem | vscode.TreeItem> {
     private static instance: DevelopmentTreeViewProvider;
-    private _onDidChangeTreeData: vscode.EventEmitter< ContainerTypesTreeItem | undefined | void> =
+    private _onDidChangeTreeData: vscode.EventEmitter<ContainerTypesTreeItem | undefined | void> =
         new vscode.EventEmitter<ContainerTypesTreeItem | undefined | void>();
-    readonly onDidChangeTreeData: vscode.Event<ContainerTypesTreeItem| undefined | void> =
+    readonly onDidChangeTreeData: vscode.Event<ContainerTypesTreeItem | undefined | void> =
         this._onDidChangeTreeData.event;
 
     public static getInstance() {
@@ -32,7 +32,7 @@ export class DevelopmentTreeViewProvider implements vscode.TreeDataProvider<Cont
         return element;
     }
 
-    public getChildren(element?: ContainerTypesTreeItem): Thenable<ContainerTypesTreeItem[]> {
+    public getChildren(element?: ContainerTypesTreeItem | vscode.TreeItem): Thenable<(ContainerTypesTreeItem | vscode.TreeItem)[]> {
         if (element) {
             // @ts-ignore
             return Promise.resolve(element.getChildren());
@@ -41,19 +41,24 @@ export class DevelopmentTreeViewProvider implements vscode.TreeDataProvider<Cont
         }
     }
 
-    private getDevelopmentTreeViewChildren(): ContainerTypesTreeItem[] {
+    private getDevelopmentTreeViewChildren(): (ContainerTypesTreeItem | vscode.TreeItem)[]{
         const account = Account.get();
 
         if (!account)
             return [];
 
+        const isContainerTypeCreating = Account.getContainerTypeCreationState();
         const containerTypes: ContainerType[] = Account.get()!.containerTypes;
 
-        if (containerTypes && containerTypes.length > 0) {
+        if (isContainerTypeCreating) {
+            const containerTypeCreatingButton = new vscode.TreeItem("Creating Container Type...", vscode.TreeItemCollapsibleState.None);
+            containerTypeCreatingButton.iconPath = new vscode.ThemeIcon("loading~spin");
+            return [containerTypeCreatingButton]
+        } else if (!isContainerTypeCreating && containerTypes && containerTypes.length > 0) {
             const containerTypesTreeItem = new ContainerTypesTreeItem(
                 `Container Types`,
                 vscode.TreeItemCollapsibleState.Expanded
-            )
+            );
             return [containerTypesTreeItem];
         }
 

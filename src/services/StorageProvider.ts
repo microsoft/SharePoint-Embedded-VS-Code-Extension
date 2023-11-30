@@ -11,6 +11,7 @@ export class StorageProvider {
     public readonly global: LocalStorageService;
     public readonly local: LocalStorageService;
     public readonly secrets: SecretStorage;
+    public readonly temp: Map<string, any> = new Map<string, any>();
 
     public constructor(global: LocalStorageService, local: LocalStorageService, secrets: SecretStorage) {
         this.global = global;
@@ -33,11 +34,11 @@ export class LocalStorageService {
     
     constructor(private storage: Memento) { }   
     
-    public getValue<T>(key : string) : T{
+    public getValue<T>(key : string) : T {
         return this.storage.get<T>(key, null as unknown as T);
     }
 
-    public async setValue<T>(key : string, value : T){
+    public async setValue<T>(key : string, value : T) {
         await this.storage.update(key, value );
     }
 

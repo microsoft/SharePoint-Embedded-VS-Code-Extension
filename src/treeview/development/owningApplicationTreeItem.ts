@@ -19,6 +19,15 @@ export class OwningApplicationTreeItem extends vscode.TreeItem {
         super(label, collapsibleState);
         this.setImagetoIcon();
         this.contextValue = "owningApplication";
+        this.description = "owning application";
+        this.tooltip = new vscode.MarkdownString(
+`
+## ${app.displayName} ##
+Here is an awesome tooltip for this owning application. 
+1. App Id: ${app.clientId}}
+1. Another line!
+`
+        );
     }
 
     public async getChildren() {

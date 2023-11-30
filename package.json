@@ -28,6 +28,34 @@
           "fontPath": "./media/spe.woff",
           "fontCharacter": "\\ED18"
         }
+      },
+      "containertype-icon": {
+        "description": "Container Type icon",
+        "default": {
+          "fontPath": "./media/spe.woff",
+          "fontCharacter": "\\F1AA"
+        }
+      },
+      "app-icon": {
+        "description": "App icon",
+        "default": {
+          "fontPath": "./media/spe.woff",
+          "fontCharacter": "\\ECAA"
+        }
+      },
+      "owningapp-icon": {
+        "description": "Owning App icon",
+        "default": {
+          "fontPath": "./media/spe.woff",
+          "fontCharacter": "\\E657"
+        }
+      },
+      "container-icon": {
+        "description": "Container icon",
+        "default": {
+          "fontPath": "./media/spe.woff",
+          "fontCharacter": "\\EED6"
+        }
       }
     },
     "viewsContainers": {
@@ -42,8 +70,8 @@
     "viewsWelcome": [
       {
         "view": "spe-welcome",
-        "contents": "Sign into your Microsoft 365 tenant with an adminstrator account to get started.\n [Sign into Microsoft 365](command:spe.login)",
-        "when": "!spe:isAdminLoggedIn"
+        "contents": "Sign into your Microsoft 365 tenant with an adminstrator account to get started.\n[Sign into Microsoft 365](command:spe.login) \n\n\n If you don't have adminstrator access to a Microsoft 365 tenant, [get your own tenant with the Microsoft 365 Developer Program](https://developer.microsoft.com/en-us/microsoft-365/dev-program).",
+        "when": "!spe:isAdminLoggedIn && !spe:isLoggingIn"
       },
       {
         "view": "spe-development",
@@ -56,12 +84,12 @@
         {
           "id": "spe-welcome",
           "name": "",
-          "when": "!spe:isAdminLoggedIn"
+          "when": "!spe:isAdminLoggedIn && !spe:isLoggingIn"
         },
         {
           "id": "spe-accounts",
-          "name": "Accounts",
-          "when": "spe:isAdminLoggedIn"
+          "name": "Account",
+          "when": "spe:isAdminLoggedIn || spe:isLoggingIn"
         },
         {
           "id": "spe-development",
@@ -99,22 +127,22 @@
         },
         {
           "command": "spe.renameADApplication",
-          "when": "view == spe-development && (viewItem == owningApplication || viewItem == secondaryApplication)",
+          "when": "view == spe-development && (viewItem == owningApplication || viewItem == guestApplication)",
           "group": "inline@1"
         },
         {
           "command": "spe.cloneRepo",
-          "when": "view == spe-development && (viewItem == owningApplication || viewItem == secondaryApplication)",
+          "when": "view == spe-development && (viewItem == owningApplication || viewItem == guestApplication)",
           "group": "inline@2"
         },
         {
           "command": "spe.exportPostmanConfig",
-          "when": "view == spe-development && (viewItem == owningApplication || viewItem == secondaryApplication)",
+          "when": "view == spe-development && (viewItem == owningApplication || viewItem == guestApplication)",
           "group": "inline@3"
         },
         {
-          "command": "spe.createSecondaryApp",
-          "when": "view == spe-development && viewItem == secondaryApplications",
+          "command": "spe.createGuestApp",
+          "when": "view == spe-development && viewItem == guestApplications",
           "group": "inline@1"
         },
         {
@@ -172,8 +200,8 @@
         "icon": "$(word-wrap)"
       },
       {
-        "command": "spe.createSecondaryApp",
-        "title": "Create secondary app",
+        "command": "spe.createGuestApp",
+        "title": "Create guest app",
         "icon": "$(plus)"
       },
       {
@@ -247,6 +275,7 @@
     "@pnp/sp": "^3.17.0",
     "@pnp/sp-admin": "^3.17.0",
     "axios": "^1.4.0",
+    "date-fns": "^2.30.0",
     "jsrsasign": "^10.8.6",
     "jsrsasign-util": "^1.0.5",
     "jwt-decode": "^3.1.2",
