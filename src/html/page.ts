@@ -3,20 +3,30 @@ export const htmlString = `<!DOCTYPE html>
   <head>
     <meta charset="utf-8" />
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-    <title>M365 Account - Sign In</title>
+    <title>SharePoint Embedded - Visual Studio Code Sign In Complete</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
   </head>
 
   <body>
-    <a class="branding" href="https://code.visualstudio.com/"> Visual Studio Code </a>
+    <a class="branding" href="https://code.visualstudio.com/"> Visual Studio Code - SharePoint Embedded extension </a>
     <div class="message-container">
-      <div class="message">You are signed in now and can close this page.</div>
+      <div class="message">
+        You are now signed into the Microsoft SharePoint Embedded Visual Studio Code extension. 
+        Close this window to return to Visual Studio Code.
+        <br />
+        <br />
+        Attempting redirect to Visual Studio Code in a few seconds... 
+      </div>
       <div class="error-message">
         An error occurred while signing in:
         <div class="error-text"></div>
       </div>
     </div>
     <script>
+      setTimeout(function () {
+        window.location.href = "vscode://vscode.spe-authentication";
+        window.close();
+      }, 3000);
       var search = window.location.search;
       var error = (/[?&^]error=([^&]+)/.exec(search) || [])[1];
       if (error) {
