@@ -54,7 +54,7 @@ export async function activate(context: vscode.ExtensionContext) {
     const aadLoginCommand = vscode.commands.registerCommand('spe.login', async () => {
         try {
             vscode.commands.executeCommand('setContext', 'spe:isLoggingIn', true);
-            await Account.login(); 
+            await Account.login();
             vscode.commands.executeCommand('setContext', 'spe:isLoggingIn', false);
         } catch (error) {
             vscode.window.showErrorMessage('Failed to obtain access token.');
@@ -85,12 +85,17 @@ export async function activate(context: vscode.ExtensionContext) {
     const createTrialContainerTypeCommand = vscode.commands.registerCommand('spe.createTrialContainerType', async () => {
         let account = Account.get()!;
 
+        Account.onContainerTypeCreationStart();
+        developmentTreeViewProvider.refresh();
+
         // Try to use an existing app to see if there's already a Free CT
         let freeCT: ContainerType | undefined;
         try {
             freeCT = await account.getFreeContainerType();
         } catch (error) {
             console.error(`Error fetching Free Trial Container Type: ${error}`);
+            Account.onContainerTypeCreationFinish();
+            developmentTreeViewProvider.refresh();
         }
 
         // Get parameters for new App and Container Type or owning App on existing Container Type
@@ -101,6 +106,8 @@ export async function activate(context: vscode.ExtensionContext) {
                 throw new Error("Ux flow cancelled and state is undefined");
             }
         } catch (error) {
+            Account.onContainerTypeCreationFinish();
+            developmentTreeViewProvider.refresh();
             console.error(`Error with Container Type creation Ux Flow: ${error}`);
             return;
         }
@@ -109,6 +116,7 @@ export async function activate(context: vscode.ExtensionContext) {
         let [app, shouldDelay]: [App | undefined, boolean] = [undefined, false];
         try {
             //let shouldDelay = false;
+            vscode.window.showInformationMessage(`Azure AD Application configuring starting...`);
             [app, shouldDelay] = await ctCreationState?.createGetOrImportApp();
             if (!app) {
                 throw new Error("App is undefined");
@@ -116,8 +124,20 @@ export async function activate(context: vscode.ExtensionContext) {
             if (shouldDelay) {
                 await showProgress();
             }
+            const message = "Grant consent to your new Azure AD application? This step is required in order to create a Free Trial Container Type. This will open a new web browser where you can grant consent with the administrator account on your tenant"
+            const userChoice = await vscode.window.showInformationMessage(
+                message,
+                'OK', 'Cancel'
+            );
+
+            if (userChoice !== 'OK') {
+                vscode.window.showWarningMessage('You must consent to your new Azure AD application to continue.');
+                throw new Error("Consent on app was not accepted.");
+            }
             await app.consent();
         } catch (error) {
+            Account.onContainerTypeCreationFinish();
+            developmentTreeViewProvider.refresh();
             console.error(`Unable to get app: ${error}`);
             return;
         }
@@ -126,6 +146,8 @@ export async function activate(context: vscode.ExtensionContext) {
         try {
             freeCT = await account.getFreeContainerType(app.clientId);
         } catch (error) {
+            Account.onContainerTypeCreationFinish();
+            developmentTreeViewProvider.refresh();
             console.error(`Error fetching Free Trial Container Type: ${error}`);
         }
 
@@ -139,11 +161,14 @@ export async function activate(context: vscode.ExtensionContext) {
                         throw new Error("Ux Flow State is undefined");
                     }
                 } catch (error) {
+                    Account.onContainerTypeCreationFinish();
+                    developmentTreeViewProvider.refresh();
                     console.error(`Error with Container Type creation Ux Flow: ${error}`);
                     return;
                 }
-    
+
                 try {
+                    vscode.window.showInformationMessage(`Azure AD Application configuring starting...`);
                     [app, shouldDelay] = await ctCreationState?.createGetOrImportApp();
                     if (!app) {
                         throw new Error("App is undefined");
@@ -151,8 +176,20 @@ export async function activate(context: vscode.ExtensionContext) {
                     if (shouldDelay) {
                         await showProgress();
                     }
+                    const message = "Grant consent to your new Azure AD application? This step is required in order to create a Free Trial Container Type. This will open a new web browser where you can grant consent with the administrator account on your tenant"
+                    const userChoice = await vscode.window.showInformationMessage(
+                        message,
+                        'OK', 'Cancel'
+                    );
+
+                    if (userChoice !== 'OK') {
+                        vscode.window.showWarningMessage('You must consent to your new Azure AD application to continue.');
+                        throw new Error("Consent on app was not accepted.");
+                    }
                     await app.consent();
                 } catch (error) {
+                    Account.onContainerTypeCreationFinish();
+                    developmentTreeViewProvider.refresh();
                     console.error(`Unable to get app: ${error}`);
                     return;
                 }
@@ -163,7 +200,9 @@ export async function activate(context: vscode.ExtensionContext) {
                 if (!freeCT) {
                     throw new Error("Free CT is undefined");
                 }
-            } catch (error) {             
+            } catch (error) {
+                Account.onContainerTypeCreationFinish();
+                developmentTreeViewProvider.refresh();
                 console.error(`Error importing Free Trial Container Type: ${error}`);
                 return;
             }
@@ -182,6 +221,8 @@ export async function activate(context: vscode.ExtensionContext) {
                 } else {
                     vscode.window.showErrorMessage("Unable to create Free Trial Container Type: " + error.message);
                 }
+                Account.onContainerTypeCreationFinish();
+                developmentTreeViewProvider.refresh();
                 return;
             }
         }
@@ -194,7 +235,9 @@ export async function activate(context: vscode.ExtensionContext) {
             vscode.window.showErrorMessage("Unable to register Free Trial Container Type: " + error.message);
         }
 
+        Account.onContainerTypeCreationFinish();
         developmentTreeViewProvider.refresh();
+        vscode.window.showInformationMessage(`Container Type ${ctCreationState.containerTypeName} successfully created and registered on Azure AD App: ${app.displayName}`);
     });
 
     const createContainerTypeOnApplicationCommand = vscode.commands.registerCommand('spe.createContainerTypeOnApplication', async () => {
@@ -273,7 +316,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
     const createGuestApplicationCommand = vscode.commands.registerCommand('spe.createGuestApp', async (guestApplicationsModel: GuestApplicationsTreeItem) => {
         const containerType: ContainerType = guestApplicationsModel.containerType;
-        
+
         let account = Account.get()!;
         let addGuestAppState: AddGuestAppFlowState | undefined;
         try {
@@ -304,7 +347,7 @@ export async function activate(context: vscode.ExtensionContext) {
             if (!app) {
                 throw new Error("");
             }
-            
+
         } catch (error: any) {
             vscode.window.showErrorMessage("Unable to create or import Azure AD application: " + error.message);
             return;
@@ -685,10 +728,10 @@ export async function activate(context: vscode.ExtensionContext) {
     })
 
     const getCertPK = vscode.commands.registerCommand('spe.getCertPK', async () => {
-            const keys = StorageProvider.get().global.getAllKeys();
-            const account = Account.get();
-            const dets = StorageProvider.get().global.getValue("account");
-            console.log('hi');
+        const keys = StorageProvider.get().global.getAllKeys();
+        const account = Account.get();
+        const dets = StorageProvider.get().global.getValue("account");
+        console.log('hi');
     });
 
     const generateCertificateCommand =
