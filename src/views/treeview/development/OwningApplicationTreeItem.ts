@@ -6,8 +6,9 @@
 import * as vscode from "vscode";
 import { ContainerType } from "../../../models/ContainerType";
 import { App } from "../../../models/App";
+import { ApplicationTreeItem } from "./ApplicationTreeItem";
 
-export class OwningApplicationTreeItem extends vscode.TreeItem {
+export class OwningApplicationTreeItem extends ApplicationTreeItem {
     constructor(
         public app: App,
         public containerType: ContainerType,
@@ -16,7 +17,7 @@ export class OwningApplicationTreeItem extends vscode.TreeItem {
         public image?: { name: string; custom: boolean },
         public commandArguments?: any[],
     ) {
-        super(label, collapsibleState);
+        super(app, containerType, label, collapsibleState);
         this.iconPath = new vscode.ThemeIcon("owningapp-icon");
         this.contextValue = "owningApplication";
         this.description = "owning application";
@@ -28,9 +29,5 @@ Here is an awesome tooltip for this owning application.
 1. Another line!
 `
         );
-    }
-
-    public async getChildren() {
-        return [this];
     }
 }

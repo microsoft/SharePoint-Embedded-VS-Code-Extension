@@ -6,7 +6,7 @@ import { Account } from '../models/Account';
 // Static class that handles the sign in command
 export class SignIn extends Command {
     // Command name
-    public static readonly COMMAND = 'spe.login';
+    public static readonly COMMAND = 'login';
 
     // Command handler
     public static async run(): Promise<void> {

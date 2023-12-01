@@ -5,7 +5,9 @@ export abstract class Command {
     public static readonly COMMAND: string;
 
     public static register(context: vscode.ExtensionContext): void {
-        context.subscriptions.push(vscode.commands.registerCommand(this.COMMAND, this.run));
+        const commandName = `spe.${this.COMMAND}`;
+        const command = vscode.commands.registerCommand(commandName, this.run);
+        context.subscriptions.push(command);
     }
 
     public static async run(): Promise<void> {

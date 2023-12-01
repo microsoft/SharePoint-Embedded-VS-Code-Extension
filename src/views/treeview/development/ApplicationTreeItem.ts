@@ -4,19 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from "vscode";
-import { App } from "../../../models/App";
 import { ContainerType } from "../../../models/ContainerType";
-import { ApplicationTreeItem } from "./ApplicationTreeItem";
+import { App } from "../../../models/App";
 
-export class GuestApplicationTreeItem extends ApplicationTreeItem {
+export class ApplicationTreeItem extends vscode.TreeItem {
     constructor(
         public app: App,
         public containerType: ContainerType,
         public readonly label: string,
         public readonly collapsibleState: vscode.TreeItemCollapsibleState
     ) {
-        super(app, containerType, label, collapsibleState);
-        this.contextValue = "guestApplication";
+        super(label, collapsibleState);
+        this.iconPath = new vscode.ThemeIcon("app-icon");
     }
-    
+
+    public async getChildren() {
+        [this];
+    }
 }

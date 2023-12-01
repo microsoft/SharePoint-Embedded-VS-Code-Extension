@@ -2,11 +2,12 @@
 import { Command } from './Command';
 import * as vscode from 'vscode';
 import { Account } from '../models/Account';
+import { DevelopmentTreeViewProvider } from '../views/treeview/development/DevelopmentTreeViewProvider';
 
 // Static class that handles the sign out command
 export class SignOut extends Command {
     // Command name
-    public static readonly COMMAND = 'spe.signOut';
+    public static readonly COMMAND = 'signOut';
 
     // Command handler
     public static async run(): Promise<void> {
@@ -22,7 +23,7 @@ export class SignOut extends Command {
             }
 
             await Account.get()!.logout();
-            //TODO: developmentTreeViewProvider.refresh();
+            DevelopmentTreeViewProvider.getInstance().refresh();
         } catch (error) {
             vscode.window.showErrorMessage('Failed to obtain access token.');
             console.error('Error:', error);
