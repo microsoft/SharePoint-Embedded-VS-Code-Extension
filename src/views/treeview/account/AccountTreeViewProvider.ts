@@ -11,6 +11,8 @@ import { AccountInfo } from "@azure/msal-node";
 
 export class AccountTreeViewProvider implements vscode.TreeDataProvider<DynamicNode> {
     private static instance: AccountTreeViewProvider;
+    public static readonly viewId = "spe-accounts";
+    
     private _onDidChangeTreeData: vscode.EventEmitter<DynamicNode | undefined | void> = new vscode.EventEmitter<DynamicNode | undefined | void>();
     readonly onDidChangeTreeData: vscode.Event<DynamicNode | undefined | void> = this._onDidChangeTreeData.event;
 

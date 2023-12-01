@@ -15,7 +15,7 @@ export const htmlString = `<!DOCTYPE html>
         Close this window to return to Visual Studio Code.
         <br />
         <br />
-        Attempting redirect to Visual Studio Code in a few seconds... 
+        Attempting redirect to Visual Studio Code in a couple seconds... 
       </div>
       <div class="error-message">
         An error occurred while signing in:
@@ -26,7 +26,7 @@ export const htmlString = `<!DOCTYPE html>
       setTimeout(function () {
         window.location.href = "vscode://vscode.spe-authentication";
         window.close();
-      }, 3000);
+      }, 2000);
       var search = window.location.search;
       var error = (/[?&^]error=([^&]+)/.exec(search) || [])[1];
       if (error) {

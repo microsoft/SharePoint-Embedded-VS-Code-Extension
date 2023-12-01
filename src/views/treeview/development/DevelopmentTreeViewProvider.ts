@@ -12,6 +12,7 @@ import { ContainerType } from "../../../models/ContainerType";
 
 export class DevelopmentTreeViewProvider implements vscode.TreeDataProvider<ContainerTypesTreeItem | vscode.TreeItem> {
     private static instance: DevelopmentTreeViewProvider;
+    public static readonly viewId = "spe-development";
     private _onDidChangeTreeData: vscode.EventEmitter<ContainerTypesTreeItem | undefined | void> =
         new vscode.EventEmitter<ContainerTypesTreeItem | undefined | void>();
     readonly onDidChangeTreeData: vscode.Event<ContainerTypesTreeItem | undefined | void> =

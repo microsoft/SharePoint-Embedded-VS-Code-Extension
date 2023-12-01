@@ -21,12 +21,17 @@ export async function activate(context: vscode.ExtensionContext) {
         new LocalStorageService(context.workspaceState),
         context.secrets
     );
-    
-    vscode.window.registerTreeDataProvider('spe-accounts', AccountTreeViewProvider.getInstance());
-    await Account.loginToSavedAccount();
-    await Account.get()?.loadFromStorage();
 
-    vscode.window.registerTreeDataProvider('spe-development', DevelopmentTreeViewProvider.getInstance());
+    Account.hasSavedAccount().then(async (hasSavedAccount) => {
+        vscode.commands.executeCommand('setContext', 'spe:isLoggingIn', hasSavedAccount);
+        vscode.window.registerTreeDataProvider(AccountTreeViewProvider.viewId, AccountTreeViewProvider.getInstance());
+        if (hasSavedAccount) {
+            await Account.loginToSavedAccount();
+            vscode.commands.executeCommand('setContext', 'spe:isLoggingIn', false);       
+        }
+        await Account.get()?.loadFromStorage();
+        vscode.window.registerTreeDataProvider(DevelopmentTreeViewProvider.viewId, DevelopmentTreeViewProvider.getInstance());
+    }); 
 
     Commands.SignIn.register(context);
     Commands.SignOut.register(context);
