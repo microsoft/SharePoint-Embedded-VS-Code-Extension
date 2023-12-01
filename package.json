@@ -9,9 +9,6 @@
   "categories": [
     "Other"
   ],
-  "activationEvents": [
-    "onCommand:spe.generateCertificate"
-  ],
   "main": "./out/extension.js",
   "contributes": {
     "icons": {

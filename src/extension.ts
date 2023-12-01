@@ -8,25 +8,25 @@ import { v4 as uuidv4 } from 'uuid';
 import * as fs from 'fs';
 import * as path from 'path';
 import { generateCertificateAndPrivateKey } from './cert';
-
 import { TenantDomain } from './utils/constants';
 import { ext } from './utils/extensionVariables';
 import { ExtensionContext, window } from 'vscode';
 import FirstPartyAuthProvider from './services/1PAuthProvider';
 import ThirdPartyAuthProvider from './services/3PAuthProvider';
-import { AccountTreeViewProvider } from './treeview/account/accountTreeViewProvider';
-import { DevelopmentTreeViewProvider } from './treeview/development/developmentTreeViewProvider';
+import { AccountTreeViewProvider } from './views/treeview/account/AccountTreeViewProvider';
+import { DevelopmentTreeViewProvider } from './views/treeview/development/DevelopmentTreeViewProvider';
 import { CreateAppProvider } from './services/CreateAppProvider';
 import { LocalStorageService, StorageProvider } from './services/StorageProvider';
 import { Account } from './models/Account';
 import { App } from './models/App';
 import SPAdminProvider from './services/SPAdminProvider';
 import { BillingClassification, ContainerType } from './models/ContainerType';
-import { GuestApplicationsTreeItem } from './treeview/development/guestApplicationsTreeItem';
-import { ContainersTreeItem } from './treeview/development/containersTreeItem';
-import { ContainerTypeTreeItem } from './treeview/development/containerTypeTreeItem';
+import { GuestApplicationsTreeItem } from './views/treeview/development/GuestApplicationsTreeItem';
+import { ContainersTreeItem } from './views/treeview/development/ContainersTreeItem';
+import { ContainerTypeTreeItem } from './views/treeview/development/ContainerTypeTreeItem';
 import { timeoutForSeconds } from './utils/timeout';
-import { AddGuestAppFlow, AddGuestAppFlowState, ContainerTypeCreationFlow, ContainerTypeCreationFlowState } from './qp/UxFlows';
+import { AddGuestAppFlow, AddGuestAppFlowState, ContainerTypeCreationFlow, ContainerTypeCreationFlowState } from './views/qp/UxFlows';
+import { Commands } from './commands/';
 
 let accessTokenPanel: vscode.WebviewPanel | undefined;
 let firstPartyAppAuthProvider: FirstPartyAuthProvider;
@@ -51,6 +51,9 @@ export async function activate(context: vscode.ExtensionContext) {
     const developmentTreeViewProvider = DevelopmentTreeViewProvider.getInstance();
     vscode.window.registerTreeDataProvider('spe-development', developmentTreeViewProvider);
 
+    Commands.SignIn.register(context);
+    Commands.SignOut.register(context);
+    /*
     const aadLoginCommand = vscode.commands.registerCommand('spe.login', async () => {
         try {
             vscode.commands.executeCommand('setContext', 'spe:isLoggingIn', true);
@@ -61,7 +64,8 @@ export async function activate(context: vscode.ExtensionContext) {
             console.error('Error:', error);
         }
     });
-
+    */
+/*
     const aadLogoutCommand = vscode.commands.registerCommand('spe.signOut', async () => {
         try {
             const message = "Are you sure you want to log out? All your SharePoint Embedded data will be forgotten.";
@@ -81,7 +85,7 @@ export async function activate(context: vscode.ExtensionContext) {
             console.error('Error:', error);
         }
     });
-
+*/
     const createTrialContainerTypeCommand = vscode.commands.registerCommand('spe.createTrialContainerType', async () => {
         let account = Account.get()!;
 
@@ -738,8 +742,8 @@ export async function activate(context: vscode.ExtensionContext) {
         });
 
     // Register commands
-    context.subscriptions.push(aadLoginCommand,
-        aadLogoutCommand,
+    context.subscriptions.push(//aadLoginCommand,
+        //aadLogoutCommand,
         cloneRepoCommand,
         getCertPK,
         createTrialContainerTypeCommand,

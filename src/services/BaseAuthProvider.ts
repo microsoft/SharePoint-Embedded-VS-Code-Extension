@@ -8,8 +8,7 @@ import * as http from 'http';
 import * as url from 'url';
 // @ts-ignore
 import { AccountInfo, AuthenticationResult, AuthorizationUrlRequest, ConfidentialClientApplication, CryptoProvider, LogLevel, PublicClientApplication, SilentFlowRequest } from '@azure/msal-node';
-import { htmlString } from '../html/page';
-
+import { htmlString } from '../views/html/page';
 
 export abstract class BaseAuthProvider {
     protected clientApplication: ConfidentialClientApplication | PublicClientApplication;
