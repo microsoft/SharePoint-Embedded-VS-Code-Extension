@@ -5,7 +5,7 @@ import { Account } from '../models/Account';
 import { ContainerTypeTreeItem } from '../views/treeview/development/ContainerTypeTreeItem';
 import { DevelopmentTreeViewProvider } from '../views/treeview/development/DevelopmentTreeViewProvider';
 
-// Static class that handles the sign in command
+// Static class that handles the delete container type command
 export class DeleteContainerType extends Command {
     // Command name
     public static readonly COMMAND = 'deleteContainerType';

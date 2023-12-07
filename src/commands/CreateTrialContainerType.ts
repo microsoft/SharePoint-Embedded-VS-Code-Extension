@@ -8,7 +8,7 @@ import { ProgressNotification } from '../views/notifications/ProgressNotificatio
 import { App } from '../models/App';
 import { DevelopmentTreeViewProvider } from '../views/treeview/development/DevelopmentTreeViewProvider';
 
-// Static class that handles the sign out command
+// Static class that handles the create trial container type command
 export class CreateTrialContainerType extends Command {
     // Command name
     public static readonly COMMAND = 'createTrialContainerType';
@@ -41,6 +41,7 @@ export class CreateTrialContainerType extends Command {
             Account.onContainerTypeCreationFinish();
             DevelopmentTreeViewProvider.getInstance().refresh();
             console.error(`Error with Container Type creation Ux Flow: ${error}`);
+            vscode.window.showErrorMessage(`Error with Container Type creation Ux Flow: ${error}`);
             return;
         }
 
@@ -70,6 +71,7 @@ export class CreateTrialContainerType extends Command {
             Account.onContainerTypeCreationFinish();
             DevelopmentTreeViewProvider.getInstance().refresh();
             console.error(`Unable to get app: ${error}`);
+            vscode.window.showErrorMessage(`Unable to get app: ${error}`);
             return;
         }
 
@@ -80,6 +82,7 @@ export class CreateTrialContainerType extends Command {
             Account.onContainerTypeCreationFinish();
             DevelopmentTreeViewProvider.getInstance().refresh();
             console.error(`Error fetching Free Trial Container Type: ${error}`);
+            vscode.window.showErrorMessage(`Error fetching Free Trial Container Type: ${error}`);
         }
 
         // If we have a Free CT we need to import it instead of creating a new one
@@ -95,6 +98,7 @@ export class CreateTrialContainerType extends Command {
                     Account.onContainerTypeCreationFinish();
                     DevelopmentTreeViewProvider.getInstance().refresh();
                     console.error(`Error with Container Type creation Ux Flow: ${error}`);
+                    vscode.window.showErrorMessage(`Error with Container Type creation Ux Flow: ${error}`);
                     return;
                 }
 
@@ -122,6 +126,7 @@ export class CreateTrialContainerType extends Command {
                     Account.onContainerTypeCreationFinish();
                     DevelopmentTreeViewProvider.getInstance().refresh();
                     console.error(`Unable to get app: ${error}`);
+                    vscode.window.showErrorMessage(`Unable to get app: ${error}`);
                     return;
                 }
             }
@@ -135,6 +140,7 @@ export class CreateTrialContainerType extends Command {
                 Account.onContainerTypeCreationFinish();
                 DevelopmentTreeViewProvider.getInstance().refresh();
                 console.error(`Error importing Free Trial Container Type: ${error}`);
+                vscode.window.showErrorMessage(`Error importing Free Trial Container Type: ${error}`);
                 return;
             }
 
@@ -169,6 +175,5 @@ export class CreateTrialContainerType extends Command {
         Account.onContainerTypeCreationFinish();
         DevelopmentTreeViewProvider.getInstance().refresh();
         vscode.window.showInformationMessage(`Container Type ${ctCreationState.containerTypeName} successfully created and registered on Azure AD App: ${app.displayName}`);
-    
     }
 }

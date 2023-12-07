@@ -9,7 +9,7 @@ import { v4 as uuidv4 } from 'uuid';
 import * as fs from 'fs';
 import * as path from 'path';
 
-// Static class that handles the sign in command
+// Static class that handles the Postman export command
 export class ExportPostmanConfig extends Command {
     // Command name
     public static readonly COMMAND = 'exportPostmanConfig';

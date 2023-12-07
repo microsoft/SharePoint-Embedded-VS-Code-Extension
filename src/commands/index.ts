@@ -9,6 +9,7 @@ import { RefreshContainersList as _RefreshContainersList } from './RefreshContai
 import { CreateContainer as _CreateContainer } from './CreateContainer';
 import { CloneRepo as _CloneRepo } from './CloneRepo';
 import { ExportPostmanConfig as _ExportPostmanConfig } from './ExportPostmanConfig';
+import { RenameApplication as _RenameApplication } from './RenameApplication';
 
 export namespace Commands {
   export const SignIn = _SignIn;
@@ -21,4 +22,5 @@ export namespace Commands {
   export const CreateContainer = _CreateContainer;
   export const CloneRepo = _CloneRepo;
   export const ExportPostmanConfig = _ExportPostmanConfig;
+  export const RenameApplication = _RenameApplication;
 }

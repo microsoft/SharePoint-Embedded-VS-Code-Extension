@@ -476,6 +476,14 @@ export class Account {
         return appData;
     }
 
+    
+    public async renameApp(app: App, displayName: string): Promise<void> {
+        const token = await Account.authProvider.getToken(Account.scopes);
+        await GraphProvider.renameApplication(token, app.clientId, displayName)
+        app.displayName = displayName;
+        app.saveToStorage();
+    }
+
     public async loadFromStorage(): Promise<void> {
         const storedAccount: StoredAccount = JSON.parse(StorageProvider.get().global.getValue(Account.storageKey));
 

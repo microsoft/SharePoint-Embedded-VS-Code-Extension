@@ -43,4 +43,5 @@ export async function activate(context: vscode.ExtensionContext) {
     Commands.CreateContainer.register(context);
     Commands.CloneRepo.register(context);
     Commands.ExportPostmanConfig.register(context);
+    Commands.RenameApplication.register(context);
 }

@@ -14,10 +14,10 @@ import { Account } from "./Account";
 export class App {
     // instance properties
     public readonly clientId: string;
-    public readonly displayName: string;
     public readonly objectId: string;
     public readonly tenantId: string;
     public readonly isOwningApp: boolean;
+    public displayName: string;
     public clientSecret?: string;
     public thumbprint?: string;
     public privateKey?: string;

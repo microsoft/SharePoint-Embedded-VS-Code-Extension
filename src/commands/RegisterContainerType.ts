@@ -5,7 +5,7 @@ import { Account } from '../models/Account';
 import { ContainerType } from '../models/ContainerType';
 import { DevelopmentTreeViewProvider } from '../views/treeview/development/DevelopmentTreeViewProvider';
 
-// Static class that handles the sign out command
+// Static class that handles the register container type command
 export class RegisterContainerType extends Command {
     // Command name
     public static readonly COMMAND = 'registerContainerType';

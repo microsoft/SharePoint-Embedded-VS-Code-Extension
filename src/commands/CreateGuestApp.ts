@@ -9,7 +9,7 @@ import { App } from '../models/App';
 import { ProgressNotification } from '../views/notifications/ProgressNotification';
 import { DevelopmentTreeViewProvider } from '../views/treeview/development/DevelopmentTreeViewProvider';
 
-// Static class that handles the sign in command
+// Static class that handles the create guest app command
 export class CreateGuestApp extends Command {
     // Command name
     public static readonly COMMAND = 'createGuestApp';
