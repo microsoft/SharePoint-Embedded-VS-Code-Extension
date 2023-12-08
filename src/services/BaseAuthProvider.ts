@@ -14,6 +14,7 @@ export abstract class BaseAuthProvider {
     protected clientApplication: ConfidentialClientApplication | PublicClientApplication;
     protected account: AccountInfo | null | undefined;
     protected authCodeUrlParams: AuthorizationUrlRequest;
+    protected interactiveTokenPrompt: string | undefined;
 
     async getToken(scopes: string[]): Promise<string> {
         let authResponse: AuthenticationResult;
@@ -40,6 +41,18 @@ export abstract class BaseAuthProvider {
     }
 
     async getTokenInteractive(request: AuthorizationUrlRequest): Promise<AuthenticationResult> {
+        if (this.interactiveTokenPrompt) {
+            const userChoice = await vscode.window.showInformationMessage(
+                this.interactiveTokenPrompt,
+                { modal: true },
+                'OK'
+            );
+
+            if (userChoice !== 'OK') {
+                vscode.window.showWarningMessage('You must consent to your new Azure AD application to continue.');
+                throw new Error("Consent on app was not accepted.");
+            }
+        }
         // Generate PKCE Challenge and Verifier before request
         const cryptoProvider = new CryptoProvider();
         const { challenge, verifier } = await cryptoProvider.generatePkceCodes();
@@ -135,7 +148,7 @@ export abstract class BaseAuthProvider {
                     server.close(() => {
                         resolve(authCode);
                     });
-                } 
+                }
                 else {
                     // eslint-disable-next-line @typescript-eslint/naming-convention
                     res.writeHead(400, { 'Content-Type': 'text/html' });

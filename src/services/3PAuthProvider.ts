@@ -13,6 +13,7 @@ export default class ThirdPartyAuthProvider extends BaseAuthProvider {
     protected clientApplication: ConfidentialClientApplication;
     protected account: AccountInfo | null;
     protected authCodeUrlParams: AuthorizationUrlRequest;
+    protected readonly interactiveTokenPrompt: string = "Grant consent to your new Azure AD application? This step is required in order to create a Free Trial Container Type. This will open a new web browser where you can grant consent with the administrator account on your tenant";;
 
     constructor(clientId: string, thumbprint: string, privateKey: string) {
         super();
@@ -62,39 +63,5 @@ export default class ThirdPartyAuthProvider extends BaseAuthProvider {
         });
         this.account = null;
         this.authCodeUrlParams = { scopes: [], redirectUri: 'http://localhost:12345/redirect' };
-    }
-
-    async getAppToken(scope: string = "https://graph.microsoft.com/.default"): Promise<string> {
-        const config = {
-            scopes: [scope],
-            skipCache: true
-        };
-        let accessToken;
-        try {
-            accessToken = await this.clientApplication.acquireTokenByClientCredential(config);
-        } catch (error: any) {
-            return error.message;
-        }
-        return accessToken.accessToken;
-    }
-
-    async getOBOGraphToken(consentToken: string, scopes: string[]): Promise<string> {
-        try {
-            const graphTokenRequest = {
-                oboAssertion: consentToken,
-                scopes: scopes
-            };
-            const graphToken = (await this.clientApplication.acquireTokenOnBehalfOf(graphTokenRequest)).accessToken;
-            return graphToken;
-        } catch (error: any) {
-            const errorResult = {
-                status: 500,
-                body: JSON.stringify({
-                    message: 'Unable to generate graph obo token: ' + error.message,
-                    providedToken: consentToken
-                })
-            };
-            return error.message;
-        }
     }
 }

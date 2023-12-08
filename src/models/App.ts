@@ -6,7 +6,6 @@
 import ThirdPartyAuthProvider from "../services/3PAuthProvider";
 import GraphProvider from "../services/GraphProvider";
 import { StorageProvider } from "../services/StorageProvider";
-import { OwningAppIdKey, OwningAppIdsListKey, TenantDomain, TenantIdKey } from "../utils/constants";
 import _ from 'lodash';
 import { Account } from "./Account";
 
@@ -14,10 +13,10 @@ import { Account } from "./Account";
 export class App {
     // instance properties
     public readonly clientId: string;
-    public readonly displayName: string;
     public readonly objectId: string;
     public readonly tenantId: string;
     public readonly isOwningApp: boolean;
+    public displayName: string;
     public clientSecret?: string;
     public thumbprint?: string;
     public privateKey?: string;
@@ -67,13 +66,6 @@ export class App {
         const consentToken = await thirdPartyAuthProvider.getToken(['00000003-0000-0ff1-ce00-000000000000/.default']);
         //const graphAccessToken = await thirdPartyAuthProvider.getToken(["https://graph.microsoft.com/User.Read"]);
         const graphAccessToken = await Account.getFirstPartyAccessToken();
-
-        // store tenant domain
-        const tenantDomain = await GraphProvider.getOwningTenantDomain(graphAccessToken);
-        const parts = tenantDomain.split('.');
-        const domain = parts[0];
-        await StorageProvider.get().global.setValue(TenantDomain, domain);
-
         return typeof consentToken === 'string' && typeof graphAccessToken === 'string';
     }
 

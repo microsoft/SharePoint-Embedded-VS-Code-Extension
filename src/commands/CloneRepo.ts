@@ -1,3 +1,7 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
 
 import { Command } from './Command';
 import * as vscode from 'vscode';
@@ -51,7 +55,7 @@ export class CloneRepo extends Command {
             const appId = applicationTreeItem.app.clientId;
             const containerTypeId = applicationTreeItem.containerType.containerTypeId;
             const clientSecret = applicationTreeItem.app.clientSecret || '';
-            const repoUrl = 'https://github.com/microsoft/syntex-repository-services.git';
+            const repoUrl = 'https://github.com/microsoft/SharePoint-Embedded-Samples.git';
             const folders = await vscode.window.showOpenDialog({
                 canSelectFiles: false,
                 canSelectFolders: true,
@@ -61,7 +65,7 @@ export class CloneRepo extends Command {
 
             if (folders && folders.length > 0) {
                 const destinationPath = folders[0].fsPath;
-                const subfolder = 'syntex-repository-services/samples/raas-spa-azurefunction/';
+                const subfolder = 'SharePoint-Embedded-Samples/samples/spa-azurefunction/';
 
                 const folderPathInRepository = path.join(destinationPath, subfolder);
                 await vscode.commands.executeCommand('git.clone', repoUrl, destinationPath);

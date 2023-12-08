@@ -1,3 +1,7 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
 
 import { Command } from './Command';
 import * as vscode from 'vscode';
@@ -9,7 +13,7 @@ import { App } from '../models/App';
 import { ProgressNotification } from '../views/notifications/ProgressNotification';
 import { DevelopmentTreeViewProvider } from '../views/treeview/development/DevelopmentTreeViewProvider';
 
-// Static class that handles the sign in command
+// Static class that handles the create guest app command
 export class CreateGuestApp extends Command {
     // Command name
     public static readonly COMMAND = 'createGuestApp';
@@ -37,12 +41,20 @@ export class CreateGuestApp extends Command {
         try {
             if (addGuestAppState.reconfigureApp) {
                 app = await account.importApp(addGuestAppState.appId!, true);
+                if (!app) {
+                    throw new Error("App is undefined");
+                }
                 // 20-second progress to allow app propagation before consent flow
                 await new ProgressNotification().show();
+                await app.consent();
             } else if (addGuestAppState.shouldCreateNewApp()) {
                 app = await account.createApp(addGuestAppState.appName!, true);
+                if (!app) {
+                    throw new Error("App is undefined");
+                }
                 // 20-second progress to allow app propagation before consent flow
                 await new ProgressNotification().show();
+                await app.consent();
             } else {
                 // Only other case is the app is already known -- try to get it from Account (should already be consented)
                 app = account.apps.find(app => app.clientId === addGuestAppState!.appId!);
@@ -64,6 +76,8 @@ export class CreateGuestApp extends Command {
             vscode.window.showErrorMessage("Unable to register Free Trial Container Type: " + error.message);
             return;
         }
+
+        vscode.window.showInformationMessage(`Container Type ${containerType.displayName} successfully registered on Azure AD App: ${app.displayName}`);
         DevelopmentTreeViewProvider.getInstance().refresh();
         guestApplicationsModel.collapsibleState = vscode.TreeItemCollapsibleState.Expanded;
     }

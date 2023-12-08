@@ -15,6 +15,7 @@ export class M365AccountNode extends DynamicNode implements LoginChangeListener 
     Account.subscribeLoginListener(this);
     this.iconPath = new vscode.ThemeIcon("loading~spin");
     this.collapsibleState = vscode.TreeItemCollapsibleState.None;
+    this.contextValue = "signingInM365";
   }
 
   public onLogin(account: Account): void {
@@ -28,7 +29,7 @@ export class M365AccountNode extends DynamicNode implements LoginChangeListener 
   public onLogout(): void {
     this.label = "Logging into account...";
     this.iconPath = new vscode.ThemeIcon("loading~spin");
-    this.contextValue = "";
+    this.contextValue = "signingInM365";
     vscode.commands.executeCommand('setContext', 'spe:isAdminLoggedIn', false);
     this._eventEmitter.fire(this);
   }

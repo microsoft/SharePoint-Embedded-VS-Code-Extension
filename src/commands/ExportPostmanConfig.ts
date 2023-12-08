@@ -1,15 +1,17 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
 import { Account } from '../models/Account';
-import { StorageProvider } from '../services/StorageProvider';
-import { TenantDomain } from '../utils/constants';
 import { ApplicationTreeItem } from '../views/treeview/development/ApplicationTreeItem';
 import { Command } from './Command';
 import { v4 as uuidv4 } from 'uuid';
 import * as fs from 'fs';
 import * as path from 'path';
 
-// Static class that handles the sign in command
+// Static class that handles the Postman export command
 export class ExportPostmanConfig extends Command {
     // Command name
     public static readonly COMMAND = 'exportPostmanConfig';
@@ -36,7 +38,6 @@ export class ExportPostmanConfig extends Command {
         const containerType = applicationTreeItem.containerType;
 
         const tid = account.tenantId;
-        const domain = await StorageProvider.get().global.getValue(TenantDomain);
 
         const values: any[] = [];
         values.push(
@@ -60,7 +61,7 @@ export class ExportPostmanConfig extends Command {
             },
             {
                 key: "RootSiteUrl",
-                value: `https://${domain}.sharepoint.com/`,
+                value: `https://${account.domain}.sharepoint.com/`,
                 type: "default",
                 enabled: true
             },
@@ -72,7 +73,7 @@ export class ExportPostmanConfig extends Command {
             },
             {
                 key: "TenantName",
-                value: domain,
+                value: account.domain,
                 type: "default",
                 enabled: true
             },

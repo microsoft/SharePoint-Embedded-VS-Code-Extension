@@ -43,17 +43,17 @@ export default class GraphProvider {
                 // https://microsoft.sharepoint.com
                 "resourceAppId": "00000003-0000-0ff1-ce00-000000000000",
                 "resourceAccess": [
-                        // Container.Selected - delegated
+                    // Container.Selected - delegated
                     {
                         "id": "4d114b1a-3649-4764-9dfb-be1e236ff371",
                         "type": "Scope"
                     },
-                        // Container.Selected - application
+                    // Container.Selected - application
                     {
                         "id": "19766c1b-905b-43af-8756-06526ab42875",
                         "type": "Role"
                     },
-                        // AllSites.Write - application
+                    // AllSites.Write - application
                     // {
                     //     "id": "fbcd29d2-fcca-4405-aded-518d457caae4",
                     //     "type": "Role"
@@ -188,7 +188,7 @@ export default class GraphProvider {
 
     private static async _getUpdateAppSettings(accessToken: string, appId: string, certKeyCredential: any) {
         const existing = await GraphProvider.getApplicationById(accessToken, appId);
-        let merged = { 
+        let merged = {
             ...GraphProvider.baseAppSettings,
             requiredResourceAccess: [],
             keyCredentials: [...existing.keyCredentials, certKeyCredential]
@@ -259,7 +259,7 @@ export default class GraphProvider {
             });
             console.log('App updated successfully:', response.data);
             return await GraphProvider.getApplicationById(accessToken, appId);
-        }  catch (error: any) {
+        } catch (error: any) {
             console.error('Error updating app:', error.response.data);
             throw error;
         }
@@ -293,20 +293,40 @@ export default class GraphProvider {
 
     static async deleteApplication(accessToken: string, clientId: string) {
         const endpoint = `https://graph.microsoft.com/v1.0/applications(appId='${clientId}')`;
-      
         try {
-          const response = await axios.delete(endpoint, {
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-            },
-          });
-      
-          console.log(`Application with ID ${clientId} deleted successfully.`);
+            const response = await axios.delete(endpoint, {
+                headers: {
+                    Authorization: `Bearer ${accessToken}`,
+                },
+            });
+
+            console.log(`Application with ID ${clientId} deleted successfully.`);
         } catch (error: any) {
-          console.error('Error deleting the application:', error.response.data);
-          throw error;
+            console.error('Error deleting the application:', error.response.data);
+            throw error;
         }
-      };
+    };
+
+    static async renameApplication(accessToken: string, clientId: string, newDisplayName: string) {
+        try {
+            const response = await axios({
+                method: 'patch',
+                url: `https://graph.microsoft.com/v1.0/applications(appId='${clientId}')`,
+                data: JSON.stringify({
+                    displayName: newDisplayName
+                }),
+                headers: {
+                    Authorization: `Bearer ${accessToken}`,
+                    'Content-Type': 'application/json',
+                }
+            }); 
+
+            console.log(`Application with ID ${clientId} successfully renamed.`);
+        } catch (error: any) {
+            console.error('Error renaming the application:', error.response.data);
+            throw error;
+        }
+    };
 
     static async addIdentifierUri(accessToken: string, clientId: string) {
         try {
@@ -448,8 +468,8 @@ export default class GraphProvider {
         };
         try {
             const response: AxiosResponse = await axios.post(`https://graph.microsoft.com/beta/storage/fileStorage/containers`,
-            JSON.stringify(containerData),
-            options);
+                JSON.stringify(containerData),
+                options);
             return response.data;
         } catch (error) {
             console.error(`Error creating container: ${displayName} on Container Type ${containerTypeId}`, error);

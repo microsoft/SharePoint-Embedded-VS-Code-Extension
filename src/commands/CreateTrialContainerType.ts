@@ -1,14 +1,17 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
 
-import { Command } from './Command';
 import * as vscode from 'vscode';
+import { Command } from './Command';
 import { Account } from '../models/Account';
 import { BillingClassification, ContainerType } from '../models/ContainerType';
 import { ContainerTypeCreationFlow, ContainerTypeCreationFlowState } from '../views/qp/UxFlows';
 import { ProgressNotification } from '../views/notifications/ProgressNotification';
 import { App } from '../models/App';
 import { DevelopmentTreeViewProvider } from '../views/treeview/development/DevelopmentTreeViewProvider';
-
-// Static class that handles the sign out command
+// Static class that handles the create trial container type command
 export class CreateTrialContainerType extends Command {
     // Command name
     public static readonly COMMAND = 'createTrialContainerType';
@@ -41,6 +44,7 @@ export class CreateTrialContainerType extends Command {
             Account.onContainerTypeCreationFinish();
             DevelopmentTreeViewProvider.getInstance().refresh();
             console.error(`Error with Container Type creation Ux Flow: ${error}`);
+            vscode.window.showErrorMessage(`Error with Container Type creation Ux Flow: ${error}`);
             return;
         }
 
@@ -52,24 +56,16 @@ export class CreateTrialContainerType extends Command {
             if (!app) {
                 throw new Error("App is undefined");
             }
+            // Consent app only if a local instance doesn't exist
             if (shouldDelay) {
                 await new ProgressNotification().show();
+                await app.consent();
             }
-            const message = "Grant consent to your new Azure AD application? This step is required in order to create a Free Trial Container Type. This will open a new web browser where you can grant consent with the administrator account on your tenant";
-            const userChoice = await vscode.window.showInformationMessage(
-                message,
-                'OK', 'Cancel'
-            );
-
-            if (userChoice !== 'OK') {
-                vscode.window.showWarningMessage('You must consent to your new Azure AD application to continue.');
-                throw new Error("Consent on app was not accepted.");
-            }
-            await app.consent();
         } catch (error) {
             Account.onContainerTypeCreationFinish();
             DevelopmentTreeViewProvider.getInstance().refresh();
             console.error(`Unable to get app: ${error}`);
+            vscode.window.showErrorMessage(`Unable to get app: ${error}`);
             return;
         }
 
@@ -80,6 +76,7 @@ export class CreateTrialContainerType extends Command {
             Account.onContainerTypeCreationFinish();
             DevelopmentTreeViewProvider.getInstance().refresh();
             console.error(`Error fetching Free Trial Container Type: ${error}`);
+            vscode.window.showErrorMessage(`Error fetching Free Trial Container Type: ${error}`);
         }
 
         // If we have a Free CT we need to import it instead of creating a new one
@@ -95,6 +92,7 @@ export class CreateTrialContainerType extends Command {
                     Account.onContainerTypeCreationFinish();
                     DevelopmentTreeViewProvider.getInstance().refresh();
                     console.error(`Error with Container Type creation Ux Flow: ${error}`);
+                    vscode.window.showErrorMessage(`Error with Container Type creation Ux Flow: ${error}`);
                     return;
                 }
 
@@ -106,22 +104,13 @@ export class CreateTrialContainerType extends Command {
                     }
                     if (shouldDelay) {
                         await new ProgressNotification().show();
+                        await app.consent();
                     }
-                    const message = "Grant consent to your new Azure AD application? This step is required in order to create a Free Trial Container Type. This will open a new web browser where you can grant consent with the administrator account on your tenant";
-                    const userChoice = await vscode.window.showInformationMessage(
-                        message,
-                        'OK', 'Cancel'
-                    );
-
-                    if (userChoice !== 'OK') {
-                        vscode.window.showWarningMessage('You must consent to your new Azure AD application to continue.');
-                        throw new Error("Consent on app was not accepted.");
-                    }
-                    await app.consent();
                 } catch (error) {
                     Account.onContainerTypeCreationFinish();
                     DevelopmentTreeViewProvider.getInstance().refresh();
                     console.error(`Unable to get app: ${error}`);
+                    vscode.window.showErrorMessage(`Unable to get app: ${error}`);
                     return;
                 }
             }
@@ -135,6 +124,7 @@ export class CreateTrialContainerType extends Command {
                 Account.onContainerTypeCreationFinish();
                 DevelopmentTreeViewProvider.getInstance().refresh();
                 console.error(`Error importing Free Trial Container Type: ${error}`);
+                vscode.window.showErrorMessage(`Error importing Free Trial Container Type: ${error}`);
                 return;
             }
 
@@ -169,6 +159,5 @@ export class CreateTrialContainerType extends Command {
         Account.onContainerTypeCreationFinish();
         DevelopmentTreeViewProvider.getInstance().refresh();
         vscode.window.showInformationMessage(`Container Type ${ctCreationState.containerTypeName} successfully created and registered on Azure AD App: ${app.displayName}`);
-    
     }
 }

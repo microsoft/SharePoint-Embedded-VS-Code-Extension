@@ -1,8 +1,11 @@
 {
   "name": "spe",
-  "displayName": "spe",
-  "description": "SharePoint Embedded VS Code Extension ",
+  "displayName": "SharePoint Embedded",
+  "description": "SharePoint Embedded Visual Studio Code Extension",
+  "repository": "https://github.com/microsoft/SharePoint-Embedded-VS-Code-Extension",
   "version": "0.0.1",
+  "author": "Microsoft Corporation",
+  "publisher": "SharepointEmbedded",
   "engines": {
     "vscode": "^1.81.0"
   },
@@ -103,14 +106,9 @@
           "group": "inline@1"
         },
         {
-          "command": "spe.renameContainerType",
-          "when": "view == spe-development && viewItem == containerType",
+          "command": "spe.cancelSignIn",
+          "when": "view == spe-accounts && viewItem == signingInM365",
           "group": "inline@1"
-        },
-        {
-          "command": "spe.editDescriptionContainerType",
-          "when": "view == spe-development && viewItem == containerType",
-          "group": "inline@2"
         },
         {
           "command": "spe.deleteContainerType",
@@ -123,7 +121,7 @@
           "group": "inline@3"
         },
         {
-          "command": "spe.renameADApplication",
+          "command": "spe.renameApplication",
           "when": "view == spe-development && (viewItem == owningApplication || viewItem == guestApplication)",
           "group": "inline@1"
         },
@@ -192,7 +190,7 @@
         "icon": "$(word-wrap)"
       },
       {
-        "command": "spe.renameADApplication",
+        "command": "spe.renameApplication",
         "title": "Rename",
         "icon": "$(word-wrap)"
       },
@@ -235,6 +233,11 @@
         "icon": "$(sign-out)"
       },
       {
+        "command": "spe.cancelSignIn",
+        "title": "SharePoint Embedded: Cancel Sign In",
+        "icon": "$(chrome-close)"
+      },
+      {
         "command": "spe.callSpeTosCommand",
         "title": "SharePoint Embedded: Accept SPE Terms of Service"
       }
@@ -246,7 +249,8 @@
     "watch": "tsc -watch -p ./",
     "pretest": "npm run compile && npm run lint",
     "lint": "eslint src --ext ts",
-    "test": "node ./out/test/runTest.js"
+    "test": "node ./out/test/runTest.js",
+    "bundle": "npm install -g @vscode/vsce && vsce package"
   },
   "devDependencies": {
     "@types/glob": "^8.1.0",
