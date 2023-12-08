@@ -12,3 +12,10 @@ export class TermsOfServiceError extends Error {
         this.message = message;
     }
 }
+
+export class MaxFreeContainerTypesError extends Error {
+    constructor(message: string) {
+        super(message);
+        this.name = 'MaxFreeContainerTypesError';
+    }
+}
