@@ -29,7 +29,6 @@ export async function activate(context: vscode.ExtensionContext) {
             await Account.loginToSavedAccount();
             vscode.commands.executeCommand('setContext', 'spe:isLoggingIn', false);       
         }
-        await Account.get()?.loadFromStorage();
         vscode.window.registerTreeDataProvider(DevelopmentTreeViewProvider.viewId, DevelopmentTreeViewProvider.getInstance());
     }); 
 
@@ -44,4 +43,5 @@ export async function activate(context: vscode.ExtensionContext) {
     Commands.CloneRepo.register(context);
     Commands.ExportPostmanConfig.register(context);
     Commands.RenameApplication.register(context);
+    Commands.CancelSignIn.register(context);
 }

@@ -4,6 +4,8 @@
   "description": "SharePoint Embedded Visual Studio Code Extension",
   "repository": "https://github.com/microsoft/SharePoint-Embedded-VS-Code-Extension",
   "version": "0.0.1",
+  "author": "Microsoft Corporation",
+  "publisher": "SharepointEmbedded",
   "engines": {
     "vscode": "^1.81.0"
   },
@@ -101,6 +103,11 @@
         {
           "command": "spe.signOut",
           "when": "view == spe-accounts && viewItem == signedinM365",
+          "group": "inline@1"
+        },
+        {
+          "command": "spe.cancelSignIn",
+          "when": "view == spe-accounts && viewItem == signingInM365",
           "group": "inline@1"
         },
         {
@@ -224,6 +231,11 @@
         "command": "spe.signOut",
         "title": "SharePoint Embedded: Sign out account",
         "icon": "$(sign-out)"
+      },
+      {
+        "command": "spe.cancelSignIn",
+        "title": "SharePoint Embedded: Cancel Sign In",
+        "icon": "$(chrome-close)"
       },
       {
         "command": "spe.callSpeTosCommand",

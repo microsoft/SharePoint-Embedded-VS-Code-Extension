@@ -15,12 +15,13 @@ import { generateCertificateAndPrivateKey, createCertKeyCredential } from '../ce
 import GraphProvider from '../services/GraphProvider';
 import ThirdPartyAuthProvider from '../services/3PAuthProvider';
 import SPAdminProvider from '../services/SPAdminProvider';
-import { TenantIdKey, OwningAppIdKey, TenantDomain, IsContainerTypeCreatingKey } from '../utils/constants';
+import { TenantIdKey, IsContainerTypeCreatingKey } from '../utils/constants';
 import { timeoutForSeconds } from '../utils/timeout';
 
 type StoredAccount = {
     appIds: string[],
-    containerTypeIds: string[]
+    containerTypeIds: string[],
+    tenantDomain?: string
 };
 
 type AccountData = {
@@ -33,8 +34,8 @@ type AccountData = {
 export class Account {
     // Storage key for the account
     public static readonly storageKey: string = "account";
-    private static readonly firstPartyAppId: string = "aba7eb80-02fe-4070-8fca-b729f428166f";
-    //private static readonly firstPartyAppId: string = "e354d98a-0a53-480d-b6cb-cc66ac4d4c88";
+    //private static readonly firstPartyAppId: string = "aba7eb80-02fe-4070-8fca-b729f428166f";
+    private static readonly firstPartyAppId: string = "e354d98a-0a53-480d-b6cb-cc66ac4d4c88";
     private static readonly authProvider: BaseAuthProvider = new FirstPartyAuthProvider(Account.firstPartyAppId, Account.storageKey);
     private static readonly scopes: string[] = ['Application.ReadWrite.All', 'User.Read'];
     private static instance: Account | undefined;
@@ -48,6 +49,7 @@ export class Account {
     public readonly localAccountId: string;
     public readonly isAdmin: boolean;
     public readonly name?: string;
+    public domain: string;
 
     public appIds: string[] = [];
     public containerTypeIds: string[] = [];
@@ -56,12 +58,13 @@ export class Account {
     public containerTypes: ContainerType[] = [];
 
 
-    private constructor(homeAccountId: string, environment: string, tenantId: string, username: string, localAccountId: string, isAdmin: boolean, name?: string) {
+    private constructor(homeAccountId: string, environment: string, tenantId: string, username: string, localAccountId: string, isAdmin: boolean, domain: string, name?: string) {
         this.homeAccountId = homeAccountId;
         this.environment = environment;
         this.tenantId = tenantId;
         this.username = username;
         this.localAccountId = localAccountId;
+        this.domain = domain;
         this.name = name;
         this.isAdmin = isAdmin;
 
@@ -94,6 +97,25 @@ export class Account {
     public static async login(): Promise<Account | undefined> {
         const token = await Account.authProvider.getToken(Account.scopes);
         if (token) {
+            let domain: string | undefined;
+            const storedAccount = Account._getStoredAccount();
+            if (!storedAccount || !storedAccount.tenantDomain) {
+                try {
+                    const tenantDomain = await GraphProvider.getOwningTenantDomain(token);
+                    const parts = tenantDomain.split('.');
+                    domain = parts[0];
+                }
+                catch (error) {
+                    console.error(error);
+                    return undefined;
+                }
+            } else if (storedAccount.tenantDomain) {
+                domain = storedAccount.tenantDomain;
+            }
+            if (!domain) {
+                // TODO: Handle this error
+                return undefined;
+            }
             const accountInfo = await Account._getSavedAccount();
             if (accountInfo) {
                 const decodedToken = decodeJwt(token);
@@ -105,14 +127,16 @@ export class Account {
                     accountInfo.username,
                     accountInfo.localAccountId,
                     isAdmin,
+                    domain,
                     accountInfo.name
                 );
+                
+                await Account.instance.loadFromStorage();
                 Account._notifyLogin();
                 return Account.get();
             }
-
+            return undefined;
         }
-        return undefined;
     }
 
     public async logout(): Promise<void> {
@@ -145,12 +169,12 @@ export class Account {
         });
     }
 
-    public static  onContainerTypeCreationStart(): void {
+    public static onContainerTypeCreationStart(): void {
         StorageProvider.get().temp.set(IsContainerTypeCreatingKey, true);
     }
 
-    public static  onContainerTypeCreationFinish(): void {
-         StorageProvider.get().temp.set(IsContainerTypeCreatingKey, false);
+    public static onContainerTypeCreationFinish(): void {
+        StorageProvider.get().temp.set(IsContainerTypeCreatingKey, false);
     }
 
     public static getContainerTypeCreationState(): any {
@@ -207,9 +231,8 @@ export class Account {
         }
         const appSecrets = JSON.parse(appSecretsString);
         const thirdPartyAuthProvider = new ThirdPartyAuthProvider(appId, appSecrets.thumbprint, appSecrets.privateKey);
-        const domain = await StorageProvider.get().global.getValue(TenantDomain);
-
-        let spToken = await thirdPartyAuthProvider.getToken([`https://${domain}-admin.sharepoint.com/AllSites.Write`]);
+   
+        let spToken = await thirdPartyAuthProvider.getToken([`https://${this.domain}-admin.sharepoint.com/.default`]);
         let decodedToken = decodeJwt(spToken);
         let retries = 0;
         const maxRetries = 3;
@@ -218,7 +241,7 @@ export class Account {
             console.log(`Attempt ${retries}: 'AllSites' scope not found on token fetch for NewContainerType. Waiting for 5 seconds...`);
             await timeoutForSeconds(5);
             // Get a new token
-            spToken = await thirdPartyAuthProvider.getToken([`https://${domain}-admin.sharepoint.com/AllSites.Write`]);
+            spToken = await thirdPartyAuthProvider.getToken([`https://${this.domain}-admin.sharepoint.com/.default`]);
             decodedToken = decodeJwt(spToken);
         }
 
@@ -229,7 +252,7 @@ export class Account {
         try {
             // Create ContainerType if none exist in global store, else register application on existing ContainerType
             if (this.containerTypeIds.length === 0) {
-                const containerTypeDetails = await SPAdminProvider.createNewContainerType(spToken, domain, appId, containerTypeName, billingClassification);
+                const containerTypeDetails = await SPAdminProvider.createNewContainerType(spToken, this.domain, appId, containerTypeName, billingClassification);
                 const owningApp = this.apps.find(app => app.clientId === appId)!;
                 const containerType = new ContainerType(
                     containerTypeDetails.ContainerTypeId,
@@ -295,10 +318,8 @@ export class Account {
         }
         const appSecrets = JSON.parse(appSecretsString);
         const thirdPartyAuthProvider = new ThirdPartyAuthProvider(appId, appSecrets.thumbprint, appSecrets.privateKey);
-        const tid: any = StorageProvider.get().global.getValue(TenantIdKey);
 
-        const domain: string = await StorageProvider.get().global.getValue(TenantDomain);
-        let spToken = await thirdPartyAuthProvider.getToken([`https://${domain}-admin.sharepoint.com/AllSites.Write`]);
+        let spToken = await thirdPartyAuthProvider.getToken([`https://${this.domain}-admin.sharepoint.com/.default`]);
         let decodedToken = decodeJwt(spToken);
         let retries = 0;
         const maxRetries = 3;
@@ -307,14 +328,14 @@ export class Account {
             console.log(`Attempt ${retries}: 'AllSites' scope not found on token fetch for GetContainerTypeById. Waiting for 5 seconds...`);
             await timeoutForSeconds(5);
             // Get a new token
-            spToken = await thirdPartyAuthProvider.getToken([`https://${domain}-admin.sharepoint.com/AllSites.Write`]);
+            spToken = await thirdPartyAuthProvider.getToken([`https://${this.domain}-admin.sharepoint.com/.default`]);
             decodedToken = decodeJwt(spToken);
         }
 
         if (!checkJwtForTenantAdminScope(decodedToken, "AllSites.Write")) {
             throw new Error("'AllSites' scope not found on token fetch for NewContainerType.");
         }
-        const containerTypeDetails = await SPAdminProvider.getContainerTypeById(spToken, domain, containerTypeId);
+        const containerTypeDetails = await SPAdminProvider.getContainerTypeById(spToken, this.domain, containerTypeId);
 
         return containerTypeDetails;
     }
@@ -326,9 +347,8 @@ export class Account {
         }
         const appSecrets = JSON.parse(appSecretsString);
         const thirdPartyAuthProvider = new ThirdPartyAuthProvider(appId, appSecrets.thumbprint, appSecrets.privateKey);
-        const domain: string = await StorageProvider.get().global.getValue(TenantDomain);
 
-        let spToken = await thirdPartyAuthProvider.getToken([`https://${domain}-admin.sharepoint.com/AllSites.Write`]);
+        let spToken = await thirdPartyAuthProvider.getToken([`https://${this.domain}-admin.sharepoint.com/.default`]);
         let decodedToken = decodeJwt(spToken);
         let retries = 0;
         const maxRetries = 3;
@@ -337,7 +357,7 @@ export class Account {
             console.log(`Attempt ${retries}: 'AllSites' scope not found on token fetch for GetSPOContainerTypes. Waiting for 5 seconds...`);
             await timeoutForSeconds(5);
             // Get a new token
-            spToken = await thirdPartyAuthProvider.getToken([`https://${domain}-admin.sharepoint.com/AllSites.Write`]);
+            spToken = await thirdPartyAuthProvider.getToken([`https://${this.domain}-admin.sharepoint.com/.default`]);
             decodedToken = decodeJwt(spToken);
         }
 
@@ -346,7 +366,7 @@ export class Account {
         }
 
         try {
-            const containerTypeList = await SPAdminProvider.getContainerTypes(spToken, domain);
+            const containerTypeList = await SPAdminProvider.getContainerTypes(spToken, this.domain);
             const containerTypes: ContainerType[] = [];
             containerTypeList.map((containerTypeProps: any) => {
                 const containerType = new ContainerType(
@@ -386,9 +406,8 @@ export class Account {
         }
         const appSecrets = JSON.parse(appSecretsString);
         const thirdPartyAuthProvider = new ThirdPartyAuthProvider(appId, appSecrets.thumbprint, appSecrets.privateKey);
-        const domain: string = await StorageProvider.get().global.getValue(TenantDomain);
 
-        let spToken = await thirdPartyAuthProvider.getToken([`https://${domain}-admin.sharepoint.com/AllSites.Write`]);
+        let spToken = await thirdPartyAuthProvider.getToken([`https://${this.domain}-admin.sharepoint.com/.default`]);
         let decodedToken = decodeJwt(spToken);
         let retries = 0;
         const maxRetries = 3;
@@ -397,7 +416,7 @@ export class Account {
             console.log(`Attempt ${retries}: 'AllSites' scope not found on token fetch for RemoveSPOContainerType. Waiting for 5 seconds...`);
             await timeoutForSeconds(5);
             // Get a new token
-            spToken = await thirdPartyAuthProvider.getToken([`https://${domain}-admin.sharepoint.com/AllSites.Write`]);
+            spToken = await thirdPartyAuthProvider.getToken([`https://${this.domain}-admin.sharepoint.com/.default`]);
             decodedToken = decodeJwt(spToken);
         }
 
@@ -406,23 +425,23 @@ export class Account {
         }
 
         try {
-            const containerTypeDetails = await SPAdminProvider.deleteContainerTypeById(spToken, domain, containerTypeId);
+            const containerTypeDetails = await SPAdminProvider.deleteContainerTypeById(spToken, this.domain, containerTypeId);
 
             const deletionPromises: Thenable<void>[] = [];
             const containerType = this.containerTypes.find(ct => ct.containerTypeId === containerTypeId);
             this.containerTypeIds = this.containerTypeIds.filter(id => id !== containerTypeId);
             this.containerTypes = this.containerTypes.filter(ct => ct.containerTypeId !== containerTypeId);
-    
+
             await StorageProvider.get().global.setValue(containerTypeId, undefined);
-    
+
             if (containerType && containerType.registrationIds) {
                 containerType.registrationIds.forEach(async registrationId => {
                     deletionPromises.push(StorageProvider.get().global.setValue(registrationId, undefined));
                 });
             }
-    
+
             await Promise.all(deletionPromises);
-    
+
             await this.saveToStorage();
             return containerTypeDetails;
         } catch (error: any) {
@@ -476,7 +495,7 @@ export class Account {
         return appData;
     }
 
-    
+
     public async renameApp(app: App, displayName: string): Promise<void> {
         const token = await Account.authProvider.getToken(Account.scopes);
         await GraphProvider.renameApplication(token, app.clientId, displayName)
@@ -484,8 +503,12 @@ export class Account {
         app.saveToStorage();
     }
 
+    private static _getStoredAccount(): StoredAccount {
+        return JSON.parse(StorageProvider.get().global.getValue(Account.storageKey)) as StoredAccount;
+    }
+
     public async loadFromStorage(): Promise<void> {
-        const storedAccount: StoredAccount = JSON.parse(StorageProvider.get().global.getValue(Account.storageKey));
+        const storedAccount: StoredAccount = Account._getStoredAccount();
 
         if (!storedAccount) {
             return;
@@ -540,7 +563,6 @@ export class Account {
         await Promise.all(secretPromises);
         await StorageProvider.get().global.setValue(Account.storageKey, undefined);
         await StorageProvider.get().global.setValue(TenantIdKey, undefined);
-        await StorageProvider.get().global.setValue(TenantDomain, undefined);
     }
 }
 

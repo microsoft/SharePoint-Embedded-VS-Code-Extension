@@ -5,21 +5,18 @@
 
 import { Command } from './Command';
 import * as vscode from 'vscode';
-import { Account } from '../models/Account';
 
 // Static class that handles the sign in command
-export class SignIn extends Command {
+export class CancelSignIn extends Command {
     // Command name
-    public static readonly COMMAND = 'login';
+    public static readonly COMMAND = 'cancelSignIn';
 
     // Command handler
     public static async run(): Promise<void> {
         try {
-            vscode.commands.executeCommand('setContext', 'spe:isLoggingIn', true);
-            await Account.login();
             vscode.commands.executeCommand('setContext', 'spe:isLoggingIn', false);
         } catch (error) {
-            vscode.window.showErrorMessage('Failed to obtain access token.');
+            vscode.window.showErrorMessage('Failed to cancel sign in flow.');
             console.error('Error:', error);
         }
     }

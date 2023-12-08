@@ -14,7 +14,6 @@ import { ApplicationPermissions } from "./ApplicationPermissions";
 import { ContainerTypeRegistration } from "./ContainerTypeRegistration";
 import { Container } from './Container';
 import { Account } from './Account';
-import { TenantDomain } from '../utils/constants';
 import { timeoutForSeconds } from '../utils/timeout';
 import { decodeJwt, checkJwtForTenantAdminScope, checkJwtForAppOnlyRole } from '../utils/token';
 
@@ -78,11 +77,11 @@ export class ContainerType {
                 return false;
             }
             const appSecrets = JSON.parse(appSecretsString);
-            const domain: string = await StorageProvider.get().global.getValue(TenantDomain);
             const token = await Account.getFirstPartyAccessToken();
+            const account = Account.get()!;
 
             const certThumbprint = await GraphProvider.getCertThumbprintFromApplication(token, this.owningAppId);
-            let vroomAccessToken = appSecrets.privateKey && await acquireAppOnlyCertSPOToken(certThumbprint, this.owningAppId, domain, appSecrets.privateKey, tenantId);
+            let vroomAccessToken = appSecrets.privateKey && await acquireAppOnlyCertSPOToken(certThumbprint, this.owningAppId, account.domain, appSecrets.privateKey, tenantId);
             let decodedToken = decodeJwt(vroomAccessToken);
             let retries = 0;
             const maxRetries = 3;
@@ -91,7 +90,7 @@ export class ContainerType {
                 console.log(`Attempt ${retries}: 'Container.Selected' role not found on token fetch for Container Type Registration. Waiting for 5 seconds...`);
                 await timeoutForSeconds(5);
                 // Get a new token
-                vroomAccessToken = await acquireAppOnlyCertSPOToken(certThumbprint, this.owningAppId, domain, appSecrets.privateKey, tenantId);
+                vroomAccessToken = await acquireAppOnlyCertSPOToken(certThumbprint, this.owningAppId, account.domain, appSecrets.privateKey, tenantId);
                 decodedToken = decodeJwt(vroomAccessToken);
             }
 
@@ -103,7 +102,7 @@ export class ContainerType {
 
             if (!containerTypeRegistration) {
                 containerTypeRegistration = new ContainerTypeRegistration(this.containerTypeId, tenantId, [new ApplicationPermissions(app.clientId, ["full"], ["full"])]);
-                await VroomProvider.registerContainerType(vroomAccessToken, this.owningAppId, `https://${domain}.sharepoint.com`, this.containerTypeId, containerTypeRegistration.applicationPermissions);
+                await VroomProvider.registerContainerType(vroomAccessToken, this.owningAppId, `https://${account.domain}.sharepoint.com`, this.containerTypeId, containerTypeRegistration.applicationPermissions);
                 this.registrationIds.push(`${this.containerTypeId}_${tenantId}`);
                 this.registrations.push(containerTypeRegistration);
             } else {
@@ -114,7 +113,7 @@ export class ContainerType {
                     containerTypeRegistration.applicationPermissions[applicationPermissionIndex] = new ApplicationPermissions(app.clientId, delegatedPermissions, applicationPermissions);
                 }
 
-                await VroomProvider.registerContainerType(vroomAccessToken, this.owningAppId, `https://${domain}.sharepoint.com`, this.containerTypeId, containerTypeRegistration.applicationPermissions);
+                await VroomProvider.registerContainerType(vroomAccessToken, this.owningAppId, `https://${account.domain}.sharepoint.com`, this.containerTypeId, containerTypeRegistration.applicationPermissions);
 
                 // find existing registration in instance, and update it
                 const indexToReplace = this.registrations.findIndex(registration => registration.id === containerTypeRegistration.id);
