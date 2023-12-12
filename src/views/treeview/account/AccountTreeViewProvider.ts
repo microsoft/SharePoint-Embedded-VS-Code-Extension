@@ -47,4 +47,4 @@ export class AccountTreeViewProvider implements vscode.TreeDataProvider<DynamicN
     }
 }
 
-export default AccountTreeViewProvider.getInstance();
+//export AccountTreeViewProvider.getInstance();

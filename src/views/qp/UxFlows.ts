@@ -234,7 +234,7 @@ class ImportOrCreateAppQuickPick extends UxInputStep {
         detail: 'Creates a new Azure AD Application with the specified name',
         name: this.defaultAppName,
         alwaysShow: true,
-        iconPath: new ThemeIcon('add')
+        iconPath: new ThemeIcon('new-app-icon')
     };
     private recentApps: AppQuickPickItem[] = [];
     private readonly recentAppsSeparator: AppQuickPickItem = {
@@ -296,7 +296,7 @@ class ImportOrCreateAppQuickPick extends UxInputStep {
                     id: app.clientId,
                     label: app.displayName,
                     detail: `Client ID: ${app.clientId}`,
-                    iconPath: new ThemeIcon('extensions-view-icon')
+                    iconPath: new ThemeIcon('app-icon')
                 }
             ));
             if (this._appExclusions) {
@@ -311,7 +311,7 @@ class ImportOrCreateAppQuickPick extends UxInputStep {
                         label: app.displayName,
                         description:  `created ${formatDistanceToNow(parseISO(app.createdDateTime))} ago`,
                         detail: `Client ID: ${app.appId}`,
-                        iconPath: new ThemeIcon('extensions-view-icon')
+                        iconPath: new ThemeIcon('app-icon')
                     }
                 ));
                 if (this._appExclusions) {

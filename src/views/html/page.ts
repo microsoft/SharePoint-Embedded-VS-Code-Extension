@@ -11,11 +11,7 @@ export const htmlString = `<!DOCTYPE html>
     <a class="branding" href="https://code.visualstudio.com/"> Visual Studio Code - SharePoint Embedded extension </a>
     <div class="message-container">
       <div class="message">
-        You are now signed into the Microsoft SharePoint Embedded Visual Studio Code extension. 
-        Close this window to return to Visual Studio Code.
-        <br />
-        <br />
-        Attempting redirect to Visual Studio Code in a couple seconds... 
+        Authentication was successful. You will be redirected back to Visual Studio Code.  
       </div>
       <div class="error-message">
         An error occurred while signing in:

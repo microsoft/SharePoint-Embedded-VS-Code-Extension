@@ -25,9 +25,7 @@ export async function activate(context: vscode.ExtensionContext) {
     Account.hasSavedAccount().then(async (hasSavedAccount) => {
         vscode.window.registerTreeDataProvider(AccountTreeViewProvider.viewId, AccountTreeViewProvider.getInstance());
         if (hasSavedAccount) {
-            vscode.commands.executeCommand('setContext', 'spe:isLoggingIn', hasSavedAccount);
             await Account.loginToSavedAccount();
-            vscode.commands.executeCommand('setContext', 'spe:isLoggingIn', false);       
         }
         vscode.window.registerTreeDataProvider(DevelopmentTreeViewProvider.viewId, DevelopmentTreeViewProvider.getInstance());
     }); 

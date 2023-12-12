@@ -7,6 +7,7 @@ import * as vscode from "vscode";
 import { DynamicNode } from "../DynamicNode";
 import { AccountItemStatus, m365Icon, signOutIcon } from "./common";
 import { Account, LoginChangeListener } from "../../../models/Account";
+import { AccountTreeViewProvider } from "./AccountTreeViewProvider";
 
 export class M365AccountNode extends DynamicNode implements LoginChangeListener {
 
@@ -18,20 +19,34 @@ export class M365AccountNode extends DynamicNode implements LoginChangeListener 
     this.contextValue = "signingInM365";
   }
 
+  public onBeforeLogin(): void {
+    vscode.commands.executeCommand('setContext', 'spe:isLoggingIn', true);
+    AccountTreeViewProvider.getInstance().refresh();
+  }
+
   public onLogin(account: Account): void {
     this.label = account.username;
     this.iconPath = m365Icon;
     this.contextValue = "signedinM365";
-    vscode.commands.executeCommand('setContext', 'spe:isAdminLoggedIn', account.isAdmin);
-    this._eventEmitter.fire(this);
+    vscode.commands.executeCommand('setContext', 'spe:isLoggingIn', false);
+    vscode.commands.executeCommand('setContext', 'spe:isLoggedIn', true);
+    vscode.commands.executeCommand('setContext', 'spe:isAdmin', account.isAdmin);
+    AccountTreeViewProvider.getInstance().refresh();
+  }
+
+  public onLoginFailed(): void {
+    vscode.commands.executeCommand('setContext', 'spe:isLoggingIn', false);
+    AccountTreeViewProvider.getInstance().refresh();
   }
 
   public onLogout(): void {
+    console.log('onLogout');
     this.label = "Logging into account...";
     this.iconPath = new vscode.ThemeIcon("loading~spin");
     this.contextValue = "signingInM365";
-    vscode.commands.executeCommand('setContext', 'spe:isAdminLoggedIn', false);
-    this._eventEmitter.fire(this);
+    vscode.commands.executeCommand('setContext', 'spe:isLoggedIn', false);
+    vscode.commands.executeCommand('setContext', 'spe:isAdmin', false);
+    AccountTreeViewProvider.getInstance().refresh();
   }
 
   public getChildren(): vscode.ProviderResult<DynamicNode[]> {

@@ -1,11 +1,12 @@
 {
-  "name": "spe",
+  "name": "ms-sharepoint-embedded-vscode-extension",
   "displayName": "SharePoint Embedded",
-  "description": "SharePoint Embedded Visual Studio Code Extension",
+  "description": "Build SharePoint Embedded apps",
   "repository": "https://github.com/microsoft/SharePoint-Embedded-VS-Code-Extension",
   "version": "0.0.1",
   "author": "Microsoft Corporation",
   "publisher": "SharepointEmbedded",
+  "icon": "media/sharepoint-embedded-icon.png",
   "engines": {
     "vscode": "^1.81.0"
   },
@@ -43,11 +44,18 @@
           "fontCharacter": "\\ECAA"
         }
       },
+      "new-app-icon": {
+        "description": "New App icon",
+        "default": {
+          "fontPath": "./media/fabric-icons.woff",
+          "fontCharacter": "\\EFDA"
+        }
+      },
       "owningapp-icon": {
         "description": "Owning App icon",
         "default": {
           "fontPath": "./media/fabric-icons.woff",
-          "fontCharacter": "\\E657"
+          "fontCharacter": "\\ECAA"
         }
       },
       "container-icon": {
@@ -71,12 +79,12 @@
       {
         "view": "spe-welcome",
         "contents": "Sign into your Microsoft 365 tenant with an adminstrator account to get started.\n[Sign into Microsoft 365](command:spe.login) \n\n\n If you don't have adminstrator access to a Microsoft 365 tenant, [get your own tenant with the Microsoft 365 Developer Program](https://developer.microsoft.com/en-us/microsoft-365/dev-program).",
-        "when": "!spe:isAdminLoggedIn && !spe:isLoggingIn"
+        "when": "!spe:isLoggedIn && !spe:isLoggingIn"
       },
       {
         "view": "spe-development",
         "contents": "Get started with a trial Container Type\n [Create Trial Container Type](command:spe.createTrialContainerType)",
-        "when": "spe:isAdminLoggedIn"
+        "when": "spe:isAdmin"
       }
     ],
     "views": {
@@ -84,17 +92,17 @@
         {
           "id": "spe-welcome",
           "name": "",
-          "when": "!spe:isAdminLoggedIn && !spe:isLoggingIn"
+          "when": "!spe:isLoggedIn && !spe:isLoggingIn"
         },
         {
           "id": "spe-accounts",
           "name": "Account",
-          "when": "spe:isAdminLoggedIn || spe:isLoggingIn"
+          "when": "spe:isLoggedIn || spe:isLoggingIn"
         },
         {
           "id": "spe-development",
           "name": "Development",
-          "when": "spe:isAdminLoggedIn"
+          "when": "spe:isAdmin"
         }
       ]
     },
@@ -217,7 +225,7 @@
       {
         "command": "spe.exportPostmanConfig",
         "title": "Export Postman config",
-        "icon": "$(wrench)"
+        "icon": "$(export)"
       },
       {
         "command": "spe.callMSGraphCommand",

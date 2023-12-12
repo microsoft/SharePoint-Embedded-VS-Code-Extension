@@ -18,7 +18,7 @@ export class OwningApplicationTreeItem extends ApplicationTreeItem {
         public commandArguments?: any[],
     ) {
         super(app, containerType, label, collapsibleState);
-        this.iconPath = new vscode.ThemeIcon("owningapp-icon");
+        this.iconPath = new vscode.ThemeIcon("app-icon");
         this.contextValue = "owningApplication";
         this.description = "owning application";
         this.tooltip = new vscode.MarkdownString(

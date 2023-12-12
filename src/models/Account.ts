@@ -95,48 +95,51 @@ export class Account {
     }
 
     public static async login(): Promise<Account | undefined> {
+        Account._notifyBeforeLogin();
         const token = await Account.authProvider.getToken(Account.scopes);
-        if (token) {
-            let domain: string | undefined;
-            const storedAccount = Account._getStoredAccount();
-            if (!storedAccount || !storedAccount.tenantDomain) {
-                try {
-                    const tenantDomain = await GraphProvider.getOwningTenantDomain(token);
-                    const parts = tenantDomain.split('.');
-                    domain = parts[0];
-                }
-                catch (error) {
-                    console.error(error);
-                    return undefined;
-                }
-            } else if (storedAccount.tenantDomain) {
-                domain = storedAccount.tenantDomain;
+        if (!token) {
+            Account._notifyLoginFailed();
+            return;
+        }
+        let domain: string | undefined;
+        const storedAccount = Account._getStoredAccount();
+        if (!storedAccount || !storedAccount.tenantDomain) {
+            try {
+                const tenantDomain = await GraphProvider.getOwningTenantDomain(token);
+                const parts = tenantDomain.split('.');
+                domain = parts[0];
             }
-            if (!domain) {
-                // TODO: Handle this error
+            catch (error) {
+                console.error(error);
                 return undefined;
             }
-            const accountInfo = await Account._getSavedAccount();
-            if (accountInfo) {
-                const decodedToken = decodeJwt(token);
-                const isAdmin = checkJwtForAdminClaim(decodedToken);
-                const tid = getJwtTenantId(decodedToken);
-                Account.instance = new Account(accountInfo.homeAccountId,
-                    accountInfo.environment,
-                    accountInfo.tenantId,
-                    accountInfo.username,
-                    accountInfo.localAccountId,
-                    isAdmin,
-                    domain,
-                    accountInfo.name
-                );
-                
-                await Account.instance.loadFromStorage();
-                Account._notifyLogin();
-                return Account.get();
-            }
-            return undefined;
+        } else if (storedAccount.tenantDomain) {
+            domain = storedAccount.tenantDomain;
         }
+        if (!domain) {
+            Account._notifyLoginFailed();
+            return;
+        }
+        const accountInfo = await Account._getSavedAccount();
+        if (!accountInfo) {
+            Account._notifyLoginFailed();
+            return;
+        }
+
+        const decodedToken = decodeJwt(token);
+        const isAdmin = checkJwtForAdminClaim(decodedToken);
+        Account.instance = new Account(accountInfo.homeAccountId,
+            accountInfo.environment,
+            accountInfo.tenantId,
+            accountInfo.username,
+            accountInfo.localAccountId,
+            isAdmin,
+            domain,
+            accountInfo.name
+        );
+        await Account.instance.loadFromStorage();
+        Account._notifyLogin();
+        return Account.get();
     }
 
     public async logout(): Promise<void> {
@@ -156,10 +159,22 @@ export class Account {
             Account.subscribers.splice(index, 1);
         }
     }
+    
+    private static _notifyBeforeLogin(): void {
+        Account.subscribers.forEach((listener) => {
+            listener.onBeforeLogin();
+        });
+    }
 
     private static _notifyLogin(): void {
         Account.subscribers.forEach((listener) => {
             listener.onLogin(Account.get()!);
+        });
+    }
+
+    private static _notifyLoginFailed(): void {
+        Account.subscribers.forEach((listener) => {
+            listener.onLoginFailed();
         });
     }
 
@@ -567,6 +582,8 @@ export class Account {
 }
 
 export abstract class LoginChangeListener {
+    public abstract onBeforeLogin(): void;
     public abstract onLogin(account: Account): void;
+    public abstract onLoginFailed(): void;
     public abstract onLogout(): void;
 }

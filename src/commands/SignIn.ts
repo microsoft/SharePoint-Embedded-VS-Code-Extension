@@ -15,9 +15,7 @@ export class SignIn extends Command {
     // Command handler
     public static async run(): Promise<void> {
         try {
-            vscode.commands.executeCommand('setContext', 'spe:isLoggingIn', true);
             await Account.login();
-            vscode.commands.executeCommand('setContext', 'spe:isLoggingIn', false);
         } catch (error) {
             vscode.window.showErrorMessage('Failed to obtain access token.');
             console.error('Error:', error);
