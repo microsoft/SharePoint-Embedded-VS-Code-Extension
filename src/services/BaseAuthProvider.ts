@@ -159,12 +159,24 @@ export abstract class BaseAuthProvider {
                 }
             });
 
+            // Timeout of 5 minutes (5 * 60 * 1000 = 300000 milliseconds)
+            const timeout = setTimeout(() => {
+                server.close(() => {
+                    reject(new Error('Authorization code not received within the allow timeout.'));
+                });
+            }, 5 * 60 * 1000);  
+
             server.listen(0, async () => {
                 const port = (<any>server.address()).port;
                 console.log(`Listening on port ${port}`);
                 authRequest.redirectUri = `http://localhost:${port}/redirect`;
                 const authCodeUrl = await this.clientApplication.getAuthCodeUrl(authRequest);
                 vscode.env.openExternal(vscode.Uri.parse(authCodeUrl));
+            });
+
+            // Clear the timeout if an authorization code is received
+            server.on('close', () => {
+                clearTimeout(timeout);
             });
         });
     }
