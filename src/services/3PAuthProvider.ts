@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 // @ts-ignore
-import { AccountInfo, AuthenticationResult, AuthorizationUrlRequest, ConfidentialClientApplication, CryptoProvider, LogLevel, PublicClientApplication, SilentFlowRequest } from '@azure/msal-node';
+import { AccountInfo, AuthorizationUrlRequest, ConfidentialClientApplication, LogLevel } from '@azure/msal-node';
 import { CachePluginFactory } from '../utils/CacheFactory';
 import { ext } from '../utils/extensionVariables';
 import { BaseAuthProvider } from './BaseAuthProvider';
+import { Account } from '../models/Account';
 
 export default class ThirdPartyAuthProvider extends BaseAuthProvider {
     protected clientApplication: ConfidentialClientApplication;
@@ -21,8 +22,7 @@ export default class ThirdPartyAuthProvider extends BaseAuthProvider {
         this.clientApplication = new ConfidentialClientApplication({
             auth: {
                 clientId: clientId,
-                //authority: `https://login.microsoftonline.com/${consumingTenantId}/`,
-                authority: `https://login.microsoftonline.com/common/`,
+                authority: Account.get()?.tenantId ? `https://login.microsoftonline.com/${Account.get()!.tenantId}/` : `https://login.microsoftonline.com/common/`,
                 clientCertificate: {
                     thumbprint: thumbprint, // a 40-digit hexadecimal string 
                     privateKey: privateKey,
