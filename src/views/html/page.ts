@@ -22,7 +22,7 @@ export const htmlString = `<!DOCTYPE html>
       setTimeout(function () {
         window.location.href = "vscode://vscode.spe-authentication";
         window.close();
-      }, 2000);
+      }, 500);
       var search = window.location.search;
       var error = (/[?&^]error=([^&]+)/.exec(search) || [])[1];
       if (error) {

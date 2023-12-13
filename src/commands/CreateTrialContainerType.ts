@@ -153,7 +153,10 @@ export class CreateTrialContainerType extends Command {
         try {
             await freeCT.addTenantRegistration(account.tenantId, app, ["full"], ["full"]);
         } catch (error: any) {
-            vscode.window.showErrorMessage("Unable to register Free Trial Container Type: " + error.message);
+            vscode.window.showErrorMessage("Unable to register Free Trial Container Type, please re-try: " + error.message);
+            Account.onContainerTypeCreationFinish();
+            DevelopmentTreeViewProvider.getInstance().refresh();
+            return;
         }
 
         Account.onContainerTypeCreationFinish();
