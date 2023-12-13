@@ -107,15 +107,15 @@ export abstract class BaseAuthProvider {
         try {
             const cache = await this.clientApplication.getTokenCache();
             const accounts = await cache.getAllAccounts();
-            const account = accounts[0];
-            await cache.removeAccount(account);
+            for (let account of accounts) {
+                await cache.removeAccount(account);
+            }
             this.account = undefined;
             return true;
         } catch (e) {
             console.error('Error logging out', e);
             return false;
         }
-
     }
 
     async checkCacheState(): Promise<string> {

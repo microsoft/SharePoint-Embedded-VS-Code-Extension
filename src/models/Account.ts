@@ -13,7 +13,6 @@ import { StorageProvider } from '../services/StorageProvider';
 import { BillingClassification, ContainerType } from './ContainerType';
 import { generateCertificateAndPrivateKey, createCertKeyCredential } from '../cert';
 import GraphProvider from '../services/GraphProvider';
-import ThirdPartyAuthProvider from '../services/3PAuthProvider';
 import SPAdminProvider from '../services/SPAdminProvider';
 import { TenantIdKey, IsContainerTypeCreatingKey } from '../utils/constants';
 import { timeoutForSeconds } from '../utils/timeout';
@@ -144,6 +143,9 @@ export class Account {
 
     public async logout(): Promise<void> {
         await Account.authProvider.logout();
+        for (const app of this.apps) {
+            await app.authProvider.logout();
+        }
         await this.deleteFromStorage();
         Account.instance = undefined;
         Account._notifyLogout();
@@ -223,7 +225,7 @@ export class Account {
             const certKeyCredential = createCertKeyCredential(certificatePEM);
             const properties = await GraphProvider.configureAadApplication(appId, token, certKeyCredential);
             if (properties) {
-                const app = new App(properties.appId, properties.displayName, properties.id, Account.get()!.tenantId, isOwningApp, undefined, thumbprint, privateKey);
+                const app = new App(properties.appId, properties.displayName, properties.id, Account.get()!.tenantId, isOwningApp, thumbprint, privateKey);
                 await app.saveToStorage();
                 try {
                     await app.addAppSecret(token);
@@ -239,15 +241,16 @@ export class Account {
         return undefined;
     }
 
-    public async createContainerType(appId: string, containerTypeName: string, billingClassification: BillingClassification): Promise<ContainerType | undefined> {
-        const appSecretsString = await StorageProvider.get().secrets.get(appId);
-        if (!appSecretsString) {
-            return undefined;
+    public getAppById(appId: string): App | undefined {
+        return this.apps.find(app => app.clientId === appId);
+    }
+
+    public async createContainerType(appId: string, containerTypeName: string, billingClassification: BillingClassification): Promise<ContainerType | undefined> {  
+        const app = this.getAppById(appId);
+        if (!app) {
+            throw new Error(`Unable to find app ${appId} in Account.`);
         }
-        const appSecrets = JSON.parse(appSecretsString);
-        const thirdPartyAuthProvider = new ThirdPartyAuthProvider(appId, appSecrets.thumbprint, appSecrets.privateKey);
-   
-        let spToken = await thirdPartyAuthProvider.getToken([`https://${this.domain}-admin.sharepoint.com/.default`]);
+        let spToken = await app.authProvider.getToken([`https://${this.domain}-admin.sharepoint.com/.default`]);
         let decodedToken = decodeJwt(spToken);
         let retries = 0;
         const maxRetries = 3;
@@ -256,7 +259,7 @@ export class Account {
             console.log(`Attempt ${retries}: 'AllSites' scope not found on token fetch for NewContainerType. Waiting for 5 seconds...`);
             await timeoutForSeconds(5);
             // Get a new token
-            spToken = await thirdPartyAuthProvider.getToken([`https://${this.domain}-admin.sharepoint.com/.default`]);
+            spToken = await app.authProvider.getToken([`https://${this.domain}-admin.sharepoint.com/.default`]);
             decodedToken = decodeJwt(spToken);
         }
 
@@ -327,14 +330,11 @@ export class Account {
     }
 
     public async getContainerTypeDetailsById(appId: string, containerTypeId: string): Promise<any> {
-        const appSecretsString = await StorageProvider.get().secrets.get(appId);
-        if (!appSecretsString) {
-            return undefined;
+        const app = this.getAppById(appId);
+        if (!app) {
+            throw new Error(`Unable to find app ${appId} in Account.`);
         }
-        const appSecrets = JSON.parse(appSecretsString);
-        const thirdPartyAuthProvider = new ThirdPartyAuthProvider(appId, appSecrets.thumbprint, appSecrets.privateKey);
-
-        let spToken = await thirdPartyAuthProvider.getToken([`https://${this.domain}-admin.sharepoint.com/.default`]);
+        let spToken = await app.authProvider.getToken([`https://${this.domain}-admin.sharepoint.com/.default`]);
         let decodedToken = decodeJwt(spToken);
         let retries = 0;
         const maxRetries = 3;
@@ -343,7 +343,7 @@ export class Account {
             console.log(`Attempt ${retries}: 'AllSites' scope not found on token fetch for GetContainerTypeById. Waiting for 5 seconds...`);
             await timeoutForSeconds(5);
             // Get a new token
-            spToken = await thirdPartyAuthProvider.getToken([`https://${this.domain}-admin.sharepoint.com/.default`]);
+            spToken = await app.authProvider.getToken([`https://${this.domain}-admin.sharepoint.com/.default`]);
             decodedToken = decodeJwt(spToken);
         }
 
@@ -356,14 +356,11 @@ export class Account {
     }
 
     public async getAllContainerTypes(appId: string): Promise<ContainerType[]> {
-        const appSecretsString = await StorageProvider.get().secrets.get(appId);
-        if (!appSecretsString) {
-            return [];
+        const app = this.getAppById(appId);
+        if (!app) {
+            throw new Error(`Unable to find app ${appId} in Account.`);
         }
-        const appSecrets = JSON.parse(appSecretsString);
-        const thirdPartyAuthProvider = new ThirdPartyAuthProvider(appId, appSecrets.thumbprint, appSecrets.privateKey);
-
-        let spToken = await thirdPartyAuthProvider.getToken([`https://${this.domain}-admin.sharepoint.com/.default`]);
+        let spToken = await app.authProvider.getToken([`https://${this.domain}-admin.sharepoint.com/.default`]);
         let decodedToken = decodeJwt(spToken);
         let retries = 0;
         const maxRetries = 3;
@@ -372,7 +369,7 @@ export class Account {
             console.log(`Attempt ${retries}: 'AllSites' scope not found on token fetch for GetSPOContainerTypes. Waiting for 5 seconds...`);
             await timeoutForSeconds(5);
             // Get a new token
-            spToken = await thirdPartyAuthProvider.getToken([`https://${this.domain}-admin.sharepoint.com/.default`]);
+            spToken = await app.authProvider.getToken([`https://${this.domain}-admin.sharepoint.com/.default`]);
             decodedToken = decodeJwt(spToken);
         }
 
@@ -415,14 +412,11 @@ export class Account {
     }
 
     public async deleteContainerTypeById(appId: string, containerTypeId: string): Promise<ContainerType | undefined> {
-        const appSecretsString = await StorageProvider.get().secrets.get(appId);
-        if (!appSecretsString) {
-            return undefined;
+        const app = this.getAppById(appId);
+        if (!app) {
+            throw new Error(`Unable to find app ${appId} in Account.`);
         }
-        const appSecrets = JSON.parse(appSecretsString);
-        const thirdPartyAuthProvider = new ThirdPartyAuthProvider(appId, appSecrets.thumbprint, appSecrets.privateKey);
-
-        let spToken = await thirdPartyAuthProvider.getToken([`https://${this.domain}-admin.sharepoint.com/.default`]);
+        let spToken = await app.authProvider.getToken([`https://${this.domain}-admin.sharepoint.com/.default`]);
         let decodedToken = decodeJwt(spToken);
         let retries = 0;
         const maxRetries = 3;
@@ -431,7 +425,7 @@ export class Account {
             console.log(`Attempt ${retries}: 'AllSites' scope not found on token fetch for RemoveSPOContainerType. Waiting for 5 seconds...`);
             await timeoutForSeconds(5);
             // Get a new token
-            spToken = await thirdPartyAuthProvider.getToken([`https://${this.domain}-admin.sharepoint.com/.default`]);
+            spToken = await app.authProvider.getToken([`https://${this.domain}-admin.sharepoint.com/.default`]);
             decodedToken = decodeJwt(spToken);
         }
 
@@ -469,7 +463,7 @@ export class Account {
         const certKeyCredential = createCertKeyCredential(certificatePEM);
         const properties = await GraphProvider.createAadApplication(displayName, token, certKeyCredential);
         if (properties) {
-            const app = new App(properties.appId, displayName, properties.id, Account.get()!.tenantId, isOwningApp, undefined, thumbprint, privateKey);
+            const app = new App(properties.appId, displayName, properties.id, Account.get()!.tenantId, isOwningApp, thumbprint, privateKey);
             await app.saveToStorage();
             await app.addAppSecret(token);
             return app;
@@ -479,15 +473,8 @@ export class Account {
 
     public async deleteApp(app: App): Promise<void> {
         try {
-            const appSecretsString = await StorageProvider.get().secrets.get(app.clientId);
-            if (!appSecretsString) {
-                return undefined;
-            }
-            const appSecrets = JSON.parse(appSecretsString);
-            const thirdPartyAuthProvider = new ThirdPartyAuthProvider(app.clientId, appSecrets.thumbprint, appSecrets.privateKey);
-
             //const consentToken = await thirdPartyAuthProvider.getToken(['00000003-0000-0ff1-ce00-000000000000/.default']);
-            const graphAccessToken = await thirdPartyAuthProvider.getToken(["00000003-0000-0000-c000-000000000000/.default"]);
+            const graphAccessToken = await app.authProvider.getToken(["00000003-0000-0000-c000-000000000000/.default"]);
 
             await GraphProvider.deleteApplication(graphAccessToken, app.clientId);
             await StorageProvider.get().global.setValue(app.clientId, undefined);

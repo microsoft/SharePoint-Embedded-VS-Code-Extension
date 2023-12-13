@@ -5,7 +5,6 @@
 
 import _ from 'lodash';
 import { acquireAppOnlyCertSPOToken } from "../cert";
-import ThirdPartyAuthProvider from "../services/3PAuthProvider";
 import GraphProvider from "../services/GraphProvider";
 import { StorageProvider } from "../services/StorageProvider";
 import VroomProvider from "../services/VroomProvider";
@@ -142,13 +141,10 @@ export class ContainerType {
     }
 
     public async getContainers(): Promise<Container[]> {
-        const appSecretsString = await StorageProvider.get().secrets.get(this.owningApp!.clientId);
-        if (!appSecretsString) {
-            return [];
+        const token = await this.owningApp?.authProvider.getToken(["00000003-0000-0000-c000-000000000000/.default"]);
+        if (!token) {
+            throw new Error("Unable to get access token from owning app");
         }
-        const appSecrets = JSON.parse(appSecretsString);
-        const provider = new ThirdPartyAuthProvider(this.owningApp!.clientId, appSecrets.thumbprint, appSecrets.privateKey);
-        const token = await provider.getToken(["00000003-0000-0000-c000-000000000000/.default"]);
         const sparseContainers: any[] = await GraphProvider.listStorageContainers(token, this.containerTypeId);
 
         const containerPromises = sparseContainers.map(container => {
@@ -165,13 +161,10 @@ export class ContainerType {
     }
 
     public async createContainer(displayName: string, description: string) {
-        const appSecretsString = await StorageProvider.get().secrets.get(this.owningApp!.clientId);
-        if (!appSecretsString) {
-            return false;
+        const token = await this.owningApp?.authProvider.getToken(["00000003-0000-0000-c000-000000000000/.default"]);
+        if (!token) {
+            throw new Error("Unable to get access token from owning app");
         }
-        const appSecrets = JSON.parse(appSecretsString);
-        const provider = new ThirdPartyAuthProvider(this.owningApp!.clientId, appSecrets.thumbprint, appSecrets.privateKey);
-        const token = await provider.getToken(["00000003-0000-0000-c000-000000000000/.default"]);
         const createdContainer = await GraphProvider.createStorageContainer(token, this.containerTypeId, displayName, description);
         const createdContainerInstance = new Container(createdContainer.id, createdContainer.displayName, createdContainer.description, this.containerTypeId, createdContainer.status, createdContainer.createdDateTime);
         this.containers.push(createdContainerInstance);
@@ -204,7 +197,7 @@ export class ContainerType {
         // hydrate owning App
         const appProps = await App.loadFromStorage(containerType.owningAppId);
         if (appProps) {
-            containerType.owningApp = new App(appProps.clientId, appProps.displayName, appProps.objectId, appProps.tenantId, appProps.isOwningApp, appProps.clientSecret, appProps.thumbprint, appProps.privateKey);
+            containerType.owningApp = new App(appProps.clientId, appProps.displayName, appProps.objectId, appProps.tenantId, appProps.isOwningApp, appProps.thumbprint, appProps.privateKey, appProps.clientSecret);
         }
         
         // hydrate App objects
@@ -216,7 +209,7 @@ export class ContainerType {
         const guestApps = unfilteredApps.filter(app => app !== undefined) as App[];
         const guestAppsInstances = guestApps.map(appProps => {
             // Storage loads App props, so we use props to instantiate App instances 
-            return new App(appProps.clientId, appProps.displayName, appProps.objectId, appProps.tenantId, appProps.isOwningApp, appProps.clientSecret, appProps.thumbprint, appProps.privateKey);
+            return new App(appProps.clientId, appProps.displayName, appProps.objectId, appProps.tenantId, appProps.isOwningApp, appProps.thumbprint, appProps.privateKey, appProps.clientSecret);
         });
 
         // hydrate Container Type Regisration objects

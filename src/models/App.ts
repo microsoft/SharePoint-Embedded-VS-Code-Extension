@@ -11,17 +11,20 @@ import { Account } from "./Account";
 
 // Class that represents an Azure AD application object persisted in the global storage provider
 export class App {
+
     // instance properties
     public readonly clientId: string;
     public readonly objectId: string;
     public readonly tenantId: string;
     public readonly isOwningApp: boolean;
     public displayName: string;
+    public thumbprint: string;
+    public privateKey: string;
     public clientSecret?: string;
-    public thumbprint?: string;
-    public privateKey?: string;
+    public authProvider: ThirdPartyAuthProvider;
 
-    public constructor(clientId: string, displayName: string, objectId: string, tenantId: string, isOwningApp: boolean, clientSecret?: string, thumbprint?: string, privateKey?: string) {
+
+    public constructor(clientId: string, displayName: string, objectId: string, tenantId: string, isOwningApp: boolean, thumbprint: string, privateKey: string, clientSecret?: string, ) {
         this.clientId = clientId;
         this.displayName = displayName;
         this.objectId = objectId;
@@ -30,6 +33,7 @@ export class App {
         this.clientSecret = clientSecret;
         this.thumbprint = thumbprint;
         this.privateKey = privateKey;
+        this.authProvider = new ThirdPartyAuthProvider(this.clientId, this.thumbprint, this.privateKey);
     }
 
     
@@ -80,7 +84,7 @@ export class App {
                 app.thumbprint = appSecrets.thumbprint;
                 app.privateKey = appSecrets.privateKey;
             }
-            return new App(retrievedApp.clientId, retrievedApp.displayName, retrievedApp.objectId, retrievedApp.tenantId, retrievedApp.isOwningApp, app.clientSecret, app.thumbprint, app.privateKey);
+            return new App(retrievedApp.clientId, retrievedApp.displayName, retrievedApp.objectId, retrievedApp.tenantId, retrievedApp.isOwningApp, app.thumbprint, app.privateKey, app.clientSecret);
         }
     return undefined;
     }
