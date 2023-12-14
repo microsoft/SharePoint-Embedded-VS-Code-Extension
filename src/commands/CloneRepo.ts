@@ -5,11 +5,10 @@
 
 import { Command } from './Command';
 import * as vscode from 'vscode';
-import { ContainerType } from '../models/ContainerType';
-import { ContainersTreeItem } from '../views/treeview/development/ContainersTreeItem';
 import { ApplicationTreeItem } from '../views/treeview/development/ApplicationTreeItem';
 import * as fs from 'fs';
 import * as path from 'path';
+import { ext } from '../utils/extensionVariables';
 
 // Static class that handles the sign in command
 export class CloneRepo extends Command {
@@ -32,10 +31,9 @@ export class CloneRepo extends Command {
         }
 
         try {
-            //TODO: update icon paths after demo
             const sampleAppOptions = [
-                { "label": "JavaScript + React + Node.js", iconPath: vscode.Uri.parse('https://cdn4.iconfinder.com/data/icons/logos-3/600/React.js_logo-512.png') },
-                { "label": "ASP.NET + C#", iconPath: vscode.Uri.parse('https://upload.wikimedia.org/wikipedia/commons/0/0e/Microsoft_.NET_logo.png') },
+                { "label": "JavaScript + React + Node.js", iconPath: vscode.Uri.file(ext.context.asAbsolutePath('media/react.png')) },
+                { "label": "ASP.NET + C#", iconPath: vscode.Uri.file(ext.context.asAbsolutePath('media/dotnet.png')) },
                 { "label": "Teams + SharePoint Embedded" },
                 { "label": "Fluid on SharePoint Embedded" },
             ];
@@ -65,7 +63,7 @@ export class CloneRepo extends Command {
 
             if (folders && folders.length > 0) {
                 const destinationPath = folders[0].fsPath;
-                const subfolder = 'SharePoint-Embedded-Samples/samples/spa-azurefunction/';
+                const subfolder = 'SharePoint-Embedded-Samples/Samples/spa-azurefunction/';
 
                 const folderPathInRepository = path.join(destinationPath, subfolder);
                 await vscode.commands.executeCommand('git.clone', repoUrl, destinationPath);
@@ -105,7 +103,7 @@ const writeLocalSettingsJsonFile = (destinationPath: string, appId: string, cont
     };
 
     const localSettingsJson = JSON.stringify(localSettings, null, 2);
-    const localSettingsPath = path.join(destinationPath, 'syntex-repository-services', 'samples', 'raas-spa-azurefunction', 'packages', 'azure-functions', 'local.settings.json');
+    const localSettingsPath = path.join(destinationPath, 'SharePoint-Embedded-Samples', 'Samples', 'spa-azurefunction', 'packages', 'azure-functions', 'local.settings.json');
 
     fs.writeFileSync(localSettingsPath, localSettingsJson, 'utf8');
     console.log('local.settings.json written successfully.');
@@ -145,7 +143,7 @@ const writeAppSettingsJsonFile = (destinationPath: string, appId: string, contai
     };
 
     const localSettingsJson = JSON.stringify(appSettings, null, 2);
-    const localSettingsPath = path.join(destinationPath, 'syntex-repository-services', 'samples', 'syntex.rs-asp.net-webservice', 'appsettings.json');
+    const localSettingsPath = path.join(destinationPath, 'SharePoint-Embedded-Samples', 'Samples', 'asp.net-webservice', 'appsettings.json');
 
     fs.writeFileSync(localSettingsPath, localSettingsJson, 'utf8');
     console.log('appsettings.json written successfully.');
@@ -153,7 +151,7 @@ const writeAppSettingsJsonFile = (destinationPath: string, appId: string, contai
 
 const writeEnvFile = (destinationPath: string, appId: string) => {
     const envContent = `REACT_APP_CLIENT_ID = '${appId}'`;
-    const envFilePath = path.join(destinationPath, 'syntex-repository-services', 'samples', 'raas-spa-azurefunction', 'packages', 'client-app', '.env');
+    const envFilePath = path.join(destinationPath, 'SharePoint-Embedded-Samples', 'Samples', 'spa-azurefunction', 'packages', 'client-app', '.env');
 
     fs.writeFileSync(envFilePath, envContent, 'utf8');
     console.log('.env file written successfully.');
