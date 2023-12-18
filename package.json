@@ -280,6 +280,7 @@
   },
   "dependencies": {
     "@azure/msal-node": "^2.0.1",
+    "@microsoft/microsoft-graph-client": "^3.0.7",
     "@pnp/nodejs": "^3.17.0",
     "@pnp/queryable": "^3.17.0",
     "@pnp/sp": "^3.17.0",
