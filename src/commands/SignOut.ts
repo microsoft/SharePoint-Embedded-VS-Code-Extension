@@ -27,6 +27,7 @@ export class SignOut extends Command {
             }
 
             await Account.get()!.logout();
+            Account.onContainerTypeCreationFinish();
             DevelopmentTreeViewProvider.getInstance().refresh();
         } catch (error) {
             vscode.window.showErrorMessage('Failed to obtain access token.');
