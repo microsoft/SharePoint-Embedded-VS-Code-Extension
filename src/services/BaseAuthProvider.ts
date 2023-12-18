@@ -9,6 +9,7 @@ import * as url from 'url';
 // @ts-ignore
 import { AccountInfo, AuthenticationResult, AuthorizationUrlRequest, ConfidentialClientApplication, CryptoProvider, LogLevel, PublicClientApplication, SilentFlowRequest } from '@azure/msal-node';
 import { htmlString } from '../views/html/page';
+import { Account } from '../models/Account';
 
 export abstract class BaseAuthProvider {
     protected clientApplication: ConfidentialClientApplication | PublicClientApplication;
@@ -41,18 +42,18 @@ export abstract class BaseAuthProvider {
     }
 
     async getTokenInteractive(request: AuthorizationUrlRequest): Promise<AuthenticationResult> {
-        if (this.interactiveTokenPrompt) {
-            const userChoice = await vscode.window.showInformationMessage(
-                this.interactiveTokenPrompt,
-                { modal: true },
-                'OK'
-            );
+        // if (this.interactiveTokenPrompt) {
+        //     const userChoice = await vscode.window.showInformationMessage(
+        //         this.interactiveTokenPrompt,
+        //         { modal: true },
+        //         'OK'
+        //     );
 
-            if (userChoice !== 'OK') {
-                vscode.window.showWarningMessage('You must consent to your new Azure AD application to continue.');
-                throw new Error("Consent on app was not accepted.");
-            }
-        }
+        //     if (userChoice !== 'OK') {
+        //         vscode.window.showWarningMessage('You must consent to your new Azure AD application to continue.');
+        //         throw new Error("Consent on app was not accepted.");
+        //     }
+        // }
         // Generate PKCE Challenge and Verifier before request
         const cryptoProvider = new CryptoProvider();
         const { challenge, verifier } = await cryptoProvider.generatePkceCodes();
@@ -80,6 +81,23 @@ export abstract class BaseAuthProvider {
             console.error('Error getting token:', error);
             throw error;
         }
+    }
+
+    async consent(scopes: string[]): Promise<void> {
+        if (this.interactiveTokenPrompt) {
+            const userChoice = await vscode.window.showInformationMessage(
+                this.interactiveTokenPrompt,
+                { modal: true },
+                'OK'
+            );
+
+            if (userChoice !== 'OK') {
+                vscode.window.showWarningMessage('You must consent to your new Azure AD application to continue.');
+                throw new Error("Consent on app was not accepted.");
+            }
+        }
+        const consentStatus = await this.listenForConsent(scopes, this.clientApplication.config.auth.clientId);
+        console.log(consentStatus);
     }
 
     async getAccount(): Promise<AccountInfo | null> {
@@ -164,7 +182,7 @@ export abstract class BaseAuthProvider {
                 server.close(() => {
                     reject(new Error('Authorization code not received within the allow timeout.'));
                 });
-            }, 5 * 60 * 1000);  
+            }, 5 * 60 * 1000);
 
             server.listen(0, async () => {
                 const port = (<any>server.address()).port;
@@ -175,6 +193,59 @@ export abstract class BaseAuthProvider {
             });
 
             // Clear the timeout if an authorization code is received
+            server.on('close', () => {
+                clearTimeout(timeout);
+            });
+        });
+    }
+
+    async listenForConsent(scopes: string[], clientId: string): Promise<string> {
+        return new Promise<string>((resolve, reject) => {
+            const server = http.createServer(async (req, res) => {
+                const queryParams = url.parse(req.url || '', true).query as { admin_consent?: string, tenant?: string, state?: string };
+
+                if (queryParams.admin_consent) {
+                    // Admin consent was successful
+                    res.writeHead(200, { 'Content-Type': 'text/html' });
+                    res.end(htmlString);
+                    server.close(() => {
+                        resolve('Admin consent successful');
+                    });
+                } else {
+                    // Admin consent failed or unexpected response
+                    const error = 'Admin consent failed or unexpected response.';
+                    res.writeHead(400, { 'Content-Type': 'text/html' });
+                    res.end(`Consent failed. Error: ${error}`);
+                    server.close(() => {
+                        reject(new Error(`Consent failed. Error: ${error}`));
+                    });
+                }
+            });
+
+             // Timeout of 5 minutes (5 * 60 * 1000 = 300000 milliseconds)
+             const timeout = setTimeout(() => {
+                server.close(() => {
+                    reject(new Error('Consent not performed within the allow timeout.'));
+                });
+            }, 5 * 60 * 1000);
+
+            server.listen(0, async () => {
+                const port = (<any>server.address()).port;
+                console.log(`Listening on port ${port}`);
+                const adminConsentUrl = `https://login.microsoftonline.com/${Account.get()!.tenantId}/adminconsent?client_id=${clientId}&redirect_uri=http://localhost:${port}/redirect&scope=${scopes.join('%20')}`;
+             
+                await vscode.env.openExternal(vscode.Uri.parse(adminConsentUrl));
+                const userChoice = await vscode.window.showInformationMessage(
+                    "Seeing an AADSTS165000 error? Try copying the consent link and visiting it in an InPrivate browser.",
+                    'Copy Consent Link'
+                );
+
+                if (userChoice === 'Copy Consent Link') {
+                    vscode.env.clipboard.writeText(adminConsentUrl);
+                }
+            });
+
+            // Clear the timeout if consent is performed
             server.on('close', () => {
                 clearTimeout(timeout);
             });

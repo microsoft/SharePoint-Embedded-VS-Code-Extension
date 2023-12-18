@@ -60,6 +60,7 @@ export class App {
     }
 
     public async consent() {
+        const consentStatus = await this.authProvider.consent(['00000003-0000-0ff1-ce00-000000000000/.default']);
         const consentToken = await this.authProvider.getToken(['00000003-0000-0ff1-ce00-000000000000/.default']);
         //const graphAccessToken = await thirdPartyAuthProvider.getToken(["https://graph.microsoft.com/User.Read"]);
         const graphAccessToken = await Account.getFirstPartyAccessToken();
