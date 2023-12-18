@@ -14,12 +14,15 @@ export default class GraphProvider {
             redirectUris: [
                 'http://localhost/redirect',
                 'https://oauth.pstmn.io/v1/browser-callback',
-                'https://oauth.pstmn.io/v1/callback'
+                'https://oauth.pstmn.io/v1/callback',
+                'https://localhost/signin-oidc',
+                'https://localhost/Onboarding/ProcessCode',
+                'https://localhost/signout-oidc'
+                
             ],
         },
         spa: {
             redirectUris: [
-                'https://localhost/signin-oidc',
                 'http://localhost/'
             ]
         },
