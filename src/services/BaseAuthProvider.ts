@@ -9,6 +9,7 @@ import * as url from 'url';
 // @ts-ignore
 import { AccountInfo, AuthenticationResult, AuthorizationUrlRequest, ConfidentialClientApplication, CryptoProvider, LogLevel, PublicClientApplication, SilentFlowRequest } from '@azure/msal-node';
 import { htmlString } from '../views/html/page';
+import { Account } from '../models/Account';
 
 export abstract class BaseAuthProvider {
     protected clientApplication: ConfidentialClientApplication | PublicClientApplication;
@@ -65,10 +66,8 @@ export abstract class BaseAuthProvider {
             prompt: 'select_account',
         };
 
-        //const authCodeUrl = await this.clientApplication.getAuthCodeUrl(authCodeUrlParameters);
-
         try {
-            const code = await this.listenForAuthCode(authCodeUrlParameters);
+            const code = await this.listenForAuthCode(authCodeUrlParameters, this.interactiveTokenPrompt);
             const tokenResponse = await this.clientApplication.acquireTokenByCode({
                 code,
                 scopes: request.scopes,
@@ -132,7 +131,7 @@ export abstract class BaseAuthProvider {
         }
     }
 
-    async listenForAuthCode(authRequest: AuthorizationUrlRequest): Promise<string> {
+    async listenForAuthCode(authRequest: AuthorizationUrlRequest, interactiveTokenPrompt: string | undefined): Promise<string> {
         return new Promise<string>((resolve, reject) => {
             const server = http.createServer(async (req, res) => {
                 const queryParams = url.parse(req.url || '', true).query as { code?: string };
@@ -159,19 +158,35 @@ export abstract class BaseAuthProvider {
                 }
             });
 
-            // Timeout of 5 minutes (5 * 60 * 1000 = 300000 milliseconds)
+            // Timeout of 3 minutes (3 * 60 * 1000 = 300000 milliseconds)
             const timeout = setTimeout(() => {
                 server.close(() => {
                     reject(new Error('Authorization code not received within the allow timeout.'));
                 });
-            }, 5 * 60 * 1000);  
+            }, 3 * 60 * 1000);
 
             server.listen(0, async () => {
                 const port = (<any>server.address()).port;
                 console.log(`Listening on port ${port}`);
                 authRequest.redirectUri = `http://localhost:${port}/redirect`;
                 const authCodeUrl = await this.clientApplication.getAuthCodeUrl(authRequest);
-                vscode.env.openExternal(vscode.Uri.parse(authCodeUrl));
+                await vscode.env.openExternal(vscode.Uri.parse(authCodeUrl));
+
+                if (interactiveTokenPrompt) {
+                    const userChoice = await vscode.window.showInformationMessage(
+                        "Seeing an AADSTS165000 error? Try copying the consent link and visiting it in an InPrivate browser.",
+                        'Copy Consent Link',
+                        'Cancel'
+                    );
+
+                    if (userChoice === 'Copy Consent Link') {
+                        vscode.env.clipboard.writeText(authCodeUrl);
+                    } else {
+                        server.close(() => {
+                            reject(new Error('Container type creation cancelled.'));
+                        });
+                    }
+                }
             });
 
             // Clear the timeout if an authorization code is received

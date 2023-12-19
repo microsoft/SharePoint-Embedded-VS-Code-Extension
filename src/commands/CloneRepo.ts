@@ -33,9 +33,7 @@ export class CloneRepo extends Command {
         try {
             const sampleAppOptions = [
                 { "label": "JavaScript + React + Node.js", iconPath: vscode.Uri.file(ext.context.asAbsolutePath('media/react.png')) },
-                { "label": "ASP.NET + C#", iconPath: vscode.Uri.file(ext.context.asAbsolutePath('media/dotnet.png')) },
-                { "label": "Teams + SharePoint Embedded" },
-                { "label": "Fluid on SharePoint Embedded" },
+                { "label": "ASP.NET + C#", iconPath: vscode.Uri.file(ext.context.asAbsolutePath('media/dotnet.png')) }
             ];
 
             const sampleAppProps = {
