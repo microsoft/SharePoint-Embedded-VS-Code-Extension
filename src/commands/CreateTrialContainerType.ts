@@ -64,8 +64,8 @@ export class CreateTrialContainerType extends Command {
         } catch (error) {
             Account.onContainerTypeCreationFinish();
             DevelopmentTreeViewProvider.getInstance().refresh();
-            console.error(`Unable to get app: ${error}`);
-            vscode.window.showErrorMessage(`Unable to get app: ${error}`);
+            console.error(`${error}`);
+            vscode.window.showErrorMessage(`${error}`);
             return;
         }
 
@@ -109,8 +109,8 @@ export class CreateTrialContainerType extends Command {
                 } catch (error) {
                     Account.onContainerTypeCreationFinish();
                     DevelopmentTreeViewProvider.getInstance().refresh();
-                    console.error(`Unable to get app: ${error}`);
-                    vscode.window.showErrorMessage(`Unable to get app: ${error}`);
+                    console.error(`${error}`);
+                    vscode.window.showErrorMessage(`${error}`);
                     return;
                 }
             }
