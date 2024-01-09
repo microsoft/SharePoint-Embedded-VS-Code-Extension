@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { StorageProvider } from "../services/StorageProvider";
-import { AppPermissionsListKey, ContainerTypeListKey } from "../utils/constants";
 import { ApplicationPermissions } from "./ApplicationPermissions";
 
 // Class that represents a Container Type Registration object persisted in the global storage provider

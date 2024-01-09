@@ -1,6 +1,9 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
 import { Account } from "../models/Account";
-import { StorageProvider } from "../services/StorageProvider";
-import { TenantDomain } from "./constants";
 
 export class TermsOfServiceError extends Error {
     constructor() {

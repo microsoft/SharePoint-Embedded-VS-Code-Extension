@@ -6,8 +6,6 @@
 import * as vscode from "vscode";
 import { DynamicNode } from "../DynamicNode";
 import { M365AccountNode } from "./M365AccountNode";
-// @ts-ignore
-import { AccountInfo } from "@azure/msal-node";
 
 export class AccountTreeViewProvider implements vscode.TreeDataProvider<DynamicNode> {
     private static instance: AccountTreeViewProvider;

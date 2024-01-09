@@ -79,7 +79,7 @@
     "viewsWelcome": [
       {
         "view": "spe-welcome",
-        "contents": "Sign into your Microsoft 365 tenant with an adminstrator account to get started.\n[Sign into Microsoft 365](command:spe.login) \n\n\n If you don't have adminstrator access to a Microsoft 365 tenant, [get your own tenant with the Microsoft 365 Developer Program](https://developer.microsoft.com/en-us/microsoft-365/dev-program).",
+        "contents": "Sign into your Microsoft 365 tenant with an administrator account to get started.\n[Sign into Microsoft 365](command:spe.login) \n\n\n If you don't have administrator access to a Microsoft 365 tenant, [get your own tenant with the Microsoft 365 Developer Program](https://developer.microsoft.com/en-us/microsoft-365/dev-program).",
         "when": "!spe:isLoggedIn && !spe:isLoggingIn"
       },
       {
@@ -167,18 +167,6 @@
         "title": "SharePoint Embedded: Login to AAD"
       },
       {
-        "command": "spe.generateCertificate",
-        "title": "SharePoint Embedded: Generate Certificate"
-      },
-      {
-        "command": "spe.uploadCertificate",
-        "title": "SharePoint Embedded: Upload Certificate"
-      },
-      {
-        "command": "spe.createContainerTypeOnApplication",
-        "title": "SharePoint Embedded: Create Container Type on Existing Application"
-      },
-      {
         "command": "spe.registerContainerType",
         "title": "Register",
         "icon": "$(unlock)"
@@ -229,14 +217,6 @@
         "icon": "$(export)"
       },
       {
-        "command": "spe.callMSGraphCommand",
-        "title": "SharePoint Embedded: Call MSGraph"
-      },
-      {
-        "command": "spe.getCertPK",
-        "title": "SharePoint Embedded: Get Cert PK"
-      },
-      {
         "command": "spe.signOut",
         "title": "SharePoint Embedded: Sign out account",
         "icon": "$(sign-out)"
@@ -245,10 +225,6 @@
         "command": "spe.cancelSignIn",
         "title": "SharePoint Embedded: Cancel Sign In",
         "icon": "$(chrome-close)"
-      },
-      {
-        "command": "spe.callSpeTosCommand",
-        "title": "SharePoint Embedded: Accept SPE Terms of Service"
       }
     ]
   },

@@ -1,4 +1,8 @@
-// Class that represents an Container object persisted in the global storage provider
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
 export class Container {
     // instance properties
     public readonly id: string;

@@ -14,7 +14,7 @@ import { ContainerTypeRegistration } from "./ContainerTypeRegistration";
 import { Container } from './Container';
 import { Account } from './Account';
 import { timeoutForSeconds } from '../utils/timeout';
-import { decodeJwt, checkJwtForTenantAdminScope, checkJwtForAppOnlyRole } from '../utils/token';
+import { decodeJwt, checkJwtForAppOnlyRole } from '../utils/token';
 
 export enum BillingClassification {
     Paid = 0,

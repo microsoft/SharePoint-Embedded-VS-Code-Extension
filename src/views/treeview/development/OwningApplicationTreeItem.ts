@@ -23,8 +23,8 @@ export class OwningApplicationTreeItem extends ApplicationTreeItem {
         this.description = "owning application";
         this.tooltip = new vscode.MarkdownString(
 `
-## ${app.displayName}
-App Id: ${app.clientId}}
+#### App Name: ${app.displayName} 
+#### App Id: ${app.clientId} 
 `
         );
     }

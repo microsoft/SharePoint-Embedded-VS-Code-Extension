@@ -5,7 +5,7 @@
 
 import * as vscode from "vscode";
 import { DynamicNode } from "../DynamicNode";
-import { AccountItemStatus, m365Icon, signOutIcon } from "./common";
+import { m365Icon } from "./common";
 import { Account, LoginChangeListener } from "../../../models/Account";
 import { AccountTreeViewProvider } from "./AccountTreeViewProvider";
 

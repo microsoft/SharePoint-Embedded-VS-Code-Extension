@@ -2,8 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
 // @ts-ignore
-import { ICacheClient, ICachePlugin, TokenCacheContext } from '@azure/msal-node';
+import { ICachePlugin, TokenCacheContext } from '@azure/msal-node';
 import { ext } from './extensionVariables';
 
 export class CachePluginFactory implements ICachePlugin {
