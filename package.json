@@ -1,0 +1,281 @@
+{
+  "name": "ms-sharepoint-embedded-vscode-extension",
+  "displayName": "SharePoint Embedded",
+  "description": "Build SharePoint Embedded apps",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/SharePoint-Embedded-VS-Code-Extension"
+  },
+  "version": "0.0.1",
+  "author": "Microsoft Corporation",
+  "publisher": "SharepointEmbedded",
+  "preview": true,
+  "icon": "media/sharepoint-embedded-icon.png",
+  "engines": {
+    "vscode": "^1.81.0"
+  },
+  "categories": [
+    "Snippets",
+    "Extension Packs",
+    "Azure",
+    "Other"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "icons": {
+      "spe-m365": {
+        "description": "Microsoft 365 icon in command tree view",
+        "default": {
+          "fontPath": "./media/fabric-icons.woff",
+          "fontCharacter": "\\ED72"
+        }
+      },
+      "spe-logo": {
+        "description": "Activity Bar logo",
+        "default": {
+          "fontPath": "./media/fabric-icons.woff",
+          "fontCharacter": "\\ED18"
+        }
+      },
+      "containertype-icon": {
+        "description": "Container Type icon",
+        "default": {
+          "fontPath": "./media/fabric-icons.woff",
+          "fontCharacter": "\\F1AA"
+        }
+      },
+      "app-icon": {
+        "description": "App icon",
+        "default": {
+          "fontPath": "./media/fabric-icons.woff",
+          "fontCharacter": "\\ECAA"
+        }
+      },
+      "new-app-icon": {
+        "description": "New App icon",
+        "default": {
+          "fontPath": "./media/fabric-icons.woff",
+          "fontCharacter": "\\EFDA"
+        }
+      },
+      "owningapp-icon": {
+        "description": "Owning App icon",
+        "default": {
+          "fontPath": "./media/fabric-icons.woff",
+          "fontCharacter": "\\ECAA"
+        }
+      },
+      "container-icon": {
+        "description": "Container icon",
+        "default": {
+          "fontPath": "./media/fabric-icons.woff",
+          "fontCharacter": "\\EED6"
+        }
+      }
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "sharepoint-embedded",
+          "title": "SharePoint Embedded",
+          "icon": "$(spe-logo)"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "spe-welcome",
+        "contents": "Sign into your Microsoft 365 tenant with an administrator account to get started.\n[Sign into Microsoft 365](command:spe.login) \n\n\n If you don't have administrator access to a Microsoft 365 tenant, [get your own tenant with the Microsoft 365 Developer Program](https://developer.microsoft.com/en-us/microsoft-365/dev-program).",
+        "when": "!spe:isLoggedIn && !spe:isLoggingIn"
+      },
+      {
+        "view": "spe-development",
+        "contents": "Get started with a trial Container Type\n [Create Trial Container Type](command:spe.createTrialContainerType)",
+        "when": "spe:isAdmin"
+      }
+    ],
+    "views": {
+      "sharepoint-embedded": [
+        {
+          "id": "spe-welcome",
+          "name": "",
+          "when": "!spe:isLoggedIn && !spe:isLoggingIn"
+        },
+        {
+          "id": "spe-accounts",
+          "name": "Account",
+          "when": "spe:isLoggedIn || spe:isLoggingIn"
+        },
+        {
+          "id": "spe-development",
+          "name": "Development",
+          "when": "spe:isAdmin"
+        }
+      ]
+    },
+    "menus": {
+      "view/item/context": [
+        {
+          "command": "spe.signOut",
+          "when": "view == spe-accounts && viewItem == signedinM365",
+          "group": "inline@1"
+        },
+        {
+          "command": "spe.cancelSignIn",
+          "when": "view == spe-accounts && viewItem == signingInM365",
+          "group": "inline@1"
+        },
+        {
+          "command": "spe.deleteContainerType",
+          "when": "spe:showDeleteContainerType && view == spe-development && viewItem == containerType",
+          "group": "inline@3"
+        },
+        {
+          "command": "spe.registerContainerType",
+          "when": "spe:showRegisterContainerType && view == spe-development && viewItem == containerType",
+          "group": "inline@3"
+        },
+        {
+          "command": "spe.renameApplication",
+          "when": "view == spe-development && (viewItem == owningApplication || viewItem == guestApplication)",
+          "group": "inline@1"
+        },
+        {
+          "command": "spe.cloneRepo",
+          "when": "view == spe-development && (viewItem == owningApplication || viewItem == guestApplication)",
+          "group": "inline@2"
+        },
+        {
+          "command": "spe.exportPostmanConfig",
+          "when": "view == spe-development && (viewItem == owningApplication || viewItem == guestApplication)",
+          "group": "inline@3"
+        },
+        {
+          "command": "spe.createGuestApp",
+          "when": "view == spe-development && viewItem == guestApplications",
+          "group": "inline@1"
+        },
+        {
+          "command": "spe.refreshContainerList",
+          "when": "view == spe-development && viewItem == containers",
+          "group": "inline@1"
+        },
+        {
+          "command": "spe.createContainer",
+          "when": "view == spe-development && viewItem == containers",
+          "group": "inline@2"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "spe.login",
+        "title": "SharePoint Embedded: Login to AAD"
+      },
+      {
+        "command": "spe.registerContainerType",
+        "title": "Register",
+        "icon": "$(unlock)"
+      },
+      {
+        "command": "spe.deleteContainerType",
+        "title": "Delete",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "spe.editDescriptionContainerType",
+        "title": "Edit description",
+        "icon": "$(settings-edit)"
+      },
+      {
+        "command": "spe.renameContainerType",
+        "title": "Rename",
+        "icon": "$(word-wrap)"
+      },
+      {
+        "command": "spe.renameApplication",
+        "title": "Rename",
+        "icon": "$(word-wrap)"
+      },
+      {
+        "command": "spe.createGuestApp",
+        "title": "Create guest app",
+        "icon": "$(plus)"
+      },
+      {
+        "command": "spe.createContainer",
+        "title": "Create container",
+        "icon": "$(plus)"
+      },
+      {
+        "command": "spe.refreshContainerList",
+        "title": "Refresh containers",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "spe.cloneRepo",
+        "title": "Load sample app",
+        "icon": "$(code)"
+      },
+      {
+        "command": "spe.exportPostmanConfig",
+        "title": "Export Postman config",
+        "icon": "$(export)"
+      },
+      {
+        "command": "spe.signOut",
+        "title": "SharePoint Embedded: Sign out account",
+        "icon": "$(sign-out)"
+      },
+      {
+        "command": "spe.cancelSignIn",
+        "title": "SharePoint Embedded: Cancel Sign In",
+        "icon": "$(chrome-close)"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src --ext ts",
+    "test": "node ./out/test/runTest.js",
+    "bundle": "npm install -g @vscode/vsce && vsce package"
+  },
+  "devDependencies": {
+    "@types/glob": "^8.1.0",
+    "@types/jsrsasign": "^10.5.8",
+    "@types/lodash": "^4.14.200",
+    "@types/mocha": "^10.0.1",
+    "@types/node": "20.2.5",
+    "@types/node-forge": "^1.3.4",
+    "@types/uuid": "^9.0.3",
+    "@types/vscode": "^1.81.0",
+    "@typescript-eslint/eslint-plugin": "^5.59.8",
+    "@typescript-eslint/parser": "^5.59.8",
+    "@vscode/test-electron": "^2.3.2",
+    "eslint": "^8.41.0",
+    "glob": "^8.1.0",
+    "mocha": "^10.2.0",
+    "typescript": "^5.3.0-dev.20230825"
+  },
+  "dependencies": {
+    "@azure/msal-node": "^2.0.1",
+    "@microsoft/microsoft-graph-client": "^3.0.7",
+    "@pnp/nodejs": "^3.17.0",
+    "@pnp/queryable": "^3.17.0",
+    "@pnp/sp": "^3.17.0",
+    "@pnp/sp-admin": "^3.17.0",
+    "axios": "^1.6.0",
+    "date-fns": "^2.30.0",
+    "jsrsasign": "^10.8.6",
+    "jsrsasign-util": "^1.0.5",
+    "jwt-decode": "^3.1.2",
+    "lodash": "^4.17.21",
+    "msal-node": "^0.0.1-security",
+    "node-forge": "^1.3.1",
+    "path": "^0.12.7",
+    "uuid": "^9.0.0"
+  }
+}
