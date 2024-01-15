@@ -17,10 +17,17 @@ export default class FirstPartyAuthProvider extends BaseAuthProvider {
 
     constructor(clientId: string, cacheNamespace: string) {
         super();
+
         const cache = new CachePluginFactory(cacheNamespace);
-        this.clientApplication = new PublicClientApplication({
+        this.clientApplication = this.createClientApplication(clientId, cache);
+        this.account = null;
+        this.authCodeUrlParams = { scopes: [], redirectUri: `http://localhost:12345/redirect` };
+    }
+
+    private createClientApplication(clientId: string, cache: CachePluginFactory): PublicClientApplication {
+        return new PublicClientApplication({
             auth: {
-                clientId: clientId,
+                clientId,
                 //authority: `https://login.microsoftonline.com/${consumingTenantId}/`,
                 authority: `https://login.microsoftonline.com/common/`,
             },
@@ -28,36 +35,39 @@ export default class FirstPartyAuthProvider extends BaseAuthProvider {
                 cachePlugin: cache
             },
             system: {
-                loggerOptions: {
-                    logLevel: LogLevel.Trace,
-                    loggerCallback: (level: LogLevel, message: string, containsPii: boolean) => {
-                        if (containsPii) {
-                            return;
-                        }
-                        message = 'MSAL: ' + message;
-                        switch (level) {
-                            case LogLevel.Error:
-                                ext.outputChannel.error(message);
-                                break;
-                            case LogLevel.Warning:
-                                ext.outputChannel.warn(message);
-                                break;
-                            case LogLevel.Info:
-                                ext.outputChannel.info(message);
-                                break;
-                            case LogLevel.Verbose:
-                                ext.outputChannel.debug(message);
-                                break;
-                            case LogLevel.Trace:
-                                ext.outputChannel.trace(message);
-                                break;
-                        }
-                    },
-                    piiLoggingEnabled: false
-                }
+                loggerOptions: this.createLoggerOptions(),
             }
         });
-        this.account = null;
-        this.authCodeUrlParams = { scopes: [], redirectUri: 'http://localhost:12345/redirect' };
+    }
+
+    private createLoggerOptions() {
+        return {
+            logLevel: LogLevel.Trace,
+            loggerCallback: (level: LogLevel, message: string, containsPii: boolean) => {
+                if (containsPii) {
+                    return;
+                }
+
+                message = 'MSAL: ' + message;
+                switch (level) {
+                    case LogLevel.Error:
+                        ext.outputChannel.error(message);
+                        break;
+                    case LogLevel.Warning:
+                        ext.outputChannel.warn(message);
+                        break;
+                    case LogLevel.Info:
+                        ext.outputChannel.info(message);
+                        break;
+                    case LogLevel.Verbose:
+                        ext.outputChannel.debug(message);
+                        break;
+                    case LogLevel.Trace:
+                        ext.outputChannel.trace(message);
+                        break;
+                }
+            },
+            piiLoggingEnabled: false
+        };
     }
 }
