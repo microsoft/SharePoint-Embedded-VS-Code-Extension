@@ -20,7 +20,7 @@
     "Azure",
     "Other"
   ],
-  "main": "./out/main.js",
+  "main": "./out/extension.js",
   "contributes": {
     "icons": {
       "spe-m365": {
@@ -243,7 +243,7 @@
     "test": "node ./out/test/runTest.js",
     "bundle": "npm install -g @vscode/vsce && vsce package",
     
-    "esbuild-base": "esbuild ./src/extension.ts --bundle --outfile=out/main.js --external:vscode --format=cjs --platform=node",
+    "esbuild-base": "esbuild ./src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node",
     "esbuild": "npm run esbuild-base -- --sourcemap",
     "esbuild-watch": "npm run esbuild-base -- --sourcemap --watch",
     "test-compile": "tsc -p ./"
