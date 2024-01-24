@@ -11,6 +11,7 @@ import { ContainerTypeCreationFlow, ContainerTypeCreationFlowState } from '../vi
 import { ProgressNotification } from '../views/notifications/ProgressNotification';
 import { App } from '../models/App';
 import { DevelopmentTreeViewProvider } from '../views/treeview/development/DevelopmentTreeViewProvider';
+
 // Static class that handles the create trial container type command
 export class CreateTrialContainerType extends Command {
     // Command name
@@ -49,17 +50,17 @@ export class CreateTrialContainerType extends Command {
         }
 
         // Try to get a working application from the Ux flow state provided
-        let [app, shouldDelay]: [App | undefined, boolean] = [undefined, false];
+        let [app, shouldDelay, isImportedApp]: [App | undefined, boolean, boolean] = [undefined, false, false];
         try {
             vscode.window.showInformationMessage(`Azure AD Application configuring starting...`);
-            [app, shouldDelay] = await ctCreationState?.createGetOrImportApp();
+            [app, shouldDelay, isImportedApp] = await ctCreationState?.createGetOrImportApp();
             if (!app) {
                 throw new Error("App is undefined");
             }
             // Consent app only if a local instance doesn't exist
             if (shouldDelay) {
                 await new ProgressNotification().show();
-                await app.consent();
+                await app.consent(isImportedApp);
             }
         } catch (error) {
             Account.onContainerTypeCreationFinish();
@@ -98,13 +99,13 @@ export class CreateTrialContainerType extends Command {
 
                 try {
                     vscode.window.showInformationMessage(`Azure AD Application configuring starting...`);
-                    [app, shouldDelay] = await ctCreationState?.createGetOrImportApp();
+                    [app, shouldDelay, isImportedApp] = await ctCreationState?.createGetOrImportApp();
                     if (!app) {
                         throw new Error("App is undefined");
                     }
                     if (shouldDelay) {
                         await new ProgressNotification().show();
-                        await app.consent();
+                        await app.consent(isImportedApp);
                     }
                 } catch (error) {
                     Account.onContainerTypeCreationFinish();

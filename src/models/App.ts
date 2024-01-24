@@ -59,10 +59,19 @@ export class App {
         }
     }
 
-    public async consent() {
-        const consentToken = await this.authProvider.getToken(['00000003-0000-0ff1-ce00-000000000000/.default']);
-        const graphAccessToken = await Account.getFirstPartyAccessToken();
-        return typeof consentToken === 'string' && typeof graphAccessToken === 'string';
+    public async consent(isImportedApp?: boolean) {
+        try {
+            if (isImportedApp) {
+                await this.authProvider.grantAdminConsent(this.clientId, this.tenantId);
+            }
+            const consentToken = await this.authProvider.getToken(['00000003-0000-0ff1-ce00-000000000000/.default'], isImportedApp);
+            const graphAccessToken = await Account.getFirstPartyAccessToken();
+            return typeof consentToken === 'string' && typeof graphAccessToken === 'string';
+        } catch (error) {
+            console.error(error);
+            throw error;
+        }
+        
     }
 
     public static async loadFromStorage(clientId: string): Promise<App | undefined> {
