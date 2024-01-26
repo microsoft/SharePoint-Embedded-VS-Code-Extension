@@ -53,14 +53,14 @@ export class CreateTrialContainerType extends Command {
         let [app, shouldDelay, isImportedApp]: [App | undefined, boolean, boolean] = [undefined, false, false];
         try {
             vscode.window.showInformationMessage(`Azure AD Application configuring starting...`);
-            [app, shouldDelay, isImportedApp] = await ctCreationState?.createGetOrImportApp();
+            [app, shouldDelay] = await ctCreationState?.createGetOrImportApp();
             if (!app) {
                 throw new Error("App is undefined");
             }
             // Consent app only if a local instance doesn't exist
             if (shouldDelay) {
                 await new ProgressNotification().show();
-                await app.consent(isImportedApp);
+                await app.consent();
             }
         } catch (error) {
             Account.onContainerTypeCreationFinish();
@@ -99,13 +99,13 @@ export class CreateTrialContainerType extends Command {
 
                 try {
                     vscode.window.showInformationMessage(`Azure AD Application configuring starting...`);
-                    [app, shouldDelay, isImportedApp] = await ctCreationState?.createGetOrImportApp();
+                    [app, shouldDelay] = await ctCreationState?.createGetOrImportApp();
                     if (!app) {
                         throw new Error("App is undefined");
                     }
                     if (shouldDelay) {
                         await new ProgressNotification().show();
-                        await app.consent(isImportedApp);
+                        await app.consent();
                     }
                 } catch (error) {
                     Account.onContainerTypeCreationFinish();

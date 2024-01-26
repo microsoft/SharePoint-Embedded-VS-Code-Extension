@@ -74,17 +74,17 @@ export class AppSelectionFlowState extends UxFlowState {
         return this.appId === 'new' && this.appName !== undefined;
     }
 
-    public async createGetOrImportApp(): Promise<[ App | undefined, boolean, boolean]> {
+    public async createGetOrImportApp(): Promise<[ App | undefined, boolean]> {
         if (!this.complete()) {
-            return [undefined, false, false];
+            return [undefined, false];
         }
 
         if (this.shouldCreateNewApp()) {
-            return [await Account.get()!.createApp(this.appName!, true), true, false];
+            return [await Account.get()!.createApp(this.appName!, true), true];
         } else if (Account.get()!.appIds.includes(this.appId!)) {
-            return [Account.get()!.apps.find(app => app.clientId === this.appId), false, false];
+            return [Account.get()!.apps.find(app => app.clientId === this.appId), false];
         } else {
-            return [await Account.get()!.importApp(this.appId!, true), true, true];
+            return [await Account.get()!.importApp(this.appId!, true), true];
         }
     }
 }

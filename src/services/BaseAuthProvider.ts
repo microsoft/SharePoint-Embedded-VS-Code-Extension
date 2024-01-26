@@ -16,7 +16,7 @@ export abstract class BaseAuthProvider {
     protected authCodeUrlParams: AuthorizationUrlRequest;
     protected interactiveTokenPrompt: string | undefined;
 
-    async getToken(scopes: string[], isImportedApp?: boolean): Promise<string> {
+    async getToken(scopes: string[]): Promise<string> {
         let authResponse: AuthenticationResult;
         const account = this.account || await this.getAccount();
         if (account) {
@@ -24,7 +24,7 @@ export abstract class BaseAuthProvider {
             authResponse = await this.getTokenSilent({ scopes, account: account, forceRefresh: true });
         } else {
             const authCodeRequest = { scopes, redirectUri: this.authCodeUrlParams.redirectUri };
-            authResponse = await this.getTokenInteractive(authCodeRequest, isImportedApp);
+            authResponse = await this.getTokenInteractive(authCodeRequest);
         }
 
         return authResponse.accessToken || "";
@@ -40,8 +40,8 @@ export abstract class BaseAuthProvider {
         }
     }
 
-    async getTokenInteractive(request: AuthorizationUrlRequest, isImportedApp?: boolean): Promise<AuthenticationResult> {
-        if (this.interactiveTokenPrompt && !isImportedApp) {
+    async getTokenInteractive(request: AuthorizationUrlRequest): Promise<AuthenticationResult> {
+        if (this.interactiveTokenPrompt) {
             const userChoice = await vscode.window.showInformationMessage(
                 this.interactiveTokenPrompt,
                 { modal: true },
@@ -80,7 +80,8 @@ export abstract class BaseAuthProvider {
         }
     }
 
-    async grantAdminConsent(clientId: string, tenantId: string): Promise<boolean> {
+    async grantAdminConsent(scopes: string[], clientId: string, tenantId: string): Promise<boolean> {
+        const request: AuthorizationUrlRequest = { scopes: scopes, redirectUri: this.authCodeUrlParams.redirectUri };
         if (this.interactiveTokenPrompt) {
             const userChoice = await vscode.window.showInformationMessage(
                 this.interactiveTokenPrompt,
@@ -93,9 +94,26 @@ export abstract class BaseAuthProvider {
                 throw new Error("Consent on app was not accepted.");
             }
         }
+        // Generate PKCE Challenge and Verifier before request
+        const cryptoProvider = new CryptoProvider();
+        const { challenge, verifier } = await cryptoProvider.generatePkceCodes();
+        const authCodeUrlParameters: AuthorizationUrlRequest = {
+            scopes: scopes,
+            redirectUri: '',
+            codeChallengeMethod: 'S256',
+            codeChallenge: challenge, // PKCE Code Challenge
+            prompt: 'select_account',
+        };
 
         try {
-            return await this.listenForAuthCodeAdminConsent(clientId, tenantId, this.interactiveTokenPrompt);
+            const code = await this.listenForAuthCodeAdminConsent(authCodeUrlParameters, clientId, tenantId, this.interactiveTokenPrompt);
+            const tokenResponse = await this.clientApplication.acquireTokenByCode({
+                code,
+                scopes: request.scopes,
+                redirectUri: authCodeUrlParameters.redirectUri,
+                codeVerifier: verifier // PKCE Code Verifier
+            });
+            return tokenResponse;
         } catch (error) {
             console.error('Error getting token:', error);
             throw error;
@@ -204,27 +222,34 @@ export abstract class BaseAuthProvider {
         });
     }
 
-    async listenForAuthCodeAdminConsent(clientId: string, tenantId: string, interactiveTokenPrompt: string | undefined): Promise<boolean> {
-        return new Promise<boolean>((resolve, reject) => {
+    async listenForAuthCodeAdminConsent(authRequest: AuthorizationUrlRequest, clientId: string, tenantId: string, interactiveTokenPrompt: string | undefined): Promise<boolean | string> {
+        return new Promise<boolean | string>((resolve, reject) => {
             const server = http.createServer(async (req, res) => {
                 // eslint-disable-next-line @typescript-eslint/naming-convention
-                const queryParams = url.parse(req.url || '', true).query as { error?: string, error_description?: string, error_uri?: string };
+                const queryParams = url.parse(req.url || '', true).query as { error?: string, error_description?: string, error_uri?: string, code?: string };
+                const authCode = queryParams.code;
                 const authError = queryParams.error;
                 const authErrorDescription = queryParams.error_description;
                 const authErrorUri = queryParams.error_uri;
 
-                if (!authError && !authErrorDescription) {
+                if (!authError && !authErrorDescription && !authCode) {
+                    // eslint-disable-next-line @typescript-eslint/naming-convention
+                    authRequest.redirectUri = `http://${req.headers.host}/redirect`;
+                    const authCodeUrl = await this.clientApplication.getAuthCodeUrl(authRequest);
+
+                    res.writeHead(302, { 'Location': authCodeUrl });
+                    res.end();
+                } else if (authCode) {
                     // eslint-disable-next-line @typescript-eslint/naming-convention
                     res.writeHead(200, { 'Content-Type': 'text/html' });
                     res.end(htmlString);
-
-                    resolve(true);
+                    
+                    resolve(authCode);
 
                     server.close(() => {
-                        resolve(true);
+                        resolve(authCode);
                     });
-                }
-                else {
+                } else {
                     // eslint-disable-next-line @typescript-eslint/naming-convention
                     res.writeHead(400, { 'Content-Type': 'text/html' });
                     res.end(authErrorDescription);

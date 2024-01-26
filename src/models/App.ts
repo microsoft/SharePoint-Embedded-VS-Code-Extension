@@ -59,12 +59,10 @@ export class App {
         }
     }
 
-    public async consent(isImportedApp?: boolean) {
+    public async consent() {
         try {
-            if (isImportedApp) {
-                await this.authProvider.grantAdminConsent(this.clientId, this.tenantId);
-            }
-            const consentToken = await this.authProvider.getToken(['00000003-0000-0ff1-ce00-000000000000/.default'], isImportedApp);
+            await this.authProvider.grantAdminConsent(['00000003-0000-0ff1-ce00-000000000000/.default'], this.clientId, this.tenantId);
+            const consentToken = await this.authProvider.getToken(['00000003-0000-0ff1-ce00-000000000000/.default']);
             const graphAccessToken = await Account.getFirstPartyAccessToken();
             return typeof consentToken === 'string' && typeof graphAccessToken === 'string';
         } catch (error) {
