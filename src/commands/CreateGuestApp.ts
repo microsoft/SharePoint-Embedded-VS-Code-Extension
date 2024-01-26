@@ -40,6 +40,7 @@ export class CreateGuestApp extends Command {
         let app: App | undefined;
         try {
             if (addGuestAppState.reconfigureApp) {
+                vscode.window.showInformationMessage(`Azure AD Application configuring starting...`);
                 app = await account.importApp(addGuestAppState.appId!, true);
                 if (!app) {
                     throw new Error("App is undefined");
@@ -48,6 +49,7 @@ export class CreateGuestApp extends Command {
                 await new ProgressNotification().show();
                 await app.consent();
             } else if (addGuestAppState.shouldCreateNewApp()) {
+                vscode.window.showInformationMessage(`Azure AD Application configuring starting...`);
                 app = await account.createApp(addGuestAppState.appName!, true);
                 if (!app) {
                     throw new Error("App is undefined");

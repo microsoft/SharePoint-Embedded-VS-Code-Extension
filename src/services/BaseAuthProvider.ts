@@ -237,7 +237,8 @@ export abstract class BaseAuthProvider {
                     authRequest.redirectUri = `http://${req.headers.host}/redirect`;
                     const authCodeUrl = await this.clientApplication.getAuthCodeUrl(authRequest);
 
-                    res.writeHead(302, { 'Location': authCodeUrl });
+                    // eslint-disable-next-line @typescript-eslint/naming-convention
+                    res.writeHead(302, { 'Location': authCodeUrl, 'Cache-Control': 'no-store' });
                     res.end();
                 } else if (authCode) {
                     // eslint-disable-next-line @typescript-eslint/naming-convention
