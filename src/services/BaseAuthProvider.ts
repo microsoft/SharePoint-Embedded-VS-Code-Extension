@@ -252,9 +252,9 @@ export abstract class BaseAuthProvider {
                 } else {
                     // eslint-disable-next-line @typescript-eslint/naming-convention
                     res.writeHead(400, { 'Content-Type': 'text/html' });
-                    res.end(authErrorDescription);
+                    res.end(authErrorDescription ? authErrorDescription : 'Authentication failed.');
                     server.close(() => {
-                        reject(new Error(authErrorDescription));
+                        reject(new Error(authErrorDescription ? authErrorDescription : 'No authorization code received.'));
                     });
                 }
             });
