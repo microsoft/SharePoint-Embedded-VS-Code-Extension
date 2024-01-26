@@ -50,7 +50,7 @@ export class CreateTrialContainerType extends Command {
         }
 
         // Try to get a working application from the Ux flow state provided
-        let [app, shouldDelay, isImportedApp]: [App | undefined, boolean, boolean] = [undefined, false, false];
+        let [app, shouldDelay]: [App | undefined, boolean] = [undefined, false];
         try {
             vscode.window.showInformationMessage(`Azure AD Application configuring starting...`);
             [app, shouldDelay] = await ctCreationState?.createGetOrImportApp();
