@@ -11,6 +11,7 @@ import { ContainerTypeCreationFlow, ContainerTypeCreationFlowState } from '../vi
 import { ProgressNotification } from '../views/notifications/ProgressNotification';
 import { App } from '../models/App';
 import { DevelopmentTreeViewProvider } from '../views/treeview/development/DevelopmentTreeViewProvider';
+
 // Static class that handles the create trial container type command
 export class CreateTrialContainerType extends Command {
     // Command name

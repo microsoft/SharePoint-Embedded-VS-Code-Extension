@@ -80,6 +80,47 @@ export abstract class BaseAuthProvider {
         }
     }
 
+    async grantAdminConsent(scopes: string[], clientId: string, tenantId: string): Promise<boolean> {
+        const request: AuthorizationUrlRequest = { scopes: scopes, redirectUri: this.authCodeUrlParams.redirectUri };
+        if (this.interactiveTokenPrompt) {
+            const userChoice = await vscode.window.showInformationMessage(
+                this.interactiveTokenPrompt,
+                { modal: true },
+                'OK'
+            );
+
+            if (userChoice !== 'OK') {
+                vscode.window.showWarningMessage('You must consent to your new Azure AD application to continue.');
+                throw new Error("Consent on app was not accepted.");
+            }
+        }
+        // Generate PKCE Challenge and Verifier before request
+        const cryptoProvider = new CryptoProvider();
+        const { challenge, verifier } = await cryptoProvider.generatePkceCodes();
+        const authCodeUrlParameters: AuthorizationUrlRequest = {
+            scopes: scopes,
+            redirectUri: '',
+            codeChallengeMethod: 'S256',
+            codeChallenge: challenge, // PKCE Code Challenge
+            prompt: 'select_account',
+        };
+
+        try {
+            const code = await this.listenForAuthCodeAdminConsent(authCodeUrlParameters, clientId, tenantId, this.interactiveTokenPrompt);
+            const tokenResponse = await this.clientApplication.acquireTokenByCode({
+                code,
+                scopes: request.scopes,
+                redirectUri: authCodeUrlParameters.redirectUri,
+                codeVerifier: verifier // PKCE Code Verifier
+            });
+            return tokenResponse;
+        } catch (error) {
+            console.error('Error getting token:', error);
+            throw error;
+        }
+    }
+
+
     async getAccount(): Promise<AccountInfo | null> {
         const cache = this.clientApplication.getTokenCache();
         const currentAccounts = await cache.getAllAccounts();
@@ -113,20 +154,6 @@ export abstract class BaseAuthProvider {
         } catch (e) {
             console.error('Error logging out', e);
             return false;
-        }
-    }
-
-    async checkCacheState(): Promise<string> {
-        try {
-            const accounts = await this.clientApplication.getTokenCache().getAllAccounts();
-            if (accounts.length > 0) {
-                return "SignedIn";
-            } else {
-                return "SignedOut";
-            }
-        } catch (error) {
-            console.error("Error checking cache state:", error);
-            return "Error";
         }
     }
 
@@ -180,6 +207,82 @@ export abstract class BaseAuthProvider {
 
                     if (userChoice === 'Copy Consent Link') {
                         vscode.env.clipboard.writeText(authCodeUrl);
+                    } else {
+                        server.close(() => {
+                            reject(new Error('Container type creation cancelled.'));
+                        });
+                    }
+                }
+            });
+
+            // Clear the timeout if an authorization code is received
+            server.on('close', () => {
+                clearTimeout(timeout);
+            });
+        });
+    }
+
+    async listenForAuthCodeAdminConsent(authRequest: AuthorizationUrlRequest, clientId: string, tenantId: string, interactiveTokenPrompt: string | undefined): Promise<boolean | string> {
+        return new Promise<boolean | string>((resolve, reject) => {
+            const server = http.createServer(async (req, res) => {
+                // eslint-disable-next-line @typescript-eslint/naming-convention
+                const queryParams = url.parse(req.url || '', true).query as { error?: string, error_description?: string, error_uri?: string, code?: string };
+                const authCode = queryParams.code;
+                const authError = queryParams.error;
+                const authErrorDescription = queryParams.error_description;
+                const authErrorUri = queryParams.error_uri;
+
+                if (!authError && !authErrorDescription && !authCode) {
+                    // eslint-disable-next-line @typescript-eslint/naming-convention
+                    authRequest.redirectUri = `http://${req.headers.host}/redirect`;
+                    const authCodeUrl = await this.clientApplication.getAuthCodeUrl(authRequest);
+
+                    // eslint-disable-next-line @typescript-eslint/naming-convention
+                    res.writeHead(302, { 'Location': authCodeUrl, 'Cache-Control': 'no-store' });
+                    res.end();
+                } else if (authCode) {
+                    // eslint-disable-next-line @typescript-eslint/naming-convention
+                    res.writeHead(200, { 'Content-Type': 'text/html' });
+                    res.end(htmlString);
+                    
+                    resolve(authCode);
+
+                    server.close(() => {
+                        resolve(authCode);
+                    });
+                } else {
+                    // eslint-disable-next-line @typescript-eslint/naming-convention
+                    res.writeHead(400, { 'Content-Type': 'text/html' });
+                    res.end(authErrorDescription ? authErrorDescription : 'Authentication failed.');
+                    server.close(() => {
+                        reject(new Error(authErrorDescription ? authErrorDescription : 'No authorization code received.'));
+                    });
+                }
+            });
+
+            // Timeout of 3 minutes (3 * 60 * 1000 = 300000 milliseconds)
+            const timeout = setTimeout(() => {
+                server.close(() => {
+                    reject(new Error('Authorization code not received within the allow timeout.'));
+                });
+            }, 3 * 60 * 1000);
+
+            server.listen(0, async () => {
+                const port = (<any>server.address()).port;
+                console.log(`Listening on port ${port}`);
+                const redirectUri = `http://localhost:${port}/redirect`;
+                const adminConsentUrl = `https://login.microsoftonline.com/${tenantId}/adminconsent?client_id=${clientId}&redirect_uri=${redirectUri}`;
+                await vscode.env.openExternal(vscode.Uri.parse(adminConsentUrl));
+
+                if (interactiveTokenPrompt) {
+                    const userChoice = await vscode.window.showInformationMessage(
+                        "Seeing an AADSTS165000 error? Try copying the consent link and visiting it in an InPrivate browser.",
+                        'Copy Consent Link',
+                        'Cancel'
+                    );
+
+                    if (userChoice === 'Copy Consent Link') {
+                        vscode.env.clipboard.writeText(adminConsentUrl);
                     } else {
                         server.close(() => {
                             reject(new Error('Container type creation cancelled.'));
