@@ -12,7 +12,7 @@ import { ContainerType } from "../../models/ContainerType";
 
 
 type UxInputStepResult = -1 | 0 | 1;
-abstract class UxInputStep {
+export abstract class UxInputStep {
     // eslint-disable-next-line @typescript-eslint/naming-convention
     public static readonly Back = -1;
     // eslint-disable-next-line @typescript-eslint/naming-convention
@@ -230,7 +230,7 @@ class AddGuestAppPermissionsInput extends UxInputStep {
 
 }
 
-class ImportOrCreateAppQuickPick extends UxInputStep {
+export class ImportOrCreateAppQuickPick extends UxInputStep {
     private readonly defaultAppName = 'SharePoint Embedded App';
     private readonly newApp: AppQuickPickItem = {
         id: 'new',
