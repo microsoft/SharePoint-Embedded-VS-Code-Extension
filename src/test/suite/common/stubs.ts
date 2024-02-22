@@ -7,14 +7,20 @@ export class MockExtensionContext implements ExtensionContext {
     workspaceState = new InMemoryMemento();
     globalState = new InMemoryMemento();
     secrets = new (class implements SecretStorage {
-        get(key: string): Thenable<string | undefined> {
-            return Promise.resolve("");
+        private storageMap: Map<string, string>;
+        constructor() {
+            this.storageMap = new Map();
         }
-        store(key: string, value: string): Thenable<void> {
-            return Promise.resolve();
+        async get(key: string): Promise<string | undefined> {
+            return this.storageMap.get(key);
         }
-        delete(key: string): Thenable<void> {
-            return Promise.resolve();
+    
+        async store(key: string, value: string): Promise<void> {
+            this.storageMap.set(key, value);
+        }
+    
+        async delete(key: string): Promise<void> {
+            this.storageMap.delete(key);
         }
         onDidChange!: Event<SecretStorageChangeEvent>;
     })();
