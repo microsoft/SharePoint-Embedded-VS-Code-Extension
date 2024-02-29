@@ -117,7 +117,7 @@ describe('Extension e2e tests', async () => {
     // });
 
     it('should handle Postman export', async () => {
-        const destinationPath = path.join(__dirname, '..', '..', 'out');   
+        const destinationPath = path.join(__dirname, '..', '..', 'out');
         const infoWindowStub = sandbox.stub(vscode.window, "showInformationMessage") as sinon.SinonStub;
         infoWindowStub
             .onCall(0)
@@ -171,10 +171,61 @@ describe('Extension e2e tests', async () => {
         const infoWindowStub = (sandbox.stub(vscode.window, "showInformationMessage") as sinon.SinonStub);
         infoWindowStub
             .onCall(0)
-            .resolves('OK');
-        
+            .resolves('Continue');
+
         await SignOut.run();
         const account = Account.get();
+        expect(account).to.be.undefined;
+    });
+
+    it('should handle app import', async () => {
+        const infoWindowStub = (sandbox.stub(vscode.window, "showInformationMessage") as sinon.SinonStub);
+        infoWindowStub
+            .onCall(0)
+            .resolves('Continue')
+            .onCall(1)
+            .resolves('OK')
+            .onCall(2)
+            .resolves('OK')
+            .onCall(3)
+            .resolves('Copy Consent Link')
+            .onCall(4)
+            .resolves('OK');
+
+        await SignIn.run();
+        const account = Account.get();
+        expect(account).to.not.be.undefined;
+
+        await CreateTrialContainerType.run();
+
+        expect(account).to.not.be.null;
+        expect(account!.appIds).to.not.be.null;
+        expect(account!.appIds.length).to.be.greaterThan(0);
+        expect(account!.containerTypes).to.not.be.null;
+        expect(account!.containerTypes.length).to.be.equal(1);
+        expect(account!.containerTypes[0].containerTypeId).to.not.be.null;
+        expect(account!.containerTypes[0].registrationIds).to.not.be.null;
+    });
+
+    it('should handle extension clean up', async () => {
+        const infoWindowStub = (sandbox.stub(vscode.window, "showInformationMessage") as sinon.SinonStub);
+        infoWindowStub
+            .onCall(0)
+            .resolves('OK')
+            .onCall(1)
+            .resolves('Continue');
+
+        const ct = new ContainerTypeTreeItem(Account.get()!.containerTypes[0], "", "", vscode.TreeItemCollapsibleState.None);
+
+        await DeleteContainerType.run(ct);
+        let account = Account.get();
+        expect(account).to.not.be.null;
+        expect(account!.appIds).to.not.be.null;
+        expect(account!.appIds.length).to.be.greaterThan(0);
+        expect(account!.containerTypes.length).to.be.equal(0);
+
+        await SignOut.run();
+        account = Account.get();
         expect(account).to.be.undefined;
     });
 });
