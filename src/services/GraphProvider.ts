@@ -320,6 +320,7 @@ export default class GraphProvider {
                 }),
                 headers: {
                     Authorization: `Bearer ${accessToken}`,
+                    // eslint-disable-next-line @typescript-eslint/naming-convention
                     'Content-Type': 'application/json',
                 }
             }); 
