@@ -208,9 +208,18 @@ export default class GraphProvider {
         forEach(GraphProvider.baseAppSettings.requiredResourceAccess, (resourceAccess: any) => {
             const existingResourceAccess = existing.requiredResourceAccess.find((existingResourceAccess: any) => existingResourceAccess.resourceAppId === resourceAccess.resourceAppId);
             if (existingResourceAccess) {
+                const uniqueItems: { [key: string]: any } = {};
+                const mergedItems = [...resourceAccess.resourceAccess, ...existingResourceAccess.resourceAccess];
+                mergedItems.forEach((item: any) => {
+                    const key = `${item.id}_${item.type}`;
+                    if (!uniqueItems[key]) {
+                        uniqueItems[key] = item;
+                    }
+                });
+                const filteredItems = Object.values(uniqueItems);
                 const mergedResourceAccess = {
                     resourceAppId: resourceAccess.resourceAppId,
-                    resourceAccess: [...new Set([...resourceAccess.resourceAccess, ...existingResourceAccess.resourceAccess])]
+                    resourceAccess: filteredItems
                 };
                 merged.requiredResourceAccess.push(mergedResourceAccess);
             } else {
