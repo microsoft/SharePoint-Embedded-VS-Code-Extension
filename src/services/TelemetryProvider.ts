@@ -1,6 +1,41 @@
 import * as vscode from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 
-const key = '<your key>';
+const key = '';
 
-let reporter;
+class TelemetryProvider {
+    private static instance: TelemetryProvider;
+    private reporter: TelemetryReporter | undefined;
+
+    private constructor() {
+        this.reporter = new TelemetryReporter(key);
+    }
+
+    public static init(): TelemetryProvider {
+        if (!TelemetryProvider.instance) {
+            TelemetryProvider.instance = new TelemetryProvider();
+        }
+        return TelemetryProvider.instance;
+    }
+
+    public static get(): TelemetryProvider {
+        if (!TelemetryProvider.instance) {
+            throw new Error("TelemetryProvider not yet initialized. Call init() first");
+        }
+        return TelemetryProvider.instance;
+    }
+
+    public sendTelemetryEvent(eventName: string, properties?: { [key: string]: string }, measurements?: { [key: string]: number }) {
+        if (this.reporter) {
+            this.reporter.sendTelemetryEvent(eventName, properties, measurements);
+        }
+    }
+
+    public dispose() {
+        if (this.reporter) {
+            this.reporter.dispose();
+        }
+    }
+}
+
+export default TelemetryProvider;
