@@ -1,14 +1,12 @@
-import * as vscode from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
-
-const key = '';
+import { telemetryKey } from '../client';
 
 class TelemetryProvider {
     private static instance: TelemetryProvider;
     private reporter: TelemetryReporter | undefined;
 
     private constructor() {
-        this.reporter = new TelemetryReporter(key);
+        this.reporter = new TelemetryReporter(telemetryKey);
     }
 
     public static init(): TelemetryProvider {

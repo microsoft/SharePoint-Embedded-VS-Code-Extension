@@ -10,11 +10,15 @@ import { DevelopmentTreeViewProvider } from './views/treeview/development/Develo
 import { LocalStorageService, StorageProvider } from './services/StorageProvider';
 import { Account } from './models/Account';
 import { Commands } from './commands/';
+import TelemetryProvider from './services/TelemetryProvider';
 
 export async function activate(context: vscode.ExtensionContext) {
     ext.context = context;
     ext.outputChannel = vscode.window.createOutputChannel("SharePoint Embedded", { log: true });
+
+    const reporter = TelemetryProvider.init();
     context.subscriptions.push(ext.outputChannel);
+    context.subscriptions.push(reporter);
 
     StorageProvider.init(
         new LocalStorageService(context.globalState),
