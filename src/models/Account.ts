@@ -35,7 +35,7 @@ export class Account {
     // Storage key for the account
     public static readonly storageKey: string = "account";
     private static readonly authProvider: BaseAuthProvider = new FirstPartyAuthProvider(clientId, Account.storageKey);
-    private static readonly scopes: string[] = ['Application.ReadWrite.All', 'User.Read'];
+    private static readonly scopes: string[] = ['Application.ReadWrite.All', 'User.Read', 'Sites.Read.All'];
     private static instance: Account | undefined;
     private static subscribers: LoginChangeListener[] = [];
     private static readonly storage: StorageProvider;
@@ -104,8 +104,18 @@ export class Account {
         if (!storedAccount || !storedAccount.tenantDomain) {
             try {
                 const tenantDomain = await GraphProvider.getOwningTenantDomain(token);
-                const parts = tenantDomain.split('.');
-                domain = parts[0];
+                const rootSiteUrl = await GraphProvider.getRootSiteUrl(token);
+                const regex = /^https?:\/\/(\w+\.)?([^.]+)\.(\w+)\.(\w+)/;
+                const match = rootSiteUrl.match(regex);
+
+                // look for root site url as the second group in match
+                if (match && match.length >= 5) {
+                    domain = match[2];
+                } else {
+                    // fallback to using tenant domain if match is not found
+                    const parts = tenantDomain.split('.');
+                    domain = parts[0];
+                }
             }
             catch (error) {
                 console.error(error);
