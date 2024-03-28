@@ -50,6 +50,7 @@ export class CloneRepo extends Command {
 
             const appId = applicationTreeItem.app.clientId;
             const containerTypeId = applicationTreeItem.containerType.containerTypeId;
+            const tenantId = applicationTreeItem.app.tenantId || '';
             const clientSecret = applicationTreeItem.app.clientSecret || '';
             const repoUrl = 'https://github.com/microsoft/SharePoint-Embedded-Samples.git';
             const folders = await vscode.window.showOpenDialog({
@@ -69,9 +70,9 @@ export class CloneRepo extends Command {
 
                 console.log(`Repository cloned to: ${destinationPath}`);
 
-                writeLocalSettingsJsonFile(destinationPath, appId, containerTypeId, clientSecret);
-                writeAppSettingsJsonFile(destinationPath, appId, containerTypeId, clientSecret);
-                writeEnvFile(destinationPath, appId);
+                writeLocalSettingsJsonFile(destinationPath, appId, containerTypeId, clientSecret, tenantId);
+                writeAppSettingsJsonFile(destinationPath, appId, containerTypeId, clientSecret, tenantId);
+                writeEnvFile(destinationPath, appId, tenantId);
             } else {
                 console.log('No destination folder selected. Cloning canceled.');
             }
@@ -83,14 +84,14 @@ export class CloneRepo extends Command {
 }
 
 
-const writeLocalSettingsJsonFile = (destinationPath: string, appId: string, containerTypeId: string, secretText: string) => {
+const writeLocalSettingsJsonFile = (destinationPath: string, appId: string, containerTypeId: string, secretText: string, tenantId: string) => {
     const localSettings = {
         IsEncrypted: false,
         Values: {
             AzureWebJobsStorage: "",
             FUNCTIONS_WORKER_RUNTIME: "node",
             APP_CLIENT_ID: `${appId}`,
-            APP_AUTHORITY: "https://login.microsoftonline.com/common",
+            APP_AUTHORITY: `https://login.microsoftonline.com/${tenantId}`,
             APP_AUDIENCE: `api://${appId}`,
             APP_CLIENT_SECRET: `${secretText}`,
             APP_CONTAINER_TYPE_ID: containerTypeId
@@ -106,12 +107,12 @@ const writeLocalSettingsJsonFile = (destinationPath: string, appId: string, cont
     fs.writeFileSync(localSettingsPath, localSettingsJson, 'utf8');
     console.log('local.settings.json written successfully.');
 };
-const writeAppSettingsJsonFile = (destinationPath: string, appId: string, containerTypeId: string, secretText: string) => {
+const writeAppSettingsJsonFile = (destinationPath: string, appId: string, containerTypeId: string, secretText: string, tenantId: string) => {
     const appSettings = {
         AzureAd: {
             Instance: "https://login.microsoftonline.com/",
             prompt: "select_account",
-            TenantId: "common",
+            TenantId: `${tenantId}`,
             ClientId: `${appId}`,
             CallbackPath: "/signin-oidc",
             SignedOutCallbackPath: "/signout-callback-oidc",
@@ -147,8 +148,8 @@ const writeAppSettingsJsonFile = (destinationPath: string, appId: string, contai
     console.log('appsettings.json written successfully.');
 };
 
-const writeEnvFile = (destinationPath: string, appId: string) => {
-    const envContent = `REACT_APP_CLIENT_ID = '${appId}'`;
+const writeEnvFile = (destinationPath: string, appId: string, tenantId: string) => {
+    const envContent = `REACT_APP_CLIENT_ID='${appId}'\nREACT_APP_TENANT_ID='${tenantId}'`;
     const envFilePath = path.join(destinationPath, 'SharePoint-Embedded-Samples', 'Samples', 'spa-azurefunction', 'packages', 'client-app', '.env');
 
     fs.writeFileSync(envFilePath, envContent, 'utf8');
