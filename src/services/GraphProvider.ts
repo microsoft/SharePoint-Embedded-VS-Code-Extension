@@ -164,6 +164,22 @@ export default class GraphProvider {
         }
     };
 
+    static async getRootSiteUrl(accessToken: string) {
+        const options = {
+            headers: {
+                Authorization: `Bearer ${accessToken}`
+            }
+        };
+        try {
+            const response: AxiosResponse = await axios.get("https://graph.microsoft.com/v1.0/sites/root", options);
+            const rootSiteUrl = response.data.webUrl;
+            return rootSiteUrl;
+        } catch (error) {
+            console.error("Error fetching root site url", error);
+            throw error;
+        }
+    };
+
     static async getApplicationById(accessToken: string, appId: string) {
         const options = {
             headers: {
