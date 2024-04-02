@@ -5,6 +5,7 @@
 
 import axios from "axios";
 import { ApplicationPermissions } from "../models/ApplicationPermissions";
+import TelemetryProvider from "./TelemetryProvider";
 
 export default class VroomProvider {
     static async registerContainerType(accessToken: string, clientId: string, rootSiteUrl: string, containerTypeId: string, appPermissions: ApplicationPermissions[]) {
@@ -31,6 +32,7 @@ export default class VroomProvider {
             return response.data.value;
         } catch (error: any) {
             console.error('Error registrating ContainerType: ', error.response.data.error.message);
+            TelemetryProvider.get().sendTelemetryErrorEvent('vroom', { description: 'Error registering ContainerType' });
             throw error;
         }
     }

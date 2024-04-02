@@ -8,6 +8,7 @@ import * as vscode from 'vscode';
 import { Account } from '../models/Account';
 import { ContainerTypeTreeItem } from '../views/treeview/development/ContainerTypeTreeItem';
 import { DevelopmentTreeViewProvider } from '../views/treeview/development/DevelopmentTreeViewProvider';
+import TelemetryProvider from '../services/TelemetryProvider';
 
 // Static class that handles the delete container type command
 export class DeleteContainerType extends Command {
@@ -41,6 +42,7 @@ export class DeleteContainerType extends Command {
             DevelopmentTreeViewProvider.getInstance().refresh();
         } catch (error: any) {
             vscode.window.showErrorMessage(`Unable to delete Container Type ${containerType.displayName} : ${error.message}`);
+            TelemetryProvider.get().sendTelemetryErrorEvent('containertype delete', { description: 'Error deleting containertype', error: error });
             return;
         }
     }

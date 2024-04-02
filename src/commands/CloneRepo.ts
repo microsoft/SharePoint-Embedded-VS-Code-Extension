@@ -9,6 +9,7 @@ import { ApplicationTreeItem } from '../views/treeview/development/ApplicationTr
 import * as fs from 'fs';
 import * as path from 'path';
 import { ext } from '../utils/extensionVariables';
+import TelemetryProvider from '../services/TelemetryProvider';
 
 // Static class that handles the sign in command
 export class CloneRepo extends Command {
@@ -76,9 +77,10 @@ export class CloneRepo extends Command {
             } else {
                 console.log('No destination folder selected. Cloning canceled.');
             }
-        } catch (error) {
+        } catch (error: any) {
             vscode.window.showErrorMessage('Failed to clone Git Repo');
             console.error('Error:', error);
+            TelemetryProvider.get().sendTelemetryErrorEvent('clone repo', { description: 'Failed to clone repo', error: error });
         }
     }
 }

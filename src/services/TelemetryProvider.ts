@@ -29,6 +29,12 @@ class TelemetryProvider {
         }
     }
 
+    public sendTelemetryErrorEvent(eventName: string, properties?: { [key: string]: string }, measurements?: { [key: string]: number }) {
+        if (this.reporter) {
+            this.reporter.sendTelemetryErrorEvent(eventName, properties, measurements);
+        }
+    }
+
     public dispose() {
         if (this.reporter) {
             this.reporter.dispose();

@@ -8,6 +8,7 @@ import * as vscode from 'vscode';
 import { ContainerType } from '../models/ContainerType';
 import { ContainersTreeItem } from '../views/treeview/development/ContainersTreeItem';
 import { DevelopmentTreeViewProvider } from '../views/treeview/development/DevelopmentTreeViewProvider';
+import TelemetryProvider from '../services/TelemetryProvider';
 
 // Static class that handles the create container command
 export class CreateContainer extends Command {
@@ -43,8 +44,10 @@ export class CreateContainer extends Command {
             vscode.window.showInformationMessage(`Container ${containerDisplayName} successfully created`);
             containersViewModel.collapsibleState = vscode.TreeItemCollapsibleState.Expanded;
             DevelopmentTreeViewProvider.getInstance().refresh();
+            TelemetryProvider.get().sendTelemetryEvent('container create', { description: 'container created successfully' });
         } catch (error: any) {
             vscode.window.showErrorMessage("Unable to create container object: " + error.message);
+            TelemetryProvider.get().sendTelemetryErrorEvent('container create', { description: 'Unable to create container object', error: error.message });
             return;
         }
     }

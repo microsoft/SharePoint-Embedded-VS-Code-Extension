@@ -6,6 +6,7 @@
 import axios, { AxiosResponse } from 'axios';
 import { BillingClassification } from '../models/ContainerType';
 import { TermsOfServiceError } from '../utils/errors';
+import TelemetryProvider from './TelemetryProvider';
 
 export default class SPAdminProvider {
     static async createNewContainerType(accessToken: any, tenantName: any, owningAppId: string, displayName: string, billingClassification: BillingClassification) {
@@ -31,6 +32,7 @@ export default class SPAdminProvider {
                 options
             );
             console.log('Success creating container type', response.data);
+            TelemetryProvider.get().sendTelemetryEvent('trial containertype create', { description: 'Container Type created successfully' });
             /*
             // Try fetching the new Container Type from the service because the creation response does
             // not include the CreationDate and ExpiryDate properties (server bug).
@@ -86,7 +88,7 @@ export default class SPAdminProvider {
             console.log('Success getting container types on tenant: ', response.data.value);
             console.log('Response object: ', response);
             return response.data.value;
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error getting container type', error);
             throw error;
         }
@@ -113,7 +115,7 @@ export default class SPAdminProvider {
             );
             console.log('Success getting container type', response.data);
             return response.data;
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error getting container type', error);
             throw error;
         }
@@ -141,8 +143,9 @@ export default class SPAdminProvider {
             );
 
             console.log(`Success deleting Container Type ${containerTypeId}`, response.data);
+            TelemetryProvider.get().sendTelemetryEvent('containertype delete', { description: 'containertype deleted successfully' });
             return response.data;
-        } catch (error) {
+        } catch (error: any) {
             console.error(`Error deleting Container Type ${containerTypeId}`, error);
             throw error;
         }
