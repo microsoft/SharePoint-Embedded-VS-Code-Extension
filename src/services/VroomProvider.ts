@@ -6,6 +6,7 @@
 import axios from "axios";
 import { ApplicationPermissions } from "../models/ApplicationPermissions";
 import TelemetryProvider from "./TelemetryProvider";
+import { RegisterTrialContainerTypeApiFailure, RegisterTrialContainerTypeApiSuccess } from "../models/telemetry/telemetry";
 
 export default class VroomProvider {
     static async registerContainerType(accessToken: string, clientId: string, rootSiteUrl: string, containerTypeId: string, appPermissions: ApplicationPermissions[]) {
@@ -29,10 +30,11 @@ export default class VroomProvider {
             );
     
             console.log('ContainerType Registration successful:', response.data);
+            TelemetryProvider.instance.send(new RegisterTrialContainerTypeApiSuccess(response));
             return response.data.value;
         } catch (error: any) {
             console.error('Error registrating ContainerType: ', error.response.data.error.message);
-            TelemetryProvider.get().sendTelemetryErrorEvent('vroom', { description: 'Error registering ContainerType' });
+            TelemetryProvider.instance.send(new RegisterTrialContainerTypeApiFailure(error.message, error.response));
             throw error;
         }
     }

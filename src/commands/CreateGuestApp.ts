@@ -13,6 +13,7 @@ import { App } from '../models/App';
 import { ProgressNotification } from '../views/notifications/ProgressNotification';
 import { DevelopmentTreeViewProvider } from '../views/treeview/development/DevelopmentTreeViewProvider';
 import TelemetryProvider from '../services/TelemetryProvider';
+import { GuestAppCreateOrImportAppFailure, GuestAppRegisterContainerTypeFailure } from '../models/telemetry/telemetry';
 
 // Static class that handles the create guest app command
 export class CreateGuestApp extends Command {
@@ -69,7 +70,7 @@ export class CreateGuestApp extends Command {
 
         } catch (error: any) {
             vscode.window.showErrorMessage("Unable to create or import Azure AD application: " + error.message);
-            TelemetryProvider.get().sendTelemetryErrorEvent('guestapp create', { description: 'Unable to create or import Azure AD application', error: error.message });
+            TelemetryProvider.instance.send(new GuestAppCreateOrImportAppFailure(error.message));
             return;
         }
 
@@ -78,7 +79,7 @@ export class CreateGuestApp extends Command {
             await containerType.addTenantRegistration(account.tenantId, app, addGuestAppState.delegatedPerms, addGuestAppState.applicationPerms);
         } catch (error: any) {
             vscode.window.showErrorMessage("Unable to register Free Trial Container Type: " + error.message);
-            TelemetryProvider.get().sendTelemetryErrorEvent('guestapp create', { description: 'Unable to register Free Trial Container Type', error: error.message });
+            TelemetryProvider.instance.send(new GuestAppRegisterContainerTypeFailure(error.message));
             return;
         }
 

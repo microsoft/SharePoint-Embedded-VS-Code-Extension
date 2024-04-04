@@ -1,37 +1,49 @@
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { telemetryKey } from '../client';
+import { md5 } from 'node-forge';
+import { v4 as uuidv4 } from 'uuid';
+import { Account } from '../models/Account';
+import { TelemetryEvent, TelemetryErrorEvent } from '../models/telemetry/telemetry';
 
 class TelemetryProvider {
-    private static instance: TelemetryProvider;
-    private reporter: TelemetryReporter | undefined;
+    public static readonly instance: TelemetryProvider = new TelemetryProvider(); 
+    private reporter: TelemetryReporter;
 
-    private constructor() {
+    public constructor() {
         this.reporter = new TelemetryReporter(telemetryKey);
     }
 
-    public static init(): TelemetryProvider {
-        if (!TelemetryProvider.instance) {
-            TelemetryProvider.instance = new TelemetryProvider();
-        }
-        return TelemetryProvider.instance;
-    }
+    public send(ev: TelemetryEvent): void {
+        const account = Account.get();
+        if (account) {
+            let needsSave = false;
+            if (!account.telemetryUserId) {
+                account.telemetryUserId = uuidv4();
+                needsSave = true;
+            }
 
-    public static get(): TelemetryProvider {
-        if (!TelemetryProvider.instance) {
-            throw new Error("TelemetryProvider not yet initialized. Call init() first");
+            if (needsSave) {
+                account.saveToStorage();
+            }
+            ev.addProperty("telemetryUserId", account.telemetryUserId);
         }
-        return TelemetryProvider.instance;
-    }
+        if (ev instanceof TelemetryErrorEvent) {
+            this.sendTelemetryErrorEvent(ev);
+        } else {
+            this.sendTelemetryEvent(ev);
+        }
+    } 
 
-    public sendTelemetryEvent(eventName: string, properties?: { [key: string]: string }, measurements?: { [key: string]: number }) {
+
+    public sendTelemetryEvent(ev: TelemetryEvent): void {
         if (this.reporter) {
-            this.reporter.sendTelemetryEvent(eventName, properties, measurements);
+            this.reporter.sendTelemetryEvent(ev.name, ev.properties);
         }
     }
 
-    public sendTelemetryErrorEvent(eventName: string, properties?: { [key: string]: string }, measurements?: { [key: string]: number }) {
+    public sendTelemetryErrorEvent(ev: TelemetryErrorEvent): void {
         if (this.reporter) {
-            this.reporter.sendTelemetryErrorEvent(eventName, properties, measurements);
+            this.reporter.sendTelemetryErrorEvent(ev.name, ev.properties);
         }
     }
 

@@ -21,7 +21,8 @@ import { clientId } from '../client';
 type StoredAccount = {
     appIds: string[],
     containerTypeIds: string[],
-    tenantDomain?: string
+    tenantDomain?: string,
+    telemetryUserId?: string
 };
 
 type AccountData = {
@@ -49,12 +50,13 @@ export class Account {
     public readonly name?: string;
     public domain: string;
 
+    public telemetryUserId?: string;
+
     public appIds: string[] = [];
     public containerTypeIds: string[] = [];
 
     public apps: App[] = [];
     public containerTypes: ContainerType[] = [];
-
 
     private constructor(homeAccountId: string, environment: string, tenantId: string, username: string, localAccountId: string, isAdmin: boolean, domain: string, name?: string) {
         this.homeAccountId = homeAccountId;
@@ -548,12 +550,15 @@ export class Account {
 
         this.containerTypeIds = storedAccount.containerTypeIds;
         this.containerTypes = containerTypes;
+
+        this.telemetryUserId = storedAccount.telemetryUserId;
     }
 
     public async saveToStorage(): Promise<void> {
         const storedAccount = {
             appIds: this.appIds,
-            containerTypeIds: this.containerTypeIds
+            containerTypeIds: this.containerTypeIds,
+            telemetryUserId: this.telemetryUserId
         };
 
         const accountString = JSON.stringify(storedAccount);

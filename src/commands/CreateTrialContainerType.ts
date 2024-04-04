@@ -12,6 +12,7 @@ import { ProgressNotification } from '../views/notifications/ProgressNotificatio
 import { App } from '../models/App';
 import { DevelopmentTreeViewProvider } from '../views/treeview/development/DevelopmentTreeViewProvider';
 import TelemetryProvider from '../services/TelemetryProvider';
+import { AppCreationFailure, AppImportFailure, TermsOfServiceAcceptedFailure, TrialContainerTypeCreationFailure, TrialContainerTypeCreationFlowFailure, TrialContainerTypeFetchFailure, TrialContainerTypeImportFailure, TrialContainerTypeRegistrationFailure } from '../models/telemetry/telemetry';
 
 // Static class that handles the create trial container type command
 export class CreateTrialContainerType extends Command {
@@ -45,9 +46,9 @@ export class CreateTrialContainerType extends Command {
         } catch (error: any) {
             Account.onContainerTypeCreationFinish();
             DevelopmentTreeViewProvider.getInstance().refresh();
-            console.error(`Error with Container Type creation Ux Flow: ${error}`);
-            TelemetryProvider.get().sendTelemetryErrorEvent('trial containertype create', { description: 'Error with Container Type creation Ux Flow', error: error });
-            vscode.window.showErrorMessage(`Error with Container Type creation Ux Flow: ${error}`);
+            console.error(`Error with Trial Container Type creation Ux Flow: ${error}`);
+            TelemetryProvider.instance.send(new TrialContainerTypeCreationFlowFailure(error.message));
+            vscode.window.showErrorMessage(`Error with Trial Container Type creation Ux Flow: ${error}`);
             return;
         }
 
@@ -68,7 +69,7 @@ export class CreateTrialContainerType extends Command {
             Account.onContainerTypeCreationFinish();
             DevelopmentTreeViewProvider.getInstance().refresh();
             console.error(`${error}`);
-            TelemetryProvider.get().sendTelemetryErrorEvent('trial containertype create', { description: 'Application creation failed', error: error });
+            TelemetryProvider.instance.send(new AppCreationFailure(error.message));
             vscode.window.showErrorMessage(`${error}`);
             return;
         }
@@ -80,7 +81,7 @@ export class CreateTrialContainerType extends Command {
             Account.onContainerTypeCreationFinish();
             DevelopmentTreeViewProvider.getInstance().refresh();
             console.error(`Error fetching Free Trial Container Type: ${error}`);
-            TelemetryProvider.get().sendTelemetryErrorEvent('trial containertype create', { description: 'Error fetching Free Trial Container Type', error: error });
+            TelemetryProvider.instance.send(new TrialContainerTypeFetchFailure(error.message));
             vscode.window.showErrorMessage(`Error fetching Free Trial Container Type: ${error}`);
         }
 
@@ -96,9 +97,9 @@ export class CreateTrialContainerType extends Command {
                 } catch (error: any) {
                     Account.onContainerTypeCreationFinish();
                     DevelopmentTreeViewProvider.getInstance().refresh();
-                    console.error(`Error with Container Type creation Ux Flow: ${error}`);
-                    TelemetryProvider.get().sendTelemetryErrorEvent('trial containertype create', { description: 'Error with Container Type creation Ux Flow', error: error });
-                    vscode.window.showErrorMessage(`Error with Container Type creation Ux Flow: ${error}`);
+                    console.error(`Error with Trial Container Type creation Ux Flow: ${error}`);
+                    TelemetryProvider.instance.send(new TrialContainerTypeCreationFlowFailure(error.message));
+                    vscode.window.showErrorMessage(`Error with Trial Container Type creation Ux Flow: ${error}`);
                     return;
                 }
 
@@ -116,7 +117,7 @@ export class CreateTrialContainerType extends Command {
                     Account.onContainerTypeCreationFinish();
                     DevelopmentTreeViewProvider.getInstance().refresh();
                     console.error(`${error}`);
-                    TelemetryProvider.get().sendTelemetryErrorEvent('trial containertype create', { description: 'Application import failed', error: error });
+                    TelemetryProvider.instance.send(new AppImportFailure(error.message));
                     vscode.window.showErrorMessage(`${error}`);
                     return;
                 }
@@ -131,7 +132,7 @@ export class CreateTrialContainerType extends Command {
                 Account.onContainerTypeCreationFinish();
                 DevelopmentTreeViewProvider.getInstance().refresh();
                 console.error(`Error importing Free Trial Container Type: ${error}`);
-                TelemetryProvider.get().sendTelemetryErrorEvent('trial containertype create', { description: 'Error importing Free Trial Container Type', error: error });
+                TelemetryProvider.instance.send(new TrialContainerTypeImportFailure(error.message));
                 vscode.window.showErrorMessage(`Error importing Free Trial Container Type: ${error}`);
                 return;
             }
@@ -147,11 +148,11 @@ export class CreateTrialContainerType extends Command {
             } catch (error: any) {
                 if (error.name === 'TermsOfServiceError') {
                     vscode.window.showErrorMessage(error.message);
-                    TelemetryProvider.get().sendTelemetryErrorEvent('trial containertype create', { description: 'Terms of Service not accepted', error: error });
+                    TelemetryProvider.instance.send(new TermsOfServiceAcceptedFailure(error.message));
 
                 } else {
                     vscode.window.showErrorMessage("Unable to create Free Trial Container Type: " + error.message);
-                    TelemetryProvider.get().sendTelemetryErrorEvent('trial containertype create', { description: 'Container Type creation failed', error: error });
+                    TelemetryProvider.instance.send(new TrialContainerTypeCreationFailure(error.message));
                 }
                 Account.onContainerTypeCreationFinish();
                 DevelopmentTreeViewProvider.getInstance().refresh();
@@ -165,7 +166,7 @@ export class CreateTrialContainerType extends Command {
             await freeCT.addTenantRegistration(account.tenantId, app, ["full"], ["full"]);
         } catch (error: any) {
             vscode.window.showErrorMessage("Unable to register Free Trial Container Type, please re-try: " + error.message);
-            TelemetryProvider.get().sendTelemetryErrorEvent('trial containertype create', { description: 'Unable to register Free Trial Container Type', error: error });
+            TelemetryProvider.instance.send(new TrialContainerTypeRegistrationFailure(error.message));
             Account.onContainerTypeCreationFinish();
             DevelopmentTreeViewProvider.getInstance().refresh();
             return;

@@ -16,9 +16,8 @@ export async function activate(context: vscode.ExtensionContext) {
     ext.context = context;
     ext.outputChannel = vscode.window.createOutputChannel("SharePoint Embedded", { log: true });
 
-    const reporter = TelemetryProvider.init();
     context.subscriptions.push(ext.outputChannel);
-    context.subscriptions.push(reporter);
+    context.subscriptions.push(TelemetryProvider.instance);
 
     StorageProvider.init(
         new LocalStorageService(context.globalState),

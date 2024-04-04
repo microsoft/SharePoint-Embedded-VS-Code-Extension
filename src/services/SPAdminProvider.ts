@@ -7,6 +7,7 @@ import axios, { AxiosResponse } from 'axios';
 import { BillingClassification } from '../models/ContainerType';
 import { TermsOfServiceError } from '../utils/errors';
 import TelemetryProvider from './TelemetryProvider';
+import { CreateTrialContainerTypeApiFailure, CreateTrialContainerTypeApiSuccess, DeleteTrialContainerTypeApiFailure, DeleteTrialContainerTypeApiSuccess } from '../models/telemetry/telemetry';
 
 export default class SPAdminProvider {
     static async createNewContainerType(accessToken: any, tenantName: any, owningAppId: string, displayName: string, billingClassification: BillingClassification) {
@@ -32,7 +33,7 @@ export default class SPAdminProvider {
                 options
             );
             console.log('Success creating container type', response.data);
-            TelemetryProvider.get().sendTelemetryEvent('trial containertype create', { description: 'Container Type created successfully' });
+            TelemetryProvider.instance.send(new CreateTrialContainerTypeApiSuccess(response));
             /*
             // Try fetching the new Container Type from the service because the creation response does
             // not include the CreationDate and ExpiryDate properties (server bug).
@@ -44,6 +45,7 @@ export default class SPAdminProvider {
             */
             return response.data;
         } catch (error: any) {
+            TelemetryProvider.instance.send(new CreateTrialContainerTypeApiFailure(error.message, error.response));
             if (error.response && error.response.status === 500) {
                 const errorMessage = error.message;
                 if (errorMessage.includes("Maximum number of allowed Trial Container Types has been exceeded.")) {
@@ -143,10 +145,11 @@ export default class SPAdminProvider {
             );
 
             console.log(`Success deleting Container Type ${containerTypeId}`, response.data);
-            TelemetryProvider.get().sendTelemetryEvent('containertype delete', { description: 'containertype deleted successfully' });
+            TelemetryProvider.instance.send(new DeleteTrialContainerTypeApiSuccess(response));
             return response.data;
         } catch (error: any) {
             console.error(`Error deleting Container Type ${containerTypeId}`, error);
+            TelemetryProvider.instance.send(new DeleteTrialContainerTypeApiFailure(error.message, error.response));
             throw error;
         }
     }

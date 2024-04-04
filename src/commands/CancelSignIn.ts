@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { SignOutFailure } from '../models/telemetry/telemetry';
 import TelemetryProvider from '../services/TelemetryProvider';
 import { Command } from './Command';
 import * as vscode from 'vscode';
@@ -19,7 +20,7 @@ export class CancelSignIn extends Command {
         } catch (error: any) {
             vscode.window.showErrorMessage('Failed to cancel sign in flow.');
             console.error('Error:', error);
-            TelemetryProvider.get().sendTelemetryErrorEvent('cancel sign', { description: 'Failed to cancel sign in flow.', error: error });
+            TelemetryProvider.instance.send(new SignOutFailure(error.message));
         }
     }
 }
