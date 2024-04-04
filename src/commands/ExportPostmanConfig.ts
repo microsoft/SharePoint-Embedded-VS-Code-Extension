@@ -10,6 +10,8 @@ import { Command } from './Command';
 import { v4 as uuidv4 } from 'uuid';
 import * as fs from 'fs';
 import * as path from 'path';
+import TelemetryProvider from '../services/TelemetryProvider';
+import { ExportPostmanConfigFailure } from '../models/telemetry/telemetry';
 
 // Static class that handles the Postman export command
 export class ExportPostmanConfig extends Command {
@@ -123,9 +125,10 @@ export class ExportPostmanConfig extends Command {
             } else {
                 console.log('No destination folder selected. Saving canceled.');
             }
-        } catch (error) {
+        } catch (error: any) {
             vscode.window.showErrorMessage('Failed to download Postman environment');
             console.error('Error:', error);
+            TelemetryProvider.instance.send(new ExportPostmanConfigFailure(error.message));
         }
     }
 }

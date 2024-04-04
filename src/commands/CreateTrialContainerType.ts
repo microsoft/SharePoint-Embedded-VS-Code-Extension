@@ -11,6 +11,8 @@ import { ContainerTypeCreationFlow, ContainerTypeCreationFlowState } from '../vi
 import { ProgressNotification } from '../views/notifications/ProgressNotification';
 import { App } from '../models/App';
 import { DevelopmentTreeViewProvider } from '../views/treeview/development/DevelopmentTreeViewProvider';
+import TelemetryProvider from '../services/TelemetryProvider';
+import { AppCreationFailure, AppImportFailure, TermsOfServiceAcceptedFailure, TrialContainerTypeCreationFailure, TrialContainerTypeCreationFlowFailure, TrialContainerTypeFetchFailure, TrialContainerTypeImportFailure, TrialContainerTypeRegistrationFailure } from '../models/telemetry/telemetry';
 
 // Static class that handles the create trial container type command
 export class CreateTrialContainerType extends Command {
@@ -28,7 +30,7 @@ export class CreateTrialContainerType extends Command {
         let freeCT: ContainerType | undefined;
         try {
             freeCT = await account.getFreeContainerType();
-        } catch (error) {
+        } catch (error: any) {
             console.error(`Error fetching Free Trial Container Type: ${error}`);
             Account.onContainerTypeCreationFinish();
             DevelopmentTreeViewProvider.getInstance().refresh();
@@ -41,11 +43,12 @@ export class CreateTrialContainerType extends Command {
             if (!ctCreationState) {
                 throw new Error("Ux flow cancelled and state is undefined");
             }
-        } catch (error) {
+        } catch (error: any) {
             Account.onContainerTypeCreationFinish();
             DevelopmentTreeViewProvider.getInstance().refresh();
-            console.error(`Error with Container Type creation Ux Flow: ${error}`);
-            vscode.window.showErrorMessage(`Error with Container Type creation Ux Flow: ${error}`);
+            console.error(`Error with Trial Container Type creation Ux Flow: ${error}`);
+            TelemetryProvider.instance.send(new TrialContainerTypeCreationFlowFailure(error.message));
+            vscode.window.showErrorMessage(`Error with Trial Container Type creation Ux Flow: ${error}`);
             return;
         }
 
@@ -62,10 +65,11 @@ export class CreateTrialContainerType extends Command {
                 await new ProgressNotification().show();
                 await app.consent();
             }
-        } catch (error) {
+        } catch (error: any) {
             Account.onContainerTypeCreationFinish();
             DevelopmentTreeViewProvider.getInstance().refresh();
             console.error(`${error}`);
+            TelemetryProvider.instance.send(new AppCreationFailure(error.message));
             vscode.window.showErrorMessage(`${error}`);
             return;
         }
@@ -73,10 +77,11 @@ export class CreateTrialContainerType extends Command {
         // We should have an app to query Container Types at this point -- use it to do a final check for existing Free CT
         try {
             freeCT = await account.getFreeContainerType(app.clientId);
-        } catch (error) {
+        } catch (error: any) {
             Account.onContainerTypeCreationFinish();
             DevelopmentTreeViewProvider.getInstance().refresh();
             console.error(`Error fetching Free Trial Container Type: ${error}`);
+            TelemetryProvider.instance.send(new TrialContainerTypeFetchFailure(error.message));
             vscode.window.showErrorMessage(`Error fetching Free Trial Container Type: ${error}`);
         }
 
@@ -89,11 +94,12 @@ export class CreateTrialContainerType extends Command {
                     if (!ctCreationState) {
                         throw new Error("Ux Flow State is undefined");
                     }
-                } catch (error) {
+                } catch (error: any) {
                     Account.onContainerTypeCreationFinish();
                     DevelopmentTreeViewProvider.getInstance().refresh();
-                    console.error(`Error with Container Type creation Ux Flow: ${error}`);
-                    vscode.window.showErrorMessage(`Error with Container Type creation Ux Flow: ${error}`);
+                    console.error(`Error with Trial Container Type creation Ux Flow: ${error}`);
+                    TelemetryProvider.instance.send(new TrialContainerTypeCreationFlowFailure(error.message));
+                    vscode.window.showErrorMessage(`Error with Trial Container Type creation Ux Flow: ${error}`);
                     return;
                 }
 
@@ -107,10 +113,11 @@ export class CreateTrialContainerType extends Command {
                         await new ProgressNotification().show();
                         await app.consent();
                     }
-                } catch (error) {
+                } catch (error: any) {
                     Account.onContainerTypeCreationFinish();
                     DevelopmentTreeViewProvider.getInstance().refresh();
                     console.error(`${error}`);
+                    TelemetryProvider.instance.send(new AppImportFailure(error.message));
                     vscode.window.showErrorMessage(`${error}`);
                     return;
                 }
@@ -121,10 +128,11 @@ export class CreateTrialContainerType extends Command {
                 if (!freeCT) {
                     throw new Error("Free CT is undefined");
                 }
-            } catch (error) {
+            } catch (error: any) {
                 Account.onContainerTypeCreationFinish();
                 DevelopmentTreeViewProvider.getInstance().refresh();
                 console.error(`Error importing Free Trial Container Type: ${error}`);
+                TelemetryProvider.instance.send(new TrialContainerTypeImportFailure(error.message));
                 vscode.window.showErrorMessage(`Error importing Free Trial Container Type: ${error}`);
                 return;
             }
@@ -140,8 +148,11 @@ export class CreateTrialContainerType extends Command {
             } catch (error: any) {
                 if (error.name === 'TermsOfServiceError') {
                     vscode.window.showErrorMessage(error.message);
+                    TelemetryProvider.instance.send(new TermsOfServiceAcceptedFailure(error.message));
+
                 } else {
                     vscode.window.showErrorMessage("Unable to create Free Trial Container Type: " + error.message);
+                    TelemetryProvider.instance.send(new TrialContainerTypeCreationFailure(error.message));
                 }
                 Account.onContainerTypeCreationFinish();
                 DevelopmentTreeViewProvider.getInstance().refresh();
@@ -155,6 +166,7 @@ export class CreateTrialContainerType extends Command {
             await freeCT.addTenantRegistration(account.tenantId, app, ["full"], ["full"]);
         } catch (error: any) {
             vscode.window.showErrorMessage("Unable to register Free Trial Container Type, please re-try: " + error.message);
+            TelemetryProvider.instance.send(new TrialContainerTypeRegistrationFailure(error.message));
             Account.onContainerTypeCreationFinish();
             DevelopmentTreeViewProvider.getInstance().refresh();
             return;
