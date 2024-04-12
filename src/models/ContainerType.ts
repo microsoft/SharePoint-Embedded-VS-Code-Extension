@@ -15,6 +15,8 @@ import { Container } from './Container';
 import { Account } from './Account';
 import { timeoutForSeconds } from '../utils/timeout';
 import { decodeJwt, checkJwtForAppOnlyRole } from '../utils/token';
+import { ISpContainerTypeProperties } from '../services/SpAdminProviderNew';
+import AppProvider from '../services/AppProvider';
 
 export enum BillingClassification {
     Paid = 0,
@@ -29,18 +31,36 @@ export class ContainerType {
     public readonly owningAppId: string;
     public readonly owningTenantId: string;
     public readonly billingClassification: number;
-    public readonly azureSubscriptionId?: string;
-    public readonly creationDate?: string;
-    public readonly expiryDate?: string;
-    public readonly isBillingProfileRequired?: boolean;
+    public readonly azureSubscriptionId: string | null;
+    public readonly creationDate: string | null;
+    public readonly expiryDate: string | null;
+    public readonly isBillingProfileRequired: boolean;
     public guestAppIds: string[];
     public registrationIds: string[];
 
-    public owningApp: App | undefined;
+    private _owningApp: Promise<App> | undefined;
+    public get owningApp(): Promise<App> {
+        if (!this._owningApp) {
+            this._owningApp = Account.get()!.appProvider.get(this.owningAppId);
+        }
+        return this._owningApp;
+    }
+
+    private _localRegistration: Promise<ContainerTypeRegistration | undefined> | undefined;
+    public get localRegistration(): Promise<ContainerTypeRegistration | undefined> {
+        if (!this._localRegistration) {
+            const provider = Account.get()!.containerTypeProvider;
+            this._localRegistration = provider.getLocalRegistration(this.containerTypeId, this.owningAppId);
+        }
+        return this._localRegistration;
+    }
+
+    //public owningApp: App | undefined;
     public guestApps: App[];
     public registrations: ContainerTypeRegistration[];
     public containers: Container[];
 
+    /*
     public constructor(containerTypeId: string,
         owningAppId: string,
         displayName: string,
@@ -68,9 +88,26 @@ export class ContainerType {
         this.registrations = [];
         this.containers = [];
     }
+    */
+    public constructor(properties: ISpContainerTypeProperties) {
+        this.azureSubscriptionId = properties.AzureSubscriptionId;
+        this.displayName = properties.DisplayName;
+        this.owningAppId = properties.OwningAppId;
+        this.billingClassification = properties.SPContainerTypeBillingClassification;
+        this.containerTypeId = properties.ContainerTypeId;
+        this.owningTenantId = properties.OwningTenantId;
+        this.creationDate = properties.CreationDate;
+        this.expiryDate = properties.ExpiryDate;
+        this.isBillingProfileRequired = properties.IsBillingProfileRequired;
+        this.guestAppIds = [];
+        this.guestApps = [];
+        this.registrationIds = [];
+        this.registrations = [];
+        this.containers = [];
+    }
 
     public async addTenantRegistration(tenantId: string, app: App, delegatedPermissions: string[], applicationPermissions: string[]): Promise<boolean> {
-        try {
+       return false;/* try {
             const appSecretsString = await StorageProvider.get().secrets.get(this.owningAppId);
             if (!appSecretsString) {
                 return false;
@@ -127,7 +164,7 @@ export class ContainerType {
                 this.guestApps.push(app);
             }
 
-            await this.saveToStorage();
+            //await this.saveToStorage();
             return true;
         } catch (error: any) {
             //vscode.window.showErrorMessage('Failed to register ContainerType');
@@ -137,10 +174,11 @@ export class ContainerType {
             // remove registered app id from global storage?
             // remove application that failed registration from global storage?
         }
-
+*/
     }
 
     public async getContainers(): Promise<Container[]> {
+        /*
         const token = await this.owningApp?.authProvider.getToken(["00000003-0000-0000-c000-000000000000/.default"]);
         if (!token) {
             throw new Error("Unable to get access token from owning app");
@@ -158,9 +196,12 @@ export class ContainerType {
         });
 
         return this.containers;
+        */
+        return [];
     }
 
     public async createContainer(displayName: string, description: string) {
+        /*
         const token = await this.owningApp?.authProvider.getToken(["00000003-0000-0000-c000-000000000000/.default"]);
         if (!token) {
             throw new Error("Unable to get access token from owning app");
@@ -169,9 +210,12 @@ export class ContainerType {
         const createdContainerInstance = new Container(createdContainer.id, createdContainer.displayName, createdContainer.description, this.containerTypeId, createdContainer.status, createdContainer.createdDateTime);
         this.containers.push(createdContainerInstance);
         return createdContainerInstance;
+        */
+        return undefined;
     }
 
     public static async loadFromStorage(containerTypeId: string): Promise<ContainerType | undefined> {
+        /*
         let containerTypeProps: ContainerType | undefined = StorageProvider.get().global.getValue<ContainerType>(containerTypeId);
         if (containerTypeProps) {
             let containerType = new ContainerType(
@@ -190,10 +234,12 @@ export class ContainerType {
             containerType = await containerType._loadFromStorage(containerType);
             return containerType;
         }
+        */
         return undefined;
     }
-
+/*
     private async _loadFromStorage(containerType: ContainerType): Promise<ContainerType> {
+        /*
         // hydrate owning App
         const appProps = await App.loadFromStorage(containerType.owningAppId);
         if (appProps) {
@@ -228,6 +274,7 @@ export class ContainerType {
 
         return containerType;
     }
+*/
 
     public async saveToStorage(): Promise<void> {
         const containerTypeCopy = _.cloneDeep(this);
@@ -250,4 +297,5 @@ export class ContainerType {
 
         await Promise.all(secretPromises);
     }
+
 }

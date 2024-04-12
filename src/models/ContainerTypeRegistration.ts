@@ -3,44 +3,38 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { StorageProvider } from "../services/StorageProvider";
+import { ISpConsumingApplicationProperties } from "../services/SpAdminProviderNew";
+import { Account } from "./Account";
 import { ApplicationPermissions } from "./ApplicationPermissions";
 
-// Class that represents a Container Type Registration object persisted in the global storage provider
-
+// Class that represents a Container Type Registration object
 export class ContainerTypeRegistration {
     // instance properties
-    public readonly id: string;
     public readonly containerTypeId: string;
     public readonly tenantId: string;
-    public readonly applicationPermissions: ApplicationPermissions[];
+    public readonly owningAppId: string;
+    public readonly applications: string[];
 
-    public constructor(containerTypeId: string, tenantId: string, applicationPermissions: ApplicationPermissions[]) {
-       this.id = containerTypeId + '_' + tenantId;
-       this.containerTypeId = containerTypeId;
-       this.tenantId = tenantId;
-       this.applicationPermissions = applicationPermissions;
+    public constructor(properties: ISpConsumingApplicationProperties) {
+        this.containerTypeId = properties.ContainerTypeId!;
+        this.tenantId = properties.TenantId!;
+        this.owningAppId = properties.OwningApplicationId!;
+        this.applications = properties.Applications;
     }
 
-    public static loadFromStorage(key: string): ContainerTypeRegistration | undefined {
-        const registrationString: string = StorageProvider.get().global.getValue(key);
-        if (registrationString) {
-            const registration = JSON.parse(registrationString);
-            registration.applicationPermissions = registration.applicationPermissions.map((permissionObj: ApplicationPermissions) => {
-                return new ApplicationPermissions(permissionObj.appId, permissionObj.delegated, permissionObj.appOnly);
+    private _applicationPermissions: Promise<ApplicationPermissions[]> | undefined;
+    public get applicationPermissions(): Promise<ApplicationPermissions[]> {
+        if (!this._applicationPermissions) {
+            const provider = Account.get()!.containerTypeProvider;
+            this._applicationPermissions = new Promise<ApplicationPermissions[]>(async (resolve) => {
+                const appPerms = this.applications.map(async (appId: string) => {
+                    const perms = await provider.getLocalAppPermissions(this.owningAppId, appId);
+                    return new ApplicationPermissions(perms);
+                });
+                resolve(await Promise.all(appPerms));
             });
-            return new ContainerTypeRegistration(registration.containerTypeId, registration.tenantId, registration.applicationPermissions);
         }
-        return undefined;
+        return this._applicationPermissions!;
     }
 
-    public async saveToStorage(): Promise<void> {
-        const registration = {
-            containerTypeId: this.containerTypeId,
-            tenantId: this.tenantId,
-            applicationPermissions: this.applicationPermissions
-        };
-        const registrationString = JSON.stringify(registration);
-        await StorageProvider.get().global.setValue(this.containerTypeId + '_' + this.tenantId, registrationString);
-    }
 }

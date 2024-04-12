@@ -55,11 +55,7 @@ export class DevelopmentTreeViewProvider implements vscode.TreeDataProvider<Cont
             containerTypeCreatingButton.iconPath = new vscode.ThemeIcon("loading~spin");
             return [containerTypeCreatingButton];
         } else if (!isContainerTypeCreating && containerTypes && containerTypes.length > 0) {
-            const containerTypesTreeItem = new ContainerTypesTreeItem(
-                `Container Types`,
-                vscode.TreeItemCollapsibleState.Expanded
-            );
-            return [containerTypesTreeItem];
+            return [new ContainerTypesTreeItem()];
         }
 
         return [];

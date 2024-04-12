@@ -16,7 +16,11 @@ import GraphProvider from '../services/GraphProvider';
 import SPAdminProvider from '../services/SPAdminProvider';
 import { TenantIdKey, IsContainerTypeCreatingKey } from '../utils/constants';
 import { timeoutForSeconds } from '../utils/timeout';
-import { clientId } from '../client';
+import { clientId, containerTypeManagementAppId } from '../client';
+import ContainerTypeProvider from '../services/ContainerTypeProvider';
+import SpAdminProviderNew from '../services/SpAdminProviderNew';
+import AppProvider from '../services/AppProvider';
+import { GraphProviderNew } from '../services/GraphProviderNew';
 
 type StoredAccount = {
     appIds: string[],
@@ -36,6 +40,10 @@ export class Account {
     public static readonly storageKey: string = "account";
     private static readonly authProvider: BaseAuthProvider = new FirstPartyAuthProvider(clientId, Account.storageKey);
     private static readonly scopes: string[] = ['Application.ReadWrite.All', 'User.Read', 'Sites.Read.All'];
+    private static readonly _spAdminAuthProvider: BaseAuthProvider = new FirstPartyAuthProvider(containerTypeManagementAppId, containerTypeManagementAppId);
+    public static readonly graphProvider: GraphProviderNew = new GraphProviderNew(Account.authProvider);
+
+
     private static instance: Account | undefined;
     private static subscribers: LoginChangeListener[] = [];
     private static readonly storage: StorageProvider;
@@ -48,6 +56,8 @@ export class Account {
     public readonly isAdmin: boolean;
     public readonly name?: string;
     public domain: string;
+    public readonly spRootSiteUrl: string;
+    public readonly spAdminSiteUrl: string;
 
     public appIds: string[] = [];
     public containerTypeIds: string[] = [];
@@ -55,8 +65,10 @@ export class Account {
     public apps: App[] = [];
     public containerTypes: ContainerType[] = [];
 
+    public readonly containerTypeProvider: ContainerTypeProvider;
+    public readonly appProvider: AppProvider;
 
-    private constructor(homeAccountId: string, environment: string, tenantId: string, username: string, localAccountId: string, isAdmin: boolean, domain: string, name?: string) {
+    private constructor(homeAccountId: string, environment: string, tenantId: string, username: string, localAccountId: string, isAdmin: boolean, domain: string, spRootSiteUrl: string, spAdminSiteUrl: string, name?: string) {
         this.homeAccountId = homeAccountId;
         this.environment = environment;
         this.tenantId = tenantId;
@@ -65,8 +77,14 @@ export class Account {
         this.domain = domain;
         this.name = name;
         this.isAdmin = isAdmin;
+        this.spRootSiteUrl = spRootSiteUrl;
+        this.spAdminSiteUrl = spAdminSiteUrl;
 
-        this.loadFromStorage();
+        //this.loadFromStorage();
+
+        const spAdminProvider = new SpAdminProviderNew(Account._spAdminAuthProvider, this.spAdminSiteUrl);
+        this.containerTypeProvider = new ContainerTypeProvider(spAdminProvider);
+        this.appProvider = new AppProvider(Account.graphProvider);
     }
 
     public static get(): Account | undefined {
@@ -100,31 +118,31 @@ export class Account {
             return;
         }
         let domain: string | undefined;
-        const storedAccount = Account._getStoredAccount();
-        if (!storedAccount || !storedAccount.tenantDomain) {
-            try {
-                const tenantDomain = await GraphProvider.getOwningTenantDomain(token);
-                const rootSiteUrl = await GraphProvider.getRootSiteUrl(token);
-                const regex = /^https?:\/\/(\w+\.)?([^.]+)\.(\w+)\.(\w+)/;
-                const match = rootSiteUrl.match(regex);
+        let spRootSiteUrl: string | undefined;
+        let spAdminSiteUrl: string | undefined;
+        try {
+            const spUrls = await Account.graphProvider.getSpUrls();
+            spRootSiteUrl = spUrls.root;
+            spAdminSiteUrl = spUrls.admin;
+            const tenantDomain = await GraphProvider.getOwningTenantDomain(token);
+            const rootSiteUrl = await GraphProvider.getRootSiteUrl(token);
+            const regex = /^https?:\/\/(\w+\.)?([^.]+)\.(\w+)\.(\w+)/;
+            const match = rootSiteUrl.match(regex);
 
-                // look for root site url as the second group in match
-                if (match && match.length >= 5) {
-                    domain = match[2];
-                } else {
-                    // fallback to using tenant domain if match is not found
-                    const parts = tenantDomain.split('.');
-                    domain = parts[0];
-                }
+            // look for root site url as the second group in match
+            if (match && match.length >= 5) {
+                domain = match[2];
+            } else {
+                // fallback to using tenant domain if match is not found
+                const parts = tenantDomain.split('.');
+                domain = parts[0];
             }
-            catch (error) {
-                console.error(error);
-                return undefined;
-            }
-        } else if (storedAccount.tenantDomain) {
-            domain = storedAccount.tenantDomain;
+        } catch (error) {
+            console.error(error);
+            return undefined;
         }
-        if (!domain) {
+
+        if (!domain || !spRootSiteUrl || !spAdminSiteUrl) {
             Account._notifyLoginFailed();
             return;
         }
@@ -136,24 +154,29 @@ export class Account {
 
         const decodedToken = decodeJwt(token);
         const isAdmin = checkJwtForAdminClaim(decodedToken);
-        Account.instance = new Account(accountInfo.homeAccountId,
+        Account.instance = new Account(
+            accountInfo.homeAccountId,
             accountInfo.environment,
             accountInfo.tenantId,
             accountInfo.username,
             accountInfo.localAccountId,
             isAdmin,
             domain,
+            spRootSiteUrl, 
+            spAdminSiteUrl,
             accountInfo.name
         );
         await Account.instance.loadFromStorage();
+        await Account.instance.loadContainerTypes();
         Account._notifyLogin();
         return Account.get();
     }
 
     public async logout(): Promise<void> {
         await Account.authProvider.logout();
+        await Account._spAdminAuthProvider.logout();
         for (const app of this.apps) {
-            await app.authProvider.logout();
+            await app.authProvider?.logout();
         }
         await this.deleteFromStorage();
         Account.instance = undefined;
@@ -234,7 +257,7 @@ export class Account {
             const certKeyCredential = createCertKeyCredential(certificatePEM);
             const properties = await GraphProvider.configureAadApplication(appId, token, certKeyCredential);
             if (properties) {
-                const app = new App(properties.appId, properties.displayName, properties.id, Account.get()!.tenantId, isOwningApp, thumbprint, privateKey);
+                const app = new App(properties.appId, properties.displayName, properties.id, thumbprint, privateKey);
                 await app.saveToStorage();
                 try {
                     await app.addAppSecret(token);
@@ -255,6 +278,12 @@ export class Account {
     }
 
     public async createContainerType(appId: string, containerTypeName: string, billingClassification: BillingClassification): Promise<ContainerType | undefined> {  
+        const newCt = await this.containerTypeProvider.createFree(containerTypeName, appId);
+        if (newCt) {
+            this.containerTypes.push(newCt);
+            return newCt;
+        }
+        /*
         const app = this.getAppById(appId);
         if (!app) {
             throw new Error(`Unable to find app ${appId} in Account.`);
@@ -294,7 +323,7 @@ export class Account {
                     containerTypeDetails.IsBillingProfileRequired);
 
                 // Store new Container Type
-                await containerType.saveToStorage();
+                //await containerType.saveToStorage();
 
                 // Update Account with ContainerTypeId
                 this.containerTypeIds.push(containerType.containerTypeId);
@@ -306,9 +335,11 @@ export class Account {
         } catch (error: any) {
             throw error;
         }
+        */
     }
 
     public async importContainerType(containerType: ContainerType, owningApp: App): Promise<ContainerType | undefined> {
+        /*
         // Re-fetch the Container Type from the service to get the CreationDate and ExpiryDate properties
         // TODO: Remove this line when the server bug is fixed
         const ctDetails = await this.getContainerTypeDetailsById(owningApp.clientId, containerType.containerTypeId)!;
@@ -336,9 +367,12 @@ export class Account {
         await this.saveToStorage();
 
         return ct;
+        */
+       return undefined;
     }
 
     public async getContainerTypeDetailsById(appId: string, containerTypeId: string): Promise<any> {
+        /*
         const app = this.getAppById(appId);
         if (!app) {
             throw new Error(`Unable to find app ${appId} in Account.`);
@@ -362,9 +396,12 @@ export class Account {
         const containerTypeDetails = await SPAdminProvider.getContainerTypeById(spToken, this.domain, containerTypeId);
 
         return containerTypeDetails;
+        */
+         return {};
     }
 
     public async getAllContainerTypes(appId: string): Promise<ContainerType[]> {
+        /*
         const app = this.getAppById(appId);
         if (!app) {
             throw new Error(`Unable to find app ${appId} in Account.`);
@@ -407,6 +444,8 @@ export class Account {
         } catch (error: any) {
             throw error;
         }
+        */
+       return [];
     }
 
     public async getFreeContainerType(appId?: string): Promise<ContainerType | undefined> {
@@ -421,6 +460,7 @@ export class Account {
     }
 
     public async deleteContainerTypeById(appId: string, containerTypeId: string): Promise<ContainerType | undefined> {
+        /*
         const app = this.getAppById(appId);
         if (!app) {
             throw new Error(`Unable to find app ${appId} in Account.`);
@@ -465,6 +505,8 @@ export class Account {
         } catch (error: any) {
             throw error;
         }
+        */
+       return undefined;
     }
 
     private static async _createApp(displayName: string, token: string, isOwningApp: boolean): Promise<App | undefined> {
@@ -472,7 +514,7 @@ export class Account {
         const certKeyCredential = createCertKeyCredential(certificatePEM);
         const properties = await GraphProvider.createAadApplication(displayName, token, certKeyCredential);
         if (properties) {
-            const app = new App(properties.appId, displayName, properties.id, Account.get()!.tenantId, isOwningApp, thumbprint, privateKey);
+            const app = new App(properties.appId, displayName, properties.id, thumbprint, privateKey);
             await app.saveToStorage();
             await app.addAppSecret(token);
             return app;
@@ -481,6 +523,7 @@ export class Account {
     }
 
     public async deleteApp(app: App): Promise<void> {
+        /*
         try {
             //const consentToken = await thirdPartyAuthProvider.getToken(['00000003-0000-0ff1-ce00-000000000000/.default']);
             const graphAccessToken = await app.authProvider.getToken(["00000003-0000-0000-c000-000000000000/.default"]);
@@ -495,6 +538,7 @@ export class Account {
             console.log(error);
             return;
         }
+        */
     }
 
     public async searchApps(searchString?: string, excludeSaved: boolean = false): Promise<any[]> {
@@ -518,6 +562,11 @@ export class Account {
         return JSON.parse(StorageProvider.get().global.getValue(Account.storageKey)) as StoredAccount;
     }
 
+    public async loadContainerTypes(): Promise<void> {
+        this.containerTypes = await this.containerTypeProvider.list();
+        console.log(this.containerTypes);
+    }
+
     public async loadFromStorage(): Promise<void> {
         const storedAccount: StoredAccount = Account._getStoredAccount();
 
@@ -537,6 +586,7 @@ export class Account {
         this.appIds = storedAccount.appIds;
         this.apps = apps;
 
+        /*
         // hydrate Container Type objects
         const containerTypePromises = storedAccount.containerTypeIds.map(async (containerTypeId) => {
             const containerType = ContainerType.loadFromStorage(containerTypeId);
@@ -548,6 +598,7 @@ export class Account {
 
         this.containerTypeIds = storedAccount.containerTypeIds;
         this.containerTypes = containerTypes;
+        */
     }
 
     public async saveToStorage(): Promise<void> {

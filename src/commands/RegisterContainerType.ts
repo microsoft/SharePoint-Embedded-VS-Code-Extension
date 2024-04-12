@@ -30,7 +30,7 @@ export class RegisterContainerType extends Command {
         }
 
         try {
-            await containerType.addTenantRegistration(account.tenantId, containerType.owningApp!, ["full"], ["full"]);
+            await containerType.addTenantRegistration(account.tenantId, (await containerType.owningApp)!, ["full"], ["full"]);
             vscode.window.showInformationMessage(`Container Type ${containerType.displayName} successfully registered on tenant ${account.tenantId}`);
             DevelopmentTreeViewProvider.getInstance().refresh();
         } catch (error: any) {

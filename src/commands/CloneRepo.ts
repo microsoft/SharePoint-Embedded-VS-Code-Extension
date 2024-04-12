@@ -9,6 +9,7 @@ import { ApplicationTreeItem } from '../views/treeview/development/ApplicationTr
 import * as fs from 'fs';
 import * as path from 'path';
 import { ext } from '../utils/extensionVariables';
+import { Account } from '../models/Account';
 
 // Static class that handles the sign in command
 export class CloneRepo extends Command {
@@ -50,7 +51,7 @@ export class CloneRepo extends Command {
 
             const appId = applicationTreeItem.app.clientId;
             const containerTypeId = applicationTreeItem.containerType.containerTypeId;
-            const tenantId = applicationTreeItem.app.tenantId || '';
+            const tenantId = Account.get()!.tenantId;// applicationTreeItem.app.tenantId || '';
             const clientSecret = applicationTreeItem.app.clientSecret || '';
             const repoUrl = 'https://github.com/microsoft/SharePoint-Embedded-Samples.git';
             const folders = await vscode.window.showOpenDialog({

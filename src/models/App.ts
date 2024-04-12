@@ -12,29 +12,35 @@ import { Account } from "./Account";
 // Class that represents an Azure AD application object persisted in the global storage provider
 export class App {
 
-    // instance properties
-    public readonly clientId: string;
-    public readonly objectId: string;
-    public readonly tenantId: string;
-    public readonly isOwningApp: boolean;
-    public displayName: string;
-    public thumbprint: string;
-    public privateKey: string;
-    public clientSecret?: string;
-    public authProvider: ThirdPartyAuthProvider;
+    public constructor (
+        public readonly clientId: string,
+        public displayName?: string,
+        public objectId?: string,
+        public thumbprint?: string,
+        public privateKey?: string,
+        public clientSecret?: string,
+    ) { }
 
+    private _authProvider?: ThirdPartyAuthProvider;
+    public get authProvider(): ThirdPartyAuthProvider | undefined {
+        if (!this._authProvider && this.clientId && this.thumbprint && this.privateKey) {
+            this._authProvider = new ThirdPartyAuthProvider(this.clientId, this.thumbprint, this.privateKey);
+        }
+        return this._authProvider;
+    }
 
+    /*
     public constructor(clientId: string, displayName: string, objectId: string, tenantId: string, isOwningApp: boolean, thumbprint: string, privateKey: string, clientSecret?: string, ) {
         this.clientId = clientId;
         this.displayName = displayName;
         this.objectId = objectId;
         this.tenantId = tenantId;
-        this.isOwningApp = isOwningApp;
         this.clientSecret = clientSecret;
         this.thumbprint = thumbprint;
         this.privateKey = privateKey;
         this.authProvider = new ThirdPartyAuthProvider(this.clientId, this.thumbprint, this.privateKey);
     }
+    */
 
     
     public async addAppSecretWithDelay(token: string, delay: number): Promise<void> {
@@ -59,9 +65,12 @@ export class App {
         }
     }
 
-    public async consent() {
+    public async consent(tenantId: string) {
         try {
-            await this.authProvider.grantAdminConsent(['00000003-0000-0ff1-ce00-000000000000/.default'], this.clientId, this.tenantId);
+            if (!this.authProvider) {
+                throw new Error('App is missing auth provider');
+            }
+            await this.authProvider.grantAdminConsent(['00000003-0000-0ff1-ce00-000000000000/.default'], this.clientId, tenantId);
             const consentToken = await this.authProvider.getToken(['00000003-0000-0ff1-ce00-000000000000/.default']);
             const graphAccessToken = await Account.getFirstPartyAccessToken();
             return typeof consentToken === 'string' && typeof graphAccessToken === 'string';
@@ -83,7 +92,7 @@ export class App {
                 app.thumbprint = appSecrets.thumbprint;
                 app.privateKey = appSecrets.privateKey;
             }
-            return new App(retrievedApp.clientId, retrievedApp.displayName, retrievedApp.objectId, retrievedApp.tenantId, retrievedApp.isOwningApp, app.thumbprint, app.privateKey, app.clientSecret);
+            return new App(retrievedApp.clientId, retrievedApp.displayName, retrievedApp.objectId, app.thumbprint, app.privateKey, app.clientSecret);
         }
     return undefined;
     }

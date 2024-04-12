@@ -35,8 +35,8 @@ export class DeleteContainerType extends Command {
         const containerType = containerTypeViewModel.containerType;
 
         try {
-            const containerTypeDetails = await account.getContainerTypeDetailsById(containerType.owningApp!.clientId, containerType.containerTypeId);
-            const result = await account.deleteContainerTypeById(containerType.owningApp!.clientId, containerType.containerTypeId);
+            const containerTypeDetails = await account.getContainerTypeDetailsById((await containerType.owningApp)!.clientId, containerType.containerTypeId);
+            const result = await account.deleteContainerTypeById((await containerType.owningApp)!.clientId, containerType.containerTypeId);
             vscode.window.showInformationMessage(`Container Type ${containerType.displayName} successfully deleted`);
             DevelopmentTreeViewProvider.getInstance().refresh();
         } catch (error: any) {

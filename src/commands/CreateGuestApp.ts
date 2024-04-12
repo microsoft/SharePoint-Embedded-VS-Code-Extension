@@ -47,7 +47,7 @@ export class CreateGuestApp extends Command {
                 }
                 // 20-second progress to allow app propagation before consent flow
                 await new ProgressNotification().show();
-                await app.consent();
+                await app.consent(Account.get()!.tenantId!);
             } else if (addGuestAppState.shouldCreateNewApp()) {
                 vscode.window.showInformationMessage(`Azure AD Application configuring starting...`);
                 app = await account.createApp(addGuestAppState.appName!, true);
@@ -56,7 +56,7 @@ export class CreateGuestApp extends Command {
                 }
                 // 20-second progress to allow app propagation before consent flow
                 await new ProgressNotification().show();
-                await app.consent();
+                await app.consent(Account.get()!.tenantId!);
             } else {
                 // Only other case is the app is already known -- try to get it from Account (should already be consented)
                 app = account.apps.find(app => app.clientId === addGuestAppState!.appId!);

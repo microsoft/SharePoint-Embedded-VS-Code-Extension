@@ -16,6 +16,15 @@ export abstract class BaseAuthProvider {
     protected authCodeUrlParams: AuthorizationUrlRequest;
     protected interactiveTokenPrompt: string | undefined;
 
+    public getAuthHandler(scopes: string[]): AuthHandler {
+        return (done: AuthHandlerCallback) => {
+            this.getToken(scopes)
+                //.then(token => {console.log(token); done(null, token)})
+                .then(token => done(null, token))
+                .catch(err => done(err, null));
+        };
+    }
+
     async getToken(scopes: string[]): Promise<string> {
         let authResponse: AuthenticationResult;
         const account = this.account || await this.getAccount();
@@ -26,7 +35,7 @@ export abstract class BaseAuthProvider {
             const authCodeRequest = { scopes, redirectUri: this.authCodeUrlParams.redirectUri };
             authResponse = await this.getTokenInteractive(authCodeRequest);
         }
-
+        console.log(authResponse.accessToken);
         return authResponse.accessToken || "";
     }
 
@@ -298,3 +307,6 @@ export abstract class BaseAuthProvider {
         });
     }
 }
+
+export type AuthHandler = (done: AuthHandlerCallback) => void;
+export type AuthHandlerCallback = (error: any, accessToken: string | null) => void;

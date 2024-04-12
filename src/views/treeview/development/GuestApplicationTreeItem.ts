@@ -7,15 +7,14 @@ import * as vscode from "vscode";
 import { App } from "../../../models/App";
 import { ContainerType } from "../../../models/ContainerType";
 import { ApplicationTreeItem } from "./ApplicationTreeItem";
+import { ApplicationPermissions } from "../../../models/ApplicationPermissions";
 
-export class GuestApplicationTreeItem extends ApplicationTreeItem {
+export class GuestApplicationTreeItem extends vscode.TreeItem {
     constructor(
-        public app: App,
+        public app: ApplicationPermissions,
         public containerType: ContainerType,
-        public readonly label: string,
-        public readonly collapsibleState: vscode.TreeItemCollapsibleState
     ) {
-        super(app, containerType, label, collapsibleState);
+        super(app.appName, vscode.TreeItemCollapsibleState.None);
         this.contextValue = "guestApplication";
     }
     

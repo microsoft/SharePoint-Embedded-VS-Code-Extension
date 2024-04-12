@@ -60,7 +60,7 @@ export class CreateTrialContainerType extends Command {
             // Consent app only if a local instance doesn't exist
             if (shouldDelay) {
                 await new ProgressNotification().show();
-                await app.consent();
+                await app.consent(Account.get()!.tenantId!);
             }
         } catch (error) {
             Account.onContainerTypeCreationFinish();
@@ -105,7 +105,7 @@ export class CreateTrialContainerType extends Command {
                     }
                     if (shouldDelay) {
                         await new ProgressNotification().show();
-                        await app.consent();
+                        await app.consent(Account.get()!.tenantId!);
                     }
                 } catch (error) {
                     Account.onContainerTypeCreationFinish();

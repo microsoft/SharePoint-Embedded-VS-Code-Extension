@@ -6,32 +6,27 @@
 import * as vscode from "vscode";
 import { GuestApplicationTreeItem } from "./GuestApplicationTreeItem";
 import { ContainerType } from "../../../models/ContainerType";
+import { ApplicationPermissions } from "../../../models/ApplicationPermissions";
 
 export class GuestApplicationsTreeItem extends vscode.TreeItem {
-    private appsItem?: GuestApplicationTreeItem[];
 
     constructor(
-        public containerType: ContainerType,
-        public readonly label: string,
-        public collapsibleState: vscode.TreeItemCollapsibleState
-
+        public containerType: ContainerType
     ) {
-        super(label, collapsibleState);
+        super('Guest Apps', vscode.TreeItemCollapsibleState.Collapsed);
         this.contextValue = "guestApplications";
-        this.appsItem = [];
     }
 
-    public async getChildren() {
-        this.appsItem = this._getApps();
-        return this.appsItem;
+    public async getChildren(): Promise<vscode.TreeItem[]> {
+        const children: vscode.TreeItem[] = [];
+        const registration = await this.containerType.localRegistration;
+        if (registration) {
+            const apps = await registration.applicationPermissions;
+            apps.map((app: ApplicationPermissions) => {
+                children.push(new GuestApplicationTreeItem(app, this.containerType));
+            });
+        }
+        return children;
     }
 
-    private _getApps() {
-        const appItems = this.containerType.guestApps.map(
-            (app) => {
-                return new GuestApplicationTreeItem(app, this.containerType, app.displayName, vscode.TreeItemCollapsibleState.None);
-            }
-        );
-        return appItems;
-    }
 }

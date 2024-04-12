@@ -180,6 +180,17 @@ export default class GraphProvider {
         }
     };
 
+    static async getSpUrls(accessToken: string): Promise<ISpUrls> {
+        const rootSiteUrl = await this.getRootSiteUrl(accessToken);
+        const domainElements = rootSiteUrl.split('.');
+        domainElements[0] += '-admin';
+        const spAdminUrl = domainElements.join('.');
+        return {
+            root: rootSiteUrl,
+            admin: spAdminUrl
+        };
+    }
+
     static async getApplicationById(accessToken: string, appId: string) {
         const options = {
             headers: {
@@ -522,4 +533,9 @@ export default class GraphProvider {
             throw error;
         }
     };
+}
+
+export interface ISpUrls {
+    root: string;
+    admin: string;
 }

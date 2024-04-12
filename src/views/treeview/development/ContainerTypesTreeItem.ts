@@ -9,21 +9,16 @@ import { Account } from "../../../models/Account";
 import { ContainerTypeTreeItem } from "./ContainerTypeTreeItem";
 
 export class ContainerTypesTreeItem extends vscode.TreeItem {
-
-    constructor(
-        public readonly label: string,
-        public readonly collapsibleState: vscode.TreeItemCollapsibleState
-
-    ) {
-        super(label, collapsibleState);
+    private static readonly label = "Container Types";
+    public constructor() {
+        super(ContainerTypesTreeItem.label, vscode.TreeItemCollapsibleState.Expanded);
     }
 
     public async getChildren() {
         const containerTypes: ContainerType[] = Account.get()!.containerTypes;
 
         const containerTypeTreeItems = [...containerTypes.map(containerType => {
-            const containerTypeTreeItem = new ContainerTypeTreeItem(containerType, containerType.displayName, containerType.displayName, vscode.TreeItemCollapsibleState.Expanded);
-            return containerTypeTreeItem;
+            return new ContainerTypeTreeItem(containerType);
         })];
 
         return containerTypeTreeItems;

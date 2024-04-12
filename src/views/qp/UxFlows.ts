@@ -295,14 +295,14 @@ class ImportOrCreateAppQuickPick extends UxInputStep {
                     resolve(UxInputStep.Back);
                 }
             });
-            this.recentApps = Account.get()!.apps.map(app => (
+            this.recentApps = [];/*Account.get()!.apps.map(app => (
                 {
                     id: app.clientId,
                     label: app.displayName,
                     detail: `Client ID: ${app.clientId}`,
                     iconPath: new ThemeIcon('app-icon')
                 }
-            ));
+            ));*/
             if (this._appExclusions) {
                 this.recentApps = this.recentApps.filter(app => !this._appExclusions!.has(app.id));
             }

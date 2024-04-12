@@ -11,13 +11,9 @@ import { GuestApplicationsTreeItem } from "./GuestApplicationsTreeItem";
 
 export class ContainerTypeTreeItem extends vscode.TreeItem {
     constructor(
-        public containerType: ContainerType,
-        public readonly label: string,
-        public readonly tooltip: string,
-        public readonly collapsibleState: vscode.TreeItemCollapsibleState,
-
+        public readonly containerType: ContainerType
     ) {
-        super(label, collapsibleState);
+        super(containerType.displayName, vscode.TreeItemCollapsibleState.Collapsed);
         if (containerType.containers.length === 0) {
             vscode.commands.executeCommand('setContext', 'spe:showDeleteContainerType', true);
         } else {
@@ -34,10 +30,24 @@ export class ContainerTypeTreeItem extends vscode.TreeItem {
     }
 
     public async getChildren() {
-        const owningApplicationTreeItem = new OwningApplicationTreeItem(this.containerType.owningApp!, this.containerType, `${this.containerType.owningApp!.displayName}`, vscode.TreeItemCollapsibleState.None);
-        const guestAppsTreeItem = new GuestApplicationsTreeItem(this.containerType, 'Guest Apps', vscode.TreeItemCollapsibleState.Collapsed);
-        const containersTreeItem = new ContainersTreeItem(this.containerType, 'Containers', vscode.TreeItemCollapsibleState.Collapsed);
+        const children = [];
+        const owningApp = await this.containerType.owningApp;
+        if (owningApp) {
+            children.push(new OwningApplicationTreeItem(
+                owningApp,
+                this.containerType,
+                owningApp.displayName || owningApp.clientId,
+                vscode.TreeItemCollapsibleState.None
+            ));
+        }
+        const registration = await this.containerType.localRegistration;
+        if (registration) {
+            children.push(new GuestApplicationsTreeItem(this.containerType));
+        }
 
-        return [owningApplicationTreeItem, guestAppsTreeItem, containersTreeItem];
+        //const guestAppsTreeItem = new GuestApplicationsTreeItem(this.containerType, 'Guest Apps', vscode.TreeItemCollapsibleState.Collapsed);
+        //const containersTreeItem = new ContainersTreeItem(this.containerType, 'Containers', vscode.TreeItemCollapsibleState.Collapsed);
+        return children;
+        //return [owningApplicationTreeItem, guestAppsTreeItem, containersTreeItem];
     }
 }
