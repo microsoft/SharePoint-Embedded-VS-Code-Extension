@@ -13,7 +13,7 @@ import { CreateTrialContainerType } from '../../../commands/CreateTrialContainer
 import { DeleteContainerType } from '../../../commands/DeleteContainerType';
 import { ContainerTypeTreeItem } from '../../../views/treeview/development/ContainerTypeTreeItem';
 import { CloneRepo } from '../../../commands/CloneRepo';
-import { ApplicationTreeItem } from '../../../views/treeview/development/ApplicationTreeItem';
+import { AppTreeItem } from '../../../views/treeview/development/AppTreeItem';
 import { ExportPostmanConfig } from '../../../commands/ExportPostmanConfig';
 import { CreateGuestApp } from '../../../commands/CreateGuestApp';
 import { GuestApplicationsTreeItem } from '../../../views/treeview/development/GuestApplicationsTreeItem';
@@ -124,7 +124,7 @@ describe('Extension e2e tests', async () => {
             .resolves('OK');
 
         const account = Account.get();
-        const appTreeItemMock = new ApplicationTreeItem(account!.apps[0], account!.containerTypes[0], "", vscode.TreeItemCollapsibleState.None);
+        const appTreeItemMock = new AppTreeItem(account!.apps[0], account!.containerTypes[0], "", vscode.TreeItemCollapsibleState.None);
         await ExportPostmanConfig.run(appTreeItemMock);
 
         const postmanEnvironmentPath = path.join(destinationPath, `${account!.apps[0].clientId}_postman_environment.json`);

@@ -5,7 +5,7 @@
 
 import { Command } from './Command';
 import * as vscode from 'vscode';
-import { ApplicationTreeItem } from '../views/treeview/development/ApplicationTreeItem';
+import { AppTreeItem } from '../views/treeview/development/AppTreeItem';
 import * as fs from 'fs';
 import * as path from 'path';
 import { ext } from '../utils/extensionVariables';
@@ -17,7 +17,7 @@ export class CloneRepo extends Command {
     public static readonly COMMAND = 'cloneRepo';
 
     // Command handler
-    public static async run(applicationTreeItem?: ApplicationTreeItem): Promise<void> {
+    public static async run(applicationTreeItem?: AppTreeItem): Promise<void> {
         if (!applicationTreeItem) {
             return;
         }

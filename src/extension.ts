@@ -10,6 +10,7 @@ import { DevelopmentTreeViewProvider } from './views/treeview/development/Develo
 import { LocalStorageService, StorageProvider } from './services/StorageProvider';
 import { Account } from './models/Account';
 import { Commands } from './commands/';
+import { containerTypeManagementAppId } from './client';
 
 export async function activate(context: vscode.ExtensionContext) {
     ext.context = context;
@@ -21,14 +22,28 @@ export async function activate(context: vscode.ExtensionContext) {
         new LocalStorageService(context.workspaceState),
         context.secrets
     );
+            
+    //TODO: Remove
+    //StorageProvider.get().secrets.delete(Account.storageKey);
+    //StorageProvider.get().secrets.delete(containerTypeManagementAppId);
 
-    Account.hasSavedAccount().then(async (hasSavedAccount) => {
-        vscode.window.registerTreeDataProvider(AccountTreeViewProvider.viewId, AccountTreeViewProvider.getInstance());
-        if (hasSavedAccount) {
-            await Account.loginToSavedAccount();
+    vscode.window.registerTreeDataProvider(AccountTreeViewProvider.viewId, AccountTreeViewProvider.getInstance());
+    vscode.window.registerTreeDataProvider(DevelopmentTreeViewProvider.viewId, DevelopmentTreeViewProvider.getInstance());
+
+    Account.subscribeLoginListener({
+        onLogin: () => {
+            DevelopmentTreeViewProvider.getInstance().refresh();
+        },
+        onLogout: () => {
+            DevelopmentTreeViewProvider.getInstance().refresh();
         }
-        vscode.window.registerTreeDataProvider(DevelopmentTreeViewProvider.viewId, DevelopmentTreeViewProvider.getInstance());
-    }); 
+    });
+
+    Account.hasSavedAccount().then(async hasSavedAccount => {
+        if (hasSavedAccount) {
+            Account.loginToSavedAccount();
+        }
+    });
 
     Commands.SignIn.register(context);
     Commands.SignOut.register(context);
@@ -42,4 +57,5 @@ export async function activate(context: vscode.ExtensionContext) {
     Commands.ExportPostmanConfig.register(context);
     Commands.RenameApplication.register(context);
     Commands.CancelSignIn.register(context);
+    Commands.Refresh.register(context);
 }

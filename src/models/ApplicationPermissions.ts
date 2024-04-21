@@ -5,6 +5,8 @@
 
 import { ISpConsumingApplicationProperties } from "../services/SpAdminProviderNew";
 import { Account } from "./Account";
+import { App } from "./App";
+import { ContainerTypeRegistration } from "./ContainerTypeRegistration";
 
 export class ApplicationPermissions {
 
@@ -14,12 +16,27 @@ export class ApplicationPermissions {
     public readonly delegated: ApplicationPermission[];
     public readonly appOnly: ApplicationPermission[];
 
-    public constructor(properties: ISpConsumingApplicationProperties) { 
+    public constructor(
+        public readonly containerTypeRegistration: ContainerTypeRegistration, 
+        properties: ISpConsumingApplicationProperties
+    ) { 
         this.owningAppId = properties.OwningApplicationId!;
         this.appId = properties.ApplicationId!;
         this.appName = properties.ApplicationName!;
         this.delegated = properties.DelegatedPermissions as ApplicationPermission[];
         this.appOnly = properties.AppOnlyPermissions as ApplicationPermission[];
+    }
+
+    private _app?: App;
+    public get app(): App | undefined {
+        return this._app;
+    }
+    public async loadApp(): Promise<App | undefined> {
+        if (Account.get() && Account.get()!.appProvider) {
+            const provider = Account.get()!.appProvider;
+            this._app = await provider.get(this.appId);
+        }
+        return this._app;
     }
 
 }

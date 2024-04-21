@@ -80,7 +80,7 @@ export class CreateGuestApp extends Command {
         }
 
         vscode.window.showInformationMessage(`Container Type ${containerType.displayName} successfully registered on Azure AD App: ${app.displayName}`);
-        DevelopmentTreeViewProvider.getInstance().refresh();
+        //DevelopmentTreeViewProvider.getInstance().refresh();
         guestApplicationsModel.collapsibleState = vscode.TreeItemCollapsibleState.Expanded;
     }
 }

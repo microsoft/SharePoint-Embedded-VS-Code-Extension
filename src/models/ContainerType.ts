@@ -17,6 +17,7 @@ import { timeoutForSeconds } from '../utils/timeout';
 import { decodeJwt, checkJwtForAppOnlyRole } from '../utils/token';
 import { ISpContainerTypeProperties } from '../services/SpAdminProviderNew';
 import AppProvider from '../services/AppProvider';
+import ContainerTypeProvider from '../services/ContainerTypeProvider';
 
 export enum BillingClassification {
     Paid = 0,
@@ -35,60 +36,32 @@ export class ContainerType {
     public readonly creationDate: string | null;
     public readonly expiryDate: string | null;
     public readonly isBillingProfileRequired: boolean;
-    public guestAppIds: string[];
-    public registrationIds: string[];
+    public guestApps: App[] = [];
 
-    private _owningApp: Promise<App> | undefined;
-    public get owningApp(): Promise<App> {
-        if (!this._owningApp) {
-            this._owningApp = Account.get()!.appProvider.get(this.owningAppId);
+    private _owningApp?: App;
+    public get owningApp(): App | undefined {
+        return this._owningApp;
+    }
+    public async loadOwningApp(): Promise<App | undefined> {
+        if (Account.get() && Account.get()!.appProvider) {
+            const provider = Account.get()!.appProvider;
+            this._owningApp = await provider.get(this.owningAppId);
         }
         return this._owningApp;
     }
 
-    private _localRegistration: Promise<ContainerTypeRegistration | undefined> | undefined;
-    public get localRegistration(): Promise<ContainerTypeRegistration | undefined> {
-        if (!this._localRegistration) {
+    private _localRegistration?: ContainerTypeRegistration;
+    public get localRegistration(): ContainerTypeRegistration | undefined {
+        return this._localRegistration;
+    }
+    public async loadLocalRegistration(): Promise<ContainerTypeRegistration | undefined> {
+        if (Account.get() && Account.get()!.containerTypeProvider) {
             const provider = Account.get()!.containerTypeProvider;
-            this._localRegistration = provider.getLocalRegistration(this.containerTypeId, this.owningAppId);
+            this._localRegistration = await provider.getLocalRegistration(this);
         }
         return this._localRegistration;
     }
 
-    //public owningApp: App | undefined;
-    public guestApps: App[];
-    public registrations: ContainerTypeRegistration[];
-    public containers: Container[];
-
-    /*
-    public constructor(containerTypeId: string,
-        owningAppId: string,
-        displayName: string,
-        billingClassification: number,
-        owningTenantId: string,
-        owningApp?: App,
-        azureSubscriptionId?: string,
-        creationDate?: string,
-        expiryDate?: string,
-        isBillingProfileRequired?: boolean,
-        registrationIds?: string[],
-        guestAppIds?: string[]) {
-        this.azureSubscriptionId = azureSubscriptionId;
-        this.displayName = displayName;
-        this.owningAppId = owningAppId;
-        this.billingClassification = billingClassification;
-        this.containerTypeId = containerTypeId;
-        this.owningTenantId = owningTenantId;
-        this.creationDate = creationDate;
-        this.expiryDate = expiryDate;
-        this.owningApp = owningApp;
-        this.guestAppIds = guestAppIds ? guestAppIds : [];
-        this.guestApps = [];
-        this.registrationIds = registrationIds ? registrationIds : [];
-        this.registrations = [];
-        this.containers = [];
-    }
-    */
     public constructor(properties: ISpContainerTypeProperties) {
         this.azureSubscriptionId = properties.AzureSubscriptionId;
         this.displayName = properties.DisplayName;
@@ -99,11 +72,6 @@ export class ContainerType {
         this.creationDate = properties.CreationDate;
         this.expiryDate = properties.ExpiryDate;
         this.isBillingProfileRequired = properties.IsBillingProfileRequired;
-        this.guestAppIds = [];
-        this.guestApps = [];
-        this.registrationIds = [];
-        this.registrations = [];
-        this.containers = [];
     }
 
     public async addTenantRegistration(tenantId: string, app: App, delegatedPermissions: string[], applicationPermissions: string[]): Promise<boolean> {
@@ -175,6 +143,11 @@ export class ContainerType {
             // remove application that failed registration from global storage?
         }
 */
+    }
+
+    private _containers?: Container[];
+    public get containers(): Container[] | undefined {
+        return this._containers;
     }
 
     public async getContainers(): Promise<Container[]> {
@@ -277,16 +250,18 @@ export class ContainerType {
 */
 
     public async saveToStorage(): Promise<void> {
+        /*
         const containerTypeCopy = _.cloneDeep(this);
         const { owningApp, guestApps, registrations, ...containerType } = containerTypeCopy;
         await StorageProvider.get().global.setValue(this.containerTypeId, containerType);
+        */
     }
 
     public async deleteFromStorage(): Promise<void> {
         const secretPromises: Thenable<void>[] = [];
 
         secretPromises.push(StorageProvider.get().global.setValue(this.containerTypeId, undefined));
-
+/*
         this.registrationIds.forEach(async registrationId => {
             secretPromises.push(StorageProvider.get().global.setValue(registrationId, undefined));
         });
@@ -294,7 +269,7 @@ export class ContainerType {
         this.guestAppIds.forEach(async guestAppId => {
             secretPromises.push(StorageProvider.get().global.setValue(guestAppId, undefined));
         });
-
+*/
         await Promise.all(secretPromises);
     }
 

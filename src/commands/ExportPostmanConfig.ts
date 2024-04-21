@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import { Account } from '../models/Account';
-import { ApplicationTreeItem } from '../views/treeview/development/ApplicationTreeItem';
+import { AppTreeItem } from '../views/treeview/development/AppTreeItem';
 import { Command } from './Command';
 import { v4 as uuidv4 } from 'uuid';
 import * as fs from 'fs';
@@ -17,7 +17,7 @@ export class ExportPostmanConfig extends Command {
     public static readonly COMMAND = 'exportPostmanConfig';
 
     // Command handler
-    public static async run(applicationTreeItem?: ApplicationTreeItem): Promise<void> {
+    public static async run(applicationTreeItem?: AppTreeItem): Promise<void> {
         if (!applicationTreeItem) {
             return;
         }

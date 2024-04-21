@@ -63,7 +63,11 @@ export class Account {
     public containerTypeIds: string[] = [];
 
     public apps: App[] = [];
-    public containerTypes: ContainerType[] = [];
+
+    private _containerTypes?: ContainerType[];
+    public get containerTypes(): ContainerType[] | undefined {
+        return this._containerTypes;
+    }
 
     public readonly containerTypeProvider: ContainerTypeProvider;
     public readonly appProvider: AppProvider;
@@ -111,6 +115,8 @@ export class Account {
     }
 
     public static async login(): Promise<Account | undefined> {
+
+
         Account._notifyBeforeLogin();
         const token = await Account.authProvider.getToken(Account.scopes);
         if (!token) {
@@ -167,18 +173,17 @@ export class Account {
             accountInfo.name
         );
         await Account.instance.loadFromStorage();
-        await Account.instance.loadContainerTypes();
         Account._notifyLogin();
         return Account.get();
     }
 
     public async logout(): Promise<void> {
-        await Account.authProvider.logout();
-        await Account._spAdminAuthProvider.logout();
-        for (const app of this.apps) {
-            await app.authProvider?.logout();
-        }
-        await this.deleteFromStorage();
+        //await Account.authProvider.logout();
+        //await Account._spAdminAuthProvider.logout();
+        StorageProvider.get().secrets.delete(Account.storageKey);
+        StorageProvider.get().secrets.delete(containerTypeManagementAppId);
+
+        //await this.deleteFromStorage();
         Account.instance = undefined;
         Account._notifyLogout();
     }
@@ -196,25 +201,33 @@ export class Account {
     
     private static _notifyBeforeLogin(): void {
         Account.subscribers.forEach((listener) => {
-            listener.onBeforeLogin();
+            if (listener.onBeforeLogin) {
+                listener.onBeforeLogin();
+            }
         });
     }
 
     private static _notifyLogin(): void {
         Account.subscribers.forEach((listener) => {
-            listener.onLogin(Account.get()!);
+            if (listener.onLogin) {
+                listener.onLogin(Account.get()!);
+            }
         });
     }
 
     private static _notifyLoginFailed(): void {
         Account.subscribers.forEach((listener) => {
-            listener.onLoginFailed();
+            if (listener.onLoginFailed) {
+                listener.onLoginFailed();
+            }
         });
     }
 
     private static _notifyLogout(): void {
         Account.subscribers.forEach((listener) => {
-            listener.onLogout();
+            if (listener.onLogout) {
+                listener.onLogout();
+            }
         });
     }
 
@@ -280,7 +293,7 @@ export class Account {
     public async createContainerType(appId: string, containerTypeName: string, billingClassification: BillingClassification): Promise<ContainerType | undefined> {  
         const newCt = await this.containerTypeProvider.createFree(containerTypeName, appId);
         if (newCt) {
-            this.containerTypes.push(newCt);
+            this.containerTypes!.push(newCt);
             return newCt;
         }
         /*
@@ -563,8 +576,7 @@ export class Account {
     }
 
     public async loadContainerTypes(): Promise<void> {
-        this.containerTypes = await this.containerTypeProvider.list();
-        console.log(this.containerTypes);
+        this._containerTypes = await this.containerTypeProvider.list();
     }
 
     public async loadFromStorage(): Promise<void> {
@@ -618,7 +630,7 @@ export class Account {
             secretPromises.push(app.deleteFromStorage());
         });
 
-        this.containerTypes.forEach(async containerType => {
+        this.containerTypes!.forEach(async containerType => {
             secretPromises.push(containerType.deleteFromStorage());
         });
 
@@ -629,8 +641,8 @@ export class Account {
 }
 
 export abstract class LoginChangeListener {
-    public abstract onBeforeLogin(): void;
-    public abstract onLogin(account: Account): void;
-    public abstract onLoginFailed(): void;
-    public abstract onLogout(): void;
+    public abstract onBeforeLogin?(): void;
+    public abstract onLogin?(account: Account): void;
+    public abstract onLoginFailed?(): void;
+    public abstract onLogout?(): void;
 }

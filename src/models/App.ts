@@ -8,9 +8,15 @@ import GraphProvider from "../services/GraphProvider";
 import { StorageProvider } from "../services/StorageProvider";
 import _ from 'lodash';
 import { Account } from "./Account";
+import { GraphProviderNew } from "../services/GraphProviderNew";
+import AppOnly3PAuthProvider, { IAppOnlyCredential } from "../services/AppOnly3PAuthProvider";
 
 // Class that represents an Azure AD application object persisted in the global storage provider
 export class App {
+
+    public get name(): string {
+        return this.displayName || this.clientId;
+    }
 
     public constructor (
         public readonly clientId: string,
@@ -21,12 +27,29 @@ export class App {
         public clientSecret?: string,
     ) { }
 
-    private _authProvider?: ThirdPartyAuthProvider;
-    public get authProvider(): ThirdPartyAuthProvider | undefined {
-        if (!this._authProvider && this.clientId && this.thumbprint && this.privateKey) {
-            this._authProvider = new ThirdPartyAuthProvider(this.clientId, this.thumbprint, this.privateKey);
+    private _appOnlyAuthProviders: Map<string, AppOnly3PAuthProvider> = new Map<string, AppOnly3PAuthProvider>();
+    public getAppOnlyAuthProvider(tenantId: string, useCertCred: boolean = false): AppOnly3PAuthProvider {
+        if (!this._appOnlyAuthProviders.has(tenantId)) {
+            let cred: IAppOnlyCredential | undefined;
+            if (this.clientSecret && !useCertCred) {
+                cred = { clientSecret: this.clientSecret };
+            } else if (this.thumbprint && this.privateKey) {
+                cred = {
+                    clientCertificate: {
+                        privateKey: this.privateKey,
+                        thumbprint: this.thumbprint
+                    }
+                };
+            }
+            if (!cred) {
+                throw new Error('App is missing credentials');
+            }
+            this._appOnlyAuthProviders.set(tenantId, new AppOnly3PAuthProvider(this.clientId, tenantId, cred));
         }
-        return this._authProvider;
+        return this._appOnlyAuthProviders.get(tenantId)!;
+    }
+    public removeAppOnlyAuthProvider(tenantId: string): void {
+        this._appOnlyAuthProviders.delete(tenantId);
     }
 
     /*
@@ -66,6 +89,7 @@ export class App {
     }
 
     public async consent(tenantId: string) {
+        /*
         try {
             if (!this.authProvider) {
                 throw new Error('App is missing auth provider');
@@ -78,7 +102,7 @@ export class App {
             console.error(error);
             throw error;
         }
-        
+        */
     }
 
     public static async loadFromStorage(clientId: string): Promise<App | undefined> {

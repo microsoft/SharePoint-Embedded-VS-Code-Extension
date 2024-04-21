@@ -2,6 +2,9 @@
 import * as Graph from '@microsoft/microsoft-graph-client';
 import { Application } from "@microsoft/microsoft-graph-types";
 import { BaseAuthProvider } from './BaseAuthProvider';
+import { Container, IContainerProperties } from '../models/Container';
+import { ContainerTypeRegistration } from '../models/ContainerTypeRegistration';
+import AppOnly3PAuthProvider from './AppOnly3PAuthProvider';
 
 export class GraphProviderNew {
     private static readonly _scopes = ['Application.ReadWrite.All', 'User.Read', 'Sites.Read.All'];
@@ -9,8 +12,12 @@ export class GraphProviderNew {
     private _client: Graph.Client;
 
     public constructor(private _authProvider: BaseAuthProvider) {
+        let scopes = GraphProviderNew._scopes;
+        if (_authProvider instanceof AppOnly3PAuthProvider) {
+            scopes = ['https://graph.microsoft.com/.default'];
+        }
         this._client = Graph.Client.init({
-            authProvider: _authProvider.getAuthHandler(GraphProviderNew._scopes)
+            authProvider: _authProvider.getAuthHandler(scopes)
         });
     }
 
@@ -62,6 +69,34 @@ export class GraphProviderNew {
             return undefined;
         }
     }
+
+    public async listContainers(containerTypeRegistration: ContainerTypeRegistration): Promise<Container[]> {
+        const response = await this._client
+            .api('/storage/fileStorage/containers')
+            .version('beta')
+            .filter(`containerTypeId eq ${containerTypeRegistration.containerTypeId}`)
+            .select('id,displayName,containerTypeId,createdDateTime,storageUsedInBytes')
+            .get();
+        const containersProperties = response.value as IContainerProperties[];
+        const containers = containersProperties.map((props: IContainerProperties) => {
+            return new Container(containerTypeRegistration, props);
+        });
+        return containers;
+    }
+
+    public async listRecycledContainers(containerTypeRegistration: ContainerTypeRegistration): Promise<Container[]> {
+        const response = await this._client
+            .api('/storage/fileStorage/deletedContainers')
+            .version('beta')
+            .filter(`containerTypeId eq ${containerTypeRegistration.containerTypeId}`)
+            .get();
+        const containersProperties = response.value as IContainerProperties[];
+        const containers = containersProperties.map((props: IContainerProperties) => {
+            return new Container(containerTypeRegistration, props);
+        });
+        return containers;
+    }
+
 
     /*
     public async listContainers(): Promise<IContainer[]> {

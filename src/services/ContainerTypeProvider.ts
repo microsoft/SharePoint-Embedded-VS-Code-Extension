@@ -1,4 +1,5 @@
 import { Account } from "../models/Account";
+import { ApplicationPermission, ApplicationPermissions } from "../models/ApplicationPermissions";
 import { BillingClassification, ContainerType } from "../models/ContainerType";
 import { ContainerTypeRegistration } from "../models/ContainerTypeRegistration";
 import SpAdminProviderNew, { ISpConsumingApplicationProperties, ISpContainerTypeCreationProperties } from "./SpAdminProviderNew";
@@ -19,17 +20,19 @@ export default class ContainerTypeProvider {
         return new ContainerType(containerTypeProperties);
     }
 
-    public async getLocalRegistration(containerTypeId: string, owningAppId: string): Promise<ContainerTypeRegistration | undefined> {
-        const registrationProperties = await this._spAdminProvider.getConsumingApplication(owningAppId);
+    public async getLocalRegistration(containerType: ContainerType): Promise<ContainerTypeRegistration | undefined> {
+        const registrationProperties = await this._spAdminProvider.getConsumingApplication(containerType.owningAppId);
         if (registrationProperties) {
             registrationProperties.TenantId = Account.get()!.tenantId;
-            registrationProperties.ContainerTypeId = containerTypeId;
-            return new ContainerTypeRegistration(registrationProperties);
+            registrationProperties.ContainerTypeId = containerType.containerTypeId;
+            return new ContainerTypeRegistration(containerType, registrationProperties);
         }
     }
 
-    public async getLocalAppPermissions(owningAppId: string, appId: string): Promise<ISpConsumingApplicationProperties> {
-        return this._spAdminProvider.getConsumingApplication(owningAppId, appId);
+    public async getAppPermissions(containerTypeRegistration: ContainerTypeRegistration, appId: string): Promise<ApplicationPermissions> {
+        const owningAppId = containerTypeRegistration.owningAppId;
+        const appPermissionsProps = await this._spAdminProvider.getConsumingApplication(owningAppId, appId);
+        return new ApplicationPermissions(containerTypeRegistration, appPermissionsProps);
     }
 
     public async create(properties: ISpContainerTypeCreationProperties): Promise<ContainerType> {

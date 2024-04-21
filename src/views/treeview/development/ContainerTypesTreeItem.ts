@@ -4,23 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from "vscode";
-import { ContainerType } from "../../../models/ContainerType";
 import { Account } from "../../../models/Account";
 import { ContainerTypeTreeItem } from "./ContainerTypeTreeItem";
+import { IChildrenProvidingTreeItem } from "./IDataProvidingTreeItem";
 
-export class ContainerTypesTreeItem extends vscode.TreeItem {
+export class ContainerTypesTreeItem extends IChildrenProvidingTreeItem {
     private static readonly label = "Container Types";
-    public constructor() {
+    public constructor(private readonly _account: Account) {
         super(ContainerTypesTreeItem.label, vscode.TreeItemCollapsibleState.Expanded);
+        this.contextValue = "spe:containerTypesTreeItem";
     }
 
-    public async getChildren() {
-        const containerTypes: ContainerType[] = Account.get()!.containerTypes;
-
-        const containerTypeTreeItems = [...containerTypes.map(containerType => {
-            return new ContainerTypeTreeItem(containerType);
-        })];
-
-        return containerTypeTreeItems;
+    public async getChildren(): Promise<vscode.TreeItem[]> {
+        if (!this._account.containerTypes || this._account.containerTypes.length === 0) {
+            return [];
+        }
+        return this._account.containerTypes.map(ct => new ContainerTypeTreeItem(ct));
     }
 }

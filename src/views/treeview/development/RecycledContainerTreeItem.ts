@@ -6,10 +6,11 @@
 import * as vscode from "vscode";
 import { Container } from "../../../models/Container";
 
-export class ContainerTreeItem extends vscode.TreeItem {
+export class RecycledContainerTreeItem extends vscode.TreeItem {
     constructor(container: Container) {
         super(container.displayName, vscode.TreeItemCollapsibleState.None);
         this.iconPath = new vscode.ThemeIcon("container-icon");
-        this.contextValue = "spe:containerTreeItem";
+        this.contextValue = "spe:recycledContainerTreeItem";
     }
+
 }

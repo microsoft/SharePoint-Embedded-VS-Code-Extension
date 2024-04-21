@@ -13,7 +13,7 @@ export default class SpAdminProviderNew {
 
     public constructor(private _authProvider: BaseAuthProvider, private _spAdminUrl: string) {
         this._baseApiUrl = `${this._spAdminUrl}/_api/SPO.Tenant/`;
-        this._scopes = [`${this._spAdminUrl}/AllSites.Write`];
+        this._scopes = [`${this._spAdminUrl}/AllSites.Read`];
         //this._scopes = [`00000003-0000-0ff1-ce00-000000000000/AllSites.Write`];
     }
 

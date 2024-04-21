@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { ApplicationTreeItem } from "../views/treeview/development/ApplicationTreeItem";
+import { AppTreeItem } from "../views/treeview/development/AppTreeItem";
 import { Command } from "./Command";
 import { Account } from '../models/Account';
 import { DevelopmentTreeViewProvider } from '../views/treeview/development/DevelopmentTreeViewProvider';
@@ -15,7 +15,7 @@ export class RenameApplication extends Command {
     public static readonly COMMAND = 'renameApplication';
 
     // Command handler
-    public static async run(applicationTreeItem?: ApplicationTreeItem): Promise<void> {
+    public static async run(applicationTreeItem?: AppTreeItem): Promise<void> {
         if (!applicationTreeItem) {
             return;
         }

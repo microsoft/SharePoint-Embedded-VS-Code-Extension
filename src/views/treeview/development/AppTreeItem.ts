@@ -7,18 +7,11 @@ import * as vscode from "vscode";
 import { ContainerType } from "../../../models/ContainerType";
 import { App } from "../../../models/App";
 
-export class ApplicationTreeItem extends vscode.TreeItem {
-    constructor(
-        public app: App,
-        public containerType: ContainerType,
-        public readonly label: string,
-        public readonly collapsibleState: vscode.TreeItemCollapsibleState
-    ) {
-        super(label, collapsibleState);
+export class AppTreeItem extends vscode.TreeItem {
+    constructor(app: App | string) {
+        const label = typeof app === "string" ? app : app.name;
+        super(label,  vscode.TreeItemCollapsibleState.None);
         this.iconPath = new vscode.ThemeIcon("app-icon");
-    }
-
-    public async getChildren() {
-        [this];
+        this.contextValue = "spe:appTreeItem";
     }
 }

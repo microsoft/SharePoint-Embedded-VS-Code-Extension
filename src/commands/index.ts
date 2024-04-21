@@ -16,6 +16,7 @@ import { CloneRepo as _CloneRepo } from './CloneRepo';
 import { ExportPostmanConfig as _ExportPostmanConfig } from './ExportPostmanConfig';
 import { RenameApplication as _RenameApplication } from './RenameApplication';
 import { CancelSignIn as _CancelSignIn } from './CancelSignIn';
+import { Refresh as _Refresh } from './Refresh';
 
 export namespace Commands {
   export const SignIn = _SignIn;
@@ -30,4 +31,5 @@ export namespace Commands {
   export const CloneRepo = _CloneRepo;
   export const ExportPostmanConfig = _ExportPostmanConfig;
   export const RenameApplication = _RenameApplication;
+  export const Refresh = _Refresh;
 }

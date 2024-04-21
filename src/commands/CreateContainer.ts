@@ -42,7 +42,7 @@ export class CreateContainer extends Command {
             await containerType.createContainer(containerDisplayName, containerDescription);
             vscode.window.showInformationMessage(`Container ${containerDisplayName} successfully created`);
             containersViewModel.collapsibleState = vscode.TreeItemCollapsibleState.Expanded;
-            DevelopmentTreeViewProvider.getInstance().refresh();
+            //DevelopmentTreeViewProvider.getInstance().refresh();
         } catch (error: any) {
             vscode.window.showErrorMessage("Unable to create container object: " + error.message);
             return;
