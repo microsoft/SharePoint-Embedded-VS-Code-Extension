@@ -10,7 +10,6 @@ import { DevelopmentTreeViewProvider } from './views/treeview/development/Develo
 import { LocalStorageService, StorageProvider } from './services/StorageProvider';
 import { Account } from './models/Account';
 import { Commands } from './commands/';
-import { containerTypeManagementAppId } from './client';
 
 export async function activate(context: vscode.ExtensionContext) {
     ext.context = context;
@@ -22,10 +21,6 @@ export async function activate(context: vscode.ExtensionContext) {
         new LocalStorageService(context.workspaceState),
         context.secrets
     );
-            
-    //TODO: Remove
-    //StorageProvider.get().secrets.delete(Account.storageKey);
-    //StorageProvider.get().secrets.delete(containerTypeManagementAppId);
 
     vscode.window.registerTreeDataProvider(AccountTreeViewProvider.viewId, AccountTreeViewProvider.getInstance());
     vscode.window.registerTreeDataProvider(DevelopmentTreeViewProvider.viewId, DevelopmentTreeViewProvider.getInstance());
@@ -58,4 +53,10 @@ export async function activate(context: vscode.ExtensionContext) {
     Commands.RenameApplication.register(context);
     Commands.CancelSignIn.register(context);
     Commands.Refresh.register(context);
+
+    // Container Type Context Menu Commands
+    Commands.CopyContainerTypeId.register(context);
+    Commands.CopyOwningTenantId.register(context);
+    Commands.CopySubscriptionId.register(context);
+    Commands.ViewProperties.register(context);
 }

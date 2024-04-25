@@ -264,13 +264,11 @@
         }
       ],
       "view/item/context": [
-  
         {
           "when": "view == spe-developmentasdfasdf",
           "command": "spe.refresh",
           "group": "last"
         },
-
         {
           "command": "spe.signOut",
           "when": "view == spe-accounts && viewItem == signedinM365",
@@ -281,8 +279,6 @@
           "when": "view == spe-accounts && viewItem == signingInM365",
           "group": "inline@1"
         },
-
-
         {
           "when": "viewItem == spe:containerTypesTreeItem",
           "command": "spe.ContainerTypes.createTrial",
@@ -303,7 +299,6 @@
           "command": "spe.refresh",
           "group": "inline@1"
         },
-
         {
           "when": "viewItem =~ /spe:containerTypeTreeItem.*-unregistered.*/",
           "command": "spe.ContainerType.registerOnLocalTenant",
@@ -354,8 +349,6 @@
           "command": "spe.refresh",
           "group": "inline@1"
         },
-
-
         {
           "when": "viewItem =~ /spe:appTreeItem.*/ && viewItem =~ /.*-guest.*/",
           "command": "spe.GuestApp.editPermissions",
@@ -396,7 +389,6 @@
           "command": "spe.App.viewInAzure",
           "group": "4@2"
         },
-
         {
           "when": "viewItem == spe:guestAppsTreeItem",
           "command": "spe.GuestApps.add",
@@ -412,7 +404,6 @@
           "command": "spe.refresh",
           "group": "inline@1"
         },
-
         {
           "when": "viewItem == spe:containersTreeItem",
           "command": "spe.Containers.create",
@@ -428,7 +419,6 @@
           "command": "spe.refresh",
           "group": "inline@1"
         },
-
         {
           "when": "viewItem =~ /spe:containerTreeItem.*/",
           "command": "spe.Container.rename",
@@ -454,7 +444,6 @@
           "command": "spe.Container.viewProperties",
           "group": "2@2"
         },
-
         {
           "when": "viewItem =~ /spe:recycledContainerTreeItem.*/",
           "command": "spe.RecycledContainer.restore",
@@ -470,7 +459,6 @@
           "command": "spe.RecycledContainer.copyId",
           "group": "2@1"
         },
-
         {
           "when": "viewItem == spe:recycledContainersTreeItem",
           "command": "spe.refresh",
@@ -481,14 +469,11 @@
           "command": "spe.refresh",
           "group": "inline@1"
         },
-
         {
           "when": "view == false",
           "command": "spe.refresh",
           "group": "blah"
         }
-        
-
       ]
     },
     "commands": [
@@ -506,8 +491,6 @@
         "title": "SharePoint Embedded: Cancel Sign In",
         "icon": "$(chrome-close)"
       },
-
-
       {
         "command": "spe.ContainerTypes.createTrial",
         "title": "Create trial container type"
@@ -516,7 +499,6 @@
         "command": "spe.ContainerTypes.createPaid",
         "title": "Create paid container type"
       },
-
       {
         "command": "spe.ContainerType.registerOnLocalTenant",
         "title": "Register on local tenant"
@@ -553,8 +535,6 @@
         "command": "spe.ContainerType.viewSubscriptionInAzure",
         "title": "View subscription in Azure"
       },
-
-      
       {
         "command": "spe.App.Postman.configureSettings",
         "title": "Configure app settings"
@@ -571,8 +551,6 @@
         "command": "spe.App.Postman.viewDocs",
         "title": "View documentation"
       },
-
-      
       {
         "command": "spe.App.SampleApps.TypeScript+React+AzureFunctions.clone",
         "title": "Clone and configure"
@@ -581,7 +559,6 @@
         "command": "spe.App.SampleApps.TypeScript+React+AzureFunctions.configureSettings",
         "title": "Configure app settings"
       },
-      
       {
         "command": "spe.App.SampleApps.ASPNET+C#.clone",
         "title": "Clone and configure"
@@ -590,12 +567,10 @@
         "command": "spe.App.SampleApps.ASPNET+C#.configureSettings",
         "title": "Configure app settings"
       },
-
       {
         "command": "spe.App.rename",
         "title": "Rename..."
       },
-      
       {
         "command": "spe.App.Credentials.createSecret",
         "title": "Generate new client secret"
@@ -612,7 +587,6 @@
         "command": "spe.App.Credentials.deleteSecret",
         "title": "Delete saved secret"
       },
-      
       {
         "command": "spe.App.Credentials.createCert",
         "title": "Generate new self-signed cert"
@@ -633,7 +607,6 @@
         "command": "spe.App.Credentials.deleteCert",
         "title": "Delete saved cert"
       },
-
       {
         "command": "spe.App.Permissions.addSpContainerRole",
         "title": "Add SharePoint Container.Selected role"
@@ -646,7 +619,6 @@
         "command": "spe.App.Permissions.addGraphContainerScope",
         "title": "Add Graph FileStorageContainer.Selected scope"
       },
-
       {
         "command": "spe.App.Permissions.LocalAdminConsent.openLink",
         "title": "Open link"
@@ -655,7 +627,6 @@
         "command": "spe.App.Permissions.LocalAdminConsent.copyLink",
         "title": "Copy link"
       },
-      
       {
         "command": "spe.App.copyAppId",
         "title": "Copy app (client) Id"
@@ -664,24 +635,20 @@
         "command": "spe.App.viewInAzure",
         "title": "View in Azure"
       },
-      
       {
         "command": "spe.GuestApps.add",
         "title": "Add guest app...",
         "icon": "$(plus)"
       },
-
       {
         "command": "spe.GuestApp.editPermissions",
         "title": "Edit application permissions..."
       },
-      
       {
         "command": "spe.Containers.create",
         "title": "Create container...",
         "icon": "$(plus)"
       },
-      
       {
         "command": "spe.Container.rename",
         "title": "Rename..."
@@ -702,7 +669,6 @@
         "command": "spe.Container.viewProperties",
         "title": "View properties"
       },
-
       {
         "command": "spe.RecycledContainer.restore",
         "title": "Restore"
@@ -715,7 +681,6 @@
         "command": "spe.RecycledContainer.copyId",
         "title": "Copy container Id"
       },
-
       {
         "command": "spe.refresh",
         "title": "Refresh",
@@ -746,6 +711,7 @@
     "@types/node-forge": "^1.3.4",
     "@types/sinon": "^17.0.3",
     "@types/temp": "^0.9.4",
+    "@types/tmp": "^0.2.6",
     "@types/uuid": "^9.0.3",
     "@types/vscode": "^1.81.0",
     "@typescript-eslint/eslint-plugin": "^5.59.8",
@@ -777,6 +743,7 @@
     "msal-node": "^0.0.1-security",
     "node-forge": "^1.3.1",
     "path": "^0.12.7",
+    "tmp": "^0.2.3",
     "uuid": "^9.0.0"
   }
 }

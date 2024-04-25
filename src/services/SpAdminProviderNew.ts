@@ -13,7 +13,7 @@ export default class SpAdminProviderNew {
 
     public constructor(private _authProvider: BaseAuthProvider, private _spAdminUrl: string) {
         this._baseApiUrl = `${this._spAdminUrl}/_api/SPO.Tenant/`;
-        this._scopes = [`${this._spAdminUrl}/AllSites.Read`];
+        this._scopes = [`${this._spAdminUrl}/User.Read.All`];
         //this._scopes = [`00000003-0000-0ff1-ce00-000000000000/AllSites.Write`];
     }
 
@@ -88,8 +88,8 @@ export interface ISpContainerTypeProperties {
     IsBillingProfileRequired: boolean;
     OwningAppId: string;
     OwningTenantId: string;
-    Region: string | null;
-    ResourceGroup: string | null;
+    Region: string | null | undefined;
+    ResourceGroup: string | null | undefined;
     SPContainerTypeBillingClassification: BillingClassification;
 }
 

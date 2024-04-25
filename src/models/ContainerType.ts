@@ -36,6 +36,8 @@ export class ContainerType {
     public readonly creationDate: string | null;
     public readonly expiryDate: string | null;
     public readonly isBillingProfileRequired: boolean;
+    public readonly region?: string | undefined;
+    public readonly resourceGroup?: string | undefined;
     public guestApps: App[] = [];
 
     private _owningApp?: App;
@@ -72,6 +74,23 @@ export class ContainerType {
         this.creationDate = properties.CreationDate;
         this.expiryDate = properties.ExpiryDate;
         this.isBillingProfileRequired = properties.IsBillingProfileRequired;
+    }
+
+    public getProperties(): ISpContainerTypeProperties {
+        return {
+            AzureSubscriptionId: this.azureSubscriptionId,
+            DisplayName: this.displayName,
+            OwningAppId: this.owningAppId,
+            SPContainerTypeBillingClassification: this.billingClassification,
+            ContainerTypeId: this.containerTypeId,
+            OwningTenantId: this.owningTenantId,
+            CreationDate: this.creationDate,
+            ExpiryDate: this.expiryDate,
+            IsBillingProfileRequired: this.isBillingProfileRequired,
+            ApplicationRedirectUrl: '',
+            Region: this.region, 
+            ResourceGroup: this.resourceGroup
+        };
     }
 
     public async addTenantRegistration(tenantId: string, app: App, delegatedPermissions: string[], applicationPermissions: string[]): Promise<boolean> {
