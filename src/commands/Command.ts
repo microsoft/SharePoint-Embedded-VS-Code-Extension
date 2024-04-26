@@ -14,7 +14,7 @@ export abstract class Command {
         context.subscriptions.push(command);
     }
 
-    public static async run(): Promise<void> {
+    public static async run(): Promise<any> {
         throw new Error('Not implemented.');
     }
 }

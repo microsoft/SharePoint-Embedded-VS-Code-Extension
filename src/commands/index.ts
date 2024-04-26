@@ -17,6 +17,11 @@ import { ExportPostmanConfig as _ExportPostmanConfig } from './ExportPostmanConf
 import { RenameApplication as _RenameApplication } from './RenameApplication';
 import { CancelSignIn as _CancelSignIn } from './CancelSignIn';
 import { Refresh as _Refresh } from './Refresh';
+import { CopyContainerTypeId as _CopyContainerTypeId } from './ContainerTypeContextMenu/CopyContainerTypeId';
+import { CopyOwningTenantId as _CopyOwningTenantId} from './ContainerTypeContextMenu/CopyOwningTenantId';
+import { CopySubscriptionId as _CopySubscriptionId } from './ContainerTypeContextMenu/CopySubscriptionId';
+import { ViewProperties as _ViewProperties } from './ContainerTypeContextMenu/ViewProperties';
+import { CopyPostmanConfig as _CopyPostmanConfig } from './AppContextMenu/Postman/CopyPostmanConfig';
 
 export namespace Commands {
   export const SignIn = _SignIn;
@@ -32,4 +37,11 @@ export namespace Commands {
   export const ExportPostmanConfig = _ExportPostmanConfig;
   export const RenameApplication = _RenameApplication;
   export const Refresh = _Refresh;
+  // Container Type Context Menu Commands
+  export const CopyContainerTypeId = _CopyContainerTypeId;
+  export const CopyOwningTenantId = _CopyOwningTenantId;
+  export const CopySubscriptionId = _CopySubscriptionId;
+  export const ViewProperties = _ViewProperties;
+  // App Context Menu Commands
+  export const CopyPostmanConfig = _CopyPostmanConfig;
 }

@@ -8,6 +8,10 @@ import * as vscode from 'vscode';
 import { ContainerType } from '../models/ContainerType';
 import { ContainersTreeItem } from '../views/treeview/development/ContainersTreeItem';
 import { DevelopmentTreeViewProvider } from '../views/treeview/development/DevelopmentTreeViewProvider';
+import { Account } from '../models/Account';
+import { App } from '../models/App';
+import { GraphProviderNew } from '../services/GraphProviderNew';
+import { Container } from '../models/Container';
 
 // Static class that handles the create container command
 export class CreateContainer extends Command {
@@ -15,11 +19,13 @@ export class CreateContainer extends Command {
     public static readonly COMMAND = 'createContainer';
 
     // Command handler
-    public static async run(containersViewModel?: ContainersTreeItem): Promise<void> {
+    public static async run(containersViewModel?: ContainersTreeItem): Promise<Container | undefined> {
         if (!containersViewModel) {
             return;
         }
         const containerType: ContainerType = containersViewModel.containerType;
+        const containerTypeRegistration = containersViewModel.containerTypeRegistration;
+        const owningApp: App = containerType.owningApp!;
         const containerDisplayName = await vscode.window.showInputBox({
             prompt: 'Display name:'
         });
@@ -29,20 +35,13 @@ export class CreateContainer extends Command {
             return;
         }
 
-        let containerDescription = await vscode.window.showInputBox({
-            prompt: 'Optional description:'
-        });
-
-        if (!containerDescription) {
-            containerDescription = '';
-        }
-
         vscode.window.showInformationMessage(`Container creation starting...`);
         try {
-            await containerType.createContainer(containerDisplayName, containerDescription);
-            vscode.window.showInformationMessage(`Container ${containerDisplayName} successfully created`);
-            containersViewModel.collapsibleState = vscode.TreeItemCollapsibleState.Expanded;
-            //DevelopmentTreeViewProvider.getInstance().refresh();
+            const authProvider = owningApp.getAppOnlyAuthProvider(containerTypeRegistration.tenantId);
+            const graphProvider = new GraphProviderNew(authProvider);
+            const container = await graphProvider.createContainer(containerTypeRegistration, containerDisplayName);
+            DevelopmentTreeViewProvider.getInstance().refresh(containersViewModel);
+            return container;
         } catch (error: any) {
             vscode.window.showErrorMessage("Unable to create container object: " + error.message);
             return;
