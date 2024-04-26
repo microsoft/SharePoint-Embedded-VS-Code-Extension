@@ -97,6 +97,18 @@ export class GraphProviderNew {
         return containers;
     }
 
+    public async createContainer(containerTypeRegistration: ContainerTypeRegistration, displayName: string, description: string = ''): Promise<Container> {
+        const createRequest = {
+            displayName,
+            description,
+            containerTypeId: containerTypeRegistration.containerTypeId
+        };
+        const response = await this._client
+            .api('/storage/fileStorage/containers')
+            .version('beta')
+            .post(createRequest);
+        return new Container(containerTypeRegistration, response as IContainerProperties);
+    }
 
     /*
     public async listContainers(): Promise<IContainer[]> {
