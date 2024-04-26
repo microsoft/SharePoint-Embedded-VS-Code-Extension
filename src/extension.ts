@@ -59,4 +59,7 @@ export async function activate(context: vscode.ExtensionContext) {
     Commands.CopyOwningTenantId.register(context);
     Commands.CopySubscriptionId.register(context);
     Commands.ViewProperties.register(context);
+
+    // App Context Menu Commands
+    Commands.CopyPostmanConfig.register(context);
 }
