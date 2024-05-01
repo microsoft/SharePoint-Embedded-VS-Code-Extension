@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import ThirdPartyAuthProvider from "../services/3PAuthProvider";
+import { Application } from "@microsoft/microsoft-graph-types";
 import GraphProvider from "../services/GraphProvider";
 import { StorageProvider } from "../services/StorageProvider";
 import _ from 'lodash';
@@ -11,131 +11,79 @@ import { Account } from "./Account";
 import { GraphProviderNew } from "../services/GraphProviderNew";
 import AppOnly3PAuthProvider, { IAppOnlyCredential } from "../services/AppOnly3PAuthProvider";
 
-// Class that represents an Azure AD application object persisted in the global storage provider
+// Class that represents an Azure AD application
 export class App {
+    private _account: Account;
 
+    public readonly clientId: string;
+    public readonly displayName: string;
+    public readonly objectId: string;
     public get name(): string {
         return this.displayName || this.clientId;
     }
 
-    public constructor (
-        public readonly clientId: string,
-        public displayName?: string,
-        public objectId?: string,
-        public thumbprint?: string,
-        public privateKey?: string,
-        public clientSecret?: string,
-    ) { }
+    public async getSecrets(): Promise<AppCredentials> {
+        return await this._account.getAppSecrets(this.clientId);
+    }
+    public async setSecrets(value: AppCredentials): Promise<void> {
+        const secrets = await this.getSecrets();
+        const updated = {
+            ...secrets,
+            ...value
+        };
+        this._account.setAppSecrets(this.clientId, updated);
+    }
+
+    public async hasCert(): Promise<boolean> {
+        const secrets = await this.getSecrets();
+        return !!secrets.thumbprint && !!secrets.privateKey;
+    }
+
+    public async hasSecret(): Promise<boolean> {
+        const secrets = await this.getSecrets();
+        return !!secrets.clientSecret;
+    }
+
+    public constructor (config: Application) {
+        this.clientId = config.appId!;
+        this.displayName = config.displayName!;
+        this.objectId = config.id!;
+
+        this._account = Account.get()!;
+    }
 
     private _appOnlyAuthProviders: Map<string, AppOnly3PAuthProvider> = new Map<string, AppOnly3PAuthProvider>();
-    public getAppOnlyAuthProvider(tenantId: string, useCertCred: boolean = false): AppOnly3PAuthProvider {
-        if (!this._appOnlyAuthProviders.has(tenantId)) {
-            let cred: IAppOnlyCredential | undefined;
-            if (this.clientSecret && !useCertCred) {
-                cred = { clientSecret: this.clientSecret };
-            } else if (this.thumbprint && this.privateKey) {
-                cred = {
-                    clientCertificate: {
-                        privateKey: this.privateKey,
-                        thumbprint: this.thumbprint
-                    }
-                };
-            }
-            if (!cred) {
-                throw new Error('App is missing credentials');
-            }
-            this._appOnlyAuthProviders.set(tenantId, new AppOnly3PAuthProvider(this.clientId, tenantId, cred));
+    public async getAppOnlyAuthProvider(tenantId: string): Promise<AppOnly3PAuthProvider> {
+        let mapKey = tenantId;
+        const secrets = await this.getSecrets();
+        let cred: IAppOnlyCredential | undefined;
+        if (secrets.thumbprint && secrets.privateKey) {
+            cred = {
+                clientCertificate: {
+                    privateKey: secrets.privateKey,
+                    thumbprint: secrets.thumbprint
+                }
+            };
+            mapKey += '-cert';
+        } else if (secrets.clientSecret) {
+            cred = { clientSecret: secrets.clientSecret };
+            mapKey += '-secret';
+        } else {
+            throw new Error('App is missing credentials');
         }
-        return this._appOnlyAuthProviders.get(tenantId)!;
+        if (!this._appOnlyAuthProviders.has(mapKey)) {
+            this._appOnlyAuthProviders.set(mapKey, new AppOnly3PAuthProvider(this.clientId, tenantId, cred));
+        }
+        return this._appOnlyAuthProviders.get(mapKey)!;
     }
+
     public removeAppOnlyAuthProvider(tenantId: string): void {
         this._appOnlyAuthProviders.delete(tenantId);
     }
-
-    /*
-    public constructor(clientId: string, displayName: string, objectId: string, tenantId: string, isOwningApp: boolean, thumbprint: string, privateKey: string, clientSecret?: string, ) {
-        this.clientId = clientId;
-        this.displayName = displayName;
-        this.objectId = objectId;
-        this.tenantId = tenantId;
-        this.clientSecret = clientSecret;
-        this.thumbprint = thumbprint;
-        this.privateKey = privateKey;
-        this.authProvider = new ThirdPartyAuthProvider(this.clientId, this.thumbprint, this.privateKey);
-    }
-    */
-
-    
-    public async addAppSecretWithDelay(token: string, delay: number): Promise<void> {
-        return new Promise((resolve, reject) => {
-            setTimeout(async () => {
-                try {
-                    await this.addAppSecret(token);
-                    resolve();
-                } catch (error) {
-                    reject(error);
-                }
-            }, delay);
-        });
-    }
-
-    public async addAppSecret(token: string): Promise<void> {
-        const passwordCredential: any = await GraphProvider.addPasswordWithRetry(token, this.clientId);
-        if (passwordCredential && passwordCredential.secretText) {
-            await GraphProvider.addIdentifierUri(token, this.clientId);
-            this.clientSecret = passwordCredential.secretText;
-            await this.saveToStorage();
-        }
-    }
-
-    public async consent(tenantId: string) {
-        /*
-        try {
-            if (!this.authProvider) {
-                throw new Error('App is missing auth provider');
-            }
-            await this.authProvider.grantAdminConsent(['00000003-0000-0ff1-ce00-000000000000/.default'], this.clientId, tenantId);
-            const consentToken = await this.authProvider.getToken(['00000003-0000-0ff1-ce00-000000000000/.default']);
-            const graphAccessToken = await Account.getFirstPartyAccessToken();
-            return typeof consentToken === 'string' && typeof graphAccessToken === 'string';
-        } catch (error) {
-            console.error(error);
-            throw error;
-        }
-        */
-    }
-
-    public static async loadFromStorage(clientId: string): Promise<App | undefined> {
-        const retrievedApp: App = StorageProvider.get().global.getValue<App>(clientId);
-        const app = _.cloneDeep(retrievedApp);
-        if (app) {
-            const appSecretsString = await StorageProvider.get().secrets.get(clientId);
-            if (appSecretsString) {
-                const appSecrets = JSON.parse(appSecretsString);
-                app.clientSecret = appSecrets.clientSecret;
-                app.thumbprint = appSecrets.thumbprint;
-                app.privateKey = appSecrets.privateKey;
-            }
-            return new App(retrievedApp.clientId, retrievedApp.displayName, retrievedApp.objectId, app.thumbprint, app.privateKey, app.clientSecret);
-        }
-    return undefined;
-    }
-    
-    public async saveToStorage(): Promise<void> {
-        const appCopy = _.cloneDeep(this);
-        const { clientSecret, thumbprint, privateKey, ...app } = appCopy;
-        await StorageProvider.get().global.setValue(this.clientId, app);
-        const appSecrets = {
-            clientSecret: this.clientSecret,
-            thumbprint: this.thumbprint,
-            privateKey: this.privateKey
-        };
-        const appSecretsString = JSON.stringify(appSecrets);
-        await StorageProvider.get().secrets.store(this.clientId, appSecretsString);
-    }
-
-    public async deleteFromStorage(): Promise<void> {
-        await StorageProvider.get().global.setValue(this.clientId, undefined);
-        await StorageProvider.get().secrets.delete(this.clientId);
-    }
 }
+
+export type AppCredentials = {
+    clientSecret?: string;
+    thumbprint?: string;
+    privateKey?: string;
+};

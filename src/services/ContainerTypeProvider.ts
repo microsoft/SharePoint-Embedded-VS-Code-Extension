@@ -11,12 +11,14 @@ export default class ContainerTypeProvider {
     public async list(): Promise<ContainerType[]> {
         const containerTypesProperties = await this._spAdminProvider.listContainerTypes();
         return containerTypesProperties.map((ct) => {
+            ct.OwningTenantId = Account.get()!.tenantId;
             return new ContainerType(ct);
         });
     }
 
     public async get(containerTypeId: string): Promise<ContainerType> {
         const containerTypeProperties = await this._spAdminProvider.getContainerType(containerTypeId);
+        containerTypeProperties.OwningTenantId = Account.get()!.tenantId;
         return new ContainerType(containerTypeProperties);
     }
 
@@ -37,15 +39,20 @@ export default class ContainerTypeProvider {
 
     public async create(properties: ISpContainerTypeCreationProperties): Promise<ContainerType> {
         const containerTypeProperties = await this._spAdminProvider.createContainerType(properties);
+        containerTypeProperties.OwningTenantId = Account.get()!.tenantId;
         return new ContainerType(containerTypeProperties);
     }
 
-    public async createFree(displayName: string, owningAppId: string): Promise<ContainerType> {
+    public async createTrial(displayName: string, owningAppId: string): Promise<ContainerType> {
         const properties: ISpContainerTypeCreationProperties = {
             DisplayName: displayName,
             OwningAppId: owningAppId,
             SPContainerTypeBillingClassification: BillingClassification.FreeTrial
         };
         return this.create(properties);
+    }
+
+    public async delete(containerType: ContainerType): Promise<void> {
+        await this._spAdminProvider.deleteContainerType(containerType.containerTypeId);
     }
 }

@@ -25,7 +25,7 @@ export const htmlString = `<!DOCTYPE html>
     </div>
     <script>
       setTimeout(function () {
-        window.location.href = "vscode://vscode.spe-authentication";
+        window.location.href = "vscode://SharePointEmbedded";
         window.close();
       }, 500);
       var search = window.location.search;

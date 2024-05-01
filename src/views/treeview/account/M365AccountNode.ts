@@ -8,6 +8,7 @@ import { DynamicNode } from "../DynamicNode";
 import { m365Icon } from "./common";
 import { Account, LoginChangeListener } from "../../../models/Account";
 import { AccountTreeViewProvider } from "./AccountTreeViewProvider";
+import { DevelopmentTreeViewProvider } from "../development/DevelopmentTreeViewProvider";
 
 export class M365AccountNode extends DynamicNode implements LoginChangeListener {
 
@@ -32,11 +33,13 @@ export class M365AccountNode extends DynamicNode implements LoginChangeListener 
     vscode.commands.executeCommand('setContext', 'spe:isLoggedIn', true);
     vscode.commands.executeCommand('setContext', 'spe:isAdmin', account.isAdmin);
     AccountTreeViewProvider.getInstance().refresh();
+    DevelopmentTreeViewProvider.getInstance().refresh();
   }
 
   public onLoginFailed(): void {
     vscode.commands.executeCommand('setContext', 'spe:isLoggingIn', false);
     AccountTreeViewProvider.getInstance().refresh();
+    DevelopmentTreeViewProvider.getInstance().refresh();
   }
 
   public onLogout(): void {
@@ -47,6 +50,7 @@ export class M365AccountNode extends DynamicNode implements LoginChangeListener 
     vscode.commands.executeCommand('setContext', 'spe:isLoggedIn', false);
     vscode.commands.executeCommand('setContext', 'spe:isAdmin', false);
     AccountTreeViewProvider.getInstance().refresh();
+    DevelopmentTreeViewProvider.getInstance().refresh();
   }
 
   public getChildren(): vscode.ProviderResult<DynamicNode[]> {

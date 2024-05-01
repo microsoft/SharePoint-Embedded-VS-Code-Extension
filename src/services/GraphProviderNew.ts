@@ -1,6 +1,6 @@
 
 import * as Graph from '@microsoft/microsoft-graph-client';
-import { Application } from "@microsoft/microsoft-graph-types";
+import { Application, KeyCredential } from "@microsoft/microsoft-graph-types";
 import { BaseAuthProvider } from './BaseAuthProvider';
 import { Container, IContainerProperties } from '../models/Container';
 import { ContainerTypeRegistration } from '../models/ContainerTypeRegistration';
@@ -49,10 +49,12 @@ export class GraphProviderNew {
     public async searchApps(query: string = ''): Promise<Application[]> {
        let request = this._client
             .api('/applications')
-            .select('id,appId,displayName,createdDateTime')
-            .orderby('createdDateTime desc');
+            .select('id,appId,displayName,createdDateTime');
         if (query) {
-            request = request.search(`displayName:${query} OR appId:${query}`);
+            const encodedQuery = encodeURIComponent(query);
+            request.header('ConsistencyLevel', 'eventual');
+            request.search(`"displayName:${encodedQuery}" OR "appId:${encodedQuery}"&`);
+            request.orderby('createdDateTime desc');
         }
         const response = await request.get();
         return response.value as Application[];
@@ -68,6 +70,29 @@ export class GraphProviderNew {
         } catch (error) {
             return undefined;
         }
+    }
+
+    public async createApp(config: Application): Promise<Application> {
+        const response = await this._client
+            .api('/applications')
+            .post(config);
+        return response as Application;
+    }
+
+    public async addAppSecret(objectId: string, name: string = 'Created with SP Embedded VS Code'): Promise<string> {
+        const response = await this._client
+            .api(`/applications/${objectId}/addPassword`)
+            .post({ passwordCredential: { displayName: name } });
+        console.log(response);
+        return response.secretText;
+    }
+
+    public async addAppCert(objectId: string, keyCredential: KeyCredential): Promise<void> {
+        console.log(`Adding cert to app ${objectId}`);
+        console.log(keyCredential);
+        await this._client
+            .api(`/applications/${objectId}`)
+            .patch({ keyCredentials: [keyCredential] });
     }
 
     public async listContainers(containerTypeRegistration: ContainerTypeRegistration): Promise<Container[]> {

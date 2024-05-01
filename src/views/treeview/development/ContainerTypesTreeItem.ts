@@ -10,15 +10,21 @@ import { IChildrenProvidingTreeItem } from "./IDataProvidingTreeItem";
 
 export class ContainerTypesTreeItem extends IChildrenProvidingTreeItem {
     private static readonly label = "Container Types";
-    public constructor(private readonly _account: Account) {
+    public constructor() {
         super(ContainerTypesTreeItem.label, vscode.TreeItemCollapsibleState.Expanded);
         this.contextValue = "spe:containerTypesTreeItem";
     }
 
     public async getChildren(): Promise<vscode.TreeItem[]> {
-        if (!this._account.containerTypes || this._account.containerTypes.length === 0) {
+        const account = Account.get();
+        if (!account) {
             return [];
         }
-        return this._account.containerTypes.map(ct => new ContainerTypeTreeItem(ct));
+        const containerTypeProvider = account.containerTypeProvider;
+        const containerTypes = await containerTypeProvider.list();
+        if (!containerTypes) {
+            return [];
+        }
+        return containerTypes.map(ct => new ContainerTypeTreeItem(ct));
     }
 }

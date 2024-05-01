@@ -316,6 +316,11 @@
         },
         {
           "when": "viewItem =~ /spe:containerTypeTreeItem.*/",
+          "command": "spe.ContainerType.delete",
+          "group": "2@3"
+        },
+        {
+          "when": "viewItem =~ /spe:containerTypeTreeItem.*/",
           "command": "spe.ContainerType.copyId",
           "group": "3@1"
         },
@@ -534,6 +539,80 @@
       {
         "command": "spe.ContainerType.viewSubscriptionInAzure",
         "title": "View subscription in Azure"
+      },
+
+      {
+        "command": "spe.Apps.getOrCreate",
+        "title": "Create or choose existing app"
+      },
+
+      {
+        "command": "spe.App.clone",
+        "title": "Clone and configure"
+      },
+      {
+        "command": "spe.App.Postman.configureSettings",
+        "title": "Configure app settings"
+      },
+      {
+        "command": "spe.App.Postman.exportEnvironmentFile",
+        "title": "Export environment settings file"
+      },
+      {
+        "command": "spe.App.Postman.copyEnvironmentFile",
+        "title": "Copy environment settings"
+      },
+      {
+        "command": "spe.App.Postman.viewDocs",
+        "title": "View documentation"
+      },
+      {
+        "command": "spe.App.SampleApps.TypeScript+React+AzureFunctions.clone",
+        "title": "Clone and configure"
+      },
+      {
+        "command": "spe.App.SampleApps.TypeScript+React+AzureFunctions.configureSettings",
+        "title": "Configure app settings"
+      },
+      {
+        "command": "spe.App.SampleApps.ASPNET+C#.clone",
+        "title": "Clone and configure"
+      },
+      {
+        "command": "spe.App.SampleApps.ASPNET+C#.configureSettings",
+        "title": "Configure app settings"
+      },
+      {
+        "command": "spe.App.rename",
+        "title": "Rename..."
+      },
+      {
+        "command": "spe.App.Credentials.createSecret",
+        "title": "Generate new client secret"
+      },
+      {
+        "command": "spe.App.Credentials.provideSecret",
+        "title": "Provide existing client secret..."
+      },
+      {
+        "command": "spe.App.Credentials.copySecret",
+        "title": "Copy saved secret"
+      },
+      {
+        "command": "spe.App.Credentials.deleteSecret",
+        "title": "Delete saved secret"
+      },
+      {
+        "command": "spe.App.Credentials.createCert",
+        "title": "Generate new self-signed cert"
+      },
+      {
+        "command": "spe.App.Credentials.provideCert",
+        "title": "Provide existing cert details..."
+      },
+      {
+        "command": "spe.App.Credentials.copyThumbprint",
+        "title": "Copy saved cert thumbprint"
       },
       {
         "command": "spe.App.Postman.configureSettings",

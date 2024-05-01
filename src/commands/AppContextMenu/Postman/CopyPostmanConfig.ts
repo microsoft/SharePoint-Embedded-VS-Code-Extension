@@ -11,6 +11,7 @@ import { OwningAppTreeItem } from '../../../views/treeview/development/OwningApp
 import { Account } from '../../../models/Account';
 import { App } from '../../../models/App';
 import { ContainerType } from '../../../models/ContainerType';
+import { AppTreeItem } from '../../../views/treeview/development/AppTreeItem';
 
 // Static class that handles the Postman copy command
 export class CopyPostmanConfig extends Command {
@@ -18,7 +19,7 @@ export class CopyPostmanConfig extends Command {
     public static readonly COMMAND = 'App.Postman.copyEnvironmentFile';
 
     // Command handler
-    public static async run(applicationTreeItem?: GuestApplicationTreeItem | OwningAppTreeItem): Promise<void> {
+    public static async run(applicationTreeItem?: AppTreeItem): Promise<void> {
         if (!applicationTreeItem) {
             return;
         }
@@ -33,21 +34,23 @@ export class CopyPostmanConfig extends Command {
             return;
         }
 
-        const account = Account.get()!;
-
-        let app: App;
-        let containerType: ContainerType;
-
+        let app: App | undefined;
+        let containerType: ContainerType | undefined;
         if (applicationTreeItem instanceof GuestApplicationTreeItem) {
-            app = applicationTreeItem.appPerms.app!;
+            app = applicationTreeItem.appPerms.app;
             containerType = applicationTreeItem.appPerms.containerTypeRegistration.containerType;
         }
-
         if (applicationTreeItem instanceof OwningAppTreeItem) {
             app = applicationTreeItem.containerType.owningApp!;
             containerType = applicationTreeItem.containerType;
         }
+        if (!app || !containerType) {
+            vscode.window.showErrorMessage('Could not find app or container type');
+            return;
+        }
 
+        const appSecrets = await app.getSecrets();
+        const account = Account.get()!;
         const tid = account.tenantId;
 
         const values: any[] = [];
@@ -60,7 +63,7 @@ export class CopyPostmanConfig extends Command {
             },
             {
                 key: "ClientSecret",
-                value: app!.clientSecret,
+                value: appSecrets.clientSecret,
                 type: "secret",
                 enabled: true
             },
@@ -91,13 +94,13 @@ export class CopyPostmanConfig extends Command {
 
             {
                 key: "CertThumbprint",
-                value: app!.thumbprint,
+                value: appSecrets.thumbprint,
                 type: "default",
                 enabled: true
             },
             {
                 key: "CertPrivateKey",
-                value: app!.privateKey,
+                value: appSecrets.privateKey,
                 type: "secret",
                 enabled: true
             }

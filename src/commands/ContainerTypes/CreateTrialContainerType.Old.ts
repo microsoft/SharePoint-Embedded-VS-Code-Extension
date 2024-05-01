@@ -4,25 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { Command } from './Command';
-import { Account } from '../models/Account';
-import { BillingClassification, ContainerType } from '../models/ContainerType';
-import { ContainerTypeCreationFlow, ContainerTypeCreationFlowState } from '../views/qp/UxFlows';
-import { ProgressNotification } from '../views/notifications/ProgressNotification';
-import { App } from '../models/App';
-import { DevelopmentTreeViewProvider } from '../views/treeview/development/DevelopmentTreeViewProvider';
+import { Command } from '../Command';
+import { Account } from '../../models/Account';
+import { BillingClassification, ContainerType } from '../../models/ContainerType';
+import { ContainerTypeCreationFlow, ContainerTypeCreationFlowState } from '../../views/qp/UxFlows';
+import { ProgressNotification } from '../../views/notifications/ProgressNotification';
+import { App } from '../../models/App';
+import { DevelopmentTreeViewProvider } from '../../views/treeview/development/DevelopmentTreeViewProvider';
 
 // Static class that handles the create trial container type command
 export class CreateTrialContainerType extends Command {
     // Command name
-    public static readonly COMMAND = 'createTrialContainerType';
+    public static readonly COMMAND = 'ContainerTypes.createTrial';
 
     // Command handler
     public static async run(): Promise<void> {
-        let account = Account.get()!;
-
-        Account.onContainerTypeCreationStart();
-        DevelopmentTreeViewProvider.getInstance().refresh();
+        const account = Account.get()!;
 
         // Try to use an existing app to see if there's already a Free CT
         let freeCT: ContainerType | undefined;

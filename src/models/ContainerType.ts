@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import _ from 'lodash';
-import { acquireAppOnlyCertSPOToken } from "../cert";
 import GraphProvider from "../services/GraphProvider";
 import { StorageProvider } from "../services/StorageProvider";
 import VroomProvider from "../services/VroomProvider";
@@ -18,6 +17,7 @@ import { decodeJwt, checkJwtForAppOnlyRole } from '../utils/token';
 import { ISpContainerTypeProperties } from '../services/SpAdminProviderNew';
 import AppProvider from '../services/AppProvider';
 import ContainerTypeProvider from '../services/ContainerTypeProvider';
+import axios from 'axios';
 
 export enum BillingClassification {
     Paid = 0,
@@ -39,6 +39,10 @@ export class ContainerType {
     public readonly region?: string | undefined;
     public readonly resourceGroup?: string | undefined;
     public guestApps: App[] = [];
+
+    public get isTrial(): boolean {
+        return this.billingClassification === BillingClassification.FreeTrial;
+    }
 
     private _owningApp?: App;
     public get owningApp(): App | undefined {
@@ -91,6 +95,44 @@ export class ContainerType {
             Region: this.region, 
             ResourceGroup: this.resourceGroup
         };
+    }
+
+    public get localRegistrationScope(): string {
+        const account = Account.get()!;
+        return `${account.spRootSiteUrl}/.default`;
+    }
+
+    public async registerOnLocalTenant(): Promise<void> {
+        const account = Account.get()!;
+        const app = await this.loadOwningApp();
+        if (!app) {
+            throw new Error("Unable to load owning app");
+        }
+        const authProvider = await app.getAppOnlyAuthProvider(account.tenantId);
+        const scope = `${account.spRootSiteUrl}/.default`;
+        const accessToken = await authProvider.getToken([this.localRegistrationScope]);
+        const baseUrl = `/_api/v2.1/storageContainerTypes/${this.containerTypeId}/applicationPermissions`;
+        const url = `${account.spRootSiteUrl}${baseUrl}`;
+        const options = {
+            headers: {
+                Authorization: `Bearer ${accessToken}`,
+                // eslint-disable-next-line @typescript-eslint/naming-convention
+                'Content-Type': 'application/json'
+            }
+        };
+        const body = {
+            value: [
+                {
+                    appId: app.clientId,
+                    delegated: ["full"],
+                    appOnly: ["full"]
+                }
+            ]
+        };
+        console.log(url);
+        console.log(accessToken);
+        console.log(body);
+        return axios.put(url, JSON.stringify(body), options);
     }
 
     public async addTenantRegistration(tenantId: string, app: App, delegatedPermissions: string[], applicationPermissions: string[]): Promise<boolean> {
@@ -164,132 +206,7 @@ export class ContainerType {
 */
     }
 
-    private _containers?: Container[];
-    public get containers(): Container[] | undefined {
-        return this._containers;
-    }
 
-    public async getContainers(): Promise<Container[]> {
-        /*
-        const token = await this.owningApp?.authProvider.getToken(["00000003-0000-0000-c000-000000000000/.default"]);
-        if (!token) {
-            throw new Error("Unable to get access token from owning app");
-        }
-        const sparseContainers: any[] = await GraphProvider.listStorageContainers(token, this.containerTypeId);
 
-        const containerPromises = sparseContainers.map(container => {
-            return GraphProvider.getStorageContainer(token, container.id);
-        });
-
-        const containers = await Promise.all(containerPromises);
-
-        this.containers = containers.map(container => {
-            return new Container(container.id, container.displayName, container.description, this.containerTypeId, container.status, container.createdDateTime);
-        });
-
-        return this.containers;
-        */
-        return [];
-    }
-
-    public async createContainer(displayName: string, description: string) {
-        /*
-        const token = await this.owningApp?.authProvider.getToken(["00000003-0000-0000-c000-000000000000/.default"]);
-        if (!token) {
-            throw new Error("Unable to get access token from owning app");
-        }
-        const createdContainer = await GraphProvider.createStorageContainer(token, this.containerTypeId, displayName, description);
-        const createdContainerInstance = new Container(createdContainer.id, createdContainer.displayName, createdContainer.description, this.containerTypeId, createdContainer.status, createdContainer.createdDateTime);
-        this.containers.push(createdContainerInstance);
-        return createdContainerInstance;
-        */
-        return undefined;
-    }
-
-    public static async loadFromStorage(containerTypeId: string): Promise<ContainerType | undefined> {
-        /*
-        let containerTypeProps: ContainerType | undefined = StorageProvider.get().global.getValue<ContainerType>(containerTypeId);
-        if (containerTypeProps) {
-            let containerType = new ContainerType(
-                containerTypeProps.containerTypeId,
-                containerTypeProps.owningAppId,
-                containerTypeProps.displayName,
-                containerTypeProps.billingClassification,
-                containerTypeProps.owningTenantId,
-                undefined,
-                containerTypeProps.azureSubscriptionId,
-                containerTypeProps.creationDate,
-                containerTypeProps.expiryDate,
-                containerTypeProps.isBillingProfileRequired,
-                containerTypeProps.registrationIds,
-                containerTypeProps.guestAppIds);
-            containerType = await containerType._loadFromStorage(containerType);
-            return containerType;
-        }
-        */
-        return undefined;
-    }
-/*
-    private async _loadFromStorage(containerType: ContainerType): Promise<ContainerType> {
-        /*
-        // hydrate owning App
-        const appProps = await App.loadFromStorage(containerType.owningAppId);
-        if (appProps) {
-            containerType.owningApp = new App(appProps.clientId, appProps.displayName, appProps.objectId, appProps.tenantId, appProps.isOwningApp, appProps.thumbprint, appProps.privateKey, appProps.clientSecret);
-        }
-        
-        // hydrate App objects
-        const appPromises = containerType.guestAppIds.map(async (appId) => {
-            const app = App.loadFromStorage(appId);
-            return app;
-        });
-        const unfilteredApps: (App | undefined)[] = await Promise.all(appPromises);
-        const guestApps = unfilteredApps.filter(app => app !== undefined) as App[];
-        const guestAppsInstances = guestApps.map(appProps => {
-            // Storage loads App props, so we use props to instantiate App instances 
-            return new App(appProps.clientId, appProps.displayName, appProps.objectId, appProps.tenantId, appProps.isOwningApp, appProps.thumbprint, appProps.privateKey, appProps.clientSecret);
-        });
-
-        // hydrate Container Type Regisration objects
-        const containerTypeRegistrationPromises = containerType.registrationIds.map(async (registrationId) => {
-            const containerTypeRegistration = ContainerTypeRegistration.loadFromStorage(registrationId);
-            return containerTypeRegistration;
-        });
-        const unfilteredContainerTypeRegistrations: (ContainerTypeRegistration | undefined)[] = await Promise.all(containerTypeRegistrationPromises);
-        const registrations = unfilteredContainerTypeRegistrations.filter(ct => ct !== undefined) as ContainerTypeRegistration[];
-        const registrationsInstances = registrations.map(registrationProps => {
-            return new ContainerTypeRegistration(registrationProps.containerTypeId, registrationProps.tenantId, registrationProps.applicationPermissions);
-        });
-
-        containerType.guestApps = guestAppsInstances;
-        containerType.registrations = registrationsInstances;
-
-        return containerType;
-    }
-*/
-
-    public async saveToStorage(): Promise<void> {
-        /*
-        const containerTypeCopy = _.cloneDeep(this);
-        const { owningApp, guestApps, registrations, ...containerType } = containerTypeCopy;
-        await StorageProvider.get().global.setValue(this.containerTypeId, containerType);
-        */
-    }
-
-    public async deleteFromStorage(): Promise<void> {
-        const secretPromises: Thenable<void>[] = [];
-
-        secretPromises.push(StorageProvider.get().global.setValue(this.containerTypeId, undefined));
-/*
-        this.registrationIds.forEach(async registrationId => {
-            secretPromises.push(StorageProvider.get().global.setValue(registrationId, undefined));
-        });
-
-        this.guestAppIds.forEach(async guestAppId => {
-            secretPromises.push(StorageProvider.get().global.setValue(guestAppId, undefined));
-        });
-*/
-        await Promise.all(secretPromises);
-    }
 
 }

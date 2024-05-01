@@ -35,7 +35,7 @@ export abstract class BaseAuthProvider {
             const authCodeRequest = { scopes, redirectUri: this.authCodeUrlParams.redirectUri };
             authResponse = await this.getTokenInteractive(authCodeRequest);
         }
-        console.log(authResponse.accessToken);
+        //console.log(authResponse.accessToken);
         return authResponse.accessToken || "";
     }
 
@@ -222,6 +222,61 @@ export abstract class BaseAuthProvider {
                         });
                     }
                 }
+            });
+
+            // Clear the timeout if an authorization code is received
+            server.on('close', () => {
+                clearTimeout(timeout);
+            });
+        });
+    }
+
+
+    async listenForAdminConsent(clientId: string, tenantId: string): Promise<boolean> {
+        return new Promise<boolean>((resolve, reject) => {
+            const server = http.createServer(async (req, res) => {
+
+                type ConsentResponseQuery = {
+                    // eslint-disable-next-line @typescript-eslint/naming-convention
+                    admin_consent?: string;
+                    tenant?: string;
+                    error?: string;
+                    // eslint-disable-next-line @typescript-eslint/naming-convention
+                    error_description?: string;
+                    // eslint-disable-next-line @typescript-eslint/naming-convention
+                    error_uri?: string;
+                };
+                const responseParams = url.parse(req.url || '', true).query as ConsentResponseQuery;
+                const adminConsent: boolean = responseParams.admin_consent === 'True' ? true : false;
+                const authError = responseParams.error;
+                const authErrorDescription = responseParams.error_description;
+
+                if (!authError && !authErrorDescription) {
+                    // eslint-disable-next-line @typescript-eslint/naming-convention
+                    res.writeHead(200, { 'Content-Type': 'text/html' });
+                    res.end(htmlString);
+                    
+                    resolve(adminConsent);
+
+                    server.close(() => {
+                        resolve(adminConsent);
+                    });
+                }
+            });
+
+            // Timeout of 3 minutes (3 * 60 * 1000 = 300000 milliseconds)
+            const timeout = setTimeout(() => {
+                server.close(() => {
+                    reject(new Error('Consent response not received within the allow timeout.'));
+                });
+            }, 3 * 60 * 1000);
+
+            server.listen(0, async () => {
+                const port = (<any>server.address()).port;
+                console.log(`Listening on port ${port}`);
+                const redirectUri = `http://localhost:${port}/redirect`;
+                const adminConsentUrl = `https://login.microsoftonline.com/${tenantId}/adminconsent?client_id=${clientId}&redirect_uri=${redirectUri}`;
+                await vscode.env.openExternal(vscode.Uri.parse(adminConsentUrl));
             });
 
             // Clear the timeout if an authorization code is received

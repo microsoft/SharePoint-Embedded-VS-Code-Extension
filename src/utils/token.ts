@@ -38,19 +38,14 @@ export function checkJwtForTenantAdminScope(decodedToken: any, scope: string): b
 }
 
 export function checkJwtForAppOnlyRole(decodedToken: any, role: string): boolean {
-  try {
-    if (!decodedToken.roles) {
-      return false;
-    }
-    const roles = decodedToken.roles as string[];
-    if (roles.includes(role)) {
-      return true;
-    } else {
-      return false;
-    }
-  } catch (error) {
-    console.error("Error decoding JWT token:", error);
-    throw error;
+  if (!decodedToken.roles) {
+    return false;
+  }
+  const roles = decodedToken.roles as string[];
+  if (roles.includes(role)) {
+    return true;
+  } else {
+    return false;
   }
 }
 

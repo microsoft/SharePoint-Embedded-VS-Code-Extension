@@ -8,7 +8,7 @@ import { ContainerType } from "../../../models/ContainerType";
 import { App } from "../../../models/App";
 
 export class AppTreeItem extends vscode.TreeItem {
-    constructor(app: App | string) {
+    constructor(public readonly app: App | string) {
         const label = typeof app === "string" ? app : app.name;
         super(label,  vscode.TreeItemCollapsibleState.None);
         this.iconPath = new vscode.ThemeIcon("app-icon");

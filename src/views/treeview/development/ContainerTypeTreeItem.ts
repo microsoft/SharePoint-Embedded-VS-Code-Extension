@@ -14,7 +14,9 @@ export class ContainerTypeTreeItem extends IChildrenProvidingTreeItem {
 
     constructor(public readonly containerType: ContainerType) {
         super(containerType.displayName, vscode.TreeItemCollapsibleState.Collapsed);
-  
+        if (containerType.isTrial) {
+            this.description = "(trial)";
+        }
         this.iconPath = new vscode.ThemeIcon("containertype-icon");
         this.contextValue = "spe:containerTypeTreeItem";
 

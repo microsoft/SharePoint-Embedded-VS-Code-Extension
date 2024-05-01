@@ -6,6 +6,7 @@
 import axios, { AxiosResponse } from 'axios';
 import { BillingClassification, ContainerType } from '../models/ContainerType';
 import { BaseAuthProvider } from './BaseAuthProvider';
+import { ApplicationPermission } from '../models/ApplicationPermissions';
 
 export default class SpAdminProviderNew {
     private readonly _baseApiUrl;
@@ -14,7 +15,6 @@ export default class SpAdminProviderNew {
     public constructor(private _authProvider: BaseAuthProvider, private _spAdminUrl: string) {
         this._baseApiUrl = `${this._spAdminUrl}/_api/SPO.Tenant/`;
         this._scopes = [`${this._spAdminUrl}/User.Read.All`];
-        //this._scopes = [`00000003-0000-0ff1-ce00-000000000000/AllSites.Write`];
     }
 
     private async _sendPostRequest(method: string, body: any): Promise<AxiosResponse> {
@@ -27,9 +27,6 @@ export default class SpAdminProviderNew {
             }
         };
         const url = `${this._baseApiUrl}${method}`;
-        console.log(url);
-        console.log(options);
-        console.log(body);
         return axios.post(url, JSON.stringify(body), options);
     }
 
@@ -65,16 +62,35 @@ export default class SpAdminProviderNew {
         return response.data as ISpConsumingApplicationProperties;
     }
 
+
     public async createContainerType(properties: ISpContainerTypeCreationProperties): Promise<ISpContainerTypeProperties> {
         const method = 'NewSPOContainerType';
         const body = {
             containerTypeProperties: properties
         };
         const response = await this._sendPostRequest(method, body);
+        console.log(response);
         return response.data as ISpContainerTypeProperties;
     
     }
 
+    public async deleteContainerType(containerTypeId: string): Promise<void> {
+        const method = 'RemoveSPOContainerType';
+        const body = {
+            spDeletedContainerTypeProperties: {
+                ContainerTypeId: containerTypeId
+            }
+        };
+        const response = await this._sendPostRequest(method, body);
+        console.log(response);
+    }
+
+}
+
+export interface ISpApplicationPermissions {
+    appId: string;
+    delegated: ApplicationPermission[];
+    appOnly: ApplicationPermission[];
 }
 
 

@@ -9,6 +9,7 @@ import { CachePluginFactory } from '../utils/CacheFactory';
 import { ext } from '../utils/extensionVariables';
 import { BaseAuthProvider } from './BaseAuthProvider';
 import { Account } from '../models/Account';
+import { checkJwtForAppOnlyRole, decodeJwt } from '../utils/token';
 
 
 export type IAppOnlySecretCredential = { clientSecret: string; }
@@ -67,5 +68,24 @@ export default class AppOnly3PAuthProvider extends BaseAuthProvider {
     public async getToken(scopes: string[]): Promise<string> {
         const authResponse = await this.clientApplication.acquireTokenByClientCredential({ scopes });
         return authResponse.accessToken || "";
+    }
+
+    public async hasConsent(audience: string, roles: string[]): Promise<boolean> {
+        try {
+            const scopes = [`${audience}/.default`];
+            console.log('Checking for consent with scopes: ', scopes);
+            const token = await this.getToken(scopes);
+            const decodedToken = decodeJwt(token);
+            console.log('Decoded token: ', decodedToken);
+            for (const role of roles) {
+                if (!checkJwtForAppOnlyRole(decodedToken, role)) {
+                    return false;
+                }
+            }
+            return true;
+        } catch (error: any) {
+            console.log(error);
+            return false;
+        }
     }
 }

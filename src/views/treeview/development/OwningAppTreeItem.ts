@@ -7,6 +7,7 @@ import * as vscode from "vscode";
 import { ContainerType } from "../../../models/ContainerType";
 import { App } from "../../../models/App";
 import { AppTreeItem } from "./AppTreeItem";
+import { DevelopmentTreeViewProvider } from "./DevelopmentTreeViewProvider";
 
 export class OwningAppTreeItem extends AppTreeItem {
     constructor(public readonly containerType: ContainerType) {
@@ -15,11 +16,14 @@ export class OwningAppTreeItem extends AppTreeItem {
         this.description = "(owning app)";
         this.contextValue += '-local';
         
-        if (app.clientSecret) {
-            this.contextValue += '-hasSecret';
-        }
-        if (app.thumbprint && app.privateKey) {
-            this.contextValue += '-hasCert';
-        }
+        app.getSecrets().then(secrets => {
+            if (secrets.clientSecret) {
+                this.contextValue += '-hasSecret';
+            }
+            if (secrets.thumbprint && secrets.privateKey) {
+                this.contextValue += '-hasCert';
+            }
+            DevelopmentTreeViewProvider.instance.refresh(this);
+        });
     }
 }

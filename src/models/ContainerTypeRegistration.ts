@@ -50,7 +50,7 @@ export class ContainerTypeRegistration {
             await this.containerType.loadOwningApp();
         }
         if (this.containerType.owningApp) {
-            const authProvider = this.containerType.owningApp.getAppOnlyAuthProvider(this.tenantId);
+            const authProvider = await this.containerType.owningApp.getAppOnlyAuthProvider(this.tenantId);
             const graphProvider = new GraphProviderNew(authProvider);
             this._containers = await graphProvider.listContainers(this);
         }
@@ -66,7 +66,7 @@ export class ContainerTypeRegistration {
             await this.containerType.loadOwningApp();
         }
         if (this.containerType.owningApp) {
-            const authProvider = this.containerType.owningApp.getAppOnlyAuthProvider(this.tenantId);
+            const authProvider = await this.containerType.owningApp.getAppOnlyAuthProvider(this.tenantId);
             const graphProvider = new GraphProviderNew(authProvider);
             this._recycledContainers = await graphProvider.listRecycledContainers(this);
         }

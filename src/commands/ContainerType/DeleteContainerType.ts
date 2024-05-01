@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Command } from './Command';
+import { Command } from '../Command';
 import * as vscode from 'vscode';
-import { Account } from '../models/Account';
-import { ContainerTypeTreeItem } from '../views/treeview/development/ContainerTypeTreeItem';
-import { DevelopmentTreeViewProvider } from '../views/treeview/development/DevelopmentTreeViewProvider';
+import { Account } from '../../models/Account';
+import { ContainerTypeTreeItem } from '../../views/treeview/development/ContainerTypeTreeItem';
+import { DevelopmentTreeViewProvider } from '../../views/treeview/development/DevelopmentTreeViewProvider';
 
 // Static class that handles the delete container type command
 export class DeleteContainerType extends Command {
     // Command name
-    public static readonly COMMAND = 'deleteContainerType';
+    public static readonly COMMAND = 'ContainerType.delete';
 
     // Command handler
     public static async run(containerTypeViewModel?: ContainerTypeTreeItem): Promise<void> {
@@ -29,16 +29,26 @@ export class DeleteContainerType extends Command {
             return;
         }
 
-        vscode.window.showInformationMessage(`Container Type deletion starting...`);
-
         const account = Account.get()!;
         const containerType = containerTypeViewModel.containerType;
 
         try {
-            const containerTypeDetails = await account.getContainerTypeDetailsById((await containerType.owningApp)!.clientId, containerType.containerTypeId);
-            const result = await account.deleteContainerTypeById((await containerType.owningApp)!.clientId, containerType.containerTypeId);
-            vscode.window.showInformationMessage(`Container Type ${containerType.displayName} successfully deleted`);
-            DevelopmentTreeViewProvider.getInstance().refresh();
+            const containerTypeProvider = account.containerTypeProvider;
+            containerTypeProvider.delete(containerType);
+
+            let remainingAttempts = 5;
+            let waittime = 2000;
+            const interval = setInterval(async () => {
+                if (remainingAttempts-- === 0) {
+                    clearInterval(interval);
+                }
+                const containerTypes = await containerTypeProvider.list();
+                if (!containerTypes.find(ct => ct.containerTypeId === containerType.containerTypeId)) {
+                    clearInterval(interval);
+                    DevelopmentTreeViewProvider.instance.refresh();
+                }
+            }, waittime);
+            DevelopmentTreeViewProvider.instance.refresh();
         } catch (error: any) {
             vscode.window.showErrorMessage(`Unable to delete Container Type ${containerType.displayName} : ${error.message}`);
             return;

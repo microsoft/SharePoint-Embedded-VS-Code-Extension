@@ -40,10 +40,12 @@ export async function activate(context: vscode.ExtensionContext) {
         }
     });
 
+    console.log('new build');
+
     Commands.SignIn.register(context);
     Commands.SignOut.register(context);
     Commands.CreateTrialContainerType.register(context);
-    Commands.RegisterContainerType.register(context);
+    //Commands.RegisterContainerType.register(context);
     Commands.CreateGuestApp.register(context);
     Commands.DeleteContainerType.register(context);
     Commands.RefreshContainersList.register(context);
@@ -59,7 +61,13 @@ export async function activate(context: vscode.ExtensionContext) {
     Commands.CopyOwningTenantId.register(context);
     Commands.CopySubscriptionId.register(context);
     Commands.ViewProperties.register(context);
+    Commands.RegisterOnLocalTenant.register(context);
 
     // App Context Menu Commands
     Commands.CopyPostmanConfig.register(context);
+    Commands.CreateAppCert.register(context);
+    Commands.CreateSecret.register(context);
+
+    // App Commands
+    Commands.GetOrCreateApp.register(context);
 }

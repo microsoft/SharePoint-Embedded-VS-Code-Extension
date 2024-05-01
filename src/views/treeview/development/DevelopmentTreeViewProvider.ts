@@ -24,11 +24,13 @@ export class DevelopmentTreeViewProvider implements vscode.TreeDataProvider<IChi
     public refresh(element?: vscode.TreeItem): void {
         if (element && element instanceof ContainerTypesTreeItem) {
             element = undefined;
+            console.log('updating root');
         }
         this._onDidChangeTreeData.fire(element);
     }
 
     public getTreeItem(element: vscode.TreeItem): vscode.TreeItem {
+        console.log('getting item');
         return element;
     }
 
@@ -52,11 +54,13 @@ export class DevelopmentTreeViewProvider implements vscode.TreeDataProvider<IChi
         try {
             await vscode.commands.executeCommand('setContext', 'spe:showGettingStartedView', false);
             await vscode.commands.executeCommand('setContext', 'spe:showFailedView', false);
-            await account.loadContainerTypes();
-            if (account.containerTypes && account.containerTypes.length > 0) {
-                return [new ContainerTypesTreeItem(account)];
+            const containerTypeProvider = account.containerTypeProvider;
+            const containerTypes = await containerTypeProvider.list();
+            console.log(containerTypes);
+            if (containerTypes && containerTypes.length > 0) {
+                return [new ContainerTypesTreeItem()];
             }
-            await vscode.commands.executeCommand('setContext', 'spe:showGettingStarted', true);
+            await vscode.commands.executeCommand('setContext', 'spe:showGettingStartedView', true);
         } catch {
             await vscode.commands.executeCommand('setContext', 'spe:showFailedView', true);
         }
