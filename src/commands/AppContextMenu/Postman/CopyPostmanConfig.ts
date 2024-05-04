@@ -12,6 +12,7 @@ import { Account } from '../../../models/Account';
 import { App } from '../../../models/App';
 import { ContainerType } from '../../../models/ContainerType';
 import { AppTreeItem } from '../../../views/treeview/development/AppTreeItem';
+import { CreateSecret } from '../CreateSecret';
 
 // Static class that handles the Postman copy command
 export class CopyPostmanConfig extends Command {
@@ -49,7 +50,25 @@ export class CopyPostmanConfig extends Command {
             return;
         }
 
-        const appSecrets = await app.getSecrets();
+        let appSecrets = await app.getSecrets();
+
+        if (!appSecrets.clientSecret) {
+            const userChoice = await vscode.window.showInformationMessage(
+            "No client secret was found. Would you like to create one for this app?",
+                'OK', 'Skip'
+            );
+            if (userChoice === 'OK') {
+                await CreateSecret.run(applicationTreeItem);
+                appSecrets = await app.getSecrets();
+
+                let retries = 3;
+                while (!appSecrets.clientSecret || retries > 0) {
+                    retries--;
+                    appSecrets = await app.getSecrets();
+                }
+            }
+
+        }
         const account = Account.get()!;
         const tid = account.tenantId;
 
