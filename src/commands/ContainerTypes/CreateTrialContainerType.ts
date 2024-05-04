@@ -66,7 +66,6 @@ export class CreateTrialContainerType extends Command {
                 console.log(error);
             }
         } while (!containerType && !ctTimer.finished);
-        progressWindow.hide();
 
         if (!containerType) {
             vscode.window.showErrorMessage('Failed to create container type');
@@ -87,8 +86,8 @@ export class CreateTrialContainerType extends Command {
             } while (!ctRefreshTimer.finished);
             DevelopmentTreeViewProvider.instance.refresh();
         };
-        refreshCt();
-
+        await refreshCt();
+        progressWindow.hide();
         const register = 'Register on local tenant';
         const buttons = [register];
         const selection = await vscode.window.showInformationMessage(

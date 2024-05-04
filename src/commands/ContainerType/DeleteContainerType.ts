@@ -8,6 +8,7 @@ import * as vscode from 'vscode';
 import { Account } from '../../models/Account';
 import { ContainerTypeTreeItem } from '../../views/treeview/development/ContainerTypeTreeItem';
 import { DevelopmentTreeViewProvider } from '../../views/treeview/development/DevelopmentTreeViewProvider';
+import { ProgressWaitNotification, Timer } from '../../views/notifications/ProgressWaitNotification';
 
 // Static class that handles the delete container type command
 export class DeleteContainerType extends Command {
@@ -31,26 +32,30 @@ export class DeleteContainerType extends Command {
 
         const account = Account.get()!;
         const containerType = containerTypeViewModel.containerType;
+        const progressWindow = new ProgressWaitNotification('Deleting container type');
 
-        try {
+        try {    
+            progressWindow.show();
             const containerTypeProvider = account.containerTypeProvider;
-            containerTypeProvider.delete(containerType);
-
-            let remainingAttempts = 5;
-            let waittime = 2000;
-            const interval = setInterval(async () => {
-                if (remainingAttempts-- === 0) {
-                    clearInterval(interval);
-                }
-                const containerTypes = await containerTypeProvider.list();
-                if (!containerTypes.find(ct => ct.containerTypeId === containerType.containerTypeId)) {
-                    clearInterval(interval);
-                    DevelopmentTreeViewProvider.instance.refresh();
-                }
-            }, waittime);
-            DevelopmentTreeViewProvider.instance.refresh();
+            await containerTypeProvider.delete(containerType);
+            const ctRefreshTimer = new Timer(60 * 1000);
+            const refreshCt = async (): Promise<void> => {
+                DevelopmentTreeViewProvider.instance.refresh();
+                do {
+                    const containerTypes = await containerTypeProvider.list();
+                    if (!containerTypes.find(ct => ct.containerTypeId === containerType.containerTypeId)) {
+                        break;
+                    }
+                    // sleep for 5 seconds
+                    await new Promise(r => setTimeout(r, 5000));
+                } while (!ctRefreshTimer.finished);
+                progressWindow.hide();
+                DevelopmentTreeViewProvider.instance.refresh();
+            };
+            refreshCt();
         } catch (error: any) {
             vscode.window.showErrorMessage(`Unable to delete Container Type ${containerType.displayName} : ${error.message}`);
+            progressWindow.hide();
             return;
         }
     }
