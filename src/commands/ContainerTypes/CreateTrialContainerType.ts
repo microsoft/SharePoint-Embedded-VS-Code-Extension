@@ -15,7 +15,7 @@ import { GetAccount } from '../Accounts/GetAccount';
 import { GetOrCreateApp } from '../Apps/GetOrCreateApp';
 import { RegisterOnLocalTenant } from '../ContainerType/RegisterOnLocalTenant';
 import { clear } from 'console';
-import { ProgressNotificationNew } from '../../views/notifications/ProgressNotificationNew';
+import { ProgressWaitNotification, Timer } from '../../views/notifications/ProgressWaitNotification';
 
 // Static class that handles the create trial container type command
 export class CreateTrialContainerType extends Command {
@@ -50,51 +50,55 @@ export class CreateTrialContainerType extends Command {
             return;
         }
 
-        try {
-            
-            const progressPromise = new ProgressNotificationNew('Creating container type', 10).show();
-            const containerTypeProvider = account.containerTypeProvider;
-            const containerType = await containerTypeProvider.createTrial(displayName, app.clientId);
-            if (!containerType) {
-                throw new Error();
+
+        const progressWindow = new ProgressWaitNotification('Creating container type');
+        progressWindow.show();
+        const ctTimer = new Timer(30 * 1000);
+        const containerTypeProvider = account.containerTypeProvider;
+        let containerType: ContainerType | undefined;
+        do {
+            try {
+                containerType = await containerTypeProvider.createTrial(displayName, app.clientId);
+                if (!containerType) {
+                    throw new Error();
+                } 
+            } catch (error) {
+                console.log(error);
             }
-            await progressPromise;
-            //await new ProgressNotification().show();
+        } while (!containerType && !ctTimer.finished);
+        progressWindow.hide();
 
-            let remainingAttempts = 5;
-            let waittime = 2000;
-            const interval = setInterval(async () => {
-                if (remainingAttempts-- === 0) {
-                    clearInterval(interval);
-                }
-                const containerTypes = await containerTypeProvider.list();
-                if (containerTypes.find(ct => ct.containerTypeId === containerType.containerTypeId)) {
-                    clearInterval(interval);
-                    DevelopmentTreeViewProvider.instance.refresh();
-                }
-            }, waittime);
-            setTimeout(() => {
-                DevelopmentTreeViewProvider.instance.refresh();
-            }, 2000);
-            
-
-            const register = 'Register on local tenant';
-            const buttons = [register];
-            vscode.window.showInformationMessage(
-                `Your container type has been created. Would you like to register it on your local tenant?`,
-                ...buttons
-            ).then(async (selection) => {
-                if (selection === register) {
-                    RegisterOnLocalTenant.run(containerType);
-                }
-            });
-
-            return containerType;
-        } catch (error) {
-            //TODO: Specifically handle free container type limit error
-            vscode.window.showErrorMessage(`Failed to create container type: ${error}`);
+        if (!containerType) {
+            vscode.window.showErrorMessage('Failed to create container type');
+            return;
         }
-        
+
+    
+        const ctRefreshTimer = new Timer(60 * 1000);
+        const refreshCt = async (): Promise<void> => {
+            DevelopmentTreeViewProvider.instance.refresh();
+            do {
+                const children = await DevelopmentTreeViewProvider.instance.getChildren();
+                if (children && children.length > 0) {
+                    break;
+                }
+                // sleep for 5 seconds
+                await new Promise(r => setTimeout(r, 5000));
+            } while (!ctRefreshTimer.finished);
+            DevelopmentTreeViewProvider.instance.refresh();
+        };
+        refreshCt();
+
+        const register = 'Register on local tenant';
+        const buttons = [register];
+        const selection = await vscode.window.showInformationMessage(
+            `Your container type has been created. Would you like to register it on your local tenant?`,
+            ...buttons
+        );
+        if (selection === register) {
+            RegisterOnLocalTenant.run(containerType);
+        }
+        return containerType;        
     }
 }
 

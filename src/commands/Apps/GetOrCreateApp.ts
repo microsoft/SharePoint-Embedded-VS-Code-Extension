@@ -12,7 +12,7 @@ import { ProgressNotification } from '../../views/notifications/ProgressNotifica
 import { App } from '../../models/App';
 import { DevelopmentTreeViewProvider } from '../../views/treeview/development/DevelopmentTreeViewProvider';
 import { GetAccount } from '../Accounts/GetAccount';
-import { ProgressNotificationNew } from '../../views/notifications/ProgressNotificationNew';
+import { ProgressWaitNotification } from '../../views/notifications/ProgressWaitNotification';
 
 // Static class that handles the create trial container type command
 export class GetOrCreateApp extends Command {
@@ -116,7 +116,6 @@ export class GetOrCreateApp extends Command {
                         return resolve(undefined);
                     }
                     console.log('created a new app!');
-                    await new ProgressNotificationNew('Creating new Entra app', 20).show();
                     return resolve(app);
                 } else if (appId) {
                     const app = await account.appProvider.get(appId);

@@ -23,7 +23,7 @@ import { GetAccount } from '../Accounts/GetAccount';
 import { CreateAppCert } from '../AppContextMenu/CreateAppCert';
 import { has } from 'lodash';
 import { ProgressNotification } from '../../views/notifications/ProgressNotification';
-import { ProgressNotificationNew } from '../../views/notifications/ProgressNotificationNew';
+import { ProgressWaitNotification, Timer } from '../../views/notifications/ProgressWaitNotification';
 
 // Static class that handles the register container type command
 export class RegisterOnLocalTenant extends Command {
@@ -77,7 +77,7 @@ export class RegisterOnLocalTenant extends Command {
         }
         const localRegistrationScope = containerType.localRegistrationScope;
         const appAuthProvider = await owningApp.getAppOnlyAuthProvider(account.tenantId);
-        const consented = await appAuthProvider.hasConsent(localRegistrationScope, ['Directory.Read.All']);
+        let consented = await appAuthProvider.hasConsent(localRegistrationScope, ['Container.Selected']);
         if (!consented) {
             const grantConsent = `Grant admin consent`;
             const buttons = [grantConsent];
@@ -88,17 +88,29 @@ export class RegisterOnLocalTenant extends Command {
             if (choice !== grantConsent) {
                 return;
             }
-            
+            const consentProgress = new ProgressWaitNotification('Waiting for admin consent');
+            consentProgress.show();
             const adminConsent = await appAuthProvider.listenForAdminConsent(owningApp.clientId, account.tenantId);
+            consentProgress.hide();
             if (!adminConsent) {
                 vscode.window.showErrorMessage(`Failed to get admin consent for app '${owningApp.displayName}'`);
                 return;
             }
-            await new ProgressNotificationNew('Waiting for consent propagation', 20).show();
+
+            const consentPropagationProgress = new ProgressWaitNotification('Waiting for consent to propagate');
+            consentPropagationProgress.show();
+            const consentPropagationTimer = new Timer(30 * 1000);
+            do {
+                consented = await appAuthProvider.hasConsent(localRegistrationScope, ['Container.Selected']);
+            } while (!consented && !consentPropagationTimer.finished);
+            consentPropagationProgress.hide();
         }
 
         try {
+            const registrationProgress = new ProgressWaitNotification('Registering container type on local tenant');
+            registrationProgress.show();
             await containerType.registerOnLocalTenant();
+            registrationProgress.hide();
             DevelopmentTreeViewProvider.getInstance().refresh();
         } catch (error: any) {
             vscode.window.showErrorMessage(`Unable to register Container Type ${containerType.displayName}: ${error}`);
