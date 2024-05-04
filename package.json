@@ -325,7 +325,7 @@
           "group": "3@1"
         },
         {
-          "when": "viewItem =~ /spe:containerTypeTreeItem.*/",
+          "when": "viewItem =~ /spe:containerTypeTreeItem.*-paid.*/",
           "command": "spe.ContainerType.copySubscriptionId",
           "group": "3@2"
         },
@@ -340,7 +340,7 @@
           "group": "4@1"
         },
         {
-          "when": "viewItem =~ /spe:containerTypeTreeItem.*/",
+          "when": "viewItem =~ /spe:containerTypeTreeItem.*-paid.*/",
           "command": "spe.ContainerType.viewSubscriptionInAzure",
           "group": "4@2"
         },
