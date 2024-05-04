@@ -24,16 +24,6 @@ export class CopyPostmanConfig extends Command {
             return;
         }
 
-        const message = "This will put your app's secret and other settings in a plain text Postman environment file on your local machine. Are you sure you want to continue?";
-        const userChoice = await vscode.window.showInformationMessage(
-            message,
-            'OK', 'Cancel'
-        );
-
-        if (userChoice === 'Cancel') {
-            return;
-        }
-
         let app: App | undefined;
         let containerType: ContainerType | undefined;
         if (applicationTreeItem instanceof GuestApplicationTreeItem) {
@@ -56,15 +46,15 @@ export class CopyPostmanConfig extends Command {
         const values: any[] = [];
         values.push(
             {
-                key: "ClientID",
-                value: app!.clientId,
+                key: "ContainerTypeId",
+                value: containerType!.containerTypeId,
                 type: "default",
                 enabled: true
             },
             {
-                key: "ClientSecret",
-                value: appSecrets.clientSecret,
-                type: "secret",
+                key: "ClientID",
+                value: app!.clientId,
+                type: "default",
                 enabled: true
             },
             {
@@ -74,24 +64,23 @@ export class CopyPostmanConfig extends Command {
                 enabled: true
             },
             {
-                key: "RootSiteUrl",
-                value: `https://${account.domain}.sharepoint.com/`,
-                type: "default",
-                enabled: true
-            },
-            {
-                key: "ContainerTypeId",
-                value: containerType!.containerTypeId,
-                type: "default",
-                enabled: true
-            },
-            {
                 key: "TenantName",
                 value: account.domain,
                 type: "default",
                 enabled: true
             },
-
+            {
+                key: "RootSiteUrl",
+                value: `${account.spRootSiteUrl}/`,
+                type: "default",
+                enabled: true
+            },
+            {
+                key: "ClientSecret",
+                value: appSecrets.clientSecret,
+                type: "secret",
+                enabled: true
+            },
             {
                 key: "CertThumbprint",
                 value: appSecrets.thumbprint,
@@ -106,9 +95,10 @@ export class CopyPostmanConfig extends Command {
             }
         );
 
+        const envName = `${containerType!.displayName} (appId: ${app!.clientId})`;
         const pmEnv = {
             id: uuidv4(),
-            name: app!.clientId,
+            name: envName,
             values: values,
             // eslint-disable-next-line @typescript-eslint/naming-convention
             _postman_variable_scope: "environment",
@@ -121,7 +111,7 @@ export class CopyPostmanConfig extends Command {
         try {
             await vscode.env.clipboard.writeText(JSON.stringify(pmEnv, null, 2));
             console.log(`${app!.clientId}_postman_environment.json written successfully`);
-            vscode.window.showInformationMessage(`Postman environment copied successfully for Application ${app!.clientId}`);
+            vscode.window.showInformationMessage(`Postman environment copied to clipboard for '${envName}'`);
         } catch (error) {
             vscode.window.showErrorMessage('Failed to copy Postman environment');
             console.error('Error:', error);
