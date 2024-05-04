@@ -28,7 +28,7 @@ export class ViewProperties extends Command {
             })();
 
             const registration = vscode.workspace.registerTextDocumentContentProvider('virtual', provider);
-            let uri = vscode.Uri.parse('virtual://containerTypeProperties.json');
+            let uri = vscode.Uri.parse(`virtual://${containerType.containerTypeId}/${containerType.displayName}.json`, true);
             const doc = await vscode.workspace.openTextDocument(uri);
             await vscode.window.showTextDocument(doc, { preview: true});
             await vscode.languages.setTextDocumentLanguage(doc, 'json');
