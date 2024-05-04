@@ -79,7 +79,8 @@ export class GraphProviderNew {
         return response as Application;
     }
 
-    public async addAppSecret(objectId: string, name: string = 'Created with SP Embedded VS Code'): Promise<string> {
+    public async addAppSecret(objectId: string, name: string = 'SharePointEmbeddedVSCode'): Promise<string> {
+        
         const response = await this._client
             .api(`/applications/${objectId}/addPassword`)
             .post({ passwordCredential: { displayName: name } });
