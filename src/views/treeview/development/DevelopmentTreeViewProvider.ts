@@ -24,13 +24,11 @@ export class DevelopmentTreeViewProvider implements vscode.TreeDataProvider<IChi
     public refresh(element?: vscode.TreeItem): void {
         if (element && element instanceof ContainerTypesTreeItem) {
             element = undefined;
-            console.log('updating root');
         }
         this._onDidChangeTreeData.fire(element);
     }
 
     public getTreeItem(element: vscode.TreeItem): vscode.TreeItem {
-        console.log('getting item');
         return element;
     }
 
