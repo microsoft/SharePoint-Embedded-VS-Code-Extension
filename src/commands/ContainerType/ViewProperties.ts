@@ -7,8 +7,6 @@ import * as vscode from 'vscode';
 import { ContainerTypeTreeItem } from '../../views/treeview/development/ContainerTypeTreeItem';
 import { Command } from '../Command';
 import { ContainerType } from '../../models/ContainerType';
-import * as fs from 'fs';
-import * as tmp from 'tmp';
 
 // Static class that handles the view properties command
 export class ViewProperties extends Command {
@@ -23,20 +21,20 @@ export class ViewProperties extends Command {
         const containerType: ContainerType = containerTypeViewModel.containerType;
         try {
             const containerTypeProperties = JSON.stringify(containerType.getProperties(), null, 4);
-            tmp.file({ prefix: 'containertype-properties', postfix: '.json' }, (err, tempFilePath, fd, cleanupCallback) => {
-                if (err) {
-                    vscode.window.showErrorMessage("Failed to create temporary file: " + err.message);
-                    return;
+            const provider = new (class implements vscode.TextDocumentContentProvider {
+                provideTextDocumentContent(uri: vscode.Uri): string {
+                    return containerTypeProperties;
                 }
-                fs.writeFileSync(tempFilePath, containerTypeProperties);
-                vscode.workspace.openTextDocument(tempFilePath).then(async doc => {
-                    await vscode.window.showTextDocument(doc, { preview: true });
-                    cleanupCallback();
-                });
-            });
+            })();
+
+            const registration = vscode.workspace.registerTextDocumentContentProvider('virtual', provider);
+            let uri = vscode.Uri.parse('virtual://containerTypeProperties.json');
+            const doc = await vscode.workspace.openTextDocument(uri);
+            await vscode.window.showTextDocument(doc, { preview: true});
+            await vscode.languages.setTextDocumentLanguage(doc, 'json');
+            registration.dispose();
         } catch (error: any) {
-            vscode.window.showErrorMessage("Failed to open container type properties " + error.message);
-            return;
+            vscode.window.showErrorMessage("Failed to open container type properties: " + error.message);
         }
     }
 }
