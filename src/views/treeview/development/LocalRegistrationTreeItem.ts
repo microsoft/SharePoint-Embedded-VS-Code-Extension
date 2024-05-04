@@ -16,7 +16,7 @@ export class LocalRegistrationTreeItem extends IChildrenProvidingTreeItem {
     private readonly _registration: ContainerTypeRegistration;
     constructor(private readonly _containerType: ContainerType) {
         super('Local tenant registration', vscode.TreeItemCollapsibleState.Collapsed);
-        this.iconPath = new vscode.ThemeIcon("containertype-icon");
+        this.iconPath = new vscode.ThemeIcon("ctregistration-icon");
         this.description = `(${Account.get()!.domain})`;
         this.contextValue = "spe:localRegistrationTreeItem";
         this._registration = _containerType.localRegistration!;

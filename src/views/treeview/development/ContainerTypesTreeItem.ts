@@ -12,6 +12,7 @@ export class ContainerTypesTreeItem extends IChildrenProvidingTreeItem {
     private static readonly label = "Container Types";
     public constructor() {
         super(ContainerTypesTreeItem.label, vscode.TreeItemCollapsibleState.Expanded);
+        this.iconPath = new vscode.ThemeIcon("containertype-icon");
         this.contextValue = "spe:containerTypesTreeItem";
     }
 

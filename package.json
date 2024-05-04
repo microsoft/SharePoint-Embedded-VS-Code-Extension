@@ -71,6 +71,13 @@
           "fontPath": "./media/fabric-icons.woff",
           "fontCharacter": "\\EED6"
         }
+      },
+      "ctregistration-icon": {
+        "description": "Container Type Registration icon",
+        "default": {
+          "fontPath": "./media/fabric-icons.woff",
+          "fontCharacter": "\\E902"
+        }
       }
     },
     "viewsContainers": {
