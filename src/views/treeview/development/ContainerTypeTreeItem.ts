@@ -61,8 +61,13 @@ export class ContainerTypeTreeItem extends IChildrenProvidingTreeItem {
             console.error(`Unable to load owning app ${error}`);
         }
         
-        if (this.containerType.localRegistration) {
-            children.push(new LocalRegistrationTreeItem(this.containerType));
+        try {
+            const localRegistration = await this.containerType.loadLocalRegistration();
+            if (localRegistration) {
+                children.push(new LocalRegistrationTreeItem(this.containerType));
+            }
+        } catch (error) {
+            console.error(`Unable to load local registration ${error}`);
         }
 
         return children;
