@@ -10,10 +10,10 @@ export default class ContainerTypeProvider {
 
     public async list(): Promise<ContainerType[]> {
         const containerTypesProperties = await this._spAdminProvider.listContainerTypes();
-        return containerTypesProperties.map((ct) => {
-            ct.OwningTenantId = Account.get()!.tenantId;
-            return new ContainerType(ct);
+        const containerTypes = containerTypesProperties.map(async (ct) => {
+            return await this.get(ct.ContainerTypeId);
         });
+        return Promise.all(containerTypes);
     }
 
     public async get(containerTypeId: string): Promise<ContainerType> {
