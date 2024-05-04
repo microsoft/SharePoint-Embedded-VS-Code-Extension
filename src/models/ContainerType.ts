@@ -44,6 +44,16 @@ export class ContainerType {
         return this.billingClassification === BillingClassification.FreeTrial;
     }
 
+    public get trialDaysLeft(): number | undefined {
+        if (!this.expiryDate) {
+            return undefined;
+        }
+        const expiryDate = new Date(this.expiryDate);
+        const now = new Date();
+        const diff = expiryDate.getTime() - now.getTime();
+        return Math.ceil(diff / (1000 * 3600 * 24));
+    }
+
     private _owningApp?: App;
     public get owningApp(): App | undefined {
         return this._owningApp;

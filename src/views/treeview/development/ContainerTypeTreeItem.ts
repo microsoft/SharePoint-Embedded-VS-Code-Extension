@@ -17,7 +17,19 @@ export class ContainerTypeTreeItem extends IChildrenProvidingTreeItem {
         this.iconPath = new vscode.ThemeIcon("containertype-icon");
         this.contextValue = "spe:containerTypeTreeItem";
         if (containerType.isTrial) {
-            this.description = "(trial)";
+            let expirationString = '';
+            const daysLeft = containerType.trialDaysLeft;
+            if (daysLeft !== undefined) {
+                if (daysLeft > 0) {
+                    expirationString = ` expires in ${daysLeft} day`;
+                    if (daysLeft !== 1) {
+                        expirationString += 's';
+                    }
+                } else {
+                    expirationString = ' expired';
+                }
+            }
+            this.description = `(trial${expirationString})`;
             this.contextValue += "-trial";
         } else {
             this.contextValue += "-paid";
