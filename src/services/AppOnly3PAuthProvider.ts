@@ -72,7 +72,7 @@ export default class AppOnly3PAuthProvider extends BaseAuthProvider {
 
     public async hasConsent(audience: string, roles: string[]): Promise<boolean> {
         try {
-            const scopes = [`${audience}/.default`];
+            const scopes = [`${audience}`];
             console.log('Checking for consent with scopes: ', scopes);
             const token = await this.getToken(scopes);
             const decodedToken = decodeJwt(token);

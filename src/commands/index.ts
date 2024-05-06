@@ -13,7 +13,7 @@ import { DeleteContainerType as _DeleteContainerType } from './ContainerType/Del
 import { RefreshContainersList as _RefreshContainersList } from './RefreshContainersList';
 import { CreateContainer as _CreateContainer } from './CreateContainer';
 import { CloneRepo as _CloneRepo } from './CloneRepo';
-import { ExportPostmanConfig as _ExportPostmanConfig } from './ExportPostmanConfig';
+import { ExportPostmanConfig as _ExportPostmanConfig } from './AppContextMenu/Postman/ExportPostmanConfig';
 import { RenameApplication as _RenameApplication } from './RenameApplication';
 import { CancelSignIn as _CancelSignIn } from './CancelSignIn';
 import { Refresh as _Refresh } from './Refresh';
@@ -27,6 +27,7 @@ import { CreateAppCert as _CreateAppCert } from './AppContextMenu/CreateAppCert'
 import { CreateSecret as _CreateSecret } from './AppContextMenu/CreateSecret';
 import { RegisterOnLocalTenant as _RegisterOnLocalTenant } from './ContainerType/RegisterOnLocalTenant';
 import { ViewInAzure as _ViewInAzure } from './AppContextMenu/ViewInAzure';
+import { RenameContainerType as _RenameContainerType } from './ContainerType/RenameContainerType';
 
 export namespace Commands {
   export const SignIn = _SignIn;
@@ -39,7 +40,6 @@ export namespace Commands {
   export const RefreshContainersList = _RefreshContainersList;
   export const CreateContainer = _CreateContainer;
   export const CloneRepo = _CloneRepo;
-  export const ExportPostmanConfig = _ExportPostmanConfig;
   export const RenameApplication = _RenameApplication;
   export const Refresh = _Refresh;
 
@@ -49,12 +49,14 @@ export namespace Commands {
   export const CopySubscriptionId = _CopySubscriptionId;
   export const ViewProperties = _ViewProperties;
   export const RegisterOnLocalTenant = _RegisterOnLocalTenant;
+  export const RenameContainerType = _RenameContainerType;
 
   // Apps Commands
   export const GetOrCreateApp = _GetOrCreateApp;
 
   // App Commands
   export const CopyPostmanConfig = _CopyPostmanConfig;
+  export const ExportPostmanConfig = _ExportPostmanConfig;
   export const CreateAppCert = _CreateAppCert;
   export const CreateSecret = _CreateSecret;
   export const ViewInAzure = _ViewInAzure;

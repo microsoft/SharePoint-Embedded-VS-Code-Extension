@@ -13,11 +13,13 @@ import { App } from '../../../models/App';
 import { ContainerType } from '../../../models/ContainerType';
 import { AppTreeItem } from '../../../views/treeview/development/AppTreeItem';
 import { CreateSecret } from '../CreateSecret';
+import * as fs from 'fs';
+import * as path from 'path';
 
 // Static class that handles the Postman copy command
-export class CopyPostmanConfig extends Command {
+export class ExportPostmanConfig extends Command {
     // Command name
-    public static readonly COMMAND = 'App.Postman.copyEnvironmentFile';
+    public static readonly COMMAND = 'App.Postman.exportEnvironmentFile';
 
     // Command handler
     public static async run(applicationTreeItem?: AppTreeItem): Promise<void> {
@@ -128,11 +130,26 @@ export class CopyPostmanConfig extends Command {
         };
 
         try {
-            await vscode.env.clipboard.writeText(JSON.stringify(pmEnv, null, 2));
-            console.log(`${app!.clientId}_postman_environment.json written successfully`);
-            vscode.window.showInformationMessage(`Postman environment copied to clipboard for '${envName}'`);
+            const folders = await vscode.window.showOpenDialog({
+                canSelectFiles: false,
+                canSelectFolders: true,
+                canSelectMany: false,
+                openLabel: 'Save Here',
+            });
+
+            if (folders && folders.length > 0) {
+                const destinationPath = folders[0].fsPath;
+                const postmanEnvJson = JSON.stringify(pmEnv, null, 2);
+                const postmanEnvPath = path.join(destinationPath, `${app.clientId}_postman_environment.json`);
+
+                fs.writeFileSync(postmanEnvPath, postmanEnvJson, 'utf8');
+                console.log(`${app.clientId}_postman_environment.json written successfully`);
+                vscode.window.showInformationMessage(`Postman environment created successfully for Application ${app.clientId}`);
+            } else {
+                console.log('No destination folder selected. Saving canceled.');
+            }
         } catch (error) {
-            vscode.window.showErrorMessage('Failed to copy Postman environment');
+            vscode.window.showErrorMessage('Failed to download Postman environment');
             console.error('Error:', error);
         }
     }

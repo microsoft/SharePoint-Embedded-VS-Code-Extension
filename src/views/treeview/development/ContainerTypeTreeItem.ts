@@ -36,9 +36,10 @@ export class ContainerTypeTreeItem extends IChildrenProvidingTreeItem {
         }
         containerType.loadLocalRegistration()
             .then((registration) => {
-                if (!registration) {
+                if (!registration || !registration.applications.includes(containerType.owningAppId)) {
                     throw new Error();
                 }
+                this.contextValue += "-registered";
             })
             .catch((error) => {
                 this.contextValue += "-unregistered";
@@ -51,19 +52,21 @@ export class ContainerTypeTreeItem extends IChildrenProvidingTreeItem {
     public async getChildren(): Promise<vscode.TreeItem[]> {
         const children = [];
         
+        let owningApp;
         try {
-            const owningApp = await this.containerType.loadOwningApp();
+            owningApp = await this.containerType.loadOwningApp();
             if (!owningApp) {
                 throw new Error('Owning app not found');
             }
             children.push(new OwningAppTreeItem(this.containerType));
         } catch (error) {
             console.error(`Unable to load owning app ${error}`);
+            return children;
         }
         
         try {
             const localRegistration = await this.containerType.loadLocalRegistration();
-            if (localRegistration) {
+            if (localRegistration && localRegistration.applications.includes(owningApp.clientId)) {
                 children.push(new LocalRegistrationTreeItem(this.containerType));
             }
         } catch (error) {

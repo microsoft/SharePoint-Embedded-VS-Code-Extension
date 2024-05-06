@@ -2,7 +2,7 @@ import { Account } from "../models/Account";
 import { ApplicationPermission, ApplicationPermissions } from "../models/ApplicationPermissions";
 import { BillingClassification, ContainerType } from "../models/ContainerType";
 import { ContainerTypeRegistration } from "../models/ContainerTypeRegistration";
-import SpAdminProviderNew, { ISpConsumingApplicationProperties, ISpContainerTypeCreationProperties } from "./SpAdminProviderNew";
+import SpAdminProviderNew, { ISpConsumingApplicationProperties, ISpContainerTypeCreationProperties, ISpContainerTypeProperties } from "./SpAdminProviderNew";
 
 export default class ContainerTypeProvider {
 
@@ -52,7 +52,23 @@ export default class ContainerTypeProvider {
         return this.create(properties);
     }
 
+    public async createPaid(displayName: string, azureSubscriptionId: string, resourceGroup: string, region: string, owningAppId: string): Promise<ContainerType> {
+        const properties: ISpContainerTypeCreationProperties = {
+            DisplayName: displayName,
+            AzureSubscriptionId: azureSubscriptionId,
+            ResourceGroup: resourceGroup,
+            Region: region,
+            OwningAppId: owningAppId,
+            SPContainerTypeBillingClassification: BillingClassification.Paid
+        };
+        return this.create(properties);
+    }
+
     public async delete(containerType: ContainerType): Promise<void> {
         await this._spAdminProvider.deleteContainerType(containerType.containerTypeId);
+    }
+
+    public async setContainerTypeProperties(containerType: ContainerType, owningAppId?: string, displayName?: string, applicationRedirectUrl?: string): Promise<void> {
+        await this._spAdminProvider.setContainerTypeProperties(containerType.containerTypeId, owningAppId, displayName, applicationRedirectUrl);
     }
 }

@@ -17,12 +17,10 @@ import { RegisterOnLocalTenant } from '../ContainerType/RegisterOnLocalTenant';
 import { clear } from 'console';
 import { ProgressWaitNotification, Timer } from '../../views/notifications/ProgressWaitNotification';
 
-// Static class that handles the create trial container type command
-export class CreateTrialContainerType extends Command {
+// Static class that handles the create standard container type command
+export class CreatePaidContainerType extends Command {
     // Command name
-    public static readonly COMMAND = 'ContainerTypes.createTrial';
-
-
+    public static readonly COMMAND = 'ContainerTypes.createPaid';
 
     // Command handler
     public static async run(): Promise<ContainerType | undefined> {
@@ -44,6 +42,49 @@ export class CreateTrialContainerType extends Command {
         if (!displayName) {
             return;
         }
+        
+        //TODO: Get the Azure subscription Id, resource group, and region from Graph API
+        const azureSubscriptionId = await vscode.window.showInputBox({
+            placeHolder: 'Enter the Azure subscription Id of your billing profile',
+            prompt: 'Azure subscription Id',
+            validateInput: (value: string) => {
+                if (!value) {
+                    return 'Azure Subscription Id is required';
+                }
+                return undefined;
+            }
+        });
+        if (!azureSubscriptionId) {
+            return;
+        }
+
+        const resourceGroup = await vscode.window.showInputBox({
+            placeHolder: 'Enter the resource group of your billing profile',
+            prompt: 'Resource group',
+            validateInput: (value: string) => {
+                if (!value) {
+                    return 'Resource group is required';
+                }
+                return undefined;
+            }
+        });
+        if (!resourceGroup) {
+            return;
+        }
+
+        const region = await vscode.window.showInputBox({
+            placeHolder: 'Enter the region of your billing profile',
+            prompt: 'Region',
+            validateInput: (value: string) => {
+                if (!value) {
+                    return 'Region is required';
+                }
+                return undefined;
+            }
+        });
+        if (!region) {
+            return;
+        }
 
         const app = await GetOrCreateApp.run();
         if (!app) {
@@ -58,7 +99,7 @@ export class CreateTrialContainerType extends Command {
         let containerType: ContainerType | undefined;
         do {
             try {
-                containerType = await containerTypeProvider.createTrial(displayName, app.clientId);
+                containerType = await containerTypeProvider.createPaid(displayName, azureSubscriptionId, resourceGroup, region, app.clientId);
                 if (!containerType) {
                     throw new Error();
                 } 
@@ -88,6 +129,9 @@ export class CreateTrialContainerType extends Command {
         };
         await refreshCt();
         progressWindow.hide();
+
+        //TODO: Attach Billing profile to CT
+
         const register = 'Register on local tenant';
         const buttons = [register];
         const selection = await vscode.window.showInformationMessage(

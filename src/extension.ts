@@ -62,6 +62,7 @@ export async function activate(context: vscode.ExtensionContext) {
     Commands.CopySubscriptionId.register(context);
     Commands.ViewProperties.register(context);
     Commands.RegisterOnLocalTenant.register(context);
+    Commands.RenameContainerType.register(context);
 
     // App Context Menu Commands
     Commands.CopyPostmanConfig.register(context);
