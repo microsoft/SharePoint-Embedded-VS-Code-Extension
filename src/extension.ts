@@ -70,4 +70,5 @@ export async function activate(context: vscode.ExtensionContext) {
 
     // App Commands
     Commands.GetOrCreateApp.register(context);
+    Commands.ViewInAzure.register(context);
 }

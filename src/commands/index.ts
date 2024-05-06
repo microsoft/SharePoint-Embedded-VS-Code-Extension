@@ -26,6 +26,7 @@ import { GetOrCreateApp as _GetOrCreateApp } from './Apps/GetOrCreateApp';
 import { CreateAppCert as _CreateAppCert } from './AppContextMenu/CreateAppCert';
 import { CreateSecret as _CreateSecret } from './AppContextMenu/CreateSecret';
 import { RegisterOnLocalTenant as _RegisterOnLocalTenant } from './ContainerType/RegisterOnLocalTenant';
+import { ViewInAzure as _ViewInAzure } from './AppContextMenu/ViewInAzure';
 
 export namespace Commands {
   export const SignIn = _SignIn;
@@ -56,4 +57,5 @@ export namespace Commands {
   export const CopyPostmanConfig = _CopyPostmanConfig;
   export const CreateAppCert = _CreateAppCert;
   export const CreateSecret = _CreateSecret;
+  export const ViewInAzure = _ViewInAzure;
 }
