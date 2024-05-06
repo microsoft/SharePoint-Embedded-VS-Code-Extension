@@ -68,7 +68,7 @@ export default class ContainerTypeProvider {
         await this._spAdminProvider.deleteContainerType(containerType.containerTypeId);
     }
 
-    public async setContainerTypeProperties(containerType: ContainerType, owningAppId?: string, displayName?: string, applicationRedirectUrl?: string): Promise<void> {
-        await this._spAdminProvider.setContainerTypeProperties(containerType.containerTypeId, owningAppId, displayName, applicationRedirectUrl);
+    public async rename(containerType: ContainerType, displayName: string): Promise<void> {
+        await this._spAdminProvider.setContainerTypeProperties(containerType.containerTypeId, undefined, displayName, undefined);
     }
 }

@@ -22,33 +22,48 @@ export class RenameContainerType extends Command {
             return;
         }
 
+        const account = Account.get()!;
+        const containerType = containerTypeViewModel.containerType;
+
         const containerTypeDisplayName = await vscode.window.showInputBox({
-            prompt: 'New display name:'
+            title: 'New display name:',
+            value: containerType.displayName,
+            prompt: 'Enter the new display name for the container type:',
+            validateInput: (value: string): string | undefined => {
+                if (!value) {
+                    return 'Display name cannot be empty';
+                }
+                return undefined;
+            }
         });
 
-        if (!containerTypeDisplayName) {
-            vscode.window.showErrorMessage('No container type display name provided');
+        if (containerTypeDisplayName === undefined) {
             return;
         }
 
-        const account = Account.get()!;
-        const containerType = containerTypeViewModel.containerType;
+        if (containerTypeDisplayName === '') {
+            vscode.window.showWarningMessage('Container type display name cannot be empty');
+            return;
+        }
+
         const containerTypeProvider = account.containerTypeProvider;
         const progressWindow = new ProgressWaitNotification('Renaming container type');
         progressWindow.show();
-        await containerTypeProvider.setContainerTypeProperties(containerType, undefined, containerTypeDisplayName);
+        await containerTypeProvider.rename(containerType, containerTypeDisplayName);
         const ctRefreshTimer = new Timer(60 * 1000);
         const refreshCt = async (): Promise<void> => {
             DevelopmentTreeViewProvider.instance.refresh();
             do {
                 const containerTypes = await containerTypeProvider.list();
-                if (containerTypes.find(ct => ct.displayName === containerTypeDisplayName)) {
+                if (containerTypes.find(ct => 
+                    ct.containerTypeId === containerType.containerTypeId &&
+                    ct.displayName === containerTypeDisplayName)) {
                     break;
                 }
                 // sleep for 5 seconds
                 await new Promise(r => setTimeout(r, 5000));
             } while (!ctRefreshTimer.finished);
-            DevelopmentTreeViewProvider.getInstance().refresh();
+            DevelopmentTreeViewProvider.instance.refresh();
             progressWindow.hide();
         };
         refreshCt();
