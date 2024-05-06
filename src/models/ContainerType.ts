@@ -38,6 +38,7 @@ export class ContainerType {
     public readonly isBillingProfileRequired: boolean;
     public readonly region?: string | undefined;
     public readonly resourceGroup?: string | undefined;
+    public readonly applicationRedirectUrl?: string | undefined;
     public guestApps: App[] = [];
 
     public get isTrial(): boolean {

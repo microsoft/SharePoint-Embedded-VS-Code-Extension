@@ -71,7 +71,7 @@ export default class SpAdminProviderNew {
         const response = await this._sendPostRequest(method, body);
         console.log(response);
         return response.data as ISpContainerTypeProperties;
-    
+
     }
 
     public async deleteContainerType(containerTypeId: string): Promise<void> {
@@ -80,6 +80,21 @@ export default class SpAdminProviderNew {
             spDeletedContainerTypeProperties: {
                 ContainerTypeId: containerTypeId
             }
+        };
+        const response = await this._sendPostRequest(method, body);
+        console.log(response);
+    }
+
+    public async setContainerTypeProperties(containerTypeId: string, owningAppId?: string, displayName?: string, applicationRedirectUrl?: string): Promise<void> {
+        const method = 'SetSPOContainerType';
+        const containerTypeProperties = {
+            ContainerTypeId: containerTypeId,
+            ...(owningAppId && { OwningAppId: owningAppId }),
+            ...(displayName && { DisplayName: displayName }),
+            ...(applicationRedirectUrl && { ApplicationRedirectUrl: applicationRedirectUrl })
+        };
+        const body = {
+            containerTypeProperties: containerTypeProperties
         };
         const response = await this._sendPostRequest(method, body);
         console.log(response);
@@ -95,7 +110,7 @@ export interface ISpApplicationPermissions {
 
 
 export interface ISpContainerTypeProperties {
-    ApplicationRedirectUrl: string | null;
+    ApplicationRedirectUrl: string | null | undefined;
     AzureSubscriptionId: string | null;
     ContainerTypeId: string;
     CreationDate: string | null;

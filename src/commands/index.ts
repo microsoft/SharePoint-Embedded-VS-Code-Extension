@@ -26,6 +26,7 @@ import { GetOrCreateApp as _GetOrCreateApp } from './Apps/GetOrCreateApp';
 import { CreateAppCert as _CreateAppCert } from './AppContextMenu/CreateAppCert';
 import { CreateSecret as _CreateSecret } from './AppContextMenu/CreateSecret';
 import { RegisterOnLocalTenant as _RegisterOnLocalTenant } from './ContainerType/RegisterOnLocalTenant';
+import { RenameContainerType as _RenameContainerType } from './ContainerType/RenameContainerType';
 
 export namespace Commands {
   export const SignIn = _SignIn;
@@ -47,6 +48,7 @@ export namespace Commands {
   export const CopySubscriptionId = _CopySubscriptionId;
   export const ViewProperties = _ViewProperties;
   export const RegisterOnLocalTenant = _RegisterOnLocalTenant;
+  export const RenameContainerType = _RenameContainerType;
 
   // Apps Commands
   export const GetOrCreateApp = _GetOrCreateApp;
