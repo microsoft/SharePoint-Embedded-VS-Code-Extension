@@ -20,7 +20,7 @@ import { ContainerType } from '../../models/ContainerType';
 import { DevelopmentTreeViewProvider } from '../../views/treeview/development/DevelopmentTreeViewProvider';
 import { ContainerTypeTreeItem } from '../../views/treeview/development/ContainerTypeTreeItem';
 import { GetAccount } from '../Accounts/GetAccount';
-import { CreateAppCert } from '../AppContextMenu/CreateAppCert';
+import { CreateAppCert } from '../App/CreateAppCert';
 import { has } from 'lodash';
 import { ProgressNotification } from '../../views/notifications/ProgressNotification';
 import { ProgressWaitNotification, Timer } from '../../views/notifications/ProgressWaitNotification';
