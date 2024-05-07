@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { Command } from '../Command';
-import { Account } from '../../models/Account';
-import { BillingClassification, ContainerType } from '../../models/ContainerType';
-import { ContainerTypeCreationFlow, ContainerTypeCreationFlowState } from '../../views/qp/UxFlows';
-import { ProgressNotification } from '../../views/notifications/ProgressNotification';
-import { App } from '../../models/App';
-import { DevelopmentTreeViewProvider } from '../../views/treeview/development/DevelopmentTreeViewProvider';
-import { GetAccount } from '../Accounts/GetAccount';
-import { AppTreeItem } from '../../views/treeview/development/AppTreeItem';
+import { Command } from '../../Command';
+import { Account } from '../../../models/Account';
+import { BillingClassification, ContainerType } from '../../../models/ContainerType';
+import { ContainerTypeCreationFlow, ContainerTypeCreationFlowState } from '../../../views/qp/UxFlows';
+import { ProgressNotification } from '../../../views/notifications/ProgressNotification';
+import { App } from '../../../models/App';
+import { DevelopmentTreeViewProvider } from '../../../views/treeview/development/DevelopmentTreeViewProvider';
+import { GetAccount } from '../../Accounts/GetAccount';
+import { AppTreeItem } from '../../../views/treeview/development/AppTreeItem';
 
 // Static class that creates a cert on an app
 export class CreateSecret extends Command {

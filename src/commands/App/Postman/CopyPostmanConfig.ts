@@ -8,11 +8,10 @@ import { v4 as uuidv4 } from 'uuid';
 import { Command } from '../../Command';
 import { GuestApplicationTreeItem } from '../../../views/treeview/development/GuestAppTreeItem';
 import { OwningAppTreeItem } from '../../../views/treeview/development/OwningAppTreeItem';
-import { Account } from '../../../models/Account';
 import { App } from '../../../models/App';
 import { ContainerType } from '../../../models/ContainerType';
 import { AppTreeItem } from '../../../views/treeview/development/AppTreeItem';
-import { CreateSecret } from '../CreateSecret';
+import { CreatePostmanConfig } from './CreatePostmanConfig';
 
 // Static class that handles the Postman copy command
 export class CopyPostmanConfig extends Command {
@@ -40,93 +39,7 @@ export class CopyPostmanConfig extends Command {
             return;
         }
 
-        let appSecrets = await app.getSecrets();
-
-        if (!appSecrets.clientSecret) {
-            const userChoice = await vscode.window.showInformationMessage(
-            "No client secret was found. Would you like to create one for this app?",
-                'OK', 'Skip'
-            );
-            if (userChoice === 'OK') {
-                await CreateSecret.run(applicationTreeItem);
-                appSecrets = await app.getSecrets();
-
-                let retries = 3;
-                while (!appSecrets.clientSecret || retries > 0) {
-                    retries--;
-                    appSecrets = await app.getSecrets();
-                }
-            }
-
-        }
-        const account = Account.get()!;
-        const tid = account.tenantId;
-
-        const values: any[] = [];
-        values.push(
-            {
-                key: "ContainerTypeId",
-                value: containerType!.containerTypeId,
-                type: "default",
-                enabled: true
-            },
-            {
-                key: "ClientID",
-                value: app!.clientId,
-                type: "default",
-                enabled: true
-            },
-            {
-                key: "ConsumingTenantId",
-                value: tid,
-                type: "default",
-                enabled: true
-            },
-            {
-                key: "TenantName",
-                value: account.domain,
-                type: "default",
-                enabled: true
-            },
-            {
-                key: "RootSiteUrl",
-                value: `${account.spRootSiteUrl}/`,
-                type: "default",
-                enabled: true
-            },
-            {
-                key: "ClientSecret",
-                value: appSecrets.clientSecret,
-                type: "secret",
-                enabled: true
-            },
-            {
-                key: "CertThumbprint",
-                value: appSecrets.thumbprint,
-                type: "default",
-                enabled: true
-            },
-            {
-                key: "CertPrivateKey",
-                value: appSecrets.privateKey,
-                type: "secret",
-                enabled: true
-            }
-        );
-
-        const envName = `${containerType!.displayName} (appId: ${app!.clientId})`;
-        const pmEnv = {
-            id: uuidv4(),
-            name: envName,
-            values: values,
-            // eslint-disable-next-line @typescript-eslint/naming-convention
-            _postman_variable_scope: "environment",
-            // eslint-disable-next-line @typescript-eslint/naming-convention
-            _postman_exported_at: (new Date()).toISOString(),
-            // eslint-disable-next-line @typescript-eslint/naming-convention
-            _postman_exported_using: "Postman/10.13.5"
-        };
-
+        const [envName, pmEnv] = await CreatePostmanConfig.run(applicationTreeItem, app, containerType);
         try {
             await vscode.env.clipboard.writeText(JSON.stringify(pmEnv, null, 2));
             console.log(`${app!.clientId}_postman_environment.json written successfully`);

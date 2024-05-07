@@ -4,30 +4,31 @@
  *--------------------------------------------------------------------------------------------*/
 
 /* eslint-disable @typescript-eslint/naming-convention */
-import { SignIn as _SignIn } from './SignIn';
-import { SignOut as _SignOut } from './SignOut';
-import { CreateTrialContainerType as _CreateTrialContainerType } from './ContainerTypes/CreateTrialContainerType';
-import { RegisterContainerType as _RegisterContainerType } from './RegisterContainerType';
-import { CreateGuestApp as _CreateGuestApp } from './CreateGuestApp';
-import { DeleteContainerType as _DeleteContainerType } from './ContainerType/DeleteContainerType';
-import { RefreshContainersList as _RefreshContainersList } from './RefreshContainersList';
-import { CreateContainer as _CreateContainer } from './CreateContainer';
-import { CloneRepo as _CloneRepo } from './CloneRepo';
-import { ExportPostmanConfig as _ExportPostmanConfig } from './App/Postman/ExportPostmanConfig';
-import { RenameApplication as _RenameApplication } from './RenameApplication';
 import { CancelSignIn as _CancelSignIn } from './CancelSignIn';
-import { Refresh as _Refresh } from './Refresh';
+import { CloneRepo as _CloneRepo } from './CloneRepo';
 import { CopyContainerTypeId as _CopyContainerTypeId } from './ContainerType/CopyContainerTypeId';
 import { CopyOwningTenantId as _CopyOwningTenantId} from './ContainerType/CopyOwningTenantId';
-import { CopySubscriptionId as _CopySubscriptionId } from './ContainerType/CopySubscriptionId';
-import { ViewProperties as _ViewProperties } from './ContainerType/ViewProperties';
 import { CopyPostmanConfig as _CopyPostmanConfig } from './App/Postman/CopyPostmanConfig';
+import { CopySubscriptionId as _CopySubscriptionId } from './ContainerType/CopySubscriptionId';
+import { CreateAppCert as _CreateAppCert } from './App/Credentials/CreateAppCert';
+import { CreateContainer as _CreateContainer } from './CreateContainer';
+import { CreateGuestApp as _CreateGuestApp } from './CreateGuestApp';
+import { CreatePostmanConfig as _CreatePostmanConfig } from './App/Postman/CreatePostmanConfig';
+import { CreateSecret as _CreateSecret } from './App/Credentials/CreateSecret';
+import { CreateTrialContainerType as _CreateTrialContainerType } from './ContainerTypes/CreateTrialContainerType';
+import { DeleteContainerType as _DeleteContainerType } from './ContainerType/DeleteContainerType';
+import { ExportPostmanConfig as _ExportPostmanConfig } from './App/Postman/ExportPostmanConfig';
 import { GetOrCreateApp as _GetOrCreateApp } from './Apps/GetOrCreateApp';
-import { CreateAppCert as _CreateAppCert } from './App/CreateAppCert';
-import { CreateSecret as _CreateSecret } from './App/CreateSecret';
+import { Refresh as _Refresh } from './Refresh';
+import { RefreshContainersList as _RefreshContainersList } from './RefreshContainersList';
+import { RegisterContainerType as _RegisterContainerType } from './RegisterContainerType';
 import { RegisterOnLocalTenant as _RegisterOnLocalTenant } from './ContainerType/RegisterOnLocalTenant';
-import { ViewInAzure as _ViewInAzure } from './App/ViewInAzure';
+import { RenameApplication as _RenameApplication } from './RenameApplication';
 import { RenameContainerType as _RenameContainerType } from './ContainerType/RenameContainerType';
+import { SignIn as _SignIn } from './SignIn';
+import { SignOut as _SignOut } from './SignOut';
+import { ViewInAzure as _ViewInAzure } from './App/ViewInAzure';
+import { ViewProperties as _ViewProperties } from './ContainerType/ViewProperties';
 
 export namespace Commands {
   export const SignIn = _SignIn;
@@ -55,6 +56,7 @@ export namespace Commands {
   export const GetOrCreateApp = _GetOrCreateApp;
 
   // App Commands
+  export const CreatePostmanConfig = _CreatePostmanConfig;
   export const CopyPostmanConfig = _CopyPostmanConfig;
   export const ExportPostmanConfig = _ExportPostmanConfig;
   export const CreateAppCert = _CreateAppCert;
