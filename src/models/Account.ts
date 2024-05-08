@@ -23,6 +23,7 @@ import ContainerTypeProvider from '../services/ContainerTypeProvider';
 import SpAdminProviderNew from '../services/SpAdminProviderNew';
 import AppProvider from '../services/AppProvider';
 import { GraphProviderNew } from '../services/GraphProviderNew';
+import ARMProvider from '../services/ARMProvider';
 
 
 // Account class that represents an msal AccountInfo object from the FirstPartyAuthProvider
@@ -32,6 +33,7 @@ export class Account {
     private static readonly authProvider: BaseAuthProvider = new FirstPartyAuthProvider(clientId, Account.storageKey);
     private static readonly scopes: string[] = ['Application.ReadWrite.All', 'User.Read', 'Sites.Read.All'];
     private static readonly _spAdminAuthProvider: BaseAuthProvider = new FirstPartyAuthProvider(containerTypeManagementAppId, containerTypeManagementAppId);
+    private static readonly _armAuthProvider: BaseAuthProvider = new FirstPartyAuthProvider(containerTypeManagementAppId, 'arm');
     public static readonly graphProvider: GraphProviderNew = new GraphProviderNew(Account.authProvider);
 
     private static instance: Account | undefined;
@@ -68,6 +70,7 @@ export class Account {
 
     public readonly containerTypeProvider: ContainerTypeProvider;
     public readonly appProvider: AppProvider;
+    public readonly armProvider: ARMProvider;
 
     private constructor(props: AccountCreationProperties) {
         this.tenantId = props.tenantId;
@@ -81,6 +84,7 @@ export class Account {
         const spAdminProvider = new SpAdminProviderNew(Account._spAdminAuthProvider, this.spAdminSiteUrl);
         this.containerTypeProvider = new ContainerTypeProvider(spAdminProvider);
         this.appProvider = new AppProvider(Account.graphProvider);
+        this.armProvider = new ARMProvider(Account._armAuthProvider);
     }
 
     public static get(): Account | undefined {

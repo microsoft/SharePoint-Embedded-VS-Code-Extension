@@ -132,6 +132,8 @@ export class CreatePaidContainerType extends Command {
 
         //TODO: Attach Billing profile to CT
 
+        
+
         const register = 'Register on local tenant';
         const buttons = [register];
         const selection = await vscode.window.showInformationMessage(
