@@ -322,7 +322,7 @@
           "group": "2@2"
         },
         {
-          "when": "viewItem =~ /spe:containerTypeTreeItem.*/",
+          "when": "viewItem =~ /spe:containerTypeTreeItem.*/ && viewItem =~ /.*-trial.*/",
           "command": "spe.ContainerType.delete",
           "group": "2@3"
         },

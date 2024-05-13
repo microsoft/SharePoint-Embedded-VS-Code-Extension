@@ -102,6 +102,7 @@ export class RegisterOnLocalTenant extends Command {
             const consentPropagationTimer = new Timer(30 * 1000);
             do {
                 consented = await appAuthProvider.hasConsent(localRegistrationScope, ['Container.Selected']);
+                await new Promise(r => setTimeout(r, 5 * 1000));
             } while (!consented && !consentPropagationTimer.finished);
             consentPropagationProgress.hide();
         }

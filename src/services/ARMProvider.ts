@@ -80,6 +80,11 @@ export default class ARMProvider {
         return response.data as IArmSyntexProviderProperties;
     }
 
+    public async getArmAccounts(subscriptionId: string, resourceGroup: string): Promise<any> {
+        const response = await this._sendGetRequest(`subscriptions/${subscriptionId}/resourceGroups/${resourceGroup}/providers/Microsoft.Syntex/accounts`, `api-version=2023-01-04-preview`);
+        return response.data.value as IArmAccountProperties[];
+    }
+
     public async createArmAccount(subscriptionId: string, resourceGroup: string, region: string, containerTypeId: string) {
         const body = {
             location: region,
@@ -93,8 +98,36 @@ export default class ARMProvider {
             }
         };
         const response = await this._sendPutRequest(`subscriptions/${subscriptionId}/resourceGroups/${resourceGroup}/providers/Microsoft.Syntex/accounts/${uuidv4()}`, body, `api-version=2023-01-04-preview`);
-        return response.data;
+        return response.data as IArmAccountProperties;
     }
+}
+
+export interface IArmAccountProperties {
+    id: string;
+    location: string;
+    name: string;
+    type: string;
+    properties: IArmAccountPropertiesBag;
+    systemData: IArmAccountSystemData;
+}
+
+export interface IArmAccountPropertiesBag {
+    friendlyName: string;
+    identityId: string;
+    identityType: string;
+    provisioningState: string;
+    feature: string;
+    scope: string;
+    service: string;
+}
+
+export interface IArmAccountSystemData {    
+    createdBy: string;
+    createdByType: string
+    createdAt: string;
+    lastModifiedAt: string;
+    lastModifiedBy: string;
+    lastModifiedByType: string
 }
 
 export interface IArmSyntexProviderProperties {

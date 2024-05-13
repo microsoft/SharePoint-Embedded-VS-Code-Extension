@@ -31,7 +31,10 @@ export class Account {
     // Storage key for the account
     public static readonly storageKey: string = "account";
     private static readonly authProvider: BaseAuthProvider = new FirstPartyAuthProvider(clientId, Account.storageKey);
-    private static readonly scopes: string[] = ['Application.ReadWrite.All', 'User.Read', 'Sites.Read.All'];
+    //private static readonly scopes: string[] = ['Application.ReadWrite.All', 'User.Read', 'Sites.Read.All'];
+    private static readonly graphScopes: string[] = ['https://graph.microsoft.com/.default']; // ['Application.ReadWrite.All', 'User.Read', 'Sites.Read.All'];
+    private static readonly spScopes: string[] = ['https://microsoft.sharepoint.com/.default']; // ['AllSites.FullControl']
+    private static readonly armScopes: string[] = ['https://management.azure.com/.default']; // ['https://management.azure.com/user_impersonation']
     private static readonly _spAdminAuthProvider: BaseAuthProvider = new FirstPartyAuthProvider(containerTypeManagementAppId, containerTypeManagementAppId);
     private static readonly _armAuthProvider: BaseAuthProvider = new FirstPartyAuthProvider(containerTypeManagementAppId, 'arm');
     public static readonly graphProvider: GraphProviderNew = new GraphProviderNew(Account.authProvider);
@@ -112,11 +115,14 @@ export class Account {
 
     public static async login(): Promise<Account | undefined> {
         Account._notifyBeforeLogin();
-
-        let token: string;
+        let graphToken: string;
+        let spToken: string;
+        let armToken: string;
         try {
-            token = await Account.authProvider.getToken(Account.scopes);
-            if (!token) {
+            graphToken = await Account.authProvider.getToken(Account.graphScopes);
+            spToken = await Account.authProvider.getToken(Account.spScopes);
+            armToken = await Account.authProvider.getToken(Account.armScopes);
+            if (!graphToken || !spToken || !armToken) {
                 throw new Error('access token empty');
             }
         } catch (error) {
@@ -148,7 +154,7 @@ export class Account {
             return;
         }
 
-        const decodedToken = decodeJwt(token);
+        const decodedToken = decodeJwt(graphToken);
         const isAdmin = checkJwtForAdminClaim(decodedToken);
 
         const accountProps: AccountCreationProperties = {

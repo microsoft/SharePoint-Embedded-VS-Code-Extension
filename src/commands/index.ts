@@ -16,6 +16,7 @@ import { CreateGuestApp as _CreateGuestApp } from './CreateGuestApp';
 import { CreatePostmanConfig as _CreatePostmanConfig } from './App/Postman/CreatePostmanConfig';
 import { CreateSecret as _CreateSecret } from './App/Credentials/CreateSecret';
 import { CreateTrialContainerType as _CreateTrialContainerType } from './ContainerTypes/CreateTrialContainerType';
+import { CreatePaidContainerType as _CreatePaidContainerType } from './ContainerTypes/CreateStandardContainerType';
 import { DeleteContainerType as _DeleteContainerType } from './ContainerType/DeleteContainerType';
 import { ExportPostmanConfig as _ExportPostmanConfig } from './App/Postman/ExportPostmanConfig';
 import { GetOrCreateApp as _GetOrCreateApp } from './Apps/GetOrCreateApp';
@@ -35,6 +36,7 @@ export namespace Commands {
   export const SignOut = _SignOut;
   export const CancelSignIn = _CancelSignIn;
   export const CreateTrialContainerType = _CreateTrialContainerType;
+  export const CreatePaidContainerType = _CreatePaidContainerType;
   //export const RegisterContainerType = _RegisterContainerType;
   export const CreateGuestApp = _CreateGuestApp;
   export const DeleteContainerType = _DeleteContainerType;
