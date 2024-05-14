@@ -7,7 +7,8 @@ import { ContainerTypeRegistration } from '../models/ContainerTypeRegistration';
 import AppOnly3PAuthProvider from './AppOnly3PAuthProvider';
 
 export class GraphProviderNew {
-    private static readonly _scopes = ['Application.ReadWrite.All', 'User.Read', 'Sites.Read.All'];
+    //private static readonly _scopes = ['Application.ReadWrite.All', 'User.Read', 'Sites.Read.All'];
+    private static readonly _scopes = ['https://graph.microsoft.com/.default'];
 
     private _client: Graph.Client;
 
