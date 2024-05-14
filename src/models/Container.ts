@@ -34,6 +34,21 @@ export class Container implements IContainerProperties {
         this.permissions = properties.permissions;
     }
 
+    public getProperties(): IContainerProperties {
+        return {
+            id: this.id,
+            containerTypeId: this.containerTypeId,
+            displayName: this.displayName,
+            description: this.description,
+            status: this.status,
+            itemMajorVersionLimit: this.itemMajorVersionLimit,
+            isItemVersioningEnabled: this.isItemVersioningEnabled,
+            storageUsedInBytes: this.storageUsedInBytes,
+            createdDateTime: this.createdDateTime,
+            customProperties: this.customProperties,
+            permissions: this.permissions
+        };
+    }
 }
 
 export interface IContainerProperties {

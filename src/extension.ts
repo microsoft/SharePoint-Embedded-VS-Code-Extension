@@ -50,7 +50,6 @@ export async function activate(context: vscode.ExtensionContext) {
     Commands.CreateGuestApp.register(context);
     Commands.DeleteContainerType.register(context);
     Commands.RefreshContainersList.register(context);
-    Commands.CreateContainer.register(context);
     Commands.CloneRepo.register(context);
     Commands.ExportPostmanConfig.register(context);
     Commands.RenameApplication.register(context);
@@ -61,7 +60,7 @@ export async function activate(context: vscode.ExtensionContext) {
     Commands.CopyContainerTypeId.register(context);
     Commands.CopyOwningTenantId.register(context);
     Commands.CopySubscriptionId.register(context);
-    Commands.ViewProperties.register(context);
+    Commands.ViewContainerTypeProperties.register(context);
     Commands.RegisterOnLocalTenant.register(context);
     Commands.RenameContainerType.register(context);
 
@@ -73,4 +72,16 @@ export async function activate(context: vscode.ExtensionContext) {
     // App Commands
     Commands.GetOrCreateApp.register(context);
     Commands.ViewInAzure.register(context);
+
+    // Container Commands
+    Commands.CreateContainer.register(context);
+    Commands.RenameContainer.register(context);
+    Commands.EditContainerDescription.register(context);
+    Commands.RecycleContainer.register(context);
+    Commands.CopyContainerId.register(context);
+    Commands.ViewContainerProperties.register(context);
+    
+    // Recycled Container Commands
+    Commands.CopyRecycledContainerId.register(context);
+    Commands.DeleteContainer.register(context);
 }

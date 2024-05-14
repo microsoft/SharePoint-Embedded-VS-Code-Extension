@@ -27,7 +27,7 @@ export class RecycledContainersTreeItem extends IChildrenProvidingTreeItem {
         try {
             const containers = await this.containerTypeRegistration.loadRecycledContainers();
             containers?.map((container: Container) => {
-                children.push(new RecycledContainerTreeItem(container));
+                children.push(new RecycledContainerTreeItem(container, this));
             });
         } catch (error) {
             console.error(`Unable to show recycled containers: ${error}`);

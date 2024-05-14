@@ -97,7 +97,7 @@ export class CreatePaidContainerType extends Command {
         //TODO: improve? allow AppId to propogate if new app
         const appProgressWindow = new ProgressWaitNotification('Configuring owning Entra app');
         appProgressWindow.show();
-        const appTimer = new Timer(20 * 1000);
+        const appTimer = new Timer(30 * 1000);
         while (!appTimer.finished) { };
         appProgressWindow.hide();
 
@@ -119,6 +119,7 @@ export class CreatePaidContainerType extends Command {
 
         if (!containerType) {
             vscode.window.showErrorMessage('Failed to create container type');
+            ctCreationProgressWindow.hide();
             return;
         }
 
@@ -142,7 +143,7 @@ export class CreatePaidContainerType extends Command {
         const armProvider = account.armProvider;
         const billingProgressWindow = new ProgressWaitNotification('Setting up your billing profile. Please be patient, this may take up to five minutes.');
         billingProgressWindow.show();
-        const syntexRegistrationTimer = new Timer(60 * 5 * 1000);
+        const syntexRegistrationTimer = new Timer(60 * 5 * 1000);   
         try {
             const syntexProviderDetails = await armProvider.createSyntexProvider(azureSubscriptionId, {});
             if (!syntexProviderDetails) {
@@ -166,9 +167,9 @@ export class CreatePaidContainerType extends Command {
                 throw new Error('Failed registering Syntex provider. Please try creating a container type again, as the registration may have not propogated.');
             }
         } catch (error: any) {
+            billingProgressWindow.hide();
             vscode.window.showErrorMessage(error.messsage);
             await DeleteContainerType.run(containerType);
-            billingProgressWindow.hide();
             return;
         }
 
@@ -178,9 +179,9 @@ export class CreatePaidContainerType extends Command {
                 throw new Error('Failed to create a billing profile. Please try creating a container type again.');
             }
         } catch (error: any) {
+            billingProgressWindow.hide();
             vscode.window.showErrorMessage(error.messsage);
             await DeleteContainerType.run(containerType);
-            billingProgressWindow.hide();
             return;
         }
 

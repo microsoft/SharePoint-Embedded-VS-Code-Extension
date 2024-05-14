@@ -38,7 +38,7 @@ export class DeleteContainerType extends Command {
             return;
         }
 
-        const message = "Are you sure you delete this Container Type?";
+        const message = "Are you sure you want to delete this Container Type?";
         const userChoice = await vscode.window.showInformationMessage(
             message,
             'OK', 'Cancel'

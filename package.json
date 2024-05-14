@@ -158,20 +158,16 @@
     "menus": {
       "spe.App.Postman": [
         {
-          "command": "spe.App.Postman.configureSettings",
+          "command": "spe.App.Postman.exportEnvironmentFile",
           "group": "1@1"
         },
         {
-          "command": "spe.App.Postman.exportEnvironmentFile",
+          "command": "spe.App.Postman.copyEnvironmentFile",
           "group": "1@2"
         },
         {
-          "command": "spe.App.Postman.copyEnvironmentFile",
-          "group": "1@3"
-        },
-        {
           "command": "spe.App.Postman.viewDocs",
-          "group": "1@4"
+          "group": "1@3"
         }
       ],
       "spe.App.SampleApps": [
@@ -443,7 +439,7 @@
         },
         {
           "when": "viewItem =~ /spe:containerTreeItem.*/",
-          "command": "spe.Container.delete",
+          "command": "spe.Container.recycle",
           "group": "1@3"
         },
         {
@@ -547,7 +543,6 @@
         "command": "spe.ContainerType.viewSubscriptionInAzure",
         "title": "View subscription in Azure"
       },
-
       {
         "command": "spe.Apps.getOrCreate",
         "title": "Create or choose existing app"
@@ -556,10 +551,6 @@
       {
         "command": "spe.App.clone",
         "title": "Clone and configure"
-      },
-      {
-        "command": "spe.App.Postman.configureSettings",
-        "title": "Configure app settings"
       },
       {
         "command": "spe.App.Postman.exportEnvironmentFile",
@@ -620,10 +611,6 @@
       {
         "command": "spe.App.Credentials.copyThumbprint",
         "title": "Copy saved cert thumbprint"
-      },
-      {
-        "command": "spe.App.Postman.configureSettings",
-        "title": "Configure app settings"
       },
       {
         "command": "spe.App.Postman.exportEnvironmentFile",
@@ -744,8 +731,8 @@
         "title": "Edit description..."
       },
       {
-        "command": "spe.Container.delete",
-        "title": "Delete"
+        "command": "spe.Container.recycle",
+        "title": "Recycle"
       },
       {
         "command": "spe.Container.copyId",

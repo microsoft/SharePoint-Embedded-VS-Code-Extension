@@ -11,7 +11,7 @@ import { CopyOwningTenantId as _CopyOwningTenantId} from './ContainerType/CopyOw
 import { CopyPostmanConfig as _CopyPostmanConfig } from './App/Postman/CopyPostmanConfig';
 import { CopySubscriptionId as _CopySubscriptionId } from './ContainerType/CopySubscriptionId';
 import { CreateAppCert as _CreateAppCert } from './App/Credentials/CreateAppCert';
-import { CreateContainer as _CreateContainer } from './CreateContainer';
+import { CreateContainer as _CreateContainer } from './Containers/CreateContainer';
 import { CreateGuestApp as _CreateGuestApp } from './CreateGuestApp';
 import { CreatePostmanConfig as _CreatePostmanConfig } from './App/Postman/CreatePostmanConfig';
 import { CreateSecret as _CreateSecret } from './App/Credentials/CreateSecret';
@@ -29,7 +29,14 @@ import { RenameContainerType as _RenameContainerType } from './ContainerType/Ren
 import { SignIn as _SignIn } from './SignIn';
 import { SignOut as _SignOut } from './SignOut';
 import { ViewInAzure as _ViewInAzure } from './App/ViewInAzure';
-import { ViewProperties as _ViewProperties } from './ContainerType/ViewProperties';
+import { ViewContainerTypeProperties as _ViewContainerTypeProperties } from './ContainerType/ViewContainerTypeProperties';
+import { RenameContainer as _RenameContainer } from './Container/RenameContainer';
+import { EditContainerDescription as _EditContainerDescription } from './Container/EditContainerDescription';
+import { RecycleContainer as _RecycleContainer } from './Container/RecycleContainer';
+import { CopyContainerId as _CopyContainerId } from './Container/CopyContainerId';
+import { ViewContainerProperties as _ViewContainerProperties } from './Container/ViewContainerProperties';
+import { CopyRecycledContainerId as _CopyRecycledContainerId } from './RecycledContainer/CopyContainerId';
+import { DeleteContainer as _DeleteContainer } from './RecycledContainer/DeleteContainer';
 
 export namespace Commands {
   export const SignIn = _SignIn;
@@ -50,7 +57,7 @@ export namespace Commands {
   export const CopyContainerTypeId = _CopyContainerTypeId;
   export const CopyOwningTenantId = _CopyOwningTenantId;
   export const CopySubscriptionId = _CopySubscriptionId;
-  export const ViewProperties = _ViewProperties;
+  export const ViewContainerTypeProperties = _ViewContainerTypeProperties;
   export const RegisterOnLocalTenant = _RegisterOnLocalTenant;
   export const RenameContainerType = _RenameContainerType;
 
@@ -64,4 +71,15 @@ export namespace Commands {
   export const CreateAppCert = _CreateAppCert;
   export const CreateSecret = _CreateSecret;
   export const ViewInAzure = _ViewInAzure;
+
+  // Container Commands
+  export const RenameContainer = _RenameContainer;
+  export const EditContainerDescription = _EditContainerDescription;
+  export const RecycleContainer = _RecycleContainer;
+  export const CopyContainerId = _CopyContainerId;
+  export const ViewContainerProperties = _ViewContainerProperties;
+
+  // Recycled Container Commands
+  export const CopyRecycledContainerId = _CopyRecycledContainerId;
+  export const DeleteContainer = _DeleteContainer;
 }

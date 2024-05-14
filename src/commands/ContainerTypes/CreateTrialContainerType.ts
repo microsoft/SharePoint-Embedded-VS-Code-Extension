@@ -53,7 +53,7 @@ export class CreateTrialContainerType extends Command {
 
         //TODO: improve? allow AppId to progogate if new app
         const appProgressWindow = new ProgressWaitNotification('Configuring owning Entra app');
-        const appTimer = new Timer(20 * 1000);
+        const appTimer = new Timer(30 * 1000);
         while (!appTimer.finished) { };
         appProgressWindow.hide();
 
