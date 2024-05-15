@@ -17,6 +17,7 @@ import { CreateGuestApp as _CreateGuestApp } from './CreateGuestApp';
 import { CreatePostmanConfig as _CreatePostmanConfig } from './App/Postman/CreatePostmanConfig';
 import { CreateSecret as _CreateSecret } from './App/Credentials/CreateSecret';
 import { ForgetAppSecret as _ForgetAppSecret } from './App/Credentials/ForgetSecret';
+import { CopySecret as _CopySecret } from './App/Credentials/CopySecret';
 import { CreateTrialContainerType as _CreateTrialContainerType } from './ContainerTypes/CreateTrialContainerType';
 import { CreatePaidContainerType as _CreatePaidContainerType } from './ContainerTypes/CreateStandardContainerType';
 import { DeleteContainerType as _DeleteContainerType } from './ContainerType/DeleteContainerType';
@@ -74,6 +75,7 @@ export namespace Commands {
   export const CreateAppCert = _CreateAppCert;
   export const ForgetAppCert = _ForgetAppCert;
   export const CreateSecret = _CreateSecret;
+  export const CopySecret = _CopySecret;
   export const GetLocalAdminConsent = _GetLocalAdminConsent;
   export const ForgetAppSecret = _ForgetAppSecret;
   export const ViewInAzure = _ViewInAzure;

@@ -69,6 +69,7 @@ export async function activate(context: vscode.ExtensionContext) {
     Commands.CreateAppCert.register(context);
     Commands.ForgetAppCert.register(context);
     Commands.CreateSecret.register(context);
+    Commands.CopySecret.register(context);
     Commands.GetLocalAdminConsent.register(context);
     Commands.ForgetAppSecret.register(context);
 
