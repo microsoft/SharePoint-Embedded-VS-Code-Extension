@@ -80,6 +80,13 @@ export class GraphProviderNew {
         return response as Application;
     }
 
+    public async renameApp(appId: string, displayName: string): Promise<Application> {
+        const response = await this._client
+            .api(`/applications/${appId}`)
+            .patch({ displayName });
+        return response as Application;
+    }
+
     public async addAppSecret(objectId: string, name: string = 'SharePointEmbeddedVSCode'): Promise<string> {
         
         const response = await this._client

@@ -41,6 +41,7 @@ import { CopyContainerId as _CopyContainerId } from './Container/CopyContainerId
 import { ViewContainerProperties as _ViewContainerProperties } from './Container/ViewContainerProperties';
 import { CopyRecycledContainerId as _CopyRecycledContainerId } from './RecycledContainer/CopyContainerId';
 import { DeleteContainer as _DeleteContainer } from './RecycledContainer/DeleteContainer';
+import { RenameApp as _RenameApp } from './App/RenameApp';
 
 export namespace Commands {
   export const SignIn = _SignIn;
@@ -79,6 +80,7 @@ export namespace Commands {
   export const GetLocalAdminConsent = _GetLocalAdminConsent;
   export const ForgetAppSecret = _ForgetAppSecret;
   export const ViewInAzure = _ViewInAzure;
+  export const RenameApp = _RenameApp;
 
   // Container Commands
   export const RenameContainer = _RenameContainer;
