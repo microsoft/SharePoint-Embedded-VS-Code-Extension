@@ -214,10 +214,12 @@
           "group": "1@2"
         },
         {
+          "when": "viewItem =~ /spe:appTreeItem.*-hasSecret.*/",
           "command": "spe.App.Credentials.copySecret",
           "group": "1@3"
         },
         {
+          "when": "viewItem =~ /spe:appTreeItem.*-hasSecret.*/",
           "command": "spe.App.Credentials.deleteSecret",
           "group": "1@4"
         },
@@ -230,14 +232,17 @@
           "group": "2@2"
         },
         {
+          "when": "viewItem =~ /spe:appTreeItem.*-hasCert.*/",
           "command": "spe.App.Credentials.copyThumbprint",
           "group": "2@3"
         },
         {
+          "when": "viewItem =~ /spe:appTreeItem.*-hasCert.*/",
           "command": "spe.App.Credentials.copyPrivateKey",
           "group": "2@4"
         },
         {
+          "when": "viewItem =~ /spe:appTreeItem.*-hasCert.*/",
           "command": "spe.App.Credentials.deleteCert",
           "group": "2@5"
         }
@@ -593,34 +598,7 @@
         "command": "spe.App.rename",
         "title": "Rename..."
       },
-      {
-        "command": "spe.App.Credentials.createSecret",
-        "title": "Generate new client secret"
-      },
-      {
-        "command": "spe.App.Credentials.provideSecret",
-        "title": "Provide existing client secret..."
-      },
-      {
-        "command": "spe.App.Credentials.copySecret",
-        "title": "Copy saved secret"
-      },
-      {
-        "command": "spe.App.Credentials.deleteSecret",
-        "title": "Delete saved secret"
-      },
-      {
-        "command": "spe.App.Credentials.createCert",
-        "title": "Generate new self-signed cert"
-      },
-      {
-        "command": "spe.App.Credentials.provideCert",
-        "title": "Provide existing cert details..."
-      },
-      {
-        "command": "spe.App.Credentials.copyThumbprint",
-        "title": "Copy saved cert thumbprint"
-      },
+
       {
         "command": "spe.App.Postman.configureSettings",
         "title": "Configure app settings"
@@ -637,6 +615,7 @@
         "command": "spe.App.Postman.viewDocs",
         "title": "View documentation"
       },
+
       {
         "command": "spe.App.SampleApps.TypeScript+React+AzureFunctions.clone",
         "title": "Clone and configure"
@@ -653,10 +632,7 @@
         "command": "spe.App.SampleApps.ASPNET+C#.configureSettings",
         "title": "Configure app settings"
       },
-      {
-        "command": "spe.App.rename",
-        "title": "Rename..."
-      },
+      
       {
         "command": "spe.App.Credentials.createSecret",
         "title": "Generate new client secret"
@@ -671,7 +647,7 @@
       },
       {
         "command": "spe.App.Credentials.deleteSecret",
-        "title": "Delete saved secret"
+        "title": "Forget saved secret"
       },
       {
         "command": "spe.App.Credentials.createCert",
@@ -691,8 +667,9 @@
       },
       {
         "command": "spe.App.Credentials.deleteCert",
-        "title": "Delete saved cert"
+        "title": "Forget saved cert"
       },
+
       {
         "command": "spe.App.Permissions.addSpContainerRole",
         "title": "Add SharePoint Container.Selected role"
@@ -713,6 +690,7 @@
         "command": "spe.App.Permissions.LocalAdminConsent.copyLink",
         "title": "Copy link"
       },
+      
       {
         "command": "spe.App.copyAppId",
         "title": "Copy app (client) Id"
