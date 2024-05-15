@@ -22,7 +22,7 @@ export class CreatePostmanConfig extends Command {
 
         if (!appSecrets.clientSecret) {
             const userChoice = await vscode.window.showInformationMessage(
-            "No client secret was found. Would you like to create one for this app?",
+                "No client secret was found. Would you like to create one for this app?",
                 'OK', 'Skip'
             );
             if (userChoice === 'OK') {
@@ -34,12 +34,18 @@ export class CreatePostmanConfig extends Command {
         if (!appSecrets.privateKey || !appSecrets.thumbprint) {
             const userChoice = await vscode.window.showInformationMessage(
                 "No certificate was found. Would you like to create one for this app?",
-                    'OK', 'Skip'
-                );
-                if (userChoice === 'OK') {
-                    await CreateAppCert.run(applicationTreeItem);
+                'OK', 'Skip'
+            );
+            if (userChoice === 'OK') {
+                await CreateAppCert.run(applicationTreeItem);
+                appSecrets = await app.getSecrets();
+
+                let retries = 3;
+                while ((!appSecrets.privateKey || !appSecrets.thumbprint) && retries > 0) {
+                    retries--;
                     appSecrets = await app.getSecrets();
                 }
+            }
         }
 
         const account = Account.get()!;
@@ -96,6 +102,29 @@ export class CreatePostmanConfig extends Command {
                 enabled: true
             }
         );
+
+        if (!containerType.isTrial) {
+            values.push(
+                {
+                    key: "AzureSubscriptionId",
+                    value: containerType.azureSubscriptionId,
+                    type: "secret",
+                    enabled: true
+                },
+                {
+                    key: "ResourceGroup",
+                    value: containerType.resourceGroup,
+                    type: "default",
+                    enabled: true
+                },
+                {
+                    key: "Region",
+                    value: containerType.region,
+                    type: "default",
+                    enabled: true
+                }
+            );
+        }
 
         const envName = `${containerType!.displayName} (appId: ${app!.clientId})`;
         const pmEnv: PostmanEnvironmentConfig = {

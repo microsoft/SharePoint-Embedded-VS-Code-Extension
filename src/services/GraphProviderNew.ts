@@ -7,7 +7,8 @@ import { ContainerTypeRegistration } from '../models/ContainerTypeRegistration';
 import AppOnly3PAuthProvider from './AppOnly3PAuthProvider';
 
 export class GraphProviderNew {
-    private static readonly _scopes = ['Application.ReadWrite.All', 'User.Read', 'Sites.Read.All'];
+    //private static readonly _scopes = ['Application.ReadWrite.All', 'User.Read', 'Sites.Read.All'];
+    private static readonly _scopes = ['https://graph.microsoft.com/.default'];
 
     private _client: Graph.Client;
 
@@ -101,7 +102,7 @@ export class GraphProviderNew {
             .api('/storage/fileStorage/containers')
             .version('beta')
             .filter(`containerTypeId eq ${containerTypeRegistration.containerTypeId}`)
-            .select('id,displayName,containerTypeId,createdDateTime,storageUsedInBytes')
+            .select('id,displayName,description,containerTypeId,createdDateTime,storageUsedInBytes')
             .get();
         const containersProperties = response.value as IContainerProperties[];
         const containers = containersProperties.map((props: IContainerProperties) => {
@@ -134,6 +135,33 @@ export class GraphProviderNew {
             .version('beta')
             .post(createRequest);
         return new Container(containerTypeRegistration, response as IContainerProperties);
+    }
+
+    public async updateContainer(containerTypeRegistration: ContainerTypeRegistration, id: string, displayName: string, description: string): Promise<Container> {
+        const updateRequest = {
+                displayName,
+                description
+        };
+        
+        const response = await this._client
+            .api(`/storage/fileStorage/containers/${id}`)
+            .version('beta')
+            .patch(updateRequest);
+        return new Container(containerTypeRegistration, response as IContainerProperties);
+    }
+
+    public async recycleContainer(id: string): Promise<void> {
+        await this._client
+            .api(`/storage/fileStorage/containers/${id}`)
+            .version('beta')
+            .delete();
+    }
+
+    public async deleteContainer(id: string): Promise<void> {
+        await this._client
+            .api(`/storage/fileStorage/deletedContainers/${id}`)
+            .version('beta')
+            .delete();
     }
 
     /*

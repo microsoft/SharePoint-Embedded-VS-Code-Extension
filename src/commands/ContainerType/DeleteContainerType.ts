@@ -9,6 +9,8 @@ import { Account } from '../../models/Account';
 import { ContainerTypeTreeItem } from '../../views/treeview/development/ContainerTypeTreeItem';
 import { DevelopmentTreeViewProvider } from '../../views/treeview/development/DevelopmentTreeViewProvider';
 import { ProgressWaitNotification, Timer } from '../../views/notifications/ProgressWaitNotification';
+import { ContainerType } from '../../models/ContainerType';
+import { GetAccount } from '../Accounts/GetAccount';
 
 // Static class that handles the delete container type command
 export class DeleteContainerType extends Command {
@@ -16,8 +18,23 @@ export class DeleteContainerType extends Command {
     public static readonly COMMAND = 'ContainerType.delete';
 
     // Command handler
-    public static async run(containerTypeViewModel?: ContainerTypeTreeItem): Promise<void> {
-        if (!containerTypeViewModel) {
+    public static async run(commandProps?: DeletionCommandProps): Promise<void> {
+        if (!commandProps) {
+            return;
+        }
+
+        const account = await GetAccount.run();
+        if (!account) {
+            return;
+        }
+
+        let containerType: ContainerType;
+        if (commandProps instanceof ContainerTypeTreeItem) {
+            containerType = commandProps.containerType;
+        } else {
+            containerType = commandProps;
+        }
+        if (!containerType) {
             return;
         }
         const account = Account.get()!;
@@ -60,3 +77,6 @@ export class DeleteContainerType extends Command {
         }
     }
 }
+
+
+export type DeletionCommandProps = ContainerTypeTreeItem | ContainerType;

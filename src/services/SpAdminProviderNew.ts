@@ -14,7 +14,7 @@ export default class SpAdminProviderNew {
 
     public constructor(private _authProvider: BaseAuthProvider, private _spAdminUrl: string) {
         this._baseApiUrl = `${this._spAdminUrl}/_api/SPO.Tenant/`;
-        this._scopes = [`${this._spAdminUrl}/User.Read.All`];
+        this._scopes = [`${this._spAdminUrl}/AllSites.FullControl`];
     }
 
     private async _sendPostRequest(method: string, body: any): Promise<AxiosResponse> {

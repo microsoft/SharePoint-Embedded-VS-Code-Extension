@@ -4,37 +4,37 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { ContainerTypeTreeItem } from '../../views/treeview/development/ContainerTypeTreeItem';
 import { Command } from '../Command';
-import { ContainerType } from '../../models/ContainerType';
+import { ContainerTreeItem } from '../../views/treeview/development/ContainerTreeItem';
+import { Container } from '../../models/Container';
 
 // Static class that handles the view properties command
-export class ViewProperties extends Command {
+export class ViewContainerProperties extends Command {
     // Command name
-    public static readonly COMMAND = 'ContainerType.viewProperties';
+    public static readonly COMMAND = 'Container.viewProperties';
 
     // Command handler
-    public static async run(containerTypeViewModel?: ContainerTypeTreeItem): Promise<void> {
-        if (!containerTypeViewModel) {
+    public static async run(containerViewModel?: ContainerTreeItem): Promise<void> {
+        if (!containerViewModel) {
             return;
         }
-        const containerType: ContainerType = containerTypeViewModel.containerType;
+        const container: Container = containerViewModel.container;
         try {
-            const containerTypeProperties = JSON.stringify(containerType.getProperties(), null, 4);
+            const containerProperties = JSON.stringify(container.getProperties(), null, 4);
             const provider = new (class implements vscode.TextDocumentContentProvider {
                 provideTextDocumentContent(uri: vscode.Uri): string {
-                    return containerTypeProperties;
+                    return containerProperties;
                 }
             })();
 
             const registration = vscode.workspace.registerTextDocumentContentProvider('virtual', provider);
-            let uri = vscode.Uri.parse(`virtual://${containerType.containerTypeId}/${containerType.displayName}.json`, true);
+            let uri = vscode.Uri.parse(`virtual://${container.id}/${container.displayName}.json`, true);
             const doc = await vscode.workspace.openTextDocument(uri);
             await vscode.window.showTextDocument(doc, { preview: true});
             await vscode.languages.setTextDocumentLanguage(doc, 'json');
             registration.dispose();
         } catch (error: any) {
-            vscode.window.showErrorMessage("Failed to open container type properties: " + error.message);
+            vscode.window.showErrorMessage("Failed to open container properties: " + error.message);
         }
     }
 }

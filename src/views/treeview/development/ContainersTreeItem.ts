@@ -26,7 +26,7 @@ export class ContainersTreeItem extends IChildrenProvidingTreeItem {
         try {
             const containers = await this.containerTypeRegistration.loadContainers();
             containers?.map((container: Container) => {
-                children.push(new ContainerTreeItem(container));
+                children.push(new ContainerTreeItem(container, this));
             });
         } catch (error) {
             console.error(`Unable to show containers: ${error}`);

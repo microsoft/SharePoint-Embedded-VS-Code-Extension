@@ -43,11 +43,17 @@ export class CreateTrialContainerType extends Command {
             return;
         }
 
+
         const app = await GetOrCreateApp.run();
         if (!app) {
             return;
         }
 
+        //TODO: improve? allow AppId to progogate if new app
+        const appProgressWindow = new ProgressWaitNotification('Configuring owning Entra app');
+        const appTimer = new Timer(30 * 1000);
+        while (!appTimer.finished) { };
+        appProgressWindow.hide();
 
         const progressWindow = new ProgressWaitNotification('Creating container type...');
         progressWindow.show();
@@ -59,7 +65,7 @@ export class CreateTrialContainerType extends Command {
                 containerType = await containerTypeProvider.createTrial(displayName, app.clientId);
                 if (!containerType) {
                     throw new Error();
-                } 
+                }
             } catch (error) {
                 console.log(error);
             }
@@ -95,7 +101,7 @@ export class CreateTrialContainerType extends Command {
         if (selection === register) {
             RegisterOnLocalTenant.run(containerType);
         }
-        return containerType;        
+        return containerType;
     }
 }
 

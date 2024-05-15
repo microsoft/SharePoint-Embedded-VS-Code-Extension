@@ -9,15 +9,10 @@ import * as vscode from 'vscode';
 import { AccountInfo } from '@azure/msal-node';
 import FirstPartyAuthProvider from '../services/1PAuthProvider';
 import { BaseAuthProvider } from '../services/BaseAuthProvider';
-import { checkJwtForAdminClaim, checkJwtForTenantAdminScope, decodeJwt, getJwtTenantId } from '../utils/token';
-import { App } from './App';
+import { checkJwtForAdminClaim, decodeJwt } from '../utils/token';
 import { StorageProvider } from '../services/StorageProvider';
-import { BillingClassification, ContainerType } from './ContainerType';
-import { generateCertificateAndPrivateKey, createCertKeyCredential } from '../cert';
 import GraphProvider from '../services/GraphProvider';
 import SPAdminProvider from '../services/SPAdminProvider';
-import { TenantIdKey, IsContainerTypeCreatingKey } from '../utils/constants';
-import { timeoutForSeconds } from '../utils/timeout';
 import { clientId, containerTypeManagementAppId } from '../client';
 import ContainerTypeProvider from '../services/ContainerTypeProvider';
 import SpAdminProviderNew from '../services/SpAdminProviderNew';
@@ -31,9 +26,12 @@ export class Account {
     // Storage key for the account
     public static readonly storageKey: string = "account";
     private static readonly authProvider: BaseAuthProvider = new FirstPartyAuthProvider(clientId, Account.storageKey);
-    private static readonly scopes: string[] = ['Application.ReadWrite.All', 'User.Read', 'Sites.Read.All'];
-    private static readonly _spAdminAuthProvider: BaseAuthProvider = new FirstPartyAuthProvider(containerTypeManagementAppId, containerTypeManagementAppId);
-    private static readonly _armAuthProvider: BaseAuthProvider = new FirstPartyAuthProvider(containerTypeManagementAppId, 'arm');
+    //private static readonly scopes: string[] = ['Application.ReadWrite.All', 'User.Read', 'Sites.Read.All'];
+    private static readonly graphScopes: string[] = ['https://graph.microsoft.com/.default']; // ['Application.ReadWrite.All', 'User.Read', 'Sites.Read.All'];
+    private static readonly spScopes: string[] = ['https://microsoft.sharepoint.com/.default']; // ['AllSites.FullControl']
+    private static readonly armScopes: string[] = ['https://management.azure.com/.default']; // ['https://management.azure.com/user_impersonation']
+    //private static readonly _spAdminAuthProvider: BaseAuthProvider = new FirstPartyAuthProvider(containerTypeManagementAppId, containerTypeManagementAppId);
+    //private static readonly _armAuthProvider: BaseAuthProvider = new FirstPartyAuthProvider(containerTypeManagementAppId, 'arm');
     public static readonly graphProvider: GraphProviderNew = new GraphProviderNew(Account.authProvider);
 
     private static instance: Account | undefined;
@@ -81,10 +79,10 @@ export class Account {
         this.spRootSiteUrl = props.spRootSiteUrl;
         this.spAdminSiteUrl = props.spAdminSiteUrl;
 
-        const spAdminProvider = new SpAdminProviderNew(Account._spAdminAuthProvider, this.spAdminSiteUrl);
+        const spAdminProvider = new SpAdminProviderNew(Account.authProvider, this.spAdminSiteUrl);
         this.containerTypeProvider = new ContainerTypeProvider(spAdminProvider);
         this.appProvider = new AppProvider(Account.graphProvider);
-        this.armProvider = new ARMProvider(Account._armAuthProvider);
+        this.armProvider = new ARMProvider(Account.authProvider);
     }
 
     public static get(): Account | undefined {
@@ -112,11 +110,12 @@ export class Account {
 
     public static async login(): Promise<Account | undefined> {
         Account._notifyBeforeLogin();
-
-        let token: string;
+        let graphToken: string;
+        let spToken: string;
+        let armToken: string;
         try {
-            token = await Account.authProvider.getToken(Account.scopes);
-            if (!token) {
+            graphToken = await Account.authProvider.getToken(Account.graphScopes);
+            if (!graphToken) {
                 throw new Error('access token empty');
             }
         } catch (error) {
@@ -148,7 +147,7 @@ export class Account {
             return;
         }
 
-        const decodedToken = decodeJwt(token);
+        const decodedToken = decodeJwt(graphToken);
         const isAdmin = checkJwtForAdminClaim(decodedToken);
 
         const accountProps: AccountCreationProperties = {
@@ -166,7 +165,7 @@ export class Account {
 
     public async logout(): Promise<void> {
         await Account.authProvider.logout();
-        await Account._spAdminAuthProvider.logout();
+        //wait Account._spAdminAuthProvider.logout();
 
         StorageProvider.get().secrets.clear();
         await StorageProvider.get().secrets.delete('account');
