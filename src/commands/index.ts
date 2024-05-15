@@ -16,6 +16,7 @@ import { CreateContainer as _CreateContainer } from './Containers/CreateContaine
 import { CreateGuestApp as _CreateGuestApp } from './CreateGuestApp';
 import { CreatePostmanConfig as _CreatePostmanConfig } from './App/Postman/CreatePostmanConfig';
 import { CreateSecret as _CreateSecret } from './App/Credentials/CreateSecret';
+import { ForgetAppSecret as _ForgetAppSecret } from './App/Credentials/ForgetSecret';
 import { CreateTrialContainerType as _CreateTrialContainerType } from './ContainerTypes/CreateTrialContainerType';
 import { CreatePaidContainerType as _CreatePaidContainerType } from './ContainerTypes/CreateStandardContainerType';
 import { DeleteContainerType as _DeleteContainerType } from './ContainerType/DeleteContainerType';
@@ -25,6 +26,7 @@ import { Refresh as _Refresh } from './Refresh';
 import { RefreshContainersList as _RefreshContainersList } from './RefreshContainersList';
 import { RegisterContainerType as _RegisterContainerType } from './RegisterContainerType';
 import { RegisterOnLocalTenant as _RegisterOnLocalTenant } from './ContainerType/RegisterOnLocalTenant';
+import { GetLocalAdminConsent as _GetLocalAdminConsent } from './App/GetLocalAdminConsent';
 import { RenameApplication as _RenameApplication } from './RenameApplication';
 import { RenameContainerType as _RenameContainerType } from './ContainerType/RenameContainerType';
 import { SignIn as _SignIn } from './SignIn';

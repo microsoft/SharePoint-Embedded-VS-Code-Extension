@@ -37,8 +37,6 @@ export class DeleteContainerType extends Command {
         if (!containerType) {
             return;
         }
-        const account = Account.get()!;
-        const containerType = containerTypeViewModel.containerType;
 
         const message = `Are you sure you delete the '${containerType.displayName}' Container Type?`;
         const userChoice = await vscode.window.showInformationMessage(
@@ -77,6 +75,5 @@ export class DeleteContainerType extends Command {
         }
     }
 }
-
 
 export type DeletionCommandProps = ContainerTypeTreeItem | ContainerType;
