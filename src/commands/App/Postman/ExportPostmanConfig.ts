@@ -40,7 +40,24 @@ export class ExportPostmanConfig extends Command {
             return;
         }
 
-        const [envName, pmEnv] = await CreatePostmanConfig.run(applicationTreeItem, app, containerType);
+        const pmEnv = await CreatePostmanConfig.run(applicationTreeItem, app, containerType);
+        if (!pmEnv) {
+            vscode.window.showErrorMessage('Failed to create Postman environment');
+            return;
+        }
+        
+        if (await app.hasCert() === true || await app.hasSecret() === true) {
+            const message = "This will put your app's secret and other settings in a plain text Postman environment file on your local machine. Are you sure you want to continue?";
+            const userChoice = await vscode.window.showInformationMessage(
+                message,
+                'OK', 'Cancel'
+            );
+    
+            if (userChoice === 'Cancel') {
+                return;
+            }
+        }
+        
         try {
             const folders = await vscode.window.showOpenDialog({
                 canSelectFiles: false,
@@ -56,7 +73,7 @@ export class ExportPostmanConfig extends Command {
 
                 fs.writeFileSync(postmanEnvPath, postmanEnvJson, 'utf8');
                 console.log(`${app.clientId}_postman_environment.json written successfully`);
-                vscode.window.showInformationMessage(`Postman environment created successfully for ${envName}`);
+                vscode.window.showInformationMessage(`Postman environment created successfully for ${pmEnv.name}`);
             } else {
                 console.log('No destination folder selected. Saving canceled.');
             }

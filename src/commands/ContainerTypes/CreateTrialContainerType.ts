@@ -22,8 +22,6 @@ export class CreateTrialContainerType extends Command {
     // Command name
     public static readonly COMMAND = 'ContainerTypes.createTrial';
 
-
-
     // Command handler
     public static async run(): Promise<ContainerType | undefined> {
         const account = await GetAccount.run();
@@ -51,7 +49,7 @@ export class CreateTrialContainerType extends Command {
         }
 
 
-        const progressWindow = new ProgressWaitNotification('Creating container type');
+        const progressWindow = new ProgressWaitNotification('Creating container type...');
         progressWindow.show();
         const ctTimer = new Timer(30 * 1000);
         const containerTypeProvider = account.containerTypeProvider;
@@ -68,11 +66,11 @@ export class CreateTrialContainerType extends Command {
         } while (!containerType && !ctTimer.finished);
 
         if (!containerType) {
+            progressWindow.hide();
             vscode.window.showErrorMessage('Failed to create container type');
             return;
         }
 
-    
         const ctRefreshTimer = new Timer(60 * 1000);
         const refreshCt = async (): Promise<void> => {
             DevelopmentTreeViewProvider.instance.refresh();

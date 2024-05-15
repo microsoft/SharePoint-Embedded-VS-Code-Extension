@@ -20,7 +20,10 @@ export class DeleteContainerType extends Command {
         if (!containerTypeViewModel) {
             return;
         }
-        const message = "Are you sure you delete this Container Type?";
+        const account = Account.get()!;
+        const containerType = containerTypeViewModel.containerType;
+
+        const message = `Are you sure you delete the '${containerType.displayName}' Container Type?`;
         const userChoice = await vscode.window.showInformationMessage(
             message,
             'OK', 'Cancel'
@@ -30,10 +33,7 @@ export class DeleteContainerType extends Command {
             return;
         }
 
-        const account = Account.get()!;
-        const containerType = containerTypeViewModel.containerType;
         const progressWindow = new ProgressWaitNotification('Deleting container type');
-
         try {    
             progressWindow.show();
             const containerTypeProvider = account.containerTypeProvider;

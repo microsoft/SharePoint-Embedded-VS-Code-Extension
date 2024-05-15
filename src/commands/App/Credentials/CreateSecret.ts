@@ -5,16 +5,13 @@
 
 import * as vscode from 'vscode';
 import { Command } from '../../Command';
-import { Account } from '../../../models/Account';
-import { BillingClassification, ContainerType } from '../../../models/ContainerType';
-import { ContainerTypeCreationFlow, ContainerTypeCreationFlowState } from '../../../views/qp/UxFlows';
-import { ProgressNotification } from '../../../views/notifications/ProgressNotification';
 import { App } from '../../../models/App';
 import { DevelopmentTreeViewProvider } from '../../../views/treeview/development/DevelopmentTreeViewProvider';
 import { GetAccount } from '../../Accounts/GetAccount';
 import { AppTreeItem } from '../../../views/treeview/development/AppTreeItem';
+import { ProgressWaitNotification } from '../../../views/notifications/ProgressWaitNotification';
 
-// Static class that creates a cert on an app
+// Static class that creates a secret on an app
 export class CreateSecret extends Command {
     // Command name
     public static readonly COMMAND = 'App.Credentials.createSecret';
@@ -37,19 +34,21 @@ export class CreateSecret extends Command {
         if (!app) {
             return;
         }
-        console.log('creating secret');
+        
+        const progressWindow = new ProgressWaitNotification('Creating app secret...');
+        progressWindow.show();
         try {
             const appProvider = account.appProvider;
             await appProvider.addSecret(app);
+            progressWindow.hide();
             vscode.window.showInformationMessage(`Secret created for app '${app.displayName}'`);
-            DevelopmentTreeViewProvider.getInstance().refresh();
+            DevelopmentTreeViewProvider.instance.refresh();
             return app;
         } catch (error: any) {
+            progressWindow.hide();
             vscode.window.showErrorMessage(`Failed to create secret for app ${app.displayName}: ${error}`);
             return;
         }
-
-
     };
 }
 

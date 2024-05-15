@@ -9,15 +9,14 @@ import { App } from '../../../models/App';
 import { GetAccount } from '../../Accounts/GetAccount';
 import { AppTreeItem } from '../../../views/treeview/development/AppTreeItem';
 import { DevelopmentTreeViewProvider } from '../../../views/treeview/development/DevelopmentTreeViewProvider';
-import { ProgressWaitNotification } from '../../../views/notifications/ProgressWaitNotification';
 
-// Static class that creates a cert on an app
-export class CreateAppCert extends Command {
+// Static class that deletes locally-saved cert details for an app
+export class ForgetAppCert extends Command {
     // Command name
-    public static readonly COMMAND = 'App.Credentials.createCert';
+    public static readonly COMMAND = 'App.Credentials.deleteCert';
 
     // Command handler
-    public static async run(commandProps?: CreateCertProps): Promise<App | undefined> {
+    public static async run(commandProps?: DeleteCertProps): Promise<App | undefined> {
         const account = await GetAccount.run();
         if (!account) {
             return;
@@ -34,22 +33,13 @@ export class CreateAppCert extends Command {
         if (!app) {
             return;
         }
-        
-        const progressWindow = new ProgressWaitNotification('Creating app certificate...');
-        progressWindow.show();
-        try {
-            const appProvider = account.appProvider;
-            await appProvider.addCert(app);
-            progressWindow.hide();
-            vscode.window.showInformationMessage(`Cert created for app '${app.displayName}'`);
-            DevelopmentTreeViewProvider.instance.refresh();
-            return app;
-        } catch (error: any) {
-            progressWindow.hide();
-            vscode.window.showErrorMessage(`Failed to create cert for app ${app.displayName}: ${error}`);
-            return;
-        }
+
+        const appSecrets = await app.getSecrets();
+        appSecrets.thumbprint = undefined;
+        appSecrets.privateKey = undefined;
+        await app.setSecrets(appSecrets);
+        DevelopmentTreeViewProvider.instance.refresh();
     };
 }
 
-export type CreateCertProps = AppTreeItem | App;
+export type DeleteCertProps = AppTreeItem | App;

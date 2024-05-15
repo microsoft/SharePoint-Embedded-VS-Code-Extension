@@ -13,18 +13,8 @@ export class CreatePostmanConfig extends Command {
     // Command name
     public static readonly COMMAND = 'App.Postman.createConfigFile';
     // Command handler
-    public static async run(applicationTreeItem?: AppTreeItem, app?: App, containerType?: ContainerType): Promise<any> {
+    public static async run(applicationTreeItem?: AppTreeItem, app?: App, containerType?: ContainerType): Promise<PostmanEnvironmentConfig | undefined> {
         if (!applicationTreeItem || !app || !containerType) {
-            return;
-        }
-
-        const message = "This will put your app's secret and other settings in a plain text Postman environment file on your local machine. Are you sure you want to continue?";
-        const userChoice = await vscode.window.showInformationMessage(
-            message,
-            'OK', 'Cancel'
-        );
-
-        if (userChoice === 'Cancel') {
             return;
         }
 
@@ -38,14 +28,7 @@ export class CreatePostmanConfig extends Command {
             if (userChoice === 'OK') {
                 await CreateSecret.run(applicationTreeItem);
                 appSecrets = await app.getSecrets();
-
-                let retries = 3;
-                while (!appSecrets.clientSecret && retries > 0) {
-                    retries--;
-                    appSecrets = await app.getSecrets();
-                }
             }
-
         }
 
         if (!appSecrets.privateKey || !appSecrets.thumbprint) {
@@ -56,12 +39,6 @@ export class CreatePostmanConfig extends Command {
                 if (userChoice === 'OK') {
                     await CreateAppCert.run(applicationTreeItem);
                     appSecrets = await app.getSecrets();
-    
-                    let retries = 3;
-                    while ((!appSecrets.privateKey || !appSecrets.thumbprint) && retries > 0) {
-                        retries--;
-                        appSecrets = await app.getSecrets();
-                    }
                 }
         }
 
@@ -121,7 +98,7 @@ export class CreatePostmanConfig extends Command {
         );
 
         const envName = `${containerType!.displayName} (appId: ${app!.clientId})`;
-        const pmEnv = {
+        const pmEnv: PostmanEnvironmentConfig = {
             id: uuidv4(),
             name: envName,
             values: values,
@@ -133,6 +110,24 @@ export class CreatePostmanConfig extends Command {
             _postman_exported_using: "Postman/10.13.5"
         };
 
-        return [envName, pmEnv];
+        return pmEnv;
     }
 }
+
+export type PostmanEnvironmentConfig = {
+    id: string;
+    name: string;
+    values: {
+        key: string;
+        value: string;
+        type: string;
+        enabled?: boolean;
+    }[];
+    // eslint-disable-next-line @typescript-eslint/naming-convention
+    _postman_variable_scope: string;
+    // eslint-disable-next-line @typescript-eslint/naming-convention
+    _postman_exported_at: string;
+    // eslint-disable-next-line @typescript-eslint/naming-convention
+    _postman_exported_using: string;
+};
+

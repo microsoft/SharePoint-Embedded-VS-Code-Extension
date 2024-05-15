@@ -39,11 +39,15 @@ export class CopyPostmanConfig extends Command {
             return;
         }
 
-        const [envName, pmEnv] = await CreatePostmanConfig.run(applicationTreeItem, app, containerType);
+        const pmEnv = await CreatePostmanConfig.run(applicationTreeItem, app, containerType);
+        if (!pmEnv) {
+            vscode.window.showErrorMessage('Failed to create Postman environment');
+            return;
+        }
         try {
             await vscode.env.clipboard.writeText(JSON.stringify(pmEnv, null, 2));
             console.log(`${app!.clientId}_postman_environment.json written successfully`);
-            vscode.window.showInformationMessage(`Postman environment copied to clipboard for '${envName}'`);
+            vscode.window.showInformationMessage(`Postman environment copied to clipboard for '${pmEnv.name}'`);
         } catch (error) {
             vscode.window.showErrorMessage('Failed to copy Postman environment');
             console.error('Error:', error);

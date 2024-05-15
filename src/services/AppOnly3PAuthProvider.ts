@@ -65,18 +65,20 @@ export default class AppOnly3PAuthProvider extends BaseAuthProvider {
         this.authCodeUrlParams = { scopes: [], redirectUri: 'http://localhost:12345/redirect' };
     }
 
-    public async getToken(scopes: string[]): Promise<string> {
-        const authResponse = await this.clientApplication.acquireTokenByClientCredential({ scopes });
+    public async getToken(scopes: string[], skipCache: boolean = true): Promise<string> {
+        const authResponse = await this.clientApplication.acquireTokenByClientCredential({ 
+            scopes: scopes,
+            skipCache: skipCache
+        });
         return authResponse.accessToken || "";
     }
 
     public async hasConsent(audience: string, roles: string[]): Promise<boolean> {
         try {
             const scopes = [`${audience}`];
-            console.log('Checking for consent with scopes: ', scopes);
-            const token = await this.getToken(scopes);
+            const token = await this.getToken(scopes, true);
             const decodedToken = decodeJwt(token);
-            console.log('Decoded token: ', decodedToken);
+            console.log(decodedToken);
             for (const role of roles) {
                 if (!checkJwtForAppOnlyRole(decodedToken, role)) {
                     return false;
@@ -84,7 +86,6 @@ export default class AppOnly3PAuthProvider extends BaseAuthProvider {
             }
             return true;
         } catch (error: any) {
-            console.log(error);
             return false;
         }
     }

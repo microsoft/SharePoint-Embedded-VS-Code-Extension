@@ -52,18 +52,19 @@ export class RenameContainerType extends Command {
         await containerTypeProvider.rename(containerType, containerTypeDisplayName);
         const ctRefreshTimer = new Timer(60 * 1000);
         const refreshCt = async (): Promise<void> => {
-            DevelopmentTreeViewProvider.instance.refresh();
             do {
                 const containerTypes = await containerTypeProvider.list();
                 if (containerTypes.find(ct => 
                     ct.containerTypeId === containerType.containerTypeId &&
-                    ct.displayName === containerTypeDisplayName)) {
+                    ct.displayName === containerTypeDisplayName)
+                ) {
+                    setTimeout(() => DevelopmentTreeViewProvider.instance.refresh(), 3000);
                     break;
                 }
-                // sleep for 5 seconds
-                await new Promise(r => setTimeout(r, 5000));
+                // sleep for 2 seconds
+                await new Promise(r => setTimeout(r, 2000));
             } while (!ctRefreshTimer.finished);
-            DevelopmentTreeViewProvider.instance.refresh();
+            
             progressWindow.hide();
         };
         refreshCt();

@@ -31,13 +31,13 @@ export default class AppProvider {
 
     public async addSecret(app: App) {
         const clientSecret = await this._graph.addAppSecret(app.objectId);
-        app.setSecrets({ clientSecret: clientSecret });
+        await app.setSecrets({ clientSecret: clientSecret });
     }
 
     public async addCert(app: App) {
         const cert = this._generateCertCredential();
         await this._graph.addAppCert(app.objectId, cert.keyCredential);
-        app.setSecrets({ thumbprint: cert.thumbprint, privateKey: cert.privateKey });
+        await app.setSecrets({ thumbprint: cert.thumbprint, privateKey: cert.privateKey });
     }
 
     public async create(displayName: string): Promise<App> {
