@@ -5,10 +5,10 @@
 
 import * as vscode from "vscode";
 import { Container } from "../../../models/Container";
-import { ContainersTreeItem } from "./ContainersTreeItem";
+import { LocalRegistrationTreeItem } from "./LocalRegistrationTreeItem";
 
 export class ContainerTreeItem extends vscode.TreeItem {
-    constructor(public readonly container: Container, public readonly containersViewModel: ContainersTreeItem) {
+    constructor(public readonly container: Container, public readonly reigstrationViewModel: LocalRegistrationTreeItem) {
         super(container.displayName, vscode.TreeItemCollapsibleState.None);
         this.iconPath = new vscode.ThemeIcon("container-icon");
         this.contextValue = "spe:containerTreeItem";

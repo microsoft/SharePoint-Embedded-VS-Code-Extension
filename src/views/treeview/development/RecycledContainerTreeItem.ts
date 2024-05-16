@@ -5,10 +5,10 @@
 
 import * as vscode from "vscode";
 import { Container } from "../../../models/Container";
-import { RecycledContainersTreeItem } from "./RecycledContainersTreeItem";
+import { LocalRegistrationTreeItem } from "./LocalRegistrationTreeItem";
 
 export class RecycledContainerTreeItem extends vscode.TreeItem {
-    constructor(public readonly container: Container, public readonly containersViewModel: RecycledContainersTreeItem) {
+    constructor(public readonly container: Container, public readonly reigstrationViewModel: LocalRegistrationTreeItem) {
         super(container.displayName, vscode.TreeItemCollapsibleState.None);
         this.iconPath = new vscode.ThemeIcon("container-icon");
         this.contextValue = "spe:recycledContainerTreeItem";

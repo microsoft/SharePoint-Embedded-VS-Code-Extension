@@ -46,7 +46,7 @@ export class RestoreContainer extends Command {
             const authProvider = await owningApp.getAppOnlyAuthProvider(containerTypeRegistration.tenantId);
             const graphProvider = new GraphProviderNew(authProvider);
             await graphProvider.restoreContainer(containerTypeRegistration, container.id);
-            DevelopmentTreeViewProvider.getInstance().refresh(containerViewModel.containersViewModel);
+            DevelopmentTreeViewProvider.getInstance().refresh(containerViewModel.reigstrationViewModel);
             progressWindow.hide();
         } catch (error: any) {
             progressWindow.hide();

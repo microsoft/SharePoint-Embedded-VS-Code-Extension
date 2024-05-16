@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from "vscode";
-import { ContainerTreeItem } from "./ContainerTreeItem";
 import { ContainerType } from "../../../models/ContainerType";
 import { Container } from "../../../models/Container";
 import { IChildrenProvidingTreeItem } from "./IDataProvidingTreeItem";
 import { ContainerTypeRegistration } from "../../../models/ContainerTypeRegistration";
 import { RecycledContainerTreeItem } from "./RecycledContainerTreeItem";
+import { LocalRegistrationTreeItem } from "./LocalRegistrationTreeItem";
 
 export class RecycledContainersTreeItem extends IChildrenProvidingTreeItem {
 
@@ -17,7 +17,7 @@ export class RecycledContainersTreeItem extends IChildrenProvidingTreeItem {
         return this.containerTypeRegistration.containerType;
     }
 
-    constructor(public containerTypeRegistration: ContainerTypeRegistration) {
+    constructor(public containerTypeRegistration: ContainerTypeRegistration, public reigstrationViewModel: LocalRegistrationTreeItem) {
         super('Recycled Containers', vscode.TreeItemCollapsibleState.Collapsed);
         this.contextValue = "spe:recycledContainersTreeItem";
     }
@@ -27,7 +27,7 @@ export class RecycledContainersTreeItem extends IChildrenProvidingTreeItem {
         try {
             const containers = await this.containerTypeRegistration.loadRecycledContainers();
             containers?.map((container: Container) => {
-                children.push(new RecycledContainerTreeItem(container, this));
+                children.push(new RecycledContainerTreeItem(container, this.reigstrationViewModel));
             });
         } catch (error) {
             console.error(`Unable to show recycled containers: ${error}`);

@@ -9,6 +9,7 @@ import { ContainerType } from "../../../models/ContainerType";
 import { Container } from "../../../models/Container";
 import { IChildrenProvidingTreeItem } from "./IDataProvidingTreeItem";
 import { ContainerTypeRegistration } from "../../../models/ContainerTypeRegistration";
+import { LocalRegistrationTreeItem } from "./LocalRegistrationTreeItem";
 
 export class ContainersTreeItem extends IChildrenProvidingTreeItem {
 
@@ -16,7 +17,7 @@ export class ContainersTreeItem extends IChildrenProvidingTreeItem {
         return this.containerTypeRegistration.containerType;
     }
 
-    constructor(public containerTypeRegistration: ContainerTypeRegistration) {
+    constructor(public containerTypeRegistration: ContainerTypeRegistration, public reigstrationViewModel: LocalRegistrationTreeItem) {
         super('Containers', vscode.TreeItemCollapsibleState.Collapsed);
         this.contextValue = "spe:containersTreeItem";
     }
@@ -26,7 +27,7 @@ export class ContainersTreeItem extends IChildrenProvidingTreeItem {
         try {
             const containers = await this.containerTypeRegistration.loadContainers();
             containers?.map((container: Container) => {
-                children.push(new ContainerTreeItem(container, this));
+                children.push(new ContainerTreeItem(container, this.reigstrationViewModel));
             });
         } catch (error) {
             console.error(`Unable to show containers: ${error}`);

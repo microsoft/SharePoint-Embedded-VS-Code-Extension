@@ -54,7 +54,7 @@ export class RenameContainer extends Command {
             if (!updatedContainer) {
                 throw new Error ("Failed to create container");
             }
-            DevelopmentTreeViewProvider.getInstance().refresh(containerViewModel.containersViewModel);
+            DevelopmentTreeViewProvider.getInstance().refresh(containerViewModel.reigstrationViewModel);
             progressWindow.hide();
             return updatedContainer;
         } catch (error: any) {

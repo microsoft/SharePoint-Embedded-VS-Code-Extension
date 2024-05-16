@@ -26,8 +26,8 @@ export class LocalRegistrationTreeItem extends IChildrenProvidingTreeItem {
         const children = [];
         
         children.push(new GuestAppsTreeItem(this._registration));
-        children.push(new ContainersTreeItem(this._registration));
-        children.push(new RecycledContainersTreeItem(this._registration));
+        children.push(new ContainersTreeItem(this._registration, this));
+        children.push(new RecycledContainersTreeItem(this._registration, this));
         
         return children;
     }
