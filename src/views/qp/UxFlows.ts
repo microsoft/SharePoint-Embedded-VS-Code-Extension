@@ -148,7 +148,6 @@ export class AddGuestAppFlow extends LinearUxFlow {
             appExclusions.add(guestApp.clientId);
         }
         this.steps = [
-            new ImportOrCreateAppQuickPick(undefined, appExclusions),
             new AddGuestAppPermissionsInput('Delegated'),
             new AddGuestAppPermissionsInput('Application')
         ];

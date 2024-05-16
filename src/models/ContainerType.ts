@@ -113,7 +113,7 @@ export class ContainerType {
         return `${account.spRootSiteUrl}/.default`;
     }
 
-    public async registerOnLocalTenant(): Promise<void> {
+    public async registerOnLocalTenant(delegatedPerms?: string[], appPerms?: string[]): Promise<void> {
         const account = Account.get()!;
         const app = await this.loadOwningApp();
         if (!app) {
@@ -135,8 +135,8 @@ export class ContainerType {
             value: [
                 {
                     appId: app.clientId,
-                    delegated: ["full"],
-                    appOnly: ["full"]
+                    delegated: delegatedPerms ? delegatedPerms : ["full"],
+                    appOnly: appPerms ? appPerms : ["full"]
                 }
             ]
         };
