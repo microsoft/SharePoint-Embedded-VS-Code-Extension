@@ -184,20 +184,12 @@
         {
           "command": "spe.App.SampleApps.TypeScript+React+AzureFunctions.clone",
           "group": "1@1"
-        },
-        {
-          "command": "spe.App.SampleApps.TypeScript+React+AzureFunctions.configureSettings",
-          "group": "1@2"
         }
       ],
       "spe.App.SampleApps.ASPNET+C#": [
         {
           "command": "spe.App.SampleApps.ASPNET+C#.clone",
           "group": "1@1"
-        },
-        {
-          "command": "spe.App.SampleApps.ASPNET+C#.configureSettings",
-          "group": "1@2"
         }
       ],
       "spe.App.Credentials": [
@@ -535,7 +527,6 @@
         "command": "spe.Apps.getOrCreate",
         "title": "Create or choose existing app"
       },
-
       {
         "command": "spe.App.clone",
         "title": "Clone and configure"
@@ -557,16 +548,8 @@
         "title": "Clone and configure"
       },
       {
-        "command": "spe.App.SampleApps.TypeScript+React+AzureFunctions.configureSettings",
-        "title": "Configure app settings"
-      },
-      {
         "command": "spe.App.SampleApps.ASPNET+C#.clone",
         "title": "Clone and configure"
-      },
-      {
-        "command": "spe.App.SampleApps.ASPNET+C#.configureSettings",
-        "title": "Configure app settings"
       },
       {
         "command": "spe.App.rename",
@@ -591,18 +574,9 @@
         "title": "Clone and configure"
       },
       {
-        "command": "spe.App.SampleApps.TypeScript+React+AzureFunctions.configureSettings",
-        "title": "Configure app settings"
-      },
-      {
         "command": "spe.App.SampleApps.ASPNET+C#.clone",
         "title": "Clone and configure"
       },
-      {
-        "command": "spe.App.SampleApps.ASPNET+C#.configureSettings",
-        "title": "Configure app settings"
-      },
-      
       {
         "command": "spe.App.Credentials.createSecret",
         "title": "Generate new client secret"

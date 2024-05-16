@@ -7,19 +7,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { Command } from '../Command';
-import { App } from '../../models/App';
-import { GetAccount } from '../Accounts/GetAccount';
-import { AppTreeItem } from '../../views/treeview/development/AppTreeItem';
-import { AzurePortalUrlProvider } from '../../utils/AzurePortalUrl';
+import { App } from '../../../models/App';
+import { AppTreeItem } from '../../../views/treeview/development/AppTreeItem';
+import { GetAccount } from '../../Accounts/GetAccount';
+import { Command } from '../../Command';
 
-// Static class that views app in Azure
-export class ViewInAzure extends Command {
+// Static class that opens Postman Collection documentation
+export class OpenPostmanDocumentation extends Command {
     // Command name
-    public static readonly COMMAND = 'App.viewInAzure';
+    public static readonly COMMAND = 'App.Postman.viewDocs';
 
     // Command handler
-    public static async run(commandProps?: ViewInAzureProps): Promise<void> {
+    public static async run(commandProps?: OpenPostmanDocumentationProps): Promise<void> {
         const account = await GetAccount.run();
         if (!account) {
             return;
@@ -37,9 +36,9 @@ export class ViewInAzure extends Command {
             return;
         }
 
-        const azureLink = AzurePortalUrlProvider.getAppRegistrationUrl(app.clientId);
-        vscode.env.openExternal(vscode.Uri.parse(azureLink));
+        const postmanDocsUrl = 'https://github.com/microsoft/SharePoint-Embedded-Samples/tree/main/Postman';
+        vscode.env.openExternal(vscode.Uri.parse(postmanDocsUrl));
     };
 }
 
-export type ViewInAzureProps = AppTreeItem | App;
+export type OpenPostmanDocumentationProps = AppTreeItem | App;

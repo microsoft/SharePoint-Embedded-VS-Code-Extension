@@ -52,7 +52,6 @@ export async function activate(context: vscode.ExtensionContext) {
     Commands.RefreshContainersList.register(context);
     Commands.CloneRepo.register(context);
     Commands.ExportPostmanConfig.register(context);
-    Commands.RenameApplication.register(context);
     Commands.CancelSignIn.register(context);
     Commands.Refresh.register(context);
 
@@ -72,11 +71,15 @@ export async function activate(context: vscode.ExtensionContext) {
     Commands.CopySecret.register(context);
     Commands.GetLocalAdminConsent.register(context);
     Commands.ForgetAppSecret.register(context);
+    Commands.OpenPostmanDocumentation.register(context);
 
     // App Commands
     Commands.GetOrCreateApp.register(context);
     Commands.ViewInAzure.register(context);
     Commands.RenameApp.register(context);
+    Commands.CloneDotNetSampleApp.register(context);
+    Commands.CloneReactSampleApp.register(context);
+    Commands.CopyAppId.register(context);
 
     // Container Commands
     Commands.CreateContainer.register(context);
