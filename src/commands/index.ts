@@ -5,7 +5,6 @@
 
 /* eslint-disable @typescript-eslint/naming-convention */
 import { CancelSignIn as _CancelSignIn } from './CancelSignIn';
-import { CloneRepo as _CloneRepo } from './CloneRepo';
 import { CopyContainerTypeId as _CopyContainerTypeId } from './ContainerType/CopyContainerTypeId';
 import { CopyOwningTenantId as _CopyOwningTenantId} from './ContainerType/CopyOwningTenantId';
 import { CopyPostmanConfig as _CopyPostmanConfig } from './App/Postman/CopyPostmanConfig';
@@ -24,8 +23,6 @@ import { DeleteContainerType as _DeleteContainerType } from './ContainerType/Del
 import { ExportPostmanConfig as _ExportPostmanConfig } from './App/Postman/ExportPostmanConfig';
 import { GetOrCreateApp as _GetOrCreateApp } from './Apps/GetOrCreateApp';
 import { Refresh as _Refresh } from './Refresh';
-import { RefreshContainersList as _RefreshContainersList } from './RefreshContainersList';
-import { RegisterContainerType as _RegisterContainerType } from './RegisterContainerType';
 import { RegisterOnLocalTenant as _RegisterOnLocalTenant } from './ContainerType/RegisterOnLocalTenant';
 import { GetLocalAdminConsent as _GetLocalAdminConsent } from './App/GetLocalAdminConsent';
 import { RenameContainerType as _RenameContainerType } from './ContainerType/RenameContainerType';
@@ -55,9 +52,7 @@ export namespace Commands {
   //export const RegisterContainerType = _RegisterContainerType;
   export const CreateGuestApp = _CreateGuestApp;
   export const DeleteContainerType = _DeleteContainerType;
-  export const RefreshContainersList = _RefreshContainersList;
   export const CreateContainer = _CreateContainer;
-  export const CloneRepo = _CloneRepo;
   export const Refresh = _Refresh;
 
   // Container Type Commands
