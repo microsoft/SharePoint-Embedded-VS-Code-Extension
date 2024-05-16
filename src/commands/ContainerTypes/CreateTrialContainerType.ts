@@ -5,16 +5,11 @@
 
 import * as vscode from 'vscode';
 import { Command } from '../Command';
-import { Account } from '../../models/Account';
 import { BillingClassification, ContainerType } from '../../models/ContainerType';
-import { ContainerTypeCreationFlow, ContainerTypeCreationFlowState } from '../../views/qp/UxFlows';
-import { ProgressNotification } from '../../views/notifications/ProgressNotification';
-import { App } from '../../models/App';
 import { DevelopmentTreeViewProvider } from '../../views/treeview/development/DevelopmentTreeViewProvider';
 import { GetAccount } from '../Accounts/GetAccount';
 import { GetOrCreateApp } from '../Apps/GetOrCreateApp';
 import { RegisterOnLocalTenant } from '../ContainerType/RegisterOnLocalTenant';
-import { clear } from 'console';
 import { ProgressWaitNotification, Timer } from '../../views/notifications/ProgressWaitNotification';
 
 // Static class that handles the create trial container type command

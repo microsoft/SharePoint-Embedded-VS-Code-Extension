@@ -3,21 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Command } from './Command';
+import path from "path";
+import { Account } from "../../../models/Account";
+import { AppTreeItem } from "../../../views/treeview/development/AppTreeItem";
+import { Command } from "../../Command";
 import * as vscode from 'vscode';
-import { AppTreeItem } from '../views/treeview/development/AppTreeItem';
-import * as fs from 'fs';
-import * as path from 'path';
-import { ext } from '../utils/extensionVariables';
-import { Account } from '../models/Account';
+import { App } from "../../../models/App";
+import { ContainerType } from "../../../models/ContainerType";
+import { GuestApplicationTreeItem } from "../../../views/treeview/development/GuestAppTreeItem";
+import { OwningAppTreeItem } from "../../../views/treeview/development/OwningAppTreeItem";
+import fs from 'fs';
+import { exec } from 'child_process';
+import { CreateSecret } from "../Credentials/CreateSecret";
 
-// Static class that handles the sign in command
-export class CloneRepo extends Command {
+// Static class that handles the clone .NET sample app command
+export class CloneDotNetSampleApp extends Command {
     // Command name
-    public static readonly COMMAND = 'cloneRepo';
+    public static readonly COMMAND = 'App.SampleApps.ASPNET+C#.clone';
 
     // Command handler
     public static async run(applicationTreeItem?: AppTreeItem): Promise<void> {
+        exec('git --version', (err, stdout, stderr) => {
+            if (err) {
+                // Git is not installed
+                console.error('Git is not installed. Please install Git before proceeding.');
+                return;
+            }
+        });
+        
         if (!applicationTreeItem) {
             return;
         }
@@ -31,28 +44,42 @@ export class CloneRepo extends Command {
             return;
         }
 
-        try {
-            const sampleAppOptions = [
-                { "label": "JavaScript + React + Node.js", iconPath: vscode.Uri.file(ext.context.asAbsolutePath('media/react.png')) },
-                { "label": "ASP.NET + C#", iconPath: vscode.Uri.file(ext.context.asAbsolutePath('media/dotnet.png')) }
-            ];
+        if (!applicationTreeItem) {
+            return;
+        }
 
-            const sampleAppProps = {
-                title: 'Choose a sample app',
-                placeholder: 'Select app...',
-                canPickMany: false
-            };
+        let app: App | undefined;
+        let containerType: ContainerType | undefined;
+        if (applicationTreeItem instanceof GuestApplicationTreeItem) {
+            app = applicationTreeItem.appPerms.app;
+            containerType = applicationTreeItem.appPerms.containerTypeRegistration.containerType;
+        }
+        if (applicationTreeItem instanceof OwningAppTreeItem) {
+            app = applicationTreeItem.containerType.owningApp!;
+            containerType = applicationTreeItem.containerType;
+        }
+        if (!app || !containerType) {
+            vscode.window.showErrorMessage('Could not find app or container type');
+            return;
+        }
 
-            const sampleAppSelection: any = await vscode.window.showQuickPick(sampleAppOptions, sampleAppProps);
-
-            if (!sampleAppSelection) {
-                return;
+        let appSecrets = await app.getSecrets();
+        if (!appSecrets.clientSecret) {
+            const userChoice = await vscode.window.showInformationMessage(
+                "No client secret was found. Would you like to create one for this app?",
+                'OK', 'Skip'
+            );
+            if (userChoice === 'OK') {
+                await CreateSecret.run(applicationTreeItem);
+                appSecrets = await app.getSecrets();
             }
+        }
 
-            const appId = applicationTreeItem.app.clientId;
-            const containerTypeId = applicationTreeItem.containerType.containerTypeId;
-            const tenantId = Account.get()!.tenantId;// applicationTreeItem.app.tenantId || '';
-            const clientSecret = applicationTreeItem.app.clientSecret || '';
+        try {
+            const appId = app.clientId;
+            const containerTypeId = containerType.containerTypeId;
+            const tenantId = Account.get()!.tenantId;
+            const clientSecret = appSecrets.clientSecret || '';
             const repoUrl = 'https://github.com/microsoft/SharePoint-Embedded-Samples.git';
             const folders = await vscode.window.showOpenDialog({
                 canSelectFiles: false,
@@ -63,7 +90,7 @@ export class CloneRepo extends Command {
 
             if (folders && folders.length > 0) {
                 const destinationPath = folders[0].fsPath;
-                const subfolder = 'SharePoint-Embedded-Samples/Samples/spa-azurefunction/';
+                const subfolder = 'SharePoint-Embedded-Samples/Samples/asp.net-webservice/';
 
                 const folderPathInRepository = path.join(destinationPath, subfolder);
                 await vscode.commands.executeCommand('git.clone', repoUrl, destinationPath);
@@ -71,9 +98,7 @@ export class CloneRepo extends Command {
 
                 console.log(`Repository cloned to: ${destinationPath}`);
 
-                writeLocalSettingsJsonFile(destinationPath, appId, containerTypeId, clientSecret, tenantId);
                 writeAppSettingsJsonFile(destinationPath, appId, containerTypeId, clientSecret, tenantId);
-                writeEnvFile(destinationPath, appId, tenantId);
             } else {
                 console.log('No destination folder selected. Cloning canceled.');
             }
@@ -84,30 +109,6 @@ export class CloneRepo extends Command {
     }
 }
 
-
-const writeLocalSettingsJsonFile = (destinationPath: string, appId: string, containerTypeId: string, secretText: string, tenantId: string) => {
-    const localSettings = {
-        IsEncrypted: false,
-        Values: {
-            AzureWebJobsStorage: "",
-            FUNCTIONS_WORKER_RUNTIME: "node",
-            APP_CLIENT_ID: `${appId}`,
-            APP_AUTHORITY: `https://login.microsoftonline.com/${tenantId}`,
-            APP_AUDIENCE: `api://${appId}`,
-            APP_CLIENT_SECRET: `${secretText}`,
-            APP_CONTAINER_TYPE_ID: containerTypeId
-        },
-        Host: {
-            CORS: "*"
-        }
-    };
-
-    const localSettingsJson = JSON.stringify(localSettings, null, 2);
-    const localSettingsPath = path.join(destinationPath, 'SharePoint-Embedded-Samples', 'Samples', 'spa-azurefunction', 'packages', 'azure-functions', 'local.settings.json');
-
-    fs.writeFileSync(localSettingsPath, localSettingsJson, 'utf8');
-    console.log('local.settings.json written successfully.');
-};
 const writeAppSettingsJsonFile = (destinationPath: string, appId: string, containerTypeId: string, secretText: string, tenantId: string) => {
     const appSettings = {
         AzureAd: {
@@ -132,7 +133,6 @@ const writeAppSettingsJsonFile = (destinationPath: string, appId: string, contai
             }
         },
         AllowedHosts: "*",
-
         TestContainer: {
             "ContainerTypeId": containerTypeId
         },
@@ -147,12 +147,4 @@ const writeAppSettingsJsonFile = (destinationPath: string, appId: string, contai
 
     fs.writeFileSync(localSettingsPath, localSettingsJson, 'utf8');
     console.log('appsettings.json written successfully.');
-};
-
-const writeEnvFile = (destinationPath: string, appId: string, tenantId: string) => {
-    const envContent = `REACT_APP_CLIENT_ID='${appId}'\nREACT_APP_TENANT_ID='${tenantId}'`;
-    const envFilePath = path.join(destinationPath, 'SharePoint-Embedded-Samples', 'Samples', 'spa-azurefunction', 'packages', 'client-app', '.env');
-
-    fs.writeFileSync(envFilePath, envContent, 'utf8');
-    console.log('.env file written successfully.');
 };

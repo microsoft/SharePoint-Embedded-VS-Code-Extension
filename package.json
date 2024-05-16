@@ -97,7 +97,7 @@
       },
       {
         "view": "spe-development",
-        "contents": "Get started with SharePoint Embedded\n [Create Trial Container Type](command:spe.ContainerTypes.createTrial) \n[Create Paid Container Type](command:spe.ContainerTypes.createPaid)",
+        "contents": "Get started with SharePoint Embedded\n [Create Trial Container Type](command:spe.ContainerTypes.createTrial) \n",
         "when": "spe:isAdmin && spe:showGettingStartedView"
       },
       {
@@ -184,20 +184,12 @@
         {
           "command": "spe.App.SampleApps.TypeScript+React+AzureFunctions.clone",
           "group": "1@1"
-        },
-        {
-          "command": "spe.App.SampleApps.TypeScript+React+AzureFunctions.configureSettings",
-          "group": "1@2"
         }
       ],
       "spe.App.SampleApps.ASPNET+C#": [
         {
           "command": "spe.App.SampleApps.ASPNET+C#.clone",
           "group": "1@1"
-        },
-        {
-          "command": "spe.App.SampleApps.ASPNET+C#.configureSettings",
-          "group": "1@2"
         }
       ],
       "spe.App.Credentials": [
@@ -206,41 +198,33 @@
           "group": "1@1"
         },
         {
-          "command": "spe.App.Credentials.provideSecret",
+          "when": "viewItem =~ /spe:appTreeItem.*-hasSecret.*/",
+          "command": "spe.App.Credentials.copySecret",
           "group": "1@2"
         },
         {
           "when": "viewItem =~ /spe:appTreeItem.*-hasSecret.*/",
-          "command": "spe.App.Credentials.copySecret",
-          "group": "1@3"
-        },
-        {
-          "when": "viewItem =~ /spe:appTreeItem.*-hasSecret.*/",
           "command": "spe.App.Credentials.deleteSecret",
-          "group": "1@4"
+          "group": "1@3"
         },
         {
           "command": "spe.App.Credentials.createCert",
           "group": "2@1"
         },
         {
-          "command": "spe.App.Credentials.provideCert",
+          "when": "viewItem =~ /spe:appTreeItem.*-hasCert.*/",
+          "command": "spe.App.Credentials.copyThumbprint",
           "group": "2@2"
         },
         {
           "when": "viewItem =~ /spe:appTreeItem.*-hasCert.*/",
-          "command": "spe.App.Credentials.copyThumbprint",
+          "command": "spe.App.Credentials.copyPrivateKey",
           "group": "2@3"
         },
         {
           "when": "viewItem =~ /spe:appTreeItem.*-hasCert.*/",
-          "command": "spe.App.Credentials.copyPrivateKey",
-          "group": "2@4"
-        },
-        {
-          "when": "viewItem =~ /spe:appTreeItem.*-hasCert.*/",
           "command": "spe.App.Credentials.deleteCert",
-          "group": "2@5"
+          "group": "2@4"
         }
       ],
       "spe.App.Permissions": [
@@ -291,11 +275,6 @@
           "when": "viewItem == spe:containerTypesTreeItem",
           "command": "spe.ContainerTypes.createTrial",
           "group": "1@1"
-        },
-        {
-          "when": "viewItem == spe:containerTypesTreeItem",
-          "command": "spe.ContainerTypes.createPaid",
-          "group": "1@2"
         },
         {
           "when": "viewItem == spe:containerTypesTreeItem",
@@ -509,10 +488,6 @@
         "title": "Create trial container type"
       },
       {
-        "command": "spe.ContainerTypes.createPaid",
-        "title": "Create paid container type"
-      },
-      {
         "command": "spe.ContainerType.registerOnLocalTenant",
         "title": "Register on local tenant"
       },
@@ -552,7 +527,6 @@
         "command": "spe.Apps.getOrCreate",
         "title": "Create or choose existing app"
       },
-
       {
         "command": "spe.App.clone",
         "title": "Clone and configure"
@@ -574,16 +548,8 @@
         "title": "Clone and configure"
       },
       {
-        "command": "spe.App.SampleApps.TypeScript+React+AzureFunctions.configureSettings",
-        "title": "Configure app settings"
-      },
-      {
         "command": "spe.App.SampleApps.ASPNET+C#.clone",
         "title": "Clone and configure"
-      },
-      {
-        "command": "spe.App.SampleApps.ASPNET+C#.configureSettings",
-        "title": "Configure app settings"
       },
       {
         "command": "spe.App.rename",
@@ -608,25 +574,12 @@
         "title": "Clone and configure"
       },
       {
-        "command": "spe.App.SampleApps.TypeScript+React+AzureFunctions.configureSettings",
-        "title": "Configure app settings"
-      },
-      {
         "command": "spe.App.SampleApps.ASPNET+C#.clone",
         "title": "Clone and configure"
       },
       {
-        "command": "spe.App.SampleApps.ASPNET+C#.configureSettings",
-        "title": "Configure app settings"
-      },
-      
-      {
         "command": "spe.App.Credentials.createSecret",
         "title": "Generate new client secret"
-      },
-      {
-        "command": "spe.App.Credentials.provideSecret",
-        "title": "Provide existing client secret..."
       },
       {
         "command": "spe.App.Credentials.copySecret",
@@ -677,7 +630,6 @@
         "command": "spe.App.Permissions.LocalAdminConsent.copyLink",
         "title": "Copy link"
       },
-      
       {
         "command": "spe.App.copyAppId",
         "title": "Copy app (client) Id"

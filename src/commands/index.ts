@@ -5,7 +5,6 @@
 
 /* eslint-disable @typescript-eslint/naming-convention */
 import { CancelSignIn as _CancelSignIn } from './CancelSignIn';
-import { CloneRepo as _CloneRepo } from './CloneRepo';
 import { CopyContainerTypeId as _CopyContainerTypeId } from './ContainerType/CopyContainerTypeId';
 import { CopyOwningTenantId as _CopyOwningTenantId} from './ContainerType/CopyOwningTenantId';
 import { CopyPostmanConfig as _CopyPostmanConfig } from './App/Postman/CopyPostmanConfig';
@@ -24,11 +23,8 @@ import { DeleteContainerType as _DeleteContainerType } from './ContainerType/Del
 import { ExportPostmanConfig as _ExportPostmanConfig } from './App/Postman/ExportPostmanConfig';
 import { GetOrCreateApp as _GetOrCreateApp } from './Apps/GetOrCreateApp';
 import { Refresh as _Refresh } from './Refresh';
-import { RefreshContainersList as _RefreshContainersList } from './RefreshContainersList';
-import { RegisterContainerType as _RegisterContainerType } from './RegisterContainerType';
 import { RegisterOnLocalTenant as _RegisterOnLocalTenant } from './ContainerType/RegisterOnLocalTenant';
 import { GetLocalAdminConsent as _GetLocalAdminConsent } from './App/GetLocalAdminConsent';
-import { RenameApplication as _RenameApplication } from './RenameApplication';
 import { RenameContainerType as _RenameContainerType } from './ContainerType/RenameContainerType';
 import { SignIn as _SignIn } from './SignIn';
 import { SignOut as _SignOut } from './SignOut';
@@ -41,6 +37,11 @@ import { CopyContainerId as _CopyContainerId } from './Container/CopyContainerId
 import { ViewContainerProperties as _ViewContainerProperties } from './Container/ViewContainerProperties';
 import { CopyRecycledContainerId as _CopyRecycledContainerId } from './RecycledContainer/CopyContainerId';
 import { DeleteContainer as _DeleteContainer } from './RecycledContainer/DeleteContainer';
+import { RenameApp as _RenameApp } from './App/RenameApp';
+import { CloneDotNetSampleApp as _CloneDotNetSampleApp } from './App/Samples/CloneDotNetSampleApp';
+import { CloneReactSampleApp as _CloneReactSampleApp } from './App/Samples/CloneReactSampleApp';
+import { OpenPostmanDocumentation as _OpenPostmanDocumentation } from './App/Postman/OpenPostmanDocumentation';
+import { CopyAppId as _CopyAppId } from './App/CopyAppId';
 
 export namespace Commands {
   export const SignIn = _SignIn;
@@ -51,10 +52,7 @@ export namespace Commands {
   //export const RegisterContainerType = _RegisterContainerType;
   export const CreateGuestApp = _CreateGuestApp;
   export const DeleteContainerType = _DeleteContainerType;
-  export const RefreshContainersList = _RefreshContainersList;
   export const CreateContainer = _CreateContainer;
-  export const CloneRepo = _CloneRepo;
-  export const RenameApplication = _RenameApplication;
   export const Refresh = _Refresh;
 
   // Container Type Commands
@@ -79,6 +77,11 @@ export namespace Commands {
   export const GetLocalAdminConsent = _GetLocalAdminConsent;
   export const ForgetAppSecret = _ForgetAppSecret;
   export const ViewInAzure = _ViewInAzure;
+  export const RenameApp = _RenameApp;
+  export const CloneDotNetSampleApp = _CloneDotNetSampleApp;
+  export const CloneReactSampleApp = _CloneReactSampleApp;
+  export const OpenPostmanDocumentation = _OpenPostmanDocumentation;
+  export const CopyAppId = _CopyAppId;
 
   // Container Commands
   export const RenameContainer = _RenameContainer;
