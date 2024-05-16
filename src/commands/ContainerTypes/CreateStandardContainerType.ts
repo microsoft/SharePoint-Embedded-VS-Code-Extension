@@ -5,7 +5,6 @@
 
 import * as vscode from 'vscode';
 import { Command } from '../Command';
-import { Account } from '../../models/Account';
 import { BillingClassification, ContainerType } from '../../models/ContainerType';
 import { DevelopmentTreeViewProvider } from '../../views/treeview/development/DevelopmentTreeViewProvider';
 import { GetAccount } from '../Accounts/GetAccount';
@@ -13,6 +12,7 @@ import { GetOrCreateApp } from '../Apps/GetOrCreateApp';
 import { RegisterOnLocalTenant } from '../ContainerType/RegisterOnLocalTenant';
 import { ProgressWaitNotification, Timer } from '../../views/notifications/ProgressWaitNotification';
 import { DeleteContainerType } from '../ContainerType/DeleteContainerType';
+import { AppType } from '../../models/App';
 
 // Static class that handles the create standard container type command
 export class CreatePaidContainerType extends Command {
@@ -89,7 +89,7 @@ export class CreatePaidContainerType extends Command {
             return;
         }
 
-        const app = await GetOrCreateApp.run();
+        const app = await GetOrCreateApp.run(AppType.OwningApp);
         if (!app) {
             return;
         }

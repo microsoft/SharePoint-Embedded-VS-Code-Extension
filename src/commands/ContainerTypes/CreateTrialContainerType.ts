@@ -11,6 +11,7 @@ import { GetAccount } from '../Accounts/GetAccount';
 import { GetOrCreateApp } from '../Apps/GetOrCreateApp';
 import { RegisterOnLocalTenant } from '../ContainerType/RegisterOnLocalTenant';
 import { ProgressWaitNotification, Timer } from '../../views/notifications/ProgressWaitNotification';
+import { AppType } from '../../models/App';
 
 // Static class that handles the create trial container type command
 export class CreateTrialContainerType extends Command {
@@ -38,8 +39,7 @@ export class CreateTrialContainerType extends Command {
             return;
         }
 
-
-        const app = await GetOrCreateApp.run();
+        const app = await GetOrCreateApp.run(AppType.OwningApp);
         if (!app) {
             return;
         }

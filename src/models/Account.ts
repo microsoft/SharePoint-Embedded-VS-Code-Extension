@@ -19,7 +19,7 @@ import SpAdminProviderNew from '../services/SpAdminProviderNew';
 import AppProvider from '../services/AppProvider';
 import { GraphProviderNew } from '../services/GraphProviderNew';
 import ARMProvider from '../services/ARMProvider';
-
+import { v4 as uuidv4 } from 'uuid';
 
 // Account class that represents an msal AccountInfo object from the FirstPartyAuthProvider
 export class Account {
@@ -78,7 +78,6 @@ export class Account {
         this.domain = props.domain;
         this.spRootSiteUrl = props.spRootSiteUrl;
         this.spAdminSiteUrl = props.spAdminSiteUrl;
-
         const spAdminProvider = new SpAdminProviderNew(Account.authProvider, this.spAdminSiteUrl);
         this.containerTypeProvider = new ContainerTypeProvider(spAdminProvider);
         this.appProvider = new AppProvider(Account.graphProvider);
@@ -218,6 +217,26 @@ export class Account {
                 listener.onLogout();
             }
         });
+    }
+
+    public async getTelemetryTenantId(): Promise<string> {
+        let storageKey = `SharePointEmbeddedTelemetryTenantIdMap-${this.tenantId}`;
+        let tenantId = await StorageProvider.get().secrets.get(storageKey);
+        if (!tenantId) {
+            tenantId = uuidv4();
+            StorageProvider.get().secrets.store(storageKey, tenantId);
+        }
+        return tenantId;
+    }
+    
+    public async getTelemetryUserId(): Promise<string> {
+        let storageKey = `SharePointEmbeddedTelemetryUserIdMap-${this.username}`;
+        let userId = await StorageProvider.get().secrets.get(storageKey);
+        if (!userId) {
+            userId = uuidv4();
+            StorageProvider.get().secrets.store(storageKey, userId);
+        }
+        return userId;
     }
 }
 

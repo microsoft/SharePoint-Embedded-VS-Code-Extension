@@ -8,6 +8,7 @@ import { ext } from './utils/extensionVariables';
 import { AccountTreeViewProvider } from './views/treeview/account/AccountTreeViewProvider';
 import { DevelopmentTreeViewProvider } from './views/treeview/development/DevelopmentTreeViewProvider';
 import { LocalStorageService, StorageProvider } from './services/StorageProvider';
+import { TelemetryProvider } from './services/TelemetryProvider';
 import { Account } from './models/Account';
 import { Commands } from './commands/';
 
@@ -15,6 +16,7 @@ export async function activate(context: vscode.ExtensionContext) {
     ext.context = context;
     ext.outputChannel = vscode.window.createOutputChannel("SharePoint Embedded", { log: true });
     context.subscriptions.push(ext.outputChannel);
+    context.subscriptions.push(TelemetryProvider.instance);
 
     StorageProvider.init(
         new LocalStorageService(context.globalState),
@@ -90,4 +92,5 @@ export async function activate(context: vscode.ExtensionContext) {
     // Recycled Container Commands
     Commands.CopyRecycledContainerId.register(context);
     Commands.DeleteContainer.register(context);
+    Commands.RestoreContainer.register(context);
 }

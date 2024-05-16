@@ -87,3 +87,8 @@ export type AppCredentials = {
     thumbprint?: string;
     privateKey?: string;
 };
+
+export enum AppType {
+    OwningApp,
+    GuestApp
+}

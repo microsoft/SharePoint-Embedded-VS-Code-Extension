@@ -6,13 +6,8 @@
 import * as vscode from 'vscode';
 import { Command } from '../Command';
 import { Account } from '../../models/Account';
-import { BillingClassification, ContainerType } from '../../models/ContainerType';
-import { ContainerTypeCreationFlow, ContainerTypeCreationFlowState } from '../../views/qp/UxFlows';
-import { ProgressNotification } from '../../views/notifications/ProgressNotification';
-import { App } from '../../models/App';
-import { DevelopmentTreeViewProvider } from '../../views/treeview/development/DevelopmentTreeViewProvider';
+import { App, AppType } from '../../models/App';
 import { GetAccount } from '../Accounts/GetAccount';
-import { ProgressWaitNotification } from '../../views/notifications/ProgressWaitNotification';
 
 // Static class that handles the create trial container type command
 export class GetOrCreateApp extends Command {
@@ -20,14 +15,14 @@ export class GetOrCreateApp extends Command {
     public static readonly COMMAND = 'Apps.getOrCreate';
 
     // Command handler
-    public static async run(): Promise<App | undefined> {
+    public static async run(appType?: AppType): Promise<App | undefined> {
         const account = await GetAccount.run();
         if (!account) {
             return;
         }
 
         const qp = vscode.window.createQuickPick<AppQuickPickItem>();
-        qp.title = 'Select or create an Owning Application for your Container Type';
+        qp.title = (appType === undefined || appType === AppType.OwningApp) ? 'Select or create an Owning Application for your Container Type' : 'Select or Create a Guest Application for your Container Type';
         qp.placeholder = 'Enter a new app name or search for an existing app by name or Id';
 
         // Disable default filtering and sorting behavior on the quick pick

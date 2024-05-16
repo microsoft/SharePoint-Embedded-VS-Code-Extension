@@ -42,6 +42,7 @@ import { CloneDotNetSampleApp as _CloneDotNetSampleApp } from './App/Samples/Clo
 import { CloneReactSampleApp as _CloneReactSampleApp } from './App/Samples/CloneReactSampleApp';
 import { OpenPostmanDocumentation as _OpenPostmanDocumentation } from './App/Postman/OpenPostmanDocumentation';
 import { CopyAppId as _CopyAppId } from './App/CopyAppId';
+import { RestoreContainer as _RestoreContainer } from './RecycledContainer/RestoreContainer'; 
 
 export namespace Commands {
   export const SignIn = _SignIn;
@@ -93,4 +94,5 @@ export namespace Commands {
   // Recycled Container Commands
   export const CopyRecycledContainerId = _CopyRecycledContainerId;
   export const DeleteContainer = _DeleteContainer;
+  export const RestoreContainer = _RestoreContainer;
 }

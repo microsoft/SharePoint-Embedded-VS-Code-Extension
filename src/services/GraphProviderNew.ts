@@ -164,6 +164,14 @@ export class GraphProviderNew {
             .delete();
     }
 
+    public async restoreContainer(containerTypeRegistration: ContainerTypeRegistration, id: string): Promise<Container> {
+        const response = await this._client
+            .api(`/storage/fileStorage/deletedContainers/${id}/restore`)
+            .version('beta')
+            .post({});
+        return new Container(containerTypeRegistration, response as IContainerProperties);
+    }
+
     public async deleteContainer(id: string): Promise<void> {
         await this._client
             .api(`/storage/fileStorage/deletedContainers/${id}`)
