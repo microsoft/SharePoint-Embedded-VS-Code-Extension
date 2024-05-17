@@ -148,7 +148,7 @@ export class ContainerType {
             appPermissions = [{
                 appId: app.clientId,
                 delegated: ['full'],
-                application: ['full']
+                appOnly: ['full']
             }];
         }
 
