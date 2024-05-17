@@ -8,7 +8,7 @@ import GraphProvider from "../services/GraphProvider";
 import { StorageProvider } from "../services/StorageProvider";
 import VroomProvider from "../services/VroomProvider";
 import { App } from "./App";
-import { ApplicationPermissions } from "./ApplicationPermissions";
+import { ApplicationPermission, ApplicationPermissions } from "./ApplicationPermissions";
 import { ContainerTypeRegistration } from "./ContainerTypeRegistration";
 import { Container } from './Container';
 import { Account } from './Account';
@@ -39,7 +39,6 @@ export class ContainerType {
     public readonly region?: string | undefined;
     public readonly resourceGroup?: string | undefined;
     public readonly applicationRedirectUrl?: string | undefined;
-    public guestApps: App[] = [];
 
     public get isTrial(): boolean {
         return this.billingClassification === BillingClassification.FreeTrial;
@@ -103,7 +102,7 @@ export class ContainerType {
             ExpiryDate: this.expiryDate,
             IsBillingProfileRequired: this.isBillingProfileRequired,
             ApplicationRedirectUrl: '',
-            Region: this.region, 
+            Region: this.region,
             ResourceGroup: this.resourceGroup
         };
     }
@@ -113,7 +112,7 @@ export class ContainerType {
         return `${account.spRootSiteUrl}/.default`;
     }
 
-    public async registerOnLocalTenant(delegatedPerms?: string[], appPerms?: string[]): Promise<void> {
+    public async registerOnLocalTenant(newApplicationPermissions?: ApplicationPermissions): Promise<void> {
         const account = Account.get()!;
         const app = await this.loadOwningApp();
         if (!app) {
@@ -131,14 +130,30 @@ export class ContainerType {
                 'Content-Type': 'application/json'
             }
         };
+
+        let existingAppPermissions: ApplicationPermissions[] | undefined;
+        let appPermissions;
+        if (newApplicationPermissions) {
+            const containerTypeRegistration = await this.loadLocalRegistration();
+            existingAppPermissions = await containerTypeRegistration!.loadApplicationPermissions();
+            if (existingAppPermissions) {
+                existingAppPermissions.push(newApplicationPermissions);
+                appPermissions = existingAppPermissions.map((permission) => ({
+                    appId: permission.appId,
+                    delegated: permission.delegated,
+                    appOnly: permission.appOnly
+                }));
+            }
+        } else {
+            appPermissions = [{
+                appId: app.clientId,
+                delegated: ['full'],
+                application: ['full']
+            }];
+        }
+
         const body = {
-            value: [
-                {
-                    appId: app.clientId,
-                    delegated: delegatedPerms ? delegatedPerms : ["full"],
-                    appOnly: appPerms ? appPerms : ["full"]
-                }
-            ]
+            value: appPermissions
         };
         console.log(url);
         console.log(accessToken);
@@ -147,7 +162,7 @@ export class ContainerType {
     }
 
     public async addTenantRegistration(tenantId: string, app: App, delegatedPermissions: string[], applicationPermissions: string[]): Promise<boolean> {
-       return false;/* try {
+        return false;/* try {
             const appSecretsString = await StorageProvider.get().secrets.get(this.owningAppId);
             if (!appSecretsString) {
                 return false;

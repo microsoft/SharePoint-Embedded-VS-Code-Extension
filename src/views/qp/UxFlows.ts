@@ -74,19 +74,19 @@ export class AppSelectionFlowState extends UxFlowState {
         return this.appId === 'new' && this.appName !== undefined;
     }
 
-    public async createGetOrImportApp(): Promise<[ App | undefined, boolean]> {
-        if (!this.complete()) {
-            return [undefined, false];
-        }
+    // public async createGetOrImportApp(): Promise<[ App | undefined, boolean]> {
+    //     if (!this.complete()) {
+    //         return [undefined, false];
+    //     }
 
-        if (this.shouldCreateNewApp()) {
-            return [await Account.get()!.createApp(this.appName!, true), true];
-        } else if (Account.get()!.appIds.includes(this.appId!)) {
-            return [Account.get()!.apps.find(app => app.clientId === this.appId), false];
-        } else {
-            return [await Account.get()!.importApp(this.appId!, true), true];
-        }
-    }
+    //     if (this.shouldCreateNewApp()) {
+    //         return [await Account.get()!.createApp(this.appName!, true), true];
+    //     } else if (Account.get()!.appIds.includes(this.appId!)) {
+    //         return [Account.get()!.apps.find(app => app.clientId === this.appId), false];
+    //     } else {
+    //         return [await Account.get()!.importApp(this.appId!, true), true];
+    //     }
+    // }
 }
 
 export class AppSelectionFlow extends LinearUxFlow {
@@ -94,9 +94,9 @@ export class AppSelectionFlow extends LinearUxFlow {
         super();
         this.state = new AppSelectionFlowState();
         this.state.step = 1;
-        this.steps = [
-            new ImportOrCreateAppQuickPick()
-        ];
+        // this.steps = [
+        //     new ImportOrCreateAppQuickPick()
+        // ];
     }
 
     public async run(): Promise<AppSelectionFlowState> {
@@ -116,13 +116,13 @@ export class ContainerTypeCreationFlow extends LinearUxFlow {
         if (freeCT) {
             (this.state as ContainerTypeCreationFlowState).appId = freeCT.owningAppId;
             this.steps = [
-                new ConfirmContainerTypeImport(freeCT),
-                new ImportOrCreateAppQuickPick(freeCT?.owningAppId)
+                //new ConfirmContainerTypeImport(freeCT),
+                //new ImportOrCreateAppQuickPick(freeCT?.owningAppId)
             ];
         } else {
             this.steps = [
-                new ImportOrCreateAppQuickPick(),
-                new ContainerTypeDetailsInput()
+                //new ImportOrCreateAppQuickPick(),
+                //new ContainerTypeDetailsInput()
             ];
         }
     }
@@ -142,11 +142,6 @@ export class AddGuestAppFlow extends LinearUxFlow {
         super();
         this.state = new AddGuestAppFlowState();
         this.state.step = 1;
-        const appExclusions: Set<string> = new Set();
-        appExclusions.add(this._containerType.owningAppId);
-        for (const guestApp of this._containerType.guestApps) {
-            appExclusions.add(guestApp.clientId);
-        }
         this.steps = [
             new AddGuestAppPermissionsInput('Delegated'),
             new AddGuestAppPermissionsInput('Application')
@@ -229,210 +224,210 @@ class AddGuestAppPermissionsInput extends UxInputStep {
 
 }
 
-class ImportOrCreateAppQuickPick extends UxInputStep {
-    private readonly defaultAppName = 'SharePoint Embedded App';
-    private readonly newApp: AppQuickPickItem = {
-        id: 'new',
-        label: `New Azure Application: ${this.defaultAppName}`,
-        detail: 'Creates a new Azure AD Application with the specified name',
-        name: this.defaultAppName,
-        alwaysShow: true,
-        iconPath: new ThemeIcon('new-app-icon')
-    };
-    private recentApps: AppQuickPickItem[] = [];
-    private readonly recentAppsSeparator: AppQuickPickItem = {
-        kind: QuickPickItemKind.Separator,
-        label: 'Your Recent Apps',
-        id: 'recent'
-    };
-    private azureApps: AppQuickPickItem[] = [];
-    private readonly azureAppsSeparator: AppQuickPickItem = {
-        kind: QuickPickItemKind.Separator,
-        label: 'Your Azure Apps',
-        id: 'all'
-    };
+// class ImportOrCreateAppQuickPick extends UxInputStep {
+//     private readonly defaultAppName = 'SharePoint Embedded App';
+//     private readonly newApp: AppQuickPickItem = {
+//         id: 'new',
+//         label: `New Azure Application: ${this.defaultAppName}`,
+//         detail: 'Creates a new Azure AD Application with the specified name',
+//         name: this.defaultAppName,
+//         alwaysShow: true,
+//         iconPath: new ThemeIcon('new-app-icon')
+//     };
+//     private recentApps: AppQuickPickItem[] = [];
+//     private readonly recentAppsSeparator: AppQuickPickItem = {
+//         kind: QuickPickItemKind.Separator,
+//         label: 'Your Recent Apps',
+//         id: 'recent'
+//     };
+//     private azureApps: AppQuickPickItem[] = [];
+//     private readonly azureAppsSeparator: AppQuickPickItem = {
+//         kind: QuickPickItemKind.Separator,
+//         label: 'Your Azure Apps',
+//         id: 'all'
+//     };
 
-    public constructor(private readonly _existingAppId?: string, private readonly _appExclusions?: Set<string>) {
-        super();
-    }
+//     public constructor(private readonly _existingAppId?: string, private readonly _appExclusions?: Set<string>) {
+//         super();
+//     }
 
-    public async collectInput(state: AppSelectionFlowState): Promise<UxInputStepResult> {
-        const confirmAppImport = async (appId: string): Promise<boolean> => {
-            if (!Account.get()!.appIds.includes(appId!)) {
-                const continueResult = "Continue";
-                const result = await window.showInformationMessage(
-                    `The selected Azure with AppId: ${appId} app will need to be configured for use with this extension. This will create a new secret and certificate credential, add the Container.Selected permission role, and add a new redirect URI on it. Proceeding is not recommended on production applications.`, 
-                    continueResult, 
-                    "Cancel"
-                );
-                if (result !== continueResult) {
-                    return false;
-                }
-            }
-            return true;
-        };
+//     public async collectInput(state: AppSelectionFlowState): Promise<UxInputStepResult> {
+//         const confirmAppImport = async (appId: string): Promise<boolean> => {
+//             if (!Account.get()!.appIds.includes(appId!)) {
+//                 const continueResult = "Continue";
+//                 const result = await window.showInformationMessage(
+//                     `The selected Azure with AppId: ${appId} app will need to be configured for use with this extension. This will create a new secret and certificate credential, add the Container.Selected permission role, and add a new redirect URI on it. Proceeding is not recommended on production applications.`, 
+//                     continueResult, 
+//                     "Cancel"
+//                 );
+//                 if (result !== continueResult) {
+//                     return false;
+//                 }
+//             }
+//             return true;
+//         };
 
-        if (this._existingAppId) {
-            if (!(await confirmAppImport(this._existingAppId))) {
-                return UxInputStep.Cancel;
-            }
-            state.reconfigureApp = true;
-            return UxInputStep.Next;
-        }
+//         if (this._existingAppId) {
+//             if (!(await confirmAppImport(this._existingAppId))) {
+//                 return UxInputStep.Cancel;
+//             }
+//             state.reconfigureApp = true;
+//             return UxInputStep.Next;
+//         }
 
-        return new Promise<UxInputStepResult>((resolve, reject) => {
+//         return new Promise<UxInputStepResult>((resolve, reject) => {
             
-            const qp = window.createQuickPick<AppQuickPickItem>();
-            qp.title = 'Create or Choose an Azure Application';
-            qp.step = state.step;
-            qp.totalSteps = state.totalSteps;
-            qp.placeholder = 'Enter a new app name or search for an existing app by name or Id';
-            qp.buttons = [...(state.totalSteps && state.totalSteps > 1 ? [QuickInputButtons.Back] : [])];
-            qp.onDidTriggerButton((button: QuickInputButton) => {
-                if (button === QuickInputButtons.Back) {
-                    qp.hide();
-                    resolve(UxInputStep.Back);
-                }
-            });
-            this.recentApps = [];/*Account.get()!.apps.map(app => (
-                {
-                    id: app.clientId,
-                    label: app.displayName,
-                    detail: `Client ID: ${app.clientId}`,
-                    iconPath: new ThemeIcon('app-icon')
-                }
-            ));*/
-            if (this._appExclusions) {
-                this.recentApps = this.recentApps.filter(app => !this._appExclusions!.has(app.id));
-            }
-            const loadAzureApps = async (query?: string) => {
-                qp.busy = true;
-                const appData = await Account.get()!.searchApps(query, true);
-                this.azureApps = appData.map(app => (
-                    { 
-                        id: app.appId,
-                        label: app.displayName,
-                        description:  `created ${formatDistanceToNow(parseISO(app.createdDateTime))} ago`,
-                        detail: `Client ID: ${app.appId}`,
-                        iconPath: new ThemeIcon('app-icon')
-                    }
-                ));
-                if (this._appExclusions) {
-                    this.azureApps = this.azureApps.filter(app => !this._appExclusions!.has(app.id));
-                }
-                updateDisplayedItems();
-                qp.busy = false;
-            };
+//             const qp = window.createQuickPick<AppQuickPickItem>();
+//             qp.title = 'Create or Choose an Azure Application';
+//             qp.step = state.step;
+//             qp.totalSteps = state.totalSteps;
+//             qp.placeholder = 'Enter a new app name or search for an existing app by name or Id';
+//             qp.buttons = [...(state.totalSteps && state.totalSteps > 1 ? [QuickInputButtons.Back] : [])];
+//             qp.onDidTriggerButton((button: QuickInputButton) => {
+//                 if (button === QuickInputButtons.Back) {
+//                     qp.hide();
+//                     resolve(UxInputStep.Back);
+//                 }
+//             });
+//             this.recentApps = [];/*Account.get()!.apps.map(app => (
+//                 {
+//                     id: app.clientId,
+//                     label: app.displayName,
+//                     detail: `Client ID: ${app.clientId}`,
+//                     iconPath: new ThemeIcon('app-icon')
+//                 }
+//             ));*/
+//             if (this._appExclusions) {
+//                 this.recentApps = this.recentApps.filter(app => !this._appExclusions!.has(app.id));
+//             }
+//             const loadAzureApps = async (query?: string) => {
+//                 qp.busy = true;
+//                 const appData = await Account.get()!.searchApps(query, true);
+//                 this.azureApps = appData.map(app => (
+//                     { 
+//                         id: app.appId,
+//                         label: app.displayName,
+//                         description:  `created ${formatDistanceToNow(parseISO(app.createdDateTime))} ago`,
+//                         detail: `Client ID: ${app.appId}`,
+//                         iconPath: new ThemeIcon('app-icon')
+//                     }
+//                 ));
+//                 if (this._appExclusions) {
+//                     this.azureApps = this.azureApps.filter(app => !this._appExclusions!.has(app.id));
+//                 }
+//                 updateDisplayedItems();
+//                 qp.busy = false;
+//             };
 
-            const updateDisplayedItems = () => {
-                qp.items = qp.activeItems = [
-                    this.newApp,
-                    ...(this.recentApps.length > 0 ? [this.recentAppsSeparator, ...this.recentApps] : []),
-                    ...(this.azureApps.length > 0 ? [this.azureAppsSeparator, ...this.azureApps] : [])
-                ];
-            };
+//             const updateDisplayedItems = () => {
+//                 qp.items = qp.activeItems = [
+//                     this.newApp,
+//                     ...(this.recentApps.length > 0 ? [this.recentAppsSeparator, ...this.recentApps] : []),
+//                     ...(this.azureApps.length > 0 ? [this.azureAppsSeparator, ...this.azureApps] : [])
+//                 ];
+//             };
 
-            qp.onDidChangeSelection(selectedItems => {
-                state.appId = selectedItems[0].id;
-                state.appName = selectedItems[0].name;
-                qp.hide();
-            });
+//             qp.onDidChangeSelection(selectedItems => {
+//                 state.appId = selectedItems[0].id;
+//                 state.appName = selectedItems[0].name;
+//                 qp.hide();
+//             });
 
-            qp.onDidHide(async () => {
-                qp.dispose();
-                if (state.appId === undefined) {
-                    reject(UxInputStep.Cancel);
-                    return;
-                }
-                if (!state.shouldCreateNewApp()) {
-                    if (!(await confirmAppImport(state.appId!))) {
-                        reject(UxInputStep.Cancel);
-                        return;
-                    }
-                    state.reconfigureApp = true;
-                }
-                resolve(UxInputStep.Next);
-            });
+//             qp.onDidHide(async () => {
+//                 qp.dispose();
+//                 if (state.appId === undefined) {
+//                     reject(UxInputStep.Cancel);
+//                     return;
+//                 }
+//                 if (!state.shouldCreateNewApp()) {
+//                     if (!(await confirmAppImport(state.appId!))) {
+//                         reject(UxInputStep.Cancel);
+//                         return;
+//                     }
+//                     state.reconfigureApp = true;
+//                 }
+//                 resolve(UxInputStep.Next);
+//             });
     
-            const debounceDelayMs = 500;
-            let timeout: NodeJS.Timeout | undefined;
-            qp.onDidChangeValue(value => {
-                qp.busy = true;
-                this.newApp.name = value || this.defaultAppName;
-                this.newApp.label = `New Azure AD Application: ${this.newApp.name}`;
-                updateDisplayedItems();
-                if (timeout) {
-                    clearTimeout(timeout);
-                }
-                timeout = setTimeout(async () => {
-                    await loadAzureApps(value);
-                }, debounceDelayMs);
-            });
+//             const debounceDelayMs = 500;
+//             let timeout: NodeJS.Timeout | undefined;
+//             qp.onDidChangeValue(value => {
+//                 qp.busy = true;
+//                 this.newApp.name = value || this.defaultAppName;
+//                 this.newApp.label = `New Azure AD Application: ${this.newApp.name}`;
+//                 updateDisplayedItems();
+//                 if (timeout) {
+//                     clearTimeout(timeout);
+//                 }
+//                 timeout = setTimeout(async () => {
+//                     await loadAzureApps(value);
+//                 }, debounceDelayMs);
+//             });
 
-            // Disable default filtering and sorting behavior on the quick pick
-            // https://github.com/microsoft/vscode/issues/73904#issuecomment-680298036
-            (qp as any).sortByLabel = false;
-            qp.matchOnDetail = false;
-            qp.matchOnDescription = false;
+//             // Disable default filtering and sorting behavior on the quick pick
+//             // https://github.com/microsoft/vscode/issues/73904#issuecomment-680298036
+//             (qp as any).sortByLabel = false;
+//             qp.matchOnDetail = false;
+//             qp.matchOnDescription = false;
 
-            updateDisplayedItems();
-            loadAzureApps();
-            qp.show();
-        });
-    }
-}
+//             updateDisplayedItems();
+//             loadAzureApps();
+//             qp.show();
+//         });
+//     }
+// }
 
-interface AppQuickPickItem extends QuickPickItem {
-    id: string;
-    name?: string;
-}
+// interface AppQuickPickItem extends QuickPickItem {
+//     id: string;
+//     name?: string;
+// }
 
-class ConfirmContainerTypeImport extends UxInputStep {
+// class ConfirmContainerTypeImport extends UxInputStep {
     
-    public constructor(private readonly _containerType: ContainerType) {
-        super();
-    }
+//     public constructor(private readonly _containerType: ContainerType) {
+//         super();
+//     }
     
-    public async collectInput(state: UxFlowState): Promise<UxInputStepResult> {
-        const continueResult = "OK";
-        const result = await window.showInformationMessage(
-            `There is already a Free Trial Container Type on your tenant.\n\nContainerTypeId: ${this._containerType.containerTypeId}\nContainerTypeName: ${this._containerType.displayName}\nOwning AppId: ${this._containerType.owningAppId}\n\nDo you want to try importing it and its owning app into your workspace?`, 
-            continueResult, 
-            "Cancel"
-        );
-        if (result !== continueResult) {
-            return UxInputStep.Cancel;
-        }
-        return UxInputStep.Next;
-    }
+//     public async collectInput(state: UxFlowState): Promise<UxInputStepResult> {
+//         const continueResult = "OK";
+//         const result = await window.showInformationMessage(
+//             `There is already a Free Trial Container Type on your tenant.\n\nContainerTypeId: ${this._containerType.containerTypeId}\nContainerTypeName: ${this._containerType.displayName}\nOwning AppId: ${this._containerType.owningAppId}\n\nDo you want to try importing it and its owning app into your workspace?`, 
+//             continueResult, 
+//             "Cancel"
+//         );
+//         if (result !== continueResult) {
+//             return UxInputStep.Cancel;
+//         }
+//         return UxInputStep.Next;
+//     }
 
-}
+// }
 
-export class ContainerTypeDetailsInput extends UxInputStep {
-    public async collectInput(state: ContainerTypeCreationFlowState): Promise<UxInputStepResult> {
-        return new Promise<UxInputStepResult>(async (resolve, reject) => {
-            const qp = window.createQuickPick();
-            qp.title = 'Free Trial Container Type Name:';
-            qp.value = 'SharePoint Embedded Free Trial Container Type';
-            qp.step = state.step;
-            qp.totalSteps = state.totalSteps;
-            qp.placeholder = 'Enter your Free Trial Container Type name';
-            qp.buttons = [...(state.totalSteps && state.totalSteps > 1 ? [QuickInputButtons.Back] : [])];
-            qp.onDidAccept(() => {
-                if (!qp.value) {
-                    return;
-                }
-                state.containerTypeName = qp.value;
-                qp.hide();
-                resolve(UxInputStep.Next);
-            });
-            qp.onDidHide(() => {
-                qp.dispose();
-                if (!state.containerTypeName) {
-                    resolve(UxInputStep.Cancel);
-                }
-            });
-            qp.show();
-        });
-    }
-}
+// export class ContainerTypeDetailsInput extends UxInputStep {
+//     public async collectInput(state: ContainerTypeCreationFlowState): Promise<UxInputStepResult> {
+//         return new Promise<UxInputStepResult>(async (resolve, reject) => {
+//             const qp = window.createQuickPick();
+//             qp.title = 'Free Trial Container Type Name:';
+//             qp.value = 'SharePoint Embedded Free Trial Container Type';
+//             qp.step = state.step;
+//             qp.totalSteps = state.totalSteps;
+//             qp.placeholder = 'Enter your Free Trial Container Type name';
+//             qp.buttons = [...(state.totalSteps && state.totalSteps > 1 ? [QuickInputButtons.Back] : [])];
+//             qp.onDidAccept(() => {
+//                 if (!qp.value) {
+//                     return;
+//                 }
+//                 state.containerTypeName = qp.value;
+//                 qp.hide();
+//                 resolve(UxInputStep.Next);
+//             });
+//             qp.onDidHide(() => {
+//                 qp.dispose();
+//                 if (!state.containerTypeName) {
+//                     resolve(UxInputStep.Cancel);
+//                 }
+//             });
+//             qp.show();
+//         });
+//     }
+// }

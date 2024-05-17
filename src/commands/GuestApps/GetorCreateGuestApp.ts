@@ -13,6 +13,8 @@ import { RegisterOnLocalTenant } from '../ContainerType/RegisterOnLocalTenant';
 import { AppType } from '../../models/App';
 import { GuestAppsTreeItem } from '../../views/treeview/development/GuestAppsTreeItem';
 import { AddGuestAppFlowState, AddGuestAppFlow } from '../../views/qp/UxFlows';
+import { ApplicationPermissions } from '../../models/ApplicationPermissions';
+import { ISpConsumingApplicationProperties } from '../../services/SpAdminProviderNew';
 
 // Static class that handles the create guest app command
 export class GetorCreateGuestApp extends Command {
@@ -52,7 +54,22 @@ export class GetorCreateGuestApp extends Command {
         }
 
         const appDelegatedPerms = addGuestAppState.delegatedPerms;
-        const appAppPerms = addGuestAppState.applicationPerms;
+        const appPerms = addGuestAppState.applicationPerms;
+
+        const containerTypeRegistration = await containerType.loadLocalRegistration();
+        const newApplicationPermissions: ISpConsumingApplicationProperties = {
+            OwningApplicationId: containerType.owningApp!.clientId,
+            DelegatedPermissions: appDelegatedPerms,
+            AppOnlyPermissions: appPerms,
+            TenantId: account.tenantId,
+            ContainerTypeId: containerType.containerTypeId,
+            ApplicationId: app.clientId,
+            ApplicationName: app.displayName,
+            Applications: containerTypeRegistration!.applications,
+            OwningApplicationName:containerType.owningApp!.displayName,
+        };
+
+        const appPermissionsToRegister = new ApplicationPermissions(containerTypeRegistration!, newApplicationPermissions);
 
         const register = 'Register on local tenant';
         const buttons = [register];
@@ -61,7 +78,7 @@ export class GetorCreateGuestApp extends Command {
             ...buttons
         );
         if (selection === register) {
-            RegisterOnLocalTenant.run(containerType);
+            RegisterOnLocalTenant.run(containerType, appPermissionsToRegister);
         }
         return containerType;
     }

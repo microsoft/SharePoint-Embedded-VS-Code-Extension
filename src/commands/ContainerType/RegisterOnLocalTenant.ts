@@ -22,6 +22,7 @@ import { GetAccount } from '../Accounts/GetAccount';
 import { CreateAppCert } from '../App/Credentials/CreateAppCert';
 import { GetLocalAdminConsent } from '../App/GetLocalAdminConsent';
 import { ProgressWaitNotification, Timer } from '../../views/notifications/ProgressWaitNotification';
+import { ApplicationPermissions } from '../../models/ApplicationPermissions';
 
 // Static class that handles the register container type command
 export class RegisterOnLocalTenant extends Command {
@@ -29,7 +30,7 @@ export class RegisterOnLocalTenant extends Command {
     public static readonly COMMAND = 'ContainerType.registerOnLocalTenant';
 
     // Command handler
-    public static async run(commandProps?: RegistrationCommandProps): Promise<void> {
+    public static async run(commandProps?: RegistrationCommandProps, newApplicationPermissions?: ApplicationPermissions): Promise<void> {
         if (!commandProps) {
             return;
         }
@@ -101,7 +102,7 @@ export class RegisterOnLocalTenant extends Command {
         let registered = false;
         while (!registered && !registrationTimer.finished) {
             try {
-                await containerType.registerOnLocalTenant();
+                await containerType.registerOnLocalTenant(newApplicationPermissions);
                 registered = true;
             } catch (error: any) {
                 console.log(`Unable to register Container Type '${containerType.displayName}': ${error}`);

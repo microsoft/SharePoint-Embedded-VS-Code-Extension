@@ -75,6 +75,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
     // App Commands
     Commands.GetOrCreateApp.register(context);
+    Commands.GetOrCreateGuestApp.register(context);
     Commands.ViewInAzure.register(context);
     Commands.RenameApp.register(context);
     Commands.CloneDotNetSampleApp.register(context);

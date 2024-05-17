@@ -43,6 +43,7 @@ import { CloneReactSampleApp as _CloneReactSampleApp } from './App/Samples/Clone
 import { OpenPostmanDocumentation as _OpenPostmanDocumentation } from './App/Postman/OpenPostmanDocumentation';
 import { CopyAppId as _CopyAppId } from './App/CopyAppId';
 import { RestoreContainer as _RestoreContainer } from './RecycledContainer/RestoreContainer'; 
+import { GetorCreateGuestApp as _GetOrCreateGuestApp } from './GuestApps/GetorCreateGuestApp';
 
 export namespace Commands {
   export const SignIn = _SignIn;
@@ -66,6 +67,7 @@ export namespace Commands {
 
   // Apps Commands
   export const GetOrCreateApp = _GetOrCreateApp;
+export const GetOrCreateGuestApp = _GetOrCreateGuestApp;
 
   // App Commands
   export const CreatePostmanConfig = _CreatePostmanConfig;
