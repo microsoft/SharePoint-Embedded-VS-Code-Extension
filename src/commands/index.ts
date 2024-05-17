@@ -12,7 +12,6 @@ import { CopySubscriptionId as _CopySubscriptionId } from './ContainerType/CopyS
 import { CreateAppCert as _CreateAppCert } from './App/Credentials/CreateAppCert';
 import { ForgetAppCert as _ForgetAppCert } from './App/Credentials/ForgetCert';
 import { CreateContainer as _CreateContainer } from './Containers/CreateContainer';
-import { CreateGuestApp as _CreateGuestApp } from './CreateGuestApp';
 import { CreatePostmanConfig as _CreatePostmanConfig } from './App/Postman/CreatePostmanConfig';
 import { CreateSecret as _CreateSecret } from './App/Credentials/CreateSecret';
 import { ForgetAppSecret as _ForgetAppSecret } from './App/Credentials/ForgetSecret';
@@ -52,7 +51,6 @@ export namespace Commands {
   export const CreateTrialContainerType = _CreateTrialContainerType;
   export const CreatePaidContainerType = _CreatePaidContainerType;
   //export const RegisterContainerType = _RegisterContainerType;
-  export const CreateGuestApp = _CreateGuestApp;
   export const DeleteContainerType = _DeleteContainerType;
   export const CreateContainer = _CreateContainer;
   export const Refresh = _Refresh;

@@ -49,7 +49,6 @@ export async function activate(context: vscode.ExtensionContext) {
     Commands.CreateTrialContainerType.register(context);
     Commands.CreatePaidContainerType.register(context);
     //Commands.RegisterContainerType.register(context);
-    Commands.CreateGuestApp.register(context);
     Commands.DeleteContainerType.register(context);
     Commands.ExportPostmanConfig.register(context);
     Commands.CancelSignIn.register(context);
