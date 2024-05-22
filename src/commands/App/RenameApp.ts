@@ -64,15 +64,11 @@ export class RenameApp extends Command {
         const progressWindow = new ProgressWaitNotification('Renaming application');
         progressWindow.show();
         try {
-            const authProvider = await app.getAppOnlyAuthProvider(account.tenantId);
-            const graphProvider = new GraphProviderNew(authProvider);
-            const updatedApp = await graphProvider.renameApp(app.clientId, appDisplayName);
-            if (!updatedApp) {
-                throw new Error ("Failed to rename application");
-            }
+            const graphProvider = Account.graphProvider;
+            await graphProvider.renameApp(app.objectId, appDisplayName);
 
             if (commandProps instanceof AppTreeItem) {
-                DevelopmentTreeViewProvider.getInstance().refresh(commandProps);
+                DevelopmentTreeViewProvider.getInstance().refresh(commandProps.parentView ? commandProps.parentView : commandProps);
             } else {
                 DevelopmentTreeViewProvider.getInstance().refresh();
             }

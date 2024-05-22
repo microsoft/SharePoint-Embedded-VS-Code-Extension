@@ -34,7 +34,6 @@ import { EditContainerDescription as _EditContainerDescription } from './Contain
 import { RecycleContainer as _RecycleContainer } from './Container/RecycleContainer';
 import { CopyContainerId as _CopyContainerId } from './Container/CopyContainerId';
 import { ViewContainerProperties as _ViewContainerProperties } from './Container/ViewContainerProperties';
-import { CopyRecycledContainerId as _CopyRecycledContainerId } from './RecycledContainer/CopyContainerId';
 import { DeleteContainer as _DeleteContainer } from './RecycledContainer/DeleteContainer';
 import { RenameApp as _RenameApp } from './App/RenameApp';
 import { CloneDotNetSampleApp as _CloneDotNetSampleApp } from './App/Samples/CloneDotNetSampleApp';
@@ -43,6 +42,7 @@ import { OpenPostmanDocumentation as _OpenPostmanDocumentation } from './App/Pos
 import { CopyAppId as _CopyAppId } from './App/CopyAppId';
 import { RestoreContainer as _RestoreContainer } from './RecycledContainer/RestoreContainer'; 
 import { GetorCreateGuestApp as _GetOrCreateGuestApp } from './GuestApps/GetorCreateGuestApp';
+import { CopyRecycledContainerId as _CopyRecycledContainerId } from './RecycledContainer/CopyContainerId';
 
 export namespace Commands {
   export const SignIn = _SignIn;

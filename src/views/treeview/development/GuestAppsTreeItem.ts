@@ -37,7 +37,7 @@ export class GuestAppsTreeItem extends IChildrenProvidingTreeItem {
             }
             registration.applicationPermissions.map((app: ApplicationPermissions) => {
                 if (app.appId !== owningApp.clientId) {
-                    children.push(new GuestApplicationTreeItem(app));
+                    children.push(new GuestApplicationTreeItem(app, this));
                 }
             });
         } catch (error) {

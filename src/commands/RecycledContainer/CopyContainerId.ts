@@ -10,7 +10,7 @@ import { Commands } from '..';
 // Static class that handles the copy container type id command
 export class CopyRecycledContainerId extends Command {
     // Command name
-    public static readonly COMMAND = 'RecyledContainer.copyId';
+    public static readonly COMMAND = 'RecycledContainer.copyId';
 
     // Command handler
     public static async run(containerViewModel?: RecycledContainerTreeItem): Promise<void> {

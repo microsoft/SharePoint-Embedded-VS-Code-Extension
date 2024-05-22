@@ -30,16 +30,6 @@ export class RestoreContainer extends Command {
         const container: Container = containerViewModel.container;
         const owningApp: App = containerType.owningApp!;
 
-        const message = "Are you sure you want to restore this container?";
-        const userChoice = await vscode.window.showInformationMessage(
-            message,
-            'OK', 'Cancel'
-        );
-
-        if (userChoice === 'Cancel') {
-            return;
-        }
-
         const progressWindow = new ProgressWaitNotification('Restoring container');  
         progressWindow.show();
         try {

@@ -6,9 +6,10 @@
 import * as vscode from "vscode";
 import { ContainerType } from "../../../models/ContainerType";
 import { App } from "../../../models/App";
+import { IChildrenProvidingTreeItem } from "./IDataProvidingTreeItem";
 
 export class AppTreeItem extends vscode.TreeItem {
-    constructor(public readonly app: App | string) {
+    constructor(public readonly app: App | string, public readonly parentView?: IChildrenProvidingTreeItem) {
         const label = typeof app === "string" ? app : app.name;
         super(label,  vscode.TreeItemCollapsibleState.None);
         this.iconPath = new vscode.ThemeIcon("app-icon");

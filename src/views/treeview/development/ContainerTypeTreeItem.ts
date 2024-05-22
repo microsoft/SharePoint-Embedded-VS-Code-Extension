@@ -58,7 +58,7 @@ export class ContainerTypeTreeItem extends IChildrenProvidingTreeItem {
             if (!owningApp) {
                 throw new Error('Owning app not found');
             }
-            children.push(new OwningAppTreeItem(this.containerType));
+            children.push(new OwningAppTreeItem(this.containerType, this));
         } catch (error) {
             console.error(`Unable to load owning app ${error}`);
             return children;

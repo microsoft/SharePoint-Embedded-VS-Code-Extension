@@ -8,9 +8,10 @@ import { ContainerType } from "../../../models/ContainerType";
 import { App } from "../../../models/App";
 import { AppTreeItem } from "./AppTreeItem";
 import { DevelopmentTreeViewProvider } from "./DevelopmentTreeViewProvider";
+import { IChildrenProvidingTreeItem } from "./IDataProvidingTreeItem";
 
 export class OwningAppTreeItem extends AppTreeItem {
-    constructor(public readonly containerType: ContainerType) {
+    constructor(public readonly containerType: ContainerType, public readonly parentView: IChildrenProvidingTreeItem) {
         const app = containerType.owningApp!;
         super(app);
         this.description = "(owning app)";

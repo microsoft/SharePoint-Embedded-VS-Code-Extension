@@ -9,9 +9,10 @@ import { ContainerType } from "../../../models/ContainerType";
 import { AppTreeItem } from "./AppTreeItem";
 import { ApplicationPermissions } from "../../../models/ApplicationPermissions";
 import { DevelopmentTreeViewProvider } from "./DevelopmentTreeViewProvider";
+import { IChildrenProvidingTreeItem } from "./IDataProvidingTreeItem";
 
 export class GuestApplicationTreeItem extends AppTreeItem {
-    constructor(public appPerms: ApplicationPermissions) {
+    constructor(public appPerms: ApplicationPermissions, public readonly parentView: IChildrenProvidingTreeItem) {
         super(appPerms.app ? appPerms.app : appPerms.appId);
         this.contextValue += '-guest';
         if (!appPerms.app) {

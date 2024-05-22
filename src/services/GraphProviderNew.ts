@@ -80,9 +80,9 @@ export class GraphProviderNew {
         return response as Application;
     }
 
-    public async renameApp(appId: string, displayName: string): Promise<Application> {
+    public async renameApp(objectId: string, displayName: string): Promise<Application> {
         const response = await this._client
-            .api(`/applications/${appId}`)
+            .api(`/applications/${objectId}`)
             .patch({ displayName });
         return response as Application;
     }

@@ -173,23 +173,13 @@
       "spe.App.SampleApps": [
         {
           "submenu": "spe.App.SampleApps.TypeScript+React+AzureFunctions",
+          "command": "spe.App.SampleApps.TypeScript+React+AzureFunctions.clone",
           "group": "1@1"
         },
         {
           "submenu": "spe.App.SampleApps.ASPNET+C#",
-          "group": "1@2"
-        }
-      ],
-      "spe.App.SampleApps.TypeScript+React+AzureFunctions": [
-        {
-          "command": "spe.App.SampleApps.TypeScript+React+AzureFunctions.clone",
-          "group": "1@1"
-        }
-      ],
-      "spe.App.SampleApps.ASPNET+C#": [
-        {
           "command": "spe.App.SampleApps.ASPNET+C#.clone",
-          "group": "1@1"
+          "group": "1@2"
         }
       ],
       "spe.App.Credentials": [
@@ -510,11 +500,11 @@
       },
       {
         "command": "spe.App.SampleApps.TypeScript+React+AzureFunctions.clone",
-        "title": "Clone and configure"
+        "title": "TypeScript + React + Azure Functions"
       },
       {
         "command": "spe.App.SampleApps.ASPNET+C#.clone",
-        "title": "Clone and configure"
+        "title": "ASP.NET + C#"
       },
       {
         "command": "spe.App.rename",
@@ -531,14 +521,6 @@
       {
         "command": "spe.App.Postman.viewDocs",
         "title": "View documentation"
-      },
-      {
-        "command": "spe.App.SampleApps.TypeScript+React+AzureFunctions.clone",
-        "title": "Clone and configure"
-      },
-      {
-        "command": "spe.App.SampleApps.ASPNET+C#.clone",
-        "title": "Clone and configure"
       },
       {
         "command": "spe.App.Credentials.createSecret",

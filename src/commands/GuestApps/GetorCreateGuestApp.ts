@@ -71,15 +71,7 @@ export class GetorCreateGuestApp extends Command {
 
         const appPermissionsToRegister = new ApplicationPermissions(containerTypeRegistration!, newApplicationPermissions);
 
-        const register = 'Register on local tenant';
-        const buttons = [register];
-        const selection = await vscode.window.showInformationMessage(
-            `Your container type has been created. Would you like to register it on your local tenant?`,
-            ...buttons
-        );
-        if (selection === register) {
-            RegisterOnLocalTenant.run(containerType, appPermissionsToRegister);
-        }
+        await RegisterOnLocalTenant.run(containerType, appPermissionsToRegister);
         return containerType;
     }
 }
