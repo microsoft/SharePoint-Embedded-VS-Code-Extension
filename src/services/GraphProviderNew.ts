@@ -112,10 +112,10 @@ export class GraphProviderNew {
             .select('id,displayName,description,containerTypeId,createdDateTime,storageUsedInBytes')
             .get();
         const containersProperties = response.value as IContainerProperties[];
-        const containers = containersProperties.map((props: IContainerProperties) => {
-            return new Container(containerTypeRegistration, props);
+        const containers = containersProperties.map(async (props: IContainerProperties) => {
+            return await this.getContainer(containerTypeRegistration, props.id);
         });
-        return containers;
+        return await Promise.all(containers);
     }
 
     public async listRecycledContainers(containerTypeRegistration: ContainerTypeRegistration): Promise<Container[]> {
@@ -144,10 +144,20 @@ export class GraphProviderNew {
         return new Container(containerTypeRegistration, response as IContainerProperties);
     }
 
+    public async getContainer(containerTypeRegistration: ContainerTypeRegistration, id: string): Promise<Container> {
+        const response = await this._client
+            .api(`/storage/fileStorage/containers/${id}`)
+            .select('id,displayName,containerTypeId,status,description,customProperties,itemMajorVersionLimit,isItemVersioningEnabled')
+            .expand('permissions')
+            .version('beta')
+            .get();
+        return new Container(containerTypeRegistration, response as IContainerProperties);
+    }
+
     public async updateContainer(containerTypeRegistration: ContainerTypeRegistration, id: string, displayName: string, description: string): Promise<Container> {
         const updateRequest = {
-                displayName,
-                description
+            displayName: displayName,
+            description: description
         };
         
         const response = await this._client

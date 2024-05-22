@@ -36,7 +36,11 @@ export class EditContainerDescription extends Command {
 
         });
 
-        const progressWindow = new ProgressWaitNotification('Editing container description');  
+        if (containerDescription === undefined) {
+            return;
+        }
+
+        const progressWindow = new ProgressWaitNotification('Saving new container description...');  
         progressWindow.show();
         try {
             const authProvider = await owningApp.getAppOnlyAuthProvider(containerTypeRegistration.tenantId);

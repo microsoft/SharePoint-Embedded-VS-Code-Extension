@@ -18,6 +18,7 @@ export class GuestApplicationTreeItem extends AppTreeItem {
             appPerms.loadApp().then(app => {
                 if (app) {
                     this.label = app.name;
+                    this.contextValue += '-local';
                     DevelopmentTreeViewProvider.instance.refresh(this);
                 }
             });
