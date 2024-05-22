@@ -54,12 +54,6 @@ export class RenameApp extends Command {
         if (appDisplayName === undefined) {
             return;
         }
-
-        if (appDisplayName === '') {
-            vscode.window.showWarningMessage('App display name cannot be empty');
-            return;
-        }
-
         
         const progressWindow = new ProgressWaitNotification('Renaming application');
         progressWindow.show();
