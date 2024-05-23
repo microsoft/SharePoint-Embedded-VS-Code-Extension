@@ -5,6 +5,7 @@ import { BaseAuthProvider } from './BaseAuthProvider';
 import { Container, IContainerProperties } from '../models/Container';
 import { ContainerTypeRegistration } from '../models/ContainerTypeRegistration';
 import AppOnly3PAuthProvider from './AppOnly3PAuthProvider';
+import { forEach } from 'lodash';
 
 export class GraphProviderNew {
     //private static readonly _scopes = ['Application.ReadWrite.All', 'User.Read', 'Sites.Read.All'];
@@ -104,6 +105,12 @@ export class GraphProviderNew {
             .patch({ keyCredentials: [keyCredential] });
     }
 
+    public async addRequiredResourceAccess(objectId: string, requiredResourceAccess: any): Promise<void> {
+        await this._client
+            .api(`/applications/${objectId}`)
+            .patch({ requiredResourceAccess });
+            
+        }
     public async listContainers(containerTypeRegistration: ContainerTypeRegistration): Promise<Container[]> {
         const response = await this._client
             .api('/storage/fileStorage/containers')

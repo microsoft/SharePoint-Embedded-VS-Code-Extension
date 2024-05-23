@@ -22,7 +22,7 @@ import ARMProvider from '../services/ARMProvider';
 import { v4 as uuidv4 } from 'uuid';
 
 // Account class that represents an msal AccountInfo object from the FirstPartyAuthProvider
-export class Account {
+export class  Account {
     // Storage key for the account
     public static readonly storageKey: string = "account";
     private static readonly authProvider: BaseAuthProvider = new FirstPartyAuthProvider(clientId, Account.storageKey);

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Application } from "@microsoft/microsoft-graph-types";
+import { Application, RequiredResourceAccess } from "@microsoft/microsoft-graph-types";
 import GraphProvider from "../services/GraphProvider";
 import { StorageProvider } from "../services/StorageProvider";
 import _ from 'lodash';
@@ -18,6 +18,7 @@ export class App {
     public readonly clientId: string;
     public readonly displayName: string;
     public readonly objectId: string;
+    public readonly requiredResourceAccess: RequiredResourceAccess[];
     public get name(): string {
         return this.displayName || this.clientId;
     }
@@ -48,6 +49,7 @@ export class App {
         this.clientId = config.appId!;
         this.displayName = config.displayName!;
         this.objectId = config.id!;
+        this.requiredResourceAccess = config.requiredResourceAccess!;
 
         this._account = Account.get()!;
     }

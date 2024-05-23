@@ -14,6 +14,9 @@ import { CreateSecret } from "../commands/App/Credentials/CreateSecret";
 import { checkJwtForAppOnlyRole, decodeJwt } from "../utils/token";
 import { GetLocalAdminConsent } from "../commands/App/GetLocalAdminConsent";
 import { CreateAppCert } from "../commands/App/Credentials/CreateAppCert";
+import AppProvider from "../services/AppProvider";
+import { CheckRequiredResourceAccess } from "../commands/App/CheckRequiredResourceAccess";
+import AppOnly3PAuthProvider from "../services/AppOnly3PAuthProvider";
 
 
 // Class that represents a Container Type Registration object
@@ -52,9 +55,7 @@ export class ContainerTypeRegistration {
         return this._containers;
     }
     public async loadContainers(): Promise<Container[] | undefined> {
-        if (!this.containerType.owningApp) {
-            await this.containerType.loadOwningApp();
-        }
+        await this.containerType.loadOwningApp();
         if (this.containerType.owningApp) {
             const hasCreds = await this._checkOrCreateCredentials();
             if (!hasCreds) {
@@ -62,10 +63,17 @@ export class ContainerTypeRegistration {
             }
 
             const authProvider = await this.containerType.owningApp.getAppOnlyAuthProvider(this.tenantId);
-            const graphProvider = new GraphProviderNew(authProvider);
-            this._containers = await graphProvider.listContainers(this);
+            const appProvider = Account.get()!.appProvider;
+            const appOnlyGraphProvider = new GraphProviderNew(authProvider);
+
+            const hasRole = await this._checkOrConsentFileStorageContainerRole(appProvider, authProvider);
+            if (!hasRole) {
+                return;
+            }
+
+            this._containers = await appOnlyGraphProvider.listContainers(this);
         }
-        return this._containers;  
+        return this._containers;
     }
 
     private _recycledContainers?: Container[];
@@ -82,31 +90,72 @@ export class ContainerTypeRegistration {
                 return;
             }
             const authProvider = await this.containerType.owningApp.getAppOnlyAuthProvider(this.tenantId);
-            const graphProvider = new GraphProviderNew(authProvider);
-            this._recycledContainers = await graphProvider.listRecycledContainers(this);
+            const appProvider = Account.get()!.appProvider;
+            const appOnlyGraphProvider = new GraphProviderNew(authProvider);
+
+            const hasRole = await this._checkOrConsentFileStorageContainerRole(appProvider, authProvider);
+            if (!hasRole) {
+                return;
+            }
+            this._recycledContainers = await appOnlyGraphProvider.listRecycledContainers(this);
         }
         return this._recycledContainers;
     }
 
     private async _checkOrCreateCredentials(): Promise<boolean> {
         const secretPrompt = 'Create secret';
-            const certificatePrompt = 'Create certificate';
-            const hasCreds = await this.containerType.owningApp!.hasCert() || await this.containerType.owningApp!.hasSecret();
-            if (!hasCreds) {
-                const userChoice = await vscode.window.showInformationMessage(
-                    "No credentials were found on this app. Would you like to create one?",
-                    secretPrompt, certificatePrompt, 'Cancel'
-                );
-                if (userChoice === secretPrompt) {
-                    await CreateSecret.run(this.containerType.owningApp);
-                    return true;
-                } else if (userChoice === certificatePrompt) {
-                    await CreateAppCert.run(this.containerType.owningApp);
-                    return true;
-                } else {
-                    return false;
-                }
+        const certificatePrompt = 'Create certificate';
+        const hasCreds = await this.containerType.owningApp!.hasCert() || await this.containerType.owningApp!.hasSecret();
+        if (!hasCreds) {
+            const userChoice = await vscode.window.showInformationMessage(
+                "No credentials were found on this app. Would you like to create one?",
+                secretPrompt, certificatePrompt, 'Cancel'
+            );
+            if (userChoice === secretPrompt) {
+                await CreateSecret.run(this.containerType.owningApp);
+                return true;
+            } else if (userChoice === certificatePrompt) {
+                await CreateAppCert.run(this.containerType.owningApp);
+                return true;
+            } else {
+                return false;
             }
-            return true;
+        }
+        return true;
+    }
+
+    private async _checkOrConsentFileStorageContainerRole(appProvider: AppProvider, authProvider: AppOnly3PAuthProvider): Promise<boolean> {
+        // Check if app has been configured with correct role, if not, update it
+        const hasFileStorageContainerGraphRole = await CheckRequiredResourceAccess.run(this.containerType.owningApp, appProvider.GraphResourceAppId, appProvider.FileStorageContainerRole.id);
+        if (!hasFileStorageContainerGraphRole) {
+            await appProvider.updateResourceAccess(this.containerType.owningApp!, [{
+                resourceAppId: appProvider.GraphResourceAppId,
+                resourceAccess: [
+                    appProvider.FileStorageContainerRole
+                ]
+            }]);
+        }
+
+        // Check if the appOnlyToken has the correct role, if not, consent to the FileStorageContainer.Selected role
+        const token = await authProvider.getToken(['https://graph.microsoft.com/.default']);
+        const decodedToken = decodeJwt(token);
+        const hasRole = checkJwtForAppOnlyRole(decodedToken, 'FileStorageContainer.Selected');
+
+        if (!hasRole) {
+            const grantConsent = `Grant consent`;
+            const buttons = [grantConsent];
+            const choice = await vscode.window.showInformationMessage(
+                `The owning app '${this.containerType.owningApp?.displayName}' does not have the necessary consent to perform this action. You need to grant consent to the app before perform container operations. Do you want to grant consent now?`,
+                ...buttons
+            );
+            if (choice !== grantConsent) {
+                return false;
+            }
+            const consented = await GetLocalAdminConsent.run(this.containerType.owningApp);
+            if (!consented) {
+                return false;
+            }
+        }
+        return true;
     }
 }

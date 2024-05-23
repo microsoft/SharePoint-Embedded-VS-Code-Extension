@@ -15,14 +15,7 @@
 
 import { Command } from '../Command';
 import * as vscode from 'vscode';
-import { Account } from '../../models/Account';
-import { ContainerType } from '../../models/ContainerType';
-import { DevelopmentTreeViewProvider } from '../../views/treeview/development/DevelopmentTreeViewProvider';
-import { ContainerTypeTreeItem } from '../../views/treeview/development/ContainerTypeTreeItem';
 import { GetAccount } from '../Accounts/GetAccount';
-import { CreateAppCert } from './Credentials/CreateAppCert';
-import { has } from 'lodash';
-import { ProgressNotification } from '../../views/notifications/ProgressNotification';
 import { ProgressWaitNotification, Timer } from '../../views/notifications/ProgressWaitNotification';
 import { AppTreeItem } from '../../views/treeview/development/AppTreeItem';
 import { App } from '../../models/App';
@@ -58,6 +51,7 @@ export class GetLocalAdminConsent extends Command {
         const consentProgress = new ProgressWaitNotification('Waiting for admin consent...');
         consentProgress.show();
         const localRegistrationScope = `${account.spRootSiteUrl}/.default`;
+        const graphRegistrationScope = 'https://graph.microsoft.com/.default';
         try {
             const appAuthProvider = await app.getAppOnlyAuthProvider(account.tenantId);
             const adminConsent = await appAuthProvider.listenForAdminConsent(app.clientId, account.tenantId);
@@ -70,13 +64,15 @@ export class GetLocalAdminConsent extends Command {
             const consentPropagationProgress = new ProgressWaitNotification('Waiting for consent to propagate in Azure (could take up to a minute)...');
             consentPropagationProgress.show();
             const consentPropagationTimer = new Timer(60 * 1000);
-            let consented = await appAuthProvider.hasConsent(localRegistrationScope, ['Container.Selected']);
-            while (!consented && !consentPropagationTimer.finished) {
+            let sharePointConsent = await appAuthProvider.hasConsent(localRegistrationScope, ['Container.Selected']);
+            let graphConsent = await appAuthProvider.hasConsent(graphRegistrationScope, ['FileStorageContainer.Selected']);
+            while (!graphConsent && sharePointConsent && !consentPropagationTimer.finished) {
                 await new Promise(r => setTimeout(r, 3000));
-                consented = await appAuthProvider.hasConsent(localRegistrationScope, ['Container.Selected']);
+                sharePointConsent = await appAuthProvider.hasConsent(localRegistrationScope, ['Container.Selected']);
+                graphConsent = await appAuthProvider.hasConsent(graphRegistrationScope, ['FileStorageContainer.Selected']);
             }
             consentPropagationProgress.hide();
-            return consented;
+            return sharePointConsent && graphConsent;
         } catch (error: any) {
             consentProgress.hide();
             vscode.window.showErrorMessage(`Failed to get admin consent for app '${app.displayName}': ${error}`);

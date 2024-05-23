@@ -1,9 +1,10 @@
 
-import { Application, KeyCredential } from "@microsoft/microsoft-graph-types";
+import { Application, KeyCredential, RequiredResourceAccess} from "@microsoft/microsoft-graph-types";
 import { v4 as uuidv4 } from 'uuid';
 import { GraphProviderNew } from "./GraphProviderNew";
 import { App } from "../models/App";
 import { createCertKeyCredential, generateCertificateAndPrivateKey } from "../cert";
+import { forEach } from "lodash";
 
 export default class AppProvider {
     
@@ -51,6 +52,37 @@ export default class AppProvider {
         const app = new App(application);
         await app.setSecrets({ thumbprint: cert.thumbprint, privateKey: cert.privateKey });
         return app;
+    }
+
+    public async updateResourceAccess(app: App, config: RequiredResourceAccess[]) {
+        if (config.length === 0) {
+            return;
+        }
+        const merged: RequiredResourceAccess[] = [];
+        const existing = app.requiredResourceAccess;
+        forEach(existing, (resourceAccess: any) => {
+            const existingResourceAccess = config.find((existingResourceAccess: any) => existingResourceAccess.resourceAppId === resourceAccess.resourceAppId);
+            if (existingResourceAccess) {
+                const uniqueItems: { [key: string]: any } = {};
+                const mergedItems = [...resourceAccess.resourceAccess, ...existingResourceAccess.resourceAccess!];
+                mergedItems.forEach((item: any) => {
+                    const key = `${item.id}_${item.type}`;
+                    if (!uniqueItems[key]) {
+                        uniqueItems[key] = item;
+                    }
+                });
+                const filteredItems = Object.values(uniqueItems);
+                const mergedResourceAccess = {
+                    resourceAppId: resourceAccess.resourceAppId,
+                    resourceAccess: filteredItems
+                };
+                merged.push(mergedResourceAccess);
+            } else {
+                merged.push(resourceAccess);
+            }
+        });
+
+        await this._graph.addRequiredResourceAccess(app.objectId, merged);
     }
 
     public get baseAppConfig(): Application {
