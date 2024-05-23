@@ -137,7 +137,17 @@ export class ContainerType {
             const containerTypeRegistration = await this.loadLocalRegistration();
             existingAppPermissions = await containerTypeRegistration!.loadApplicationPermissions();
             if (existingAppPermissions) {
-                existingAppPermissions.push(newApplicationPermissions);
+                const index = existingAppPermissions.findIndex(
+                    permission => permission.appId === newApplicationPermissions.appId
+                );
+        
+                if (index !== -1) {
+                    // Update the existing permission
+                    existingAppPermissions[index] = newApplicationPermissions;
+                } else {
+                    // Add the new permission
+                    existingAppPermissions.push(newApplicationPermissions);
+                }
                 appPermissions = existingAppPermissions.map((permission) => ({
                     appId: permission.appId,
                     delegated: permission.delegated,

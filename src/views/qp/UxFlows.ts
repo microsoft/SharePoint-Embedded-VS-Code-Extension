@@ -138,13 +138,13 @@ export class AddGuestAppFlowState extends AppSelectionFlowState {
 }
 
 export class AddGuestAppFlow extends LinearUxFlow {
-    public constructor(private readonly _containerType: ContainerType) {
+    public constructor(private readonly _containerType: ContainerType, existingDelegatedPerms?: string[], existingAppPerms?: string[]) {
         super();
         this.state = new AddGuestAppFlowState();
         this.state.step = 1;
         this.steps = [
-            new AddGuestAppPermissionsInput('Delegated'),
-            new AddGuestAppPermissionsInput('Application')
+            new AddGuestAppPermissionsInput('Delegated', existingDelegatedPerms),
+            new AddGuestAppPermissionsInput('Application', existingAppPerms)
         ];
     }
 
@@ -166,17 +166,20 @@ class AddGuestAppPermissionsInput extends UxInputStep {
         { label: "Delete", value: "delete", detail: "Delete storage containers"  },
         { label: "Read", value: "read", detail: "List storage containers and their properties"  },
         { label: "Write", value: "write", detail: "Update properties on storage containers"  },
+        { label: "EnumeratePermissions", value: "enumeratepermissions", detail: "Can enumerate the members of a container and their roles."},
         { label: "AddPermissions", value: "addpermissions", detail: "Add users and groups to permission roles on storage containers"  },
         { label: "UpdatePermissions", value: "updatepermissions", detail: "Update user and group permission roles on storage containers"  },
         { label: "DeletePermissions", value: "deletepermissions", detail: "Delete users and groups from permission roles on storage containers"  },
-        { label: "DeleteOwnPermissions", value: "deleteownpermissions", detail: "Delete own app permission from all storage containers"  },
+        { label: "DeleteOwnPermission", value: "deleteownpermission", detail: "Delete own app permission from all storage containers"  },
         { label: "ManagePermissions", value: "managepermissions", detail: "Manage permissions on all storage containers"  }
     ];
     private readonly fullPermChoiceValue = 'full';
 
-    public constructor(private readonly _permissionType: 'Delegated' | 'Application') {
+    public constructor(private readonly _permissionType: 'Delegated' | 'Application', private readonly _existingPerms?: string[]) {
         super();
     }
+
+    private existingPermsChoices: ApplicationPermissionOption[] = this.permChoices.filter(choice => this._existingPerms?.includes(choice.label));
 
     public collectInput(state: AddGuestAppFlowState): Promise<UxInputStepResult> {
         return new Promise<UxInputStepResult>((resolve, reject) => { 
@@ -188,7 +191,8 @@ class AddGuestAppPermissionsInput extends UxInputStep {
             qp.ignoreFocusOut = true;
             qp.placeholder = `Select one or more ${this._permissionType} permissions for your app`;
             qp.buttons = [...(state.totalSteps && state.totalSteps > 1 ? [QuickInputButtons.Back] : [])];
-            qp.selectedItems = qp.items = this.permChoices;
+            qp.items = this.permChoices;
+            qp.selectedItems = this._existingPerms ?this.existingPermsChoices : this.permChoices;
             let selectedPerms: string[] = [];
             qp.onDidTriggerButton((button: QuickInputButton) => {
                 if (button === QuickInputButtons.Back) {

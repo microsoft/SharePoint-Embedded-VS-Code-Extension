@@ -81,6 +81,7 @@ export async function activate(context: vscode.ExtensionContext) {
     Commands.CloneReactSampleApp.register(context);
     Commands.CopyAppId.register(context);
     Commands.CheckRequiredResourceAccess.register(context);
+    Commands.EditGuestAppPermissions.register(context);
 
     // Container Commands
     Commands.CreateContainer.register(context);

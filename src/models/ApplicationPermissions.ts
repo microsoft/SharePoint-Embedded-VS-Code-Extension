@@ -54,4 +54,5 @@ export type ApplicationPermission =
     "AddPermissions" |
     "UpdatePermissions" |
     "DeletePermissions" |
-    "DeleteOwnPermission";
+    "DeleteOwnPermission" |
+    "ManagePermissions";
