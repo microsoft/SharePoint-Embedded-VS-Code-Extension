@@ -27,7 +27,7 @@ export class ContainerTypeRegistration {
     }
     public readonly tenantId: string;
     public readonly owningAppId: string;
-    public readonly applications: string[];
+    public applications: string[];
 
     public constructor(public readonly containerType: ContainerType, properties: ISpConsumingApplicationProperties) {
         this.tenantId = properties.TenantId!;
@@ -42,6 +42,7 @@ export class ContainerTypeRegistration {
     public async loadApplicationPermissions(): Promise<ApplicationPermissions[] | undefined> {
         if (Account.get() && Account.get()!.containerTypeProvider) {
             const provider = Account.get()!.containerTypeProvider;
+            this.applications = (await provider.getAppPermissions(this)).apps;
             const appPerms = this.applications.map(async (appId: string) => {
                 return await provider.getAppPermissions(this, appId);
             });

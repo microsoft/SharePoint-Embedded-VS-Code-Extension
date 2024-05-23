@@ -30,8 +30,8 @@ export default class ContainerTypeProvider {
             return new ContainerTypeRegistration(containerType, registrationProperties);
         }
     }
-
-    public async getAppPermissions(containerTypeRegistration: ContainerTypeRegistration, appId: string): Promise<ApplicationPermissions> {
+    
+    public async getAppPermissions(containerTypeRegistration: ContainerTypeRegistration, appId?: string): Promise<ApplicationPermissions> {
         const owningAppId = containerTypeRegistration.owningAppId;
         const appPermissionsProps = await this._spAdminProvider.getConsumingApplication(owningAppId, appId);
         return new ApplicationPermissions(containerTypeRegistration, appPermissionsProps);

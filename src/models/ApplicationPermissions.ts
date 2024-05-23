@@ -15,6 +15,7 @@ export class ApplicationPermissions {
     public readonly appName: string;
     public readonly delegated: ApplicationPermission[];
     public readonly appOnly: ApplicationPermission[];
+    public readonly apps: string[];
 
     public constructor(
         public readonly containerTypeRegistration: ContainerTypeRegistration, 
@@ -25,6 +26,7 @@ export class ApplicationPermissions {
         this.appName = properties.ApplicationName!;
         this.delegated = properties.DelegatedPermissions as ApplicationPermission[];
         this.appOnly = properties.AppOnlyPermissions as ApplicationPermission[];
+        this.apps = properties.Applications!;
     }
 
     private _app?: App;

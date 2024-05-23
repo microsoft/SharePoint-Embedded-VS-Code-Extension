@@ -48,7 +48,7 @@ export class GetLocalAdminConsent extends Command {
             return false;
         }
 
-        const consentProgress = new ProgressWaitNotification('Waiting for admin consent...');
+        const consentProgress = new ProgressWaitNotification('Waiting for admin consent...', true);
         consentProgress.show();
         const localRegistrationScope = `${account.spRootSiteUrl}/.default`;
         const graphRegistrationScope = 'https://graph.microsoft.com/.default';

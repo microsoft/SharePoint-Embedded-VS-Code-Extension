@@ -10,6 +10,8 @@ import { GetAccount } from '../../Accounts/GetAccount';
 import { AppTreeItem } from '../../../views/treeview/development/AppTreeItem';
 import { DevelopmentTreeViewProvider } from '../../../views/treeview/development/DevelopmentTreeViewProvider';
 import { ProgressWaitNotification } from '../../../views/notifications/ProgressWaitNotification';
+import { GuestApplicationTreeItem } from '../../../views/treeview/development/GuestAppTreeItem';
+import { OwningAppTreeItem } from '../../../views/treeview/development/OwningAppTreeItem';
 
 // Static class that creates a cert on an app
 export class CreateAppCert extends Command {
@@ -25,8 +27,11 @@ export class CreateAppCert extends Command {
 
         let app: App | undefined;
         if (commandProps instanceof AppTreeItem) {
-            if (commandProps.app && commandProps.app instanceof App) {
-                app = commandProps.app;
+            if (commandProps instanceof GuestApplicationTreeItem) {
+                app = commandProps.appPerms.app;
+            }
+            if (commandProps instanceof OwningAppTreeItem) {
+                app = commandProps.containerType.owningApp!;
             }
         } else {
             app = commandProps;

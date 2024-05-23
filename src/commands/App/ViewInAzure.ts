@@ -12,6 +12,8 @@ import { App } from '../../models/App';
 import { GetAccount } from '../Accounts/GetAccount';
 import { AppTreeItem } from '../../views/treeview/development/AppTreeItem';
 import { AzurePortalUrlProvider } from '../../utils/AzurePortalUrl';
+import { GuestApplicationTreeItem } from '../../views/treeview/development/GuestAppTreeItem';
+import { OwningAppTreeItem } from '../../views/treeview/development/OwningAppTreeItem';
 
 // Static class that views app in Azure
 export class ViewInAzure extends Command {
@@ -27,8 +29,11 @@ export class ViewInAzure extends Command {
 
         let app: App | undefined;
         if (commandProps instanceof AppTreeItem) {
-            if (commandProps.app && commandProps.app instanceof App) {
-                app = commandProps.app;
+            if (commandProps instanceof GuestApplicationTreeItem) {
+                app = commandProps.appPerms.app;
+            }
+            if (commandProps instanceof OwningAppTreeItem) {
+                app = commandProps.containerType.owningApp!;
             }
         } else {
             app = commandProps;

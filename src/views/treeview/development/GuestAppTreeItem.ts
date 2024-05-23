@@ -4,8 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from "vscode";
-import { App } from "../../../models/App";
-import { ContainerType } from "../../../models/ContainerType";
 import { AppTreeItem } from "./AppTreeItem";
 import { ApplicationPermissions } from "../../../models/ApplicationPermissions";
 import { DevelopmentTreeViewProvider } from "./DevelopmentTreeViewProvider";
@@ -20,10 +18,18 @@ export class GuestApplicationTreeItem extends AppTreeItem {
                 if (app) {
                     this.label = app.name;
                     this.contextValue += '-local';
-                    DevelopmentTreeViewProvider.instance.refresh(this);
+                    app.getSecrets().then(secrets => {
+                        if (secrets.clientSecret) {
+                            this.contextValue += '-hasSecret';
+                        }
+                        if (secrets.thumbprint && secrets.privateKey) {
+                            this.contextValue += '-hasCert';
+                        }
+                        DevelopmentTreeViewProvider.instance.refresh(this);
+                    });
                 }
             });
-        }
+        }     
     }
     
 }
