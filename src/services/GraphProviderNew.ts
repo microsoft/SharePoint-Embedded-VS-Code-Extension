@@ -5,7 +5,6 @@ import { BaseAuthProvider } from './BaseAuthProvider';
 import { Container, IContainerProperties } from '../models/Container';
 import { ContainerTypeRegistration } from '../models/ContainerTypeRegistration';
 import AppOnly3PAuthProvider from './AppOnly3PAuthProvider';
-import { forEach } from 'lodash';
 
 export class GraphProviderNew {
     //private static readonly _scopes = ['Application.ReadWrite.All', 'User.Read', 'Sites.Read.All'];
@@ -89,10 +88,18 @@ export class GraphProviderNew {
     }
 
     public async addAppSecret(objectId: string, name: string = 'SharePointEmbeddedVSCode'): Promise<string> {
-        
+        const currentDate = new Date();
+        const newEndDateTime = new Date(currentDate);
+        newEndDateTime.setDate(currentDate.getDate() + 30); // 30 day TTL
+
         const response = await this._client
             .api(`/applications/${objectId}/addPassword`)
-            .post({ passwordCredential: { displayName: name } });
+            .post({ 
+                    passwordCredential: { displayName: name ,
+                        startDateTime: currentDate.toISOString(),
+                        endDateTime: newEndDateTime.toISOString()
+                    } 
+                });
         console.log(response);
         return response.secretText;
     }
