@@ -24,7 +24,7 @@ import { v4 as uuidv4 } from 'uuid';
 // Account class that represents an msal AccountInfo object from the FirstPartyAuthProvider
 export class  Account {
     // Storage key for the account
-    public static readonly storageKey: string = "account";
+    public static readonly storageKey: string = clientId;
     private static readonly authProvider: BaseAuthProvider = new FirstPartyAuthProvider(clientId, Account.storageKey);
     //private static readonly scopes: string[] = ['Application.ReadWrite.All', 'User.Read', 'Sites.Read.All'];
     private static readonly graphScopes: string[] = ['https://graph.microsoft.com/.default']; // ['Application.ReadWrite.All', 'User.Read', 'Sites.Read.All'];
@@ -167,8 +167,7 @@ export class  Account {
         //wait Account._spAdminAuthProvider.logout();
 
         StorageProvider.get().secrets.clear();
-        await StorageProvider.get().secrets.delete('account');
-        await StorageProvider.get().secrets.delete(containerTypeManagementAppId);
+        await StorageProvider.get().secrets.delete(clientId);
         StorageProvider.get().global.getAllKeys().forEach(async (key) => {
             await StorageProvider.get().global.setValue(key, undefined);    
         });

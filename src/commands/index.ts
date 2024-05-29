@@ -43,7 +43,6 @@ import { CopyAppId as _CopyAppId } from './App/CopyAppId';
 import { RestoreContainer as _RestoreContainer } from './RecycledContainer/RestoreContainer'; 
 import { GetorCreateGuestApp as _GetOrCreateGuestApp } from './GuestApps/GetorCreateGuestApp';
 import { CopyRecycledContainerId as _CopyRecycledContainerId } from './RecycledContainer/CopyContainerId';
-import { CheckRequiredResourceAccess as _CheckRequiredResourceAccess } from './App/CheckRequiredResourceAccess';
 import { EditGuestAppPermissions as _EditGuestAppPermissions } from './GuestApps/EditGuestAppPermissions';
 
 export namespace Commands {
@@ -85,7 +84,6 @@ export const GetOrCreateGuestApp = _GetOrCreateGuestApp;
   export const CloneReactSampleApp = _CloneReactSampleApp;
   export const OpenPostmanDocumentation = _OpenPostmanDocumentation;
   export const CopyAppId = _CopyAppId;
-  export const CheckRequiredResourceAccess = _CheckRequiredResourceAccess;
   export const EditGuestAppPermissions = _EditGuestAppPermissions;
 
   // Container Commands

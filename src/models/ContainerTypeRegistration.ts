@@ -15,7 +15,6 @@ import { checkJwtForAppOnlyRole, decodeJwt } from "../utils/token";
 import { GetLocalAdminConsent } from "../commands/App/GetLocalAdminConsent";
 import { CreateAppCert } from "../commands/App/Credentials/CreateAppCert";
 import AppProvider from "../services/AppProvider";
-import { CheckRequiredResourceAccess } from "../commands/App/CheckRequiredResourceAccess";
 import AppOnly3PAuthProvider from "../services/AppOnly3PAuthProvider";
 
 
@@ -127,7 +126,7 @@ export class ContainerTypeRegistration {
 
     private async _checkOrConsentFileStorageContainerRole(appProvider: AppProvider, authProvider: AppOnly3PAuthProvider): Promise<boolean> {
         // Check if app has been configured with correct role, if not, update it
-        const hasFileStorageContainerGraphRole = await CheckRequiredResourceAccess.run(this.containerType.owningApp, appProvider.GraphResourceAppId, appProvider.FileStorageContainerRole.id);
+        const hasFileStorageContainerGraphRole = appProvider.checkRequiredResourceAccess(this.containerType.owningApp!, appProvider.GraphResourceAppId, appProvider.FileStorageContainerRole.id);
         if (!hasFileStorageContainerGraphRole) {
             await appProvider.updateResourceAccess(this.containerType.owningApp!, [{
                 resourceAppId: appProvider.GraphResourceAppId,

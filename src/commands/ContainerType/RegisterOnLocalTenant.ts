@@ -76,8 +76,10 @@ export class RegisterOnLocalTenant extends Command {
         const adminConsentCheck = new ProgressWaitNotification('Checking for admin consent on your owning app...');
         adminConsentCheck.show();
         const localRegistrationScope = containerType.localRegistrationScope;
+        const owningAppProvider = account.appProvider;
         const appAuthProvider = await owningApp.getAppOnlyAuthProvider(account.tenantId);
         let consented = await appAuthProvider.hasConsent(localRegistrationScope, ['Container.Selected']);
+        
         adminConsentCheck.hide();
         if (!consented) {
             const grantConsent = `Grant admin consent`;
@@ -89,11 +91,37 @@ export class RegisterOnLocalTenant extends Command {
             if (choice !== grantConsent) {
                 return;
             }
+
+            let hasRequiredRole = owningAppProvider.checkRequiredResourceAccess(owningApp, owningAppProvider.SharePointResourceAppId, owningAppProvider.ContainerSelectedRole.id);
+            if (!hasRequiredRole) {
+                await owningAppProvider.updateResourceAccess(owningApp!, [{
+                    resourceAppId: owningAppProvider.SharePointResourceAppId,
+                    resourceAccess: [
+                        owningAppProvider.ContainerSelectedRole
+                    ]
+                }]);
+            }
+            hasRequiredRole = owningAppProvider.checkRequiredResourceAccess(owningApp, owningAppProvider.SharePointResourceAppId, owningAppProvider.ContainerSelectedRole.id);
+            if (!hasRequiredRole) {
+                vscode.window.showErrorMessage(`Failed to add Container.Selected role for '${owningApp.displayName}'`);
+                return;
+            }
+
             consented = await GetLocalAdminConsent.run(owningApp);
             if (!consented) {
                 vscode.window.showErrorMessage(`Failed to get required Container.Selected permission on '${owningApp.displayName}' to register container type`);
                 return;
             }
+
+            const consentPropagationProgress = new ProgressWaitNotification('Waiting for consent to propagate in Azure (could take up to a minute)...');
+            consentPropagationProgress.show();
+            const consentPropagationTimer = new Timer(60 * 1000);
+            let sharePointConsent = await appAuthProvider.hasConsent(localRegistrationScope, ['Container.Selected']);
+            while (!sharePointConsent && !consentPropagationTimer.finished) {
+                await new Promise(r => setTimeout(r, 3000));
+                sharePointConsent = await appAuthProvider.hasConsent(localRegistrationScope, ['Container.Selected']);
+            }
+            consentPropagationProgress.hide();
         }
 
         const registrationProgress = new ProgressWaitNotification('Registering container type on local tenant (may take a minute)...');

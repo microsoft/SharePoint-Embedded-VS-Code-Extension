@@ -50,8 +50,6 @@ export class GetLocalAdminConsent extends Command {
 
         const consentProgress = new ProgressWaitNotification('Waiting for admin consent...', true);
         consentProgress.show();
-        const localRegistrationScope = `${account.spRootSiteUrl}/.default`;
-        const graphRegistrationScope = 'https://graph.microsoft.com/.default';
         try {
             const appAuthProvider = await app.getAppOnlyAuthProvider(account.tenantId);
             const adminConsent = await appAuthProvider.listenForAdminConsent(app.clientId, account.tenantId);
@@ -60,19 +58,7 @@ export class GetLocalAdminConsent extends Command {
                 vscode.window.showErrorMessage(`Failed to get admin consent for app '${app.displayName}'`);
                 return false;
             }
-
-            const consentPropagationProgress = new ProgressWaitNotification('Waiting for consent to propagate in Azure (could take up to a minute)...');
-            consentPropagationProgress.show();
-            const consentPropagationTimer = new Timer(60 * 1000);
-            let sharePointConsent = await appAuthProvider.hasConsent(localRegistrationScope, ['Container.Selected']);
-            let graphConsent = await appAuthProvider.hasConsent(graphRegistrationScope, ['FileStorageContainer.Selected']);
-            while (!graphConsent && sharePointConsent && !consentPropagationTimer.finished) {
-                await new Promise(r => setTimeout(r, 3000));
-                sharePointConsent = await appAuthProvider.hasConsent(localRegistrationScope, ['Container.Selected']);
-                graphConsent = await appAuthProvider.hasConsent(graphRegistrationScope, ['FileStorageContainer.Selected']);
-            }
-            consentPropagationProgress.hide();
-            return sharePointConsent && graphConsent;
+            return adminConsent;
         } catch (error: any) {
             consentProgress.hide();
             vscode.window.showErrorMessage(`Failed to get admin consent for app '${app.displayName}': ${error}`);
