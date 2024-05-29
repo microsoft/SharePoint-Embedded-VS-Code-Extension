@@ -126,9 +126,9 @@ export class ContainerTypeRegistration {
 
     private async _checkOrConsentFileStorageContainerRole(appProvider: AppProvider, authProvider: AppOnly3PAuthProvider): Promise<boolean> {
         // Check if app has been configured with correct role, if not, update it
-        const hasFileStorageContainerGraphRole = appProvider.checkRequiredResourceAccess(this.containerType.owningApp!, appProvider.GraphResourceAppId, appProvider.FileStorageContainerRole.id);
+        const hasFileStorageContainerGraphRole = this.containerType.owningApp!.checkRequiredResourceAccess(appProvider.GraphResourceAppId, appProvider.FileStorageContainerRole.id);
         if (!hasFileStorageContainerGraphRole) {
-            await appProvider.updateResourceAccess(this.containerType.owningApp!, [{
+            await appProvider.addResourceAccess(this.containerType.owningApp!, [{
                 resourceAppId: appProvider.GraphResourceAppId,
                 resourceAccess: [
                     appProvider.FileStorageContainerRole

@@ -82,6 +82,36 @@ export class App {
     public removeAppOnlyAuthProvider(tenantId: string): void {
         this._appOnlyAuthProviders.delete(tenantId);
     }
+
+    public checkRequiredResourceAccess(resource: string, scopeOrRole: string): boolean {
+        if (!this || !scopeOrRole || !resource) {
+            return false;
+        }
+
+        const appId = this.clientId;
+        if (!appId) {
+            return false;
+        }
+
+        const resourceAccess = this.requiredResourceAccess;
+        if (!resourceAccess) {
+            return false;;
+        }
+
+        const resourceAppPermissions = resourceAccess.filter((resourceAccess) => resourceAccess.resourceAppId === resource);
+        if (!resourceAppPermissions) {
+            return false;
+        }
+
+        let hasScopeOrRole = false;
+        resourceAppPermissions.forEach((resourceAppPermission) => {
+            const resources = resourceAppPermission.resourceAccess?.filter((resourceAccess) => resourceAccess && resourceAccess.id === scopeOrRole);
+            if (resources && resources.length > 0) {
+            hasScopeOrRole = true;
+            }
+        });
+        return hasScopeOrRole;
+    }
 }
 
 export type AppCredentials = {

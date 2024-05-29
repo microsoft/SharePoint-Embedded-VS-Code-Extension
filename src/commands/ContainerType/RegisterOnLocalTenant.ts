@@ -79,7 +79,7 @@ export class RegisterOnLocalTenant extends Command {
         const owningAppProvider = account.appProvider;
         const appAuthProvider = await owningApp.getAppOnlyAuthProvider(account.tenantId);
         let consented = await appAuthProvider.hasConsent(localRegistrationScope, ['Container.Selected']);
-        
+
         adminConsentCheck.hide();
         if (!consented) {
             const grantConsent = `Grant admin consent`;
@@ -92,16 +92,16 @@ export class RegisterOnLocalTenant extends Command {
                 return;
             }
 
-            let hasRequiredRole = owningAppProvider.checkRequiredResourceAccess(owningApp, owningAppProvider.SharePointResourceAppId, owningAppProvider.ContainerSelectedRole.id);
+            let hasRequiredRole = owningApp.checkRequiredResourceAccess(owningAppProvider.SharePointResourceAppId, owningAppProvider.ContainerSelectedRole.id);
             if (!hasRequiredRole) {
-                await owningAppProvider.updateResourceAccess(owningApp!, [{
+                await owningAppProvider.addResourceAccess(owningApp!, [{
                     resourceAppId: owningAppProvider.SharePointResourceAppId,
                     resourceAccess: [
                         owningAppProvider.ContainerSelectedRole
                     ]
                 }]);
             }
-            hasRequiredRole = owningAppProvider.checkRequiredResourceAccess(owningApp, owningAppProvider.SharePointResourceAppId, owningAppProvider.ContainerSelectedRole.id);
+            hasRequiredRole = owningApp.checkRequiredResourceAccess(owningAppProvider.SharePointResourceAppId, owningAppProvider.ContainerSelectedRole.id);
             if (!hasRequiredRole) {
                 vscode.window.showErrorMessage(`Failed to add Container.Selected role for '${owningApp.displayName}'`);
                 return;
@@ -141,7 +141,8 @@ export class RegisterOnLocalTenant extends Command {
         if (!registered) {
             vscode.window.showErrorMessage(`Failed to register Container Type '${containerType.displayName}' on local tenant`);
             return;
-        }        
+        }
+        vscode.window.showInformationMessage(`Successfully registered Container Type '${containerType.displayName}' on local tenant`);       
         DevelopmentTreeViewProvider.instance.refresh();
     }
 }

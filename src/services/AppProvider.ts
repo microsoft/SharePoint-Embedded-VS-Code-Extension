@@ -54,37 +54,7 @@ export default class AppProvider {
         return app;
     }
 
-    public checkRequiredResourceAccess(app: App, resource: string, scopeOrRole: string): boolean {
-        if (!app || !scopeOrRole || !resource) {
-            return false;
-        }
-
-        const appId = app.clientId;
-        if (!appId) {
-            return false;
-        }
-
-        const resourceAccess = app.requiredResourceAccess;
-        if (!resourceAccess) {
-            return false;;
-        }
-
-        const resourceAppPermissions = resourceAccess.filter((resourceAccess) => resourceAccess.resourceAppId === resource);
-        if (!resourceAppPermissions) {
-            return false;
-        }
-
-        let hasScopeOrRole = false;
-        resourceAppPermissions.forEach((resourceAppPermission) => {
-            const resources = resourceAppPermission.resourceAccess?.filter((resourceAccess) => resourceAccess && resourceAccess.id === scopeOrRole);
-            if (resources && resources.length > 0) {
-            hasScopeOrRole = true;
-            }
-        });
-        return hasScopeOrRole;
-    }
-
-    public async updateResourceAccess(app: App, config: RequiredResourceAccess[]) {
+    public async addResourceAccess(app: App, config: RequiredResourceAccess[]) {
         if (config.length === 0) {
             return;
         }
