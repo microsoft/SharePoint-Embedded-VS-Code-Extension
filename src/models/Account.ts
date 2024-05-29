@@ -24,7 +24,7 @@ import { v4 as uuidv4 } from 'uuid';
 // Account class that represents an msal AccountInfo object from the FirstPartyAuthProvider
 export class  Account {
     // Storage key for the account
-    public static readonly storageKey: string = "account";
+    public static readonly storageKey: string = clientId;
     private static readonly authProvider: BaseAuthProvider = new FirstPartyAuthProvider(clientId, Account.storageKey);
     //private static readonly scopes: string[] = ['Application.ReadWrite.All', 'User.Read', 'Sites.Read.All'];
     private static readonly graphScopes: string[] = ['https://graph.microsoft.com/.default']; // ['Application.ReadWrite.All', 'User.Read', 'Sites.Read.All'];
@@ -46,9 +46,7 @@ export class  Account {
     public readonly spRootSiteUrl: string;
     public readonly spAdminSiteUrl: string;
 
-    private get appSetStorageKey(): string {
-        return `${this.tenantId}-${this.username}-appIds`;
-    }
+
     private _getAppSecretKey(appId: string): string {
         return `${this.tenantId}-${appId}`;
     }
