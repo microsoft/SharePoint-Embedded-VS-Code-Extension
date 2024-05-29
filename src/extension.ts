@@ -23,6 +23,7 @@ export async function activate(context: vscode.ExtensionContext) {
         new LocalStorageService(context.workspaceState),
         context.secrets
     );
+    await StorageProvider.purgeOldCache();
 
     vscode.window.registerTreeDataProvider(AccountTreeViewProvider.viewId, AccountTreeViewProvider.getInstance());
     vscode.window.registerTreeDataProvider(DevelopmentTreeViewProvider.viewId, DevelopmentTreeViewProvider.getInstance());

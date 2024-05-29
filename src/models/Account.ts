@@ -46,9 +46,7 @@ export class  Account {
     public readonly spRootSiteUrl: string;
     public readonly spAdminSiteUrl: string;
 
-    private get appSetStorageKey(): string {
-        return `${this.tenantId}-${this.username}-appIds`;
-    }
+
     private _getAppSecretKey(appId: string): string {
         return `${this.tenantId}-${appId}`;
     }
