@@ -5,6 +5,7 @@
 
 'use strict';
 import { Event, Memento, SecretStorage, SecretStorageChangeEvent } from "vscode";
+import { ext } from '../utils/extensionVariables';
 
 export class StorageProvider {
     private static instance: StorageProvider;
@@ -28,6 +29,33 @@ export class StorageProvider {
             throw new Error("StorageProvider not yet initialized. Call init() with required services");
         }
         return StorageProvider.instance;
+    }
+
+    public static async purgeOldCache() {
+        const storage = StorageProvider.get();
+        try {
+            const account: {appIds?: string[], containerTypeIds?: string[]} = JSON.parse(storage.global.getValue('account'));
+            console.log(account);
+
+            if (account && account.appIds) {
+                for (const appId of account.appIds || []) {
+                    console.log('Removing app secrets for ' + appId);
+                    await storage.secrets.delete(appId);
+                }
+            }
+
+            console.log('Removing account from global cache');
+            await storage.global.setValue('account', undefined);
+        } catch (error) {
+            console.error('Failed to remove previous apps from cache: ' + error);
+        }
+
+        try {
+            console.log('Removing old cache keys');
+            await storage.secrets.delete('account');
+        } catch (error) {
+            console.error('Failed to remove account secrets: ' + error);
+        }
     }
 }
 
