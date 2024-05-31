@@ -19,6 +19,7 @@ import { GetAccount } from '../Accounts/GetAccount';
 import { ProgressWaitNotification, Timer } from '../../views/notifications/ProgressWaitNotification';
 import { AppTreeItem } from '../../views/treeview/development/AppTreeItem';
 import { App } from '../../models/App';
+import { BaseAuthProvider } from '../../services/BaseAuthProvider';
 
 // Static class that handles the register container type command
 export class GetLocalAdminConsent extends Command {
@@ -51,13 +52,8 @@ export class GetLocalAdminConsent extends Command {
         const consentProgress = new ProgressWaitNotification('Waiting for admin consent...', true);
         consentProgress.show();
         try {
-            const appAuthProvider = await app.getAppOnlyAuthProvider(account.tenantId);
-            const adminConsent = await appAuthProvider.listenForAdminConsent(app.clientId, account.tenantId);
+            const adminConsent = await BaseAuthProvider.listenForAdminConsent(app.clientId, account.tenantId);
             consentProgress.hide();
-            if (!adminConsent) {
-                vscode.window.showErrorMessage(`Failed to get admin consent for app '${app.displayName}'`);
-                return false;
-            }
             return adminConsent;
         } catch (error: any) {
             consentProgress.hide();

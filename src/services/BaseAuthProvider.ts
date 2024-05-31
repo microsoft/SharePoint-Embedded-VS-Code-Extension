@@ -232,7 +232,7 @@ export abstract class BaseAuthProvider {
     }
 
 
-    async listenForAdminConsent(clientId: string, tenantId: string): Promise<boolean> {
+    public static async listenForAdminConsent(clientId: string, tenantId: string): Promise<boolean> {
         return new Promise<boolean>((resolve, reject) => {
             const server = http.createServer(async (req, res) => {
 
