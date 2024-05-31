@@ -44,11 +44,12 @@ export class CreateTrialContainerType extends Command {
             return;
         }
 
-        const progressWindow = new ProgressWaitNotification('Creating container type...');
+        const progressWindow = new ProgressWaitNotification('Creating container type (may take up to 30 seconds)...');
         progressWindow.show();
         const ctTimer = new Timer(30 * 1000);
         const containerTypeProvider = account.containerTypeProvider;
         let containerType: ContainerType | undefined;
+        let ctCreationError: any;
         do {
             try {
                 containerType = await containerTypeProvider.createTrial(displayName, app.clientId);
@@ -57,12 +58,22 @@ export class CreateTrialContainerType extends Command {
                 }
             } catch (error) {
                 console.log(error);
+                ctCreationError = error;
+                const maxCTMessage = 'Maximum number of allowed Trial Container Types has been exceeded.';
+                if (ctCreationError?.response?.data?.['odata.error']?.message?.value === maxCTMessage) {
+                    ctCreationError = maxCTMessage;
+                    break;
+                }
             }
         } while (!containerType && !ctTimer.finished);
 
         if (!containerType) {
             progressWindow.hide();
-            vscode.window.showErrorMessage('Failed to create container type');
+            let errorMessage = 'Failed to create container type';
+            if (ctCreationError) {
+                errorMessage += `: ${ctCreationError}`;
+            }
+            vscode.window.showErrorMessage(errorMessage);
             return;
         }
 

@@ -79,31 +79,44 @@ export class RegisterOnLocalTenant extends Command {
         const owningAppProvider = account.appProvider;
         const appAuthProvider = await owningApp.getAppOnlyAuthProvider(account.tenantId);
         let consented = await appAuthProvider.hasConsent(localRegistrationScope, ['Container.Selected']);
-
         adminConsentCheck.hide();
         if (!consented) {
-            const grantConsent = `Grant admin consent`;
-            const buttons = [grantConsent];
-            const choice = await vscode.window.showInformationMessage(
-                `The owning app '${owningApp.displayName}' does not have admin consent on the local tenant. You need to grant consent to the app before you can register the container type. Do you want to grant consent now?`,
-                ...buttons
-            );
-            if (choice !== grantConsent) {
-                return;
-            }
-
             let hasRequiredRole = owningApp.checkRequiredResourceAccess(owningAppProvider.SharePointResourceAppId, owningAppProvider.ContainerSelectedRole.id);
             if (!hasRequiredRole) {
-                await owningAppProvider.addResourceAccess(owningApp!, [{
-                    resourceAppId: owningAppProvider.SharePointResourceAppId,
-                    resourceAccess: [
-                        owningAppProvider.ContainerSelectedRole
-                    ]
-                }]);
+                const addRequiredRole = `Add SharePoint Container.Selected role`;
+                const buttons = [addRequiredRole];
+                const choice = await vscode.window.showInformationMessage(
+                    `Your owning app '${owningApp.displayName}' requires SharePoint Container.Selected API permission role. Add it now?`,
+                    ...buttons
+                );
+                if (choice !== addRequiredRole) {
+                    return;
+                }
+
+                try {
+                    await owningAppProvider.addResourceAccess(owningApp!, [{
+                        resourceAppId: owningAppProvider.SharePointResourceAppId,
+                        resourceAccess: [
+                            owningAppProvider.ContainerSelectedRole
+                        ]
+                    }]);
+                    hasRequiredRole = owningApp.checkRequiredResourceAccess(owningAppProvider.SharePointResourceAppId, owningAppProvider.ContainerSelectedRole.id);
+                    if (!hasRequiredRole) {
+                        throw new Error();
+                    }
+                } catch (error) {
+                    vscode.window.showErrorMessage(`Failed to add Container.Selected role for '${owningApp.displayName}'`);
+                    return;
+                }
             }
-            hasRequiredRole = owningApp.checkRequiredResourceAccess(owningAppProvider.SharePointResourceAppId, owningAppProvider.ContainerSelectedRole.id);
-            if (!hasRequiredRole) {
-                vscode.window.showErrorMessage(`Failed to add Container.Selected role for '${owningApp.displayName}'`);
+
+            const openConsent = `Open consent link`;
+            const buttons = [openConsent];
+            const choice = await vscode.window.showInformationMessage(
+                `Your owning app '${owningApp.displayName}' requires admin consent on your local tenant. Grant consent now?`,
+                ...buttons
+            );
+            if (choice !== openConsent) {
                 return;
             }
 
@@ -113,7 +126,7 @@ export class RegisterOnLocalTenant extends Command {
                 return;
             }
 
-            const consentPropagationProgress = new ProgressWaitNotification('Waiting for consent to propagate in Azure (could take up to a minute)...');
+            const consentPropagationProgress = new ProgressWaitNotification('Waiting for consent to propagate in Azure (may take a minute)...');
             consentPropagationProgress.show();
             const consentPropagationTimer = new Timer(60 * 1000);
             let sharePointConsent = await appAuthProvider.hasConsent(localRegistrationScope, ['Container.Selected']);
