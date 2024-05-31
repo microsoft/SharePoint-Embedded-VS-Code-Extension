@@ -38,10 +38,15 @@ export class GetOrCreateApp extends Command {
         const defaultAppName = 'SharePoint Embedded App';
         const newAppItem: AppQuickPickItem = {
             id: 'new',
-            label: `New Azure Application: ${defaultAppName}`,
-            detail: 'Creates a new Azure AD Application',
+            label: `Create Azure app: ${defaultAppName}`,
+            detail: 'Creates a new Azure Entra app registration',
             alwaysShow: true,
             iconPath: new vscode.ThemeIcon('new-app-icon')
+        };
+        const azureAppsSeparator: AppQuickPickItem = {
+            kind: vscode.QuickPickItemKind.Separator,
+            label: 'Your Azure Apps',
+            id: 'all'
         };
 
         let excludedAppIds: string[] | undefined;
@@ -52,16 +57,13 @@ export class GetOrCreateApp extends Command {
 
             qp.busy = true;
             if (!excludedAppIds) {
-                console.log('Fetching container types to exclude');
                 const containerTypeProvider = account.containerTypeProvider;
                 const containerTypes = await containerTypeProvider.list();
                 excludedAppIds = containerTypes.map(ct => ct.owningAppId);
-                console.log('Excluded app Ids:', excludedAppIds);
             }
 
             const exclusions = excludedAppIds || [];
             const apps = await account.appProvider.search(query);
-            console.log('Fetched apps:', apps);
             const filteredApps = apps.filter(app => !exclusions.includes(app.appId!));
             const appItems = filteredApps.map(app => (
                 {
@@ -69,10 +71,10 @@ export class GetOrCreateApp extends Command {
                     label: app.displayName,
                     detail: app.appId,
                     name: app.displayName,
-                    iconPath: new vscode.ThemeIcon('app-icon')
+                    iconPath: new vscode.ThemeIcon('app-icon'),
                 } as AppQuickPickItem
             ));
-            qp.items = [newAppItem, ...appItems];
+            qp.items = [newAppItem, azureAppsSeparator, ...appItems];
             qp.busy = false;
         };
 
