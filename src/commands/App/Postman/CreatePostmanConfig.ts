@@ -108,29 +108,6 @@ export class CreatePostmanConfig extends Command {
             }
         );
 
-        if (!containerType.isTrial) {
-            values.push(
-                {
-                    key: "AzureSubscriptionId",
-                    value: containerType.azureSubscriptionId,
-                    type: "secret",
-                    enabled: true
-                },
-                {
-                    key: "ResourceGroup",
-                    value: containerType.resourceGroup,
-                    type: "default",
-                    enabled: true
-                },
-                {
-                    key: "Region",
-                    value: containerType.region,
-                    type: "default",
-                    enabled: true
-                }
-            );
-        }
-
         const envName = `${containerType!.displayName} (appId: ${app!.clientId})`;
         const pmEnv: PostmanEnvironmentConfig = {
             id: uuidv4(),
