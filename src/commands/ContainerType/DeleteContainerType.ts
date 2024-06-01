@@ -48,7 +48,7 @@ export class DeleteContainerType extends Command {
             return;
         }
 
-        const progressWindow = new ProgressWaitNotification('Deleting container type');
+        const progressWindow = new ProgressWaitNotification('Deleting container type (make take a minute)...');
         try {    
             progressWindow.show();
             const containerTypeProvider = account.containerTypeProvider;
@@ -70,6 +70,7 @@ export class DeleteContainerType extends Command {
             refreshCt();
         } catch (error: any) {
             vscode.window.showErrorMessage(`Unable to delete Container Type ${containerType.displayName} : ${error.message}`);
+            console.log(error);
             progressWindow.hide();
             return;
         }
