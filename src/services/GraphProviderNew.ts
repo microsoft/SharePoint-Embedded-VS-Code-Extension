@@ -1,3 +1,7 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
 
 import * as Graph from '@microsoft/microsoft-graph-client';
 import { Application, KeyCredential } from "@microsoft/microsoft-graph-types";

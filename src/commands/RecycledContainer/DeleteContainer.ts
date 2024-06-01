@@ -6,14 +6,11 @@
 import { Command } from '../Command';
 import * as vscode from 'vscode';
 import { ContainerType } from '../../models/ContainerType';
-import { ContainersTreeItem } from '../../views/treeview/development/ContainersTreeItem';
 import { DevelopmentTreeViewProvider } from '../../views/treeview/development/DevelopmentTreeViewProvider';
-import { Account } from '../../models/Account';
 import { App } from '../../models/App';
 import { GraphProviderNew } from '../../services/GraphProviderNew';
 import { Container } from '../../models/Container';
 import { ProgressWaitNotification } from '../../views/notifications/ProgressWaitNotification';
-import { ContainerTreeItem } from '../../views/treeview/development/ContainerTreeItem';
 import { RecycledContainerTreeItem } from '../../views/treeview/development/RecycledContainerTreeItem';
 
 // Static class that handles the recycle container command

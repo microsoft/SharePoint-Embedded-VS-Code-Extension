@@ -5,7 +5,6 @@
 
 import * as vscode from 'vscode';
 import { Command } from '../Command';
-import { Account } from '../../models/Account';
 import { App, AppType } from '../../models/App';
 import { GetAccount } from '../Accounts/GetAccount';
 

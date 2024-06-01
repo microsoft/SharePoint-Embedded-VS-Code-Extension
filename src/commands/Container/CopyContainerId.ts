@@ -5,7 +5,6 @@
 
 import * as vscode from 'vscode';
 import { Command } from '../Command';
-import { ContainerType } from '../../models/ContainerType';
 import { ContainerTreeItem } from '../../views/treeview/development/ContainerTreeItem';
 import { RecycledContainerTreeItem } from '../../views/treeview/development/RecycledContainerTreeItem';
 

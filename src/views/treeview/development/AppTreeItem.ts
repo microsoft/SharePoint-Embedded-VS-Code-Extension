@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from "vscode";
-import { ContainerType } from "../../../models/ContainerType";
 import { App } from "../../../models/App";
 import { IChildrenProvidingTreeItem } from "./IDataProvidingTreeItem";
 

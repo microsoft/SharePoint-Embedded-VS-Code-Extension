@@ -1,13 +1,3 @@
-        /*
-
-        0. Create SpProvider that uses cert auth and has registerContainerType method
-        0. Check for app cert -- call CreateAppCert command if needed
-        0. Implement CreateAppCert
-        0. Check for app consent? call GetAppConsent command if needed
-        0. Implement GetAppConsent
-        0. Implement RegisterContainerType
-
-        */
 /*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.

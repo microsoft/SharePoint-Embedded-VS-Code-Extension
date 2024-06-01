@@ -10,7 +10,6 @@ import { Command } from '../Command';
 import { ContainerTypeTreeItem } from '../../views/treeview/development/ContainerTypeTreeItem';
 import { ProgressWaitNotification, Timer } from '../../views/notifications/ProgressWaitNotification';
 
-
 // Static class that handles the rename application command
 export class RenameContainerType extends Command {
     // Command name

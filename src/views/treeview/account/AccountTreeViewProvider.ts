@@ -44,5 +44,3 @@ export class AccountTreeViewProvider implements vscode.TreeDataProvider<DynamicN
         return [this.m365AccountNode];
     }
 }
-
-//export AccountTreeViewProvider.getInstance();

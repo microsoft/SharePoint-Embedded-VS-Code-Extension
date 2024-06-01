@@ -5,12 +5,10 @@
 
 import * as vscode from 'vscode';
 import { Command } from '../Command';
-import { BillingClassification, ContainerType } from '../../models/ContainerType';
-import { DevelopmentTreeViewProvider } from '../../views/treeview/development/DevelopmentTreeViewProvider';
+import { ContainerType } from '../../models/ContainerType';
 import { GetAccount } from '../Accounts/GetAccount';
-import { GetOrCreateApp } from '../Apps/GetOrCreateApp';
 import { RegisterOnLocalTenant } from '../ContainerType/RegisterOnLocalTenant';
-import { App, AppType } from '../../models/App';
+import { App } from '../../models/App';
 import { ApplicationPermissions } from '../../models/ApplicationPermissions';
 import { ISpConsumingApplicationProperties } from '../../services/SpAdminProviderNew';
 import { GuestApplicationTreeItem } from '../../views/treeview/development/GuestAppTreeItem';

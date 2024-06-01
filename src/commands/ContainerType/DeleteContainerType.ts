@@ -5,7 +5,6 @@
 
 import { Command } from '../Command';
 import * as vscode from 'vscode';
-import { Account } from '../../models/Account';
 import { ContainerTypeTreeItem } from '../../views/treeview/development/ContainerTypeTreeItem';
 import { DevelopmentTreeViewProvider } from '../../views/treeview/development/DevelopmentTreeViewProvider';
 import { ProgressWaitNotification, Timer } from '../../views/notifications/ProgressWaitNotification';

@@ -5,8 +5,7 @@
 
 import * as vscode from 'vscode';
 import { Command } from '../Command';
-import { BillingClassification, ContainerType } from '../../models/ContainerType';
-import { DevelopmentTreeViewProvider } from '../../views/treeview/development/DevelopmentTreeViewProvider';
+import { ContainerType } from '../../models/ContainerType';
 import { GetAccount } from '../Accounts/GetAccount';
 import { GetOrCreateApp } from '../Apps/GetOrCreateApp';
 import { RegisterOnLocalTenant } from '../ContainerType/RegisterOnLocalTenant';
@@ -14,7 +13,7 @@ import { App, AppType } from '../../models/App';
 import { GuestAppsTreeItem } from '../../views/treeview/development/GuestAppsTreeItem';
 import { ApplicationPermissions } from '../../models/ApplicationPermissions';
 import { ISpConsumingApplicationProperties } from '../../services/SpAdminProviderNew';
-import { ChooseAppPermissions, SelectedAppPermissions } from './ChooseAppPermissions';
+import { ChooseAppPermissions } from './ChooseAppPermissions';
 import { ProgressWaitNotification } from '../../views/notifications/ProgressWaitNotification';
 import { ContainerTypeRegistration } from '../../models/ContainerTypeRegistration';
 

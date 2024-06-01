@@ -1,8 +1,13 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
 import { Account } from "../models/Account";
-import { ApplicationPermission, ApplicationPermissions } from "../models/ApplicationPermissions";
+import { ApplicationPermissions } from "../models/ApplicationPermissions";
 import { BillingClassification, ContainerType } from "../models/ContainerType";
 import { ContainerTypeRegistration } from "../models/ContainerTypeRegistration";
-import SpAdminProviderNew, { ISpConsumingApplicationProperties, ISpContainerTypeCreationProperties, ISpContainerTypeProperties } from "./SpAdminProviderNew";
+import SpAdminProviderNew, { ISpContainerTypeCreationProperties } from "./SpAdminProviderNew";
 
 export default class ContainerTypeProvider {
 

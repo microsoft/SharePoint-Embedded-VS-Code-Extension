@@ -4,19 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import _ from 'lodash';
-import GraphProvider from "../services/GraphProvider";
-import { StorageProvider } from "../services/StorageProvider";
-import VroomProvider from "../services/VroomProvider";
 import { App } from "./App";
-import { ApplicationPermission, ApplicationPermissions } from "./ApplicationPermissions";
+import { ApplicationPermissions } from "./ApplicationPermissions";
 import { ContainerTypeRegistration } from "./ContainerTypeRegistration";
-import { Container } from './Container';
 import { Account } from './Account';
-import { timeoutForSeconds } from '../utils/timeout';
-import { decodeJwt, checkJwtForAppOnlyRole } from '../utils/token';
 import { ISpContainerTypeProperties } from '../services/SpAdminProviderNew';
-import AppProvider from '../services/AppProvider';
-import ContainerTypeProvider from '../services/ContainerTypeProvider';
 import axios from 'axios';
 
 export enum BillingClassification {

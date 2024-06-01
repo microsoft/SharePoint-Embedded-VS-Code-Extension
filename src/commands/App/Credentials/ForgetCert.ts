@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
 import { Command } from '../../Command';
 import { App } from '../../../models/App';
 import { GetAccount } from '../../Accounts/GetAccount';

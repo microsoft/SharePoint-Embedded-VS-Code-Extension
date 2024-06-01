@@ -7,15 +7,12 @@ import * as vscode from 'vscode';
 import { Account } from '../../models/Account';
 import { DevelopmentTreeViewProvider } from '../../views/treeview/development/DevelopmentTreeViewProvider';
 import { Command } from '../Command';
-import { ContainerTypeTreeItem } from '../../views/treeview/development/ContainerTypeTreeItem';
 import { ProgressWaitNotification, Timer } from '../../views/notifications/ProgressWaitNotification';
 import { App } from '../../models/App';
 import { AppTreeItem } from '../../views/treeview/development/AppTreeItem';
 import { GetAccount } from '../Accounts/GetAccount';
-import { GraphProviderNew } from '../../services/GraphProviderNew';
 import { GuestApplicationTreeItem } from '../../views/treeview/development/GuestAppTreeItem';
 import { OwningAppTreeItem } from '../../views/treeview/development/OwningAppTreeItem';
-
 
 // Static class that handles the rename application command
 export class RenameApp extends Command {

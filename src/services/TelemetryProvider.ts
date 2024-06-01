@@ -1,6 +1,10 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { telemetryKey } from '../client';
-import { md5 } from 'node-forge';
 import { v4 as uuidv4 } from 'uuid';
 import { Account } from '../models/Account';
 import { TelemetryEvent, TelemetryErrorEvent } from '../models/telemetry/telemetry';

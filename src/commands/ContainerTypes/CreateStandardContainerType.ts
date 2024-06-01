@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import { Command } from '../Command';
-import { BillingClassification, ContainerType } from '../../models/ContainerType';
+import { ContainerType } from '../../models/ContainerType';
 import { DevelopmentTreeViewProvider } from '../../views/treeview/development/DevelopmentTreeViewProvider';
 import { GetAccount } from '../Accounts/GetAccount';
 import { GetOrCreateApp } from '../Apps/GetOrCreateApp';

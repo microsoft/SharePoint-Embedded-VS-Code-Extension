@@ -5,12 +5,9 @@
 
 // @ts-ignore
 import { AccountInfo, AuthorizationUrlRequest, ConfidentialClientApplication, LogLevel } from '@azure/msal-node';
-import { CachePluginFactory } from '../utils/CacheFactory';
 import { ext } from '../utils/extensionVariables';
 import { BaseAuthProvider } from './BaseAuthProvider';
-import { Account } from '../models/Account';
 import { checkJwtForAppOnlyRole, decodeJwt } from '../utils/token';
-
 
 export type IAppOnlySecretCredential = { clientSecret: string; }
 export type IAppOnlyCertCredential = {

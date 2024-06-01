@@ -3,9 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from "vscode";
 import { ContainerType } from "../../../models/ContainerType";
-import { App } from "../../../models/App";
 import { AppTreeItem } from "./AppTreeItem";
 import { DevelopmentTreeViewProvider } from "./DevelopmentTreeViewProvider";
 import { IChildrenProvidingTreeItem } from "./IDataProvidingTreeItem";

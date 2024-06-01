@@ -6,9 +6,7 @@
 import { Command } from '../Command';
 import * as vscode from 'vscode';
 import { ContainerType } from '../../models/ContainerType';
-import { ContainersTreeItem } from '../../views/treeview/development/ContainersTreeItem';
 import { DevelopmentTreeViewProvider } from '../../views/treeview/development/DevelopmentTreeViewProvider';
-import { Account } from '../../models/Account';
 import { App } from '../../models/App';
 import { GraphProviderNew } from '../../services/GraphProviderNew';
 import { Container } from '../../models/Container';
