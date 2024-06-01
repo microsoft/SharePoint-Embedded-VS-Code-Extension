@@ -4,11 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Application, RequiredResourceAccess } from "@microsoft/microsoft-graph-types";
-import GraphProvider from "../services/GraphProvider";
-import { StorageProvider } from "../services/StorageProvider";
 import _ from 'lodash';
 import { Account } from "./Account";
-import { GraphProviderNew } from "../services/GraphProviderNew";
 import AppOnly3PAuthProvider, { IAppOnlyCredential } from "../services/AppOnly3PAuthProvider";
 
 // Class that represents an Azure AD application
