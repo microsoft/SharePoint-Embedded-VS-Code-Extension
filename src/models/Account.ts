@@ -26,12 +26,7 @@ export class  Account {
     // Storage key for the account
     public static readonly storageKey: string = clientId;
     private static readonly authProvider: BaseAuthProvider = new FirstPartyAuthProvider(clientId, Account.storageKey);
-    //private static readonly scopes: string[] = ['Application.ReadWrite.All', 'User.Read', 'Sites.Read.All'];
-    private static readonly graphScopes: string[] = ['https://graph.microsoft.com/.default']; // ['Application.ReadWrite.All', 'User.Read', 'Sites.Read.All'];
-    private static readonly spScopes: string[] = ['https://microsoft.sharepoint.com/.default']; // ['AllSites.FullControl']
-    private static readonly armScopes: string[] = ['https://management.azure.com/.default']; // ['https://management.azure.com/user_impersonation']
-    //private static readonly _spAdminAuthProvider: BaseAuthProvider = new FirstPartyAuthProvider(containerTypeManagementAppId, containerTypeManagementAppId);
-    //private static readonly _armAuthProvider: BaseAuthProvider = new FirstPartyAuthProvider(containerTypeManagementAppId, 'arm');
+    private static readonly graphScopes: string[] = ['https://graph.microsoft.com/.default'];
     public static readonly graphProvider: GraphProviderNew = new GraphProviderNew(Account.authProvider);
 
     private static instance: Account | undefined;
@@ -108,10 +103,8 @@ export class  Account {
     public static async login(): Promise<Account | undefined> {
         Account._notifyBeforeLogin();
         let graphToken: string;
-        let spToken: string;
-        let armToken: string;
         try {
-            graphToken = await Account.authProvider.getToken(Account.graphScopes);
+            graphToken = await Account.authProvider.getToken(Account.graphScopes, true);
             if (!graphToken) {
                 throw new Error('access token empty');
             }
@@ -162,8 +155,6 @@ export class  Account {
 
     public async logout(): Promise<void> {
         await Account.authProvider.logout();
-        //wait Account._spAdminAuthProvider.logout();
-
         StorageProvider.get().secrets.clear();
         await StorageProvider.get().secrets.delete(clientId);
         StorageProvider.get().global.getAllKeys().forEach(async (key) => {

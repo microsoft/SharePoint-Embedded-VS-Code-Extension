@@ -25,18 +25,16 @@ export abstract class BaseAuthProvider {
         };
     }
 
-    async getToken(scopes: string[]): Promise<string> {
-        let authResponse: AuthenticationResult;
+    async getToken(scopes: string[], interactiveFallback: boolean = false): Promise<string> {
+        let authResponse: AuthenticationResult | undefined;
         const account = this.account || await this.getAccount();
         if (account) {
-            //authResponse = await this.getTokenSilent({ scopes, account: account });
             authResponse = await this.getTokenSilent({ scopes, account: account, forceRefresh: true });
-        } else {
+        } else if (interactiveFallback) {
             const authCodeRequest = { scopes, redirectUri: this.authCodeUrlParams.redirectUri };
             authResponse = await this.getTokenInteractive(authCodeRequest);
         }
-        //console.log(authResponse.accessToken);
-        return authResponse.accessToken || "";
+        return authResponse?.accessToken || "";
     }
 
     async getTokenSilent(tokenRequest: SilentFlowRequest): Promise<AuthenticationResult> {
