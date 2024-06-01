@@ -93,7 +93,8 @@ export class CreateTrialContainerType extends Command {
         await refreshCt();
         progressWindow.hide();
         const register = 'Register on local tenant';
-        const buttons = [register];
+        const skip = 'Skip';
+        const buttons = [register, skip];
         const selection = await vscode.window.showInformationMessage(
             `Your container type has been created. Would you like to register it on your local tenant?`,
             ...buttons
