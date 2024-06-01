@@ -46,6 +46,7 @@ export class DevelopmentTreeViewProvider implements vscode.TreeDataProvider<IChi
     private async _getChildren(): Promise<vscode.TreeItem[]> {
         const account = Account.get();
         if (!account) {
+            console.log('refreshing development tree with null account');
             return [];
         }
         
@@ -55,7 +56,7 @@ export class DevelopmentTreeViewProvider implements vscode.TreeDataProvider<IChi
             const containerTypeProvider = account.containerTypeProvider;
             const containerTypes = await containerTypeProvider.list();
             if (containerTypes && containerTypes.length > 0) {
-                return [new ContainerTypesTreeItem()];
+                return [new ContainerTypesTreeItem(containerTypes)];
             }
             await vscode.commands.executeCommand('setContext', 'spe:showGettingStartedView', true);
         } catch {
