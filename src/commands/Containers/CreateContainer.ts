@@ -9,7 +9,7 @@ import { ContainerType } from '../../models/ContainerType';
 import { ContainersTreeItem } from '../../views/treeview/development/ContainersTreeItem';
 import { DevelopmentTreeViewProvider } from '../../views/treeview/development/DevelopmentTreeViewProvider';
 import { App } from '../../models/App';
-import { GraphProviderNew } from '../../services/GraphProviderNew';
+import { GraphProvider } from '../../services/GraphProvider';
 import { Container } from '../../models/Container';
 import { ProgressWaitNotification } from '../../views/notifications/ProgressWaitNotification';
 
@@ -39,7 +39,7 @@ export class CreateContainer extends Command {
         progressWindow.show();
         try {
             const authProvider = await owningApp.getAppOnlyAuthProvider(containerTypeRegistration.tenantId);
-            const graphProvider = new GraphProviderNew(authProvider);
+            const graphProvider = new GraphProvider(authProvider);
             const container = await graphProvider.createContainer(containerTypeRegistration, containerDisplayName);
             if (!container) {
                 throw new Error ("Failed to create container");

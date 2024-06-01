@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from "vscode";
-import { GraphProviderNew } from "../services/GraphProviderNew";
+import { GraphProvider } from "../services/GraphProvider";
 import { ISpConsumingApplicationProperties } from "../services/SpAdminProviderNew";
 import { Account } from "./Account";
 import { ApplicationPermissions } from "./ApplicationPermissions";
@@ -64,7 +64,7 @@ export class ContainerTypeRegistration {
 
             const authProvider = await this.containerType.owningApp.getAppOnlyAuthProvider(this.tenantId);
             const appProvider = Account.get()!.appProvider;
-            const appOnlyGraphProvider = new GraphProviderNew(authProvider);
+            const appOnlyGraphProvider = new GraphProvider(authProvider);
 
             const hasRole = await this._checkOrConsentFileStorageContainerRole(appProvider, authProvider);
             if (!hasRole) {
@@ -91,7 +91,7 @@ export class ContainerTypeRegistration {
             }
             const authProvider = await this.containerType.owningApp.getAppOnlyAuthProvider(this.tenantId);
             const appProvider = Account.get()!.appProvider;
-            const appOnlyGraphProvider = new GraphProviderNew(authProvider);
+            const appOnlyGraphProvider = new GraphProvider(authProvider);
 
             const hasRole = await this._checkOrConsentFileStorageContainerRole(appProvider, authProvider);
             if (!hasRole) {

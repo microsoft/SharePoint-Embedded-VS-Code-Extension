@@ -10,14 +10,13 @@ import { Container, IContainerProperties } from '../models/Container';
 import { ContainerTypeRegistration } from '../models/ContainerTypeRegistration';
 import AppOnly3PAuthProvider from './AppOnly3PAuthProvider';
 
-export class GraphProviderNew {
-    //private static readonly _scopes = ['Application.ReadWrite.All', 'User.Read', 'Sites.Read.All'];
+export class GraphProvider {
     private static readonly _scopes = ['https://graph.microsoft.com/.default'];
 
     private _client: Graph.Client;
 
     public constructor(private _authProvider: BaseAuthProvider) {
-        let scopes = GraphProviderNew._scopes;
+        let scopes = GraphProvider._scopes;
         if (_authProvider instanceof AppOnly3PAuthProvider) {
             scopes = ['https://graph.microsoft.com/.default'];
         }

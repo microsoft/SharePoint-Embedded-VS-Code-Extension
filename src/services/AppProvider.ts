@@ -5,14 +5,14 @@
 
 import { Application, KeyCredential, RequiredResourceAccess} from "@microsoft/microsoft-graph-types";
 import { v4 as uuidv4 } from 'uuid';
-import { GraphProviderNew } from "./GraphProviderNew";
+import { GraphProvider } from "./GraphProvider";
 import { App } from "../models/App";
 import { createCertKeyCredential, generateCertificateAndPrivateKey } from "../cert";
 import { forEach } from "lodash";
 
 export default class AppProvider {
     
-    public constructor(private _graph: GraphProviderNew) {}
+    public constructor(private _graph: GraphProvider) {}
 
     private _generateCertCredential(): CertCredential {
         const { certificatePEM, privateKey, thumbprint } = generateCertificateAndPrivateKey();

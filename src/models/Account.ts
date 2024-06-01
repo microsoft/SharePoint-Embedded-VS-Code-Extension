@@ -15,7 +15,7 @@ import { clientId } from '../client';
 import ContainerTypeProvider from '../services/ContainerTypeProvider';
 import SpAdminProviderNew from '../services/SpAdminProviderNew';
 import AppProvider from '../services/AppProvider';
-import { GraphProviderNew } from '../services/GraphProviderNew';
+import { GraphProvider } from '../services/GraphProvider';
 import ARMProvider from '../services/ARMProvider';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -25,7 +25,7 @@ export class  Account {
     public static readonly storageKey: string = clientId;
     private static readonly authProvider: BaseAuthProvider = new FirstPartyAuthProvider(clientId, Account.storageKey);
     private static readonly graphScopes: string[] = ['https://graph.microsoft.com/.default'];
-    public static readonly graphProvider: GraphProviderNew = new GraphProviderNew(Account.authProvider);
+    public static readonly graphProvider: GraphProvider = new GraphProvider(Account.authProvider);
 
     private static instance: Account | undefined;
     private static subscribers: LoginChangeListener[] = [];

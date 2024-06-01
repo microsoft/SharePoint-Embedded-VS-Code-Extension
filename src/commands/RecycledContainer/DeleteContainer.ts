@@ -8,7 +8,7 @@ import * as vscode from 'vscode';
 import { ContainerType } from '../../models/ContainerType';
 import { DevelopmentTreeViewProvider } from '../../views/treeview/development/DevelopmentTreeViewProvider';
 import { App } from '../../models/App';
-import { GraphProviderNew } from '../../services/GraphProviderNew';
+import { GraphProvider } from '../../services/GraphProvider';
 import { Container } from '../../models/Container';
 import { ProgressWaitNotification } from '../../views/notifications/ProgressWaitNotification';
 import { RecycledContainerTreeItem } from '../../views/treeview/development/RecycledContainerTreeItem';
@@ -42,7 +42,7 @@ export class DeleteContainer extends Command {
         progressWindow.show();
         try {
             const authProvider = await owningApp.getAppOnlyAuthProvider(containerTypeRegistration.tenantId);
-            const graphProvider = new GraphProviderNew(authProvider);
+            const graphProvider = new GraphProvider(authProvider);
             await graphProvider.deleteContainer(container.id);
             DevelopmentTreeViewProvider.getInstance().refresh(containerViewModel.reigstrationViewModel);
             progressWindow.hide();
