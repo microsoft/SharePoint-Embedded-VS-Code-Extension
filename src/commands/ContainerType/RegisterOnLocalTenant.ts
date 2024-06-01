@@ -136,7 +136,6 @@ export class RegisterOnLocalTenant extends Command {
                 await containerType.registerOnLocalTenant(newApplicationPermissions);
                 registered = true;
             } catch (error: any) {
-                console.log(`Unable to register Container Type '${containerType.displayName}': ${error}`);
                 await new Promise(r => setTimeout(r, 5000));
             }
         }

@@ -19,7 +19,6 @@ export class SignIn extends Command {
         } catch (error) {
             vscode.window.showErrorMessage(`${error} Failed to sign in, please try again.`);
             vscode.commands.executeCommand('setContext', 'spe:isLoggingIn', false);
-            console.error('Error:', error);
         }
     }
 }

@@ -60,7 +60,6 @@ export class ContainerTypeTreeItem extends IChildrenProvidingTreeItem {
             }
             children.push(new OwningAppTreeItem(this.containerType, this));
         } catch (error) {
-            console.error(`Unable to load owning app ${error}`);
             return children;
         }
         
@@ -70,7 +69,6 @@ export class ContainerTypeTreeItem extends IChildrenProvidingTreeItem {
                 children.push(new LocalRegistrationTreeItem(this.containerType));
             }
         } catch (error) {
-            console.error(`Unable to load local registration ${error}`);
         }
 
         return children;

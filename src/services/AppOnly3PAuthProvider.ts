@@ -75,7 +75,6 @@ export default class AppOnly3PAuthProvider extends BaseAuthProvider {
             const scopes = [`${audience}`];
             const token = await this.getToken(scopes, true);
             const decodedToken = decodeJwt(token);
-            console.log(decodedToken);
             for (const role of roles) {
                 if (!checkJwtForAppOnlyRole(decodedToken, role)) {
                     return false;

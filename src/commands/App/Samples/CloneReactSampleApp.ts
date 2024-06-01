@@ -26,7 +26,7 @@ export class CloneReactSampleApp extends Command {
         exec('git --version', (err, stdout, stderr) => {
             if (err) {
                 // Git is not installed
-                console.error('Git is not installed. Please install Git before proceeding.');
+                vscode.window.showErrorMessage('Git is not installed. Please install Git before proceeding.');
                 return;
             }
         });
@@ -96,16 +96,11 @@ export class CloneReactSampleApp extends Command {
                 await vscode.commands.executeCommand('git.clone', repoUrl, destinationPath);
                 await vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(folderPathInRepository));
 
-                console.log(`Repository cloned to: ${destinationPath}`);
-
                 writeLocalSettingsJsonFile(destinationPath, appId, containerTypeId, clientSecret, tenantId);
                 writeEnvFile(destinationPath, appId, tenantId);
-            } else {
-                console.log('No destination folder selected. Cloning canceled.');
             }
         } catch (error) {
             vscode.window.showErrorMessage('Failed to clone Git Repo');
-            console.error('Error:', error);
         }
     }
 }
@@ -131,7 +126,6 @@ const writeLocalSettingsJsonFile = (destinationPath: string, appId: string, cont
     const localSettingsPath = path.join(destinationPath, 'SharePoint-Embedded-Samples', 'Samples', 'spa-azurefunction', 'packages', 'azure-functions', 'local.settings.json');
 
     fs.writeFileSync(localSettingsPath, localSettingsJson, 'utf8');
-    console.log('local.settings.json written successfully.');
 };
 
 const writeEnvFile = (destinationPath: string, appId: string, tenantId: string) => {
@@ -139,5 +133,4 @@ const writeEnvFile = (destinationPath: string, appId: string, tenantId: string) 
     const envFilePath = path.join(destinationPath, 'SharePoint-Embedded-Samples', 'Samples', 'spa-azurefunction', 'packages', 'client-app', '.env');
 
     fs.writeFileSync(envFilePath, envContent, 'utf8');
-    console.log('.env file written successfully.');
 };

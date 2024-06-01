@@ -43,7 +43,6 @@ export class CopyAppId extends Command {
             vscode.window.showInformationMessage('App Id copied to clipboard.');
         } catch (error) {
             vscode.window.showErrorMessage('Failed to copy App Id to clipboard');
-            console.error('Error:', error);
         }
     }
 }

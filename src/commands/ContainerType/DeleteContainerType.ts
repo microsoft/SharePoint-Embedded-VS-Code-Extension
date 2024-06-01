@@ -69,7 +69,6 @@ export class DeleteContainerType extends Command {
             refreshCt();
         } catch (error: any) {
             vscode.window.showErrorMessage(`Unable to delete Container Type ${containerType.displayName} : ${error.message}`);
-            console.log(error);
             progressWindow.hide();
             return;
         }

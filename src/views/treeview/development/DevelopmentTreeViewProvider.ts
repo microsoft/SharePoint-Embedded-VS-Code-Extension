@@ -46,7 +46,6 @@ export class DevelopmentTreeViewProvider implements vscode.TreeDataProvider<IChi
     private async _getChildren(): Promise<vscode.TreeItem[]> {
         const account = Account.get();
         if (!account) {
-            console.log('refreshing development tree with null account');
             return [];
         }
         

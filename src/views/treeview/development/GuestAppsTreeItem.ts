@@ -41,7 +41,6 @@ export class GuestAppsTreeItem extends IChildrenProvidingTreeItem {
                 }
             });
         } catch (error) {
-            console.error(`Unable to show guest apps: ${error}`);
         }
 
         return children;

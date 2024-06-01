@@ -30,16 +30,6 @@ export default class SPAdminProvider {
                 JSON.stringify(containerTypeData),
                 options
             );
-            console.log('Success creating container type', response.data);
-            /*
-            // Try fetching the new Container Type from the service because the creation response does
-            // not include the CreationDate and ExpiryDate properties (server bug).
-            try {
-                return await SPAdminProvider.getContainerTypeById(accessToken, tenantName, response.data.ContainerTypeId);
-            } catch (error) {
-                console.error('Error getting new container type', error);
-            }
-            */
             return response.data;
         } catch (error: any) {
             if (error.response && error.response.status === 500) {
@@ -83,11 +73,8 @@ export default class SPAdminProvider {
                 JSON.stringify(containerTypeData),
                 options
             );
-            console.log('Success getting container types on tenant: ', response.data.value);
-            console.log('Response object: ', response);
             return response.data.value;
         } catch (error) {
-            console.error('Error getting container type', error);
             throw error;
         }
     }
@@ -111,10 +98,8 @@ export default class SPAdminProvider {
                 JSON.stringify(containerTypeData),
                 options
             );
-            console.log('Success getting container type', response.data);
             return response.data;
         } catch (error) {
-            console.error('Error getting container type', error);
             throw error;
         }
     }
@@ -139,11 +124,8 @@ export default class SPAdminProvider {
                 JSON.stringify(containerTypeData),
                 options
             );
-
-            console.log(`Success deleting Container Type ${containerTypeId}`, response.data);
             return response.data;
         } catch (error) {
-            console.error(`Error deleting Container Type ${containerTypeId}`, error);
             throw error;
         }
     }

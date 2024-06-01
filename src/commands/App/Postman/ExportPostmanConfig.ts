@@ -72,14 +72,10 @@ export class ExportPostmanConfig extends Command {
                 const postmanEnvPath = path.join(destinationPath, `${app.clientId}_postman_environment.json`);
 
                 fs.writeFileSync(postmanEnvPath, postmanEnvJson, 'utf8');
-                console.log(`${app.clientId}_postman_environment.json written successfully`);
                 vscode.window.showInformationMessage(`Postman environment created successfully for ${pmEnv.name}`);
-            } else {
-                console.log('No destination folder selected. Saving canceled.');
-            }
+            } 
         } catch (error) {
             vscode.window.showErrorMessage('Failed to download Postman environment');
-            console.error('Error:', error);
         }
     }
 }

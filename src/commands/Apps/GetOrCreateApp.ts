@@ -111,7 +111,6 @@ export class GetOrCreateApp extends Command {
                         vscode.window.showErrorMessage('Failed to create a new app');
                         return resolve(undefined);
                     }
-                    console.log('created a new app!');
                     return resolve(app);
                 } else if (appId) {
                     const app = await account.appProvider.get(appId);

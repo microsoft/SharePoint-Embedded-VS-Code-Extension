@@ -30,7 +30,6 @@ export class RecycledContainersTreeItem extends IChildrenProvidingTreeItem {
                 children.push(new RecycledContainerTreeItem(container, this.reigstrationViewModel));
             });
         } catch (error) {
-            console.error(`Unable to show recycled containers: ${error}`);
         }
         return children;
     }

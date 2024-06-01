@@ -30,7 +30,6 @@ export class ContainersTreeItem extends IChildrenProvidingTreeItem {
                 children.push(new ContainerTreeItem(container, this.reigstrationViewModel));
             });
         } catch (error) {
-            console.error(`Unable to show containers: ${error}`);
         }
         return children;
     }

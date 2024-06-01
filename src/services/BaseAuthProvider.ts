@@ -19,7 +19,6 @@ export abstract class BaseAuthProvider {
     public getAuthHandler(scopes: string[]): AuthHandler {
         return (done: AuthHandlerCallback) => {
             this.getToken(scopes)
-                //.then(token => {console.log(token); done(null, token)})
                 .then(token => done(null, token))
                 .catch(err => done(err, null));
         };
@@ -41,7 +40,6 @@ export abstract class BaseAuthProvider {
         try {
             return await this.clientApplication.acquireTokenSilent(tokenRequest);
         } catch (error) {
-            console.log("Silent token acquisition failed, acquiring token using pop up");
             const authCodeRequest = { scopes: tokenRequest.scopes, redirectUri: this.authCodeUrlParams.redirectUri };
             return await this.getTokenInteractive(authCodeRequest);
         }
@@ -82,7 +80,6 @@ export abstract class BaseAuthProvider {
             });
             return tokenResponse;
         } catch (error) {
-            console.error('Error getting token:', error);
             throw error;
         }
     }
@@ -122,7 +119,6 @@ export abstract class BaseAuthProvider {
             });
             return tokenResponse;
         } catch (error) {
-            console.error('Error getting token:', error);
             throw error;
         }
     }
@@ -133,12 +129,10 @@ export abstract class BaseAuthProvider {
         const currentAccounts = await cache.getAllAccounts();
 
         if (currentAccounts === null) {
-            console.log("No accounts detected");
             return null;
         }
 
         if (currentAccounts.length > 1) {
-            console.log("Multiple accounts detected");
             this.account = currentAccounts[0];
             return currentAccounts[0];
         } else if (currentAccounts.length === 1) {
@@ -159,7 +153,6 @@ export abstract class BaseAuthProvider {
             this.account = undefined;
             return true;
         } catch (e) {
-            console.error('Error logging out', e);
             return false;
         }
     }
@@ -200,7 +193,6 @@ export abstract class BaseAuthProvider {
 
             server.listen(0, async () => {
                 const port = (<any>server.address()).port;
-                console.log(`Listening on port ${port}`);
                 authRequest.redirectUri = `http://localhost:${port}/redirect`;
                 const authCodeUrl = await this.clientApplication.getAuthCodeUrl(authRequest);
                 await vscode.env.openExternal(vscode.Uri.parse(authCodeUrl));
@@ -271,7 +263,6 @@ export abstract class BaseAuthProvider {
 
             server.listen(0, async () => {
                 const port = (<any>server.address()).port;
-                console.log(`Listening on port ${port}`);
                 const redirectUri = `http://localhost:${port}/redirect`;
                 const adminConsentUrl = `https://login.microsoftonline.com/${tenantId}/adminconsent?client_id=${clientId}&redirect_uri=${redirectUri}`;
                 await vscode.env.openExternal(vscode.Uri.parse(adminConsentUrl));
@@ -331,7 +322,6 @@ export abstract class BaseAuthProvider {
 
             server.listen(0, async () => {
                 const port = (<any>server.address()).port;
-                console.log(`Listening on port ${port}`);
                 const redirectUri = `http://localhost:${port}/redirect`;
                 const adminConsentUrl = `https://login.microsoftonline.com/${tenantId}/adminconsent?client_id=${clientId}&redirect_uri=${redirectUri}`;
                 await vscode.env.openExternal(vscode.Uri.parse(adminConsentUrl));

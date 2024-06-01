@@ -104,13 +104,10 @@ export class GraphProviderNew {
                         endDateTime: newEndDateTime.toISOString()
                     } 
                 });
-        console.log(response);
         return response.secretText;
     }
 
     public async addAppCert(objectId: string, keyCredential: KeyCredential): Promise<void> {
-        console.log(`Adding cert to app ${objectId}`);
-        console.log(keyCredential);
         await this._client
             .api(`/applications/${objectId}`)
             .patch({ keyCredentials: [keyCredential] });
@@ -206,53 +203,4 @@ export class GraphProviderNew {
             .version('beta')
             .delete();
     }
-
-    /*
-    public async listContainers(): Promise<IContainer[]> {
-        const response = await this._client
-            .api('/storage/fileStorage/containers')
-            .version('beta')
-            .filter(`containerTypeId eq ${this._containerTypeId}`)
-            .get();
-        return response.value as IContainer[];
-    }
-
-    public async createContainer(clientCreateRequest: IContainerClientCreateRequest): Promise<IContainer> {
-        const createRequest: IContainerServerCreateRequest = {
-            ...clientCreateRequest,
-            containerTypeId: this._containerTypeId
-        };
-        const response = await this._client
-            .api('/storage/fileStorage/containers')
-            .version('beta')
-            .post(createRequest);
-        return response as IContainer;
-    }
-
-    public async getContainer(id: string, loadColumns: boolean = true): Promise<IContainer> {
-        const query = { 
-            $select: "id,displayName,containerTypeId,status,createdDateTime,description,customProperties,storageUsedInBytes,itemMajorVersionLimit,isItemVersioningEnabled",
-            $expand: "permissions" 
-        };
-        const response = await this._client
-            .api(`/storage/fileStorage/containers/${id}`)
-            .query(query)
-            .version('beta')
-            .get();
-        if (loadColumns) {
-            response.columns = await this.getContainerColumns(id);
-            console.log(response.columns);
-        }
-        return response as IContainer;
-    }
-
-    public async updateContainer(id: string, updateRequest: IContainerUpdateRequest): Promise<IContainer> {
-        const response = await this._client
-            .api(`/storage/fileStorage/containers/${id}`)
-            .version('beta')
-            .patch(updateRequest);
-        return response as IContainer;
-    }
-    */
 }
-

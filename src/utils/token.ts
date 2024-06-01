@@ -15,7 +15,6 @@ export function checkJwtForAdminClaim(decodedToken: any): boolean {
       return false;
     }
   } catch (error) {
-    console.error("Error decoding JWT token:", error);
     throw error;
   }
 }
@@ -32,7 +31,6 @@ export function checkJwtForTenantAdminScope(decodedToken: any, scope: string): b
       return false;
     }
   } catch (error) {
-    console.error("Error decoding JWT token:", error);
     throw error;
   }
 }
@@ -57,7 +55,6 @@ export function decodeJwt(accessToken: string): any {
   try {
     return jwt_decode(accessToken);
   } catch (error) {
-    console.error("Error decoding JWT token:", error);
     throw error;
   }
 }

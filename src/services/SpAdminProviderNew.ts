@@ -69,7 +69,6 @@ export default class SpAdminProviderNew {
             containerTypeProperties: properties
         };
         const response = await this._sendPostRequest(method, body);
-        console.log(response);
         return response.data as ISpContainerTypeProperties;
 
     }
@@ -82,7 +81,6 @@ export default class SpAdminProviderNew {
             }
         };
         const response = await this._sendPostRequest(method, body);
-        console.log(response);
     }
 
     public async setContainerTypeProperties(containerTypeId: string, owningAppId?: string, displayName?: string, applicationRedirectUrl?: string): Promise<void> {
@@ -97,7 +95,6 @@ export default class SpAdminProviderNew {
             containerTypeProperties: containerTypeProperties
         };
         const response = await this._sendPostRequest(method, body);
-        console.log(response);
     }
 
 }

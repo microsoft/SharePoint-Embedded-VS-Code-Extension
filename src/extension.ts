@@ -43,8 +43,6 @@ export async function activate(context: vscode.ExtensionContext) {
         }
     });
 
-    console.log('new build');
-
     Commands.SignIn.register(context);
     Commands.SignOut.register(context);
     Commands.CreateTrialContainerType.register(context);

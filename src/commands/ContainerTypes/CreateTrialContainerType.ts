@@ -57,7 +57,6 @@ export class CreateTrialContainerType extends Command {
                     throw new Error();
                 }
             } catch (error) {
-                console.log(error);
                 ctCreationError = error;
                 const maxCTMessage = 'Maximum number of allowed Trial Container Types has been exceeded.';
                 if (ctCreationError?.response?.data?.['odata.error']?.message?.value === maxCTMessage) {

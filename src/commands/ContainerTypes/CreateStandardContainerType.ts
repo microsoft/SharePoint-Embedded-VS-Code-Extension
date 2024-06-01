@@ -112,9 +112,7 @@ export class CreatePaidContainerType extends Command {
                 if (!containerType) {
                     throw new Error();
                 }
-            } catch (error) {
-                console.log(error);
-            }
+            } catch (error) { }
         } while (!containerType && !ctTimer.finished);
 
         if (!containerType) {

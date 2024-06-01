@@ -39,26 +39,19 @@ export class StorageProvider {
         const storage = StorageProvider.get();
         try {
             const account: {appIds?: string[], containerTypeIds?: string[]} = JSON.parse(storage.global.getValue('account'));
-            console.log(account);
 
             if (account && account.appIds) {
                 for (const appId of account.appIds || []) {
-                    console.log('Removing app secrets for ' + appId);
                     await storage.secrets.delete(appId);
                 }
             }
-
-            console.log('Removing account from global cache');
             await storage.global.setValue('account', undefined);
         } catch (error) {
-            console.error('Failed to remove previous apps from cache: ' + error);
         }
 
         try {
-            console.log('Removing old cache keys');
             await storage.secrets.delete('account');
         } catch (error) {
-            console.error('Failed to remove account secrets: ' + error);
         }
     }
 }
@@ -95,12 +88,10 @@ class EnumerableSecretStorage implements IEnumerableSecretStorage {
     
     private _getGlobalSet(): Set<string> {
         const globalSetArrayJson = this._global.getValue<string>(this.globalSetKey);
-        console.log(`globalSetArrayJson: ${globalSetArrayJson}`);
         try {
             const globalSetArray = JSON.parse(globalSetArrayJson) as string[];
             return new Set<string>(globalSetArray || []);
         } catch (error) {
-            console.log(`Unable to parse secret key set: ${error}`);
             this._global.setValue(this.globalSetKey, undefined);
             return new Set<string>();
         }        
@@ -109,7 +100,6 @@ class EnumerableSecretStorage implements IEnumerableSecretStorage {
     private _setGlobalSet(value: Set<string>) {
         const globalSetArray = Array.from(value);
         const globalSetArrayJson = JSON.stringify(globalSetArray);
-        console.log(`globalSetArrayJson: ${globalSetArrayJson}`);
         this._global.setValue<string>(this.globalSetKey, globalSetArrayJson);
     }
 
@@ -126,7 +116,6 @@ class EnumerableSecretStorage implements IEnumerableSecretStorage {
     }
 
     public store(key: string, value: string): Thenable<void> {
-        console.log(`store called with key: ${key} and value: ${value}`);
         this._addSecretKey(key);
         return this._secrets.store(key, value);
     }

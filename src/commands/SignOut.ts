@@ -31,7 +31,6 @@ export class SignOut extends Command {
             DevelopmentTreeViewProvider.instance.refresh();
         } catch (error) {
             vscode.window.showErrorMessage('Failed to obtain access token.');
-            console.error('Error:', error);
         }
     }
 }

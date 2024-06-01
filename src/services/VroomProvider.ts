@@ -27,10 +27,8 @@ export default class VroomProvider {
                 options
             );
     
-            console.log('ContainerType Registration successful:', response.data);
             return response.data.value;
         } catch (error: any) {
-            console.error('Error registrating ContainerType: ', error.response.data.error.message);
             throw error;
         }
     }
