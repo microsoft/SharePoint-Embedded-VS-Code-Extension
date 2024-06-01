@@ -11,9 +11,10 @@ import { AccountTreeViewProvider } from "./AccountTreeViewProvider";
 import { DevelopmentTreeViewProvider } from "../development/DevelopmentTreeViewProvider";
 
 export class M365AccountNode extends DynamicNode implements LoginChangeListener {
+  private static readonly _signingInLabel = "Signing into your account...";
 
   constructor(private _eventEmitter: vscode.EventEmitter<DynamicNode | undefined | void>) {
-    super("Logging into account...");
+    super(M365AccountNode._signingInLabel);
     Account.subscribeLoginListener(this);
     this.iconPath = new vscode.ThemeIcon("loading~spin");
     this.collapsibleState = vscode.TreeItemCollapsibleState.None;
@@ -38,19 +39,18 @@ export class M365AccountNode extends DynamicNode implements LoginChangeListener 
 
   public onLoginFailed(): void {
     vscode.commands.executeCommand('setContext', 'spe:isLoggingIn', false);
-    AccountTreeViewProvider.getInstance().refresh();
     DevelopmentTreeViewProvider.getInstance().refresh();
+    AccountTreeViewProvider.getInstance().refresh();
   }
 
   public onLogout(): void {
-    console.log('onLogout');
-    this.label = "Logging into account...";
+    DevelopmentTreeViewProvider.getInstance().refresh();
+    this.label = M365AccountNode._signingInLabel;
     this.iconPath = new vscode.ThemeIcon("loading~spin");
     this.contextValue = "signingInM365";
     vscode.commands.executeCommand('setContext', 'spe:isLoggedIn', false);
     vscode.commands.executeCommand('setContext', 'spe:isAdmin', false);
     AccountTreeViewProvider.getInstance().refresh();
-    DevelopmentTreeViewProvider.getInstance().refresh();
   }
 
   public getChildren(): vscode.ProviderResult<DynamicNode[]> {
