@@ -14,9 +14,12 @@ export function generateCertificateAndPrivateKey(): { certificatePEM: string, pr
     // Set certificate attributes
     cert.publicKey = keys.publicKey;
     cert.serialNumber = '01';
-    cert.validity.notBefore = new Date();
-    cert.validity.notAfter = new Date();
-    cert.validity.notAfter.setFullYear(cert.validity.notBefore.getFullYear() + 1);
+
+    const now = new Date();
+    const threeMonthsFromNow = new Date(now.getTime() + 3 * 30 * 24 * 60 * 60 * 1000);
+
+    cert.validity.notBefore = now;
+    cert.validity.notAfter = threeMonthsFromNow;
 
     const attrs = [
         { name: 'commonName', value: 'SharePoint Embedded VSCode Extension' }
