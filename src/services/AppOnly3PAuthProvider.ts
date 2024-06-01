@@ -9,7 +9,7 @@ import { ext } from '../utils/extensionVariables';
 import { BaseAuthProvider } from './BaseAuthProvider';
 import { checkJwtForAppOnlyRole, decodeJwt } from '../utils/token';
 
-export type IAppOnlySecretCredential = { clientSecret: string; }
+export type IAppOnlySecretCredential = { clientSecret: string; };
 export type IAppOnlyCertCredential = {
     clientCertificate: { privateKey: string, thumbprint: string, x5c?: string };
 };
