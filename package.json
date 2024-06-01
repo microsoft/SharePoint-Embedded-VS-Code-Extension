@@ -102,7 +102,7 @@
       },
       {
         "view": "spe-development",
-        "contents": "Unable to load container types!",
+        "contents": "Failed to load your SharePoint Embedded data. \n [Retry](command:spe.refresh) \n",
         "when": "spe:isAdmin && spe:showFailedView"
       }
     ],
