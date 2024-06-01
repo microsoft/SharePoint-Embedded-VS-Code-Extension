@@ -47,26 +47,33 @@ export class RenameContainerType extends Command {
         }
 
         const containerTypeProvider = account.containerTypeProvider;
-        const progressWindow = new ProgressWaitNotification('Renaming container type');
+        const progressWindow = new ProgressWaitNotification('Renaming container type (may take a minute)...');
         progressWindow.show();
-        await containerTypeProvider.rename(containerType, containerTypeDisplayName);
-        const ctRefreshTimer = new Timer(60 * 1000);
-        const refreshCt = async (): Promise<void> => {
-            do {
-                const containerTypes = await containerTypeProvider.list();
-                if (containerTypes.find(ct => 
-                    ct.containerTypeId === containerType.containerTypeId &&
-                    ct.displayName === containerTypeDisplayName)
-                ) {
-                    setTimeout(() => DevelopmentTreeViewProvider.instance.refresh(), 3000);
-                    break;
-                }
-                // sleep for 2 seconds
-                await new Promise(r => setTimeout(r, 2000));
-            } while (!ctRefreshTimer.finished);
-            
+        try {
+            await containerTypeProvider.rename(containerType, containerTypeDisplayName);
+            const ctRefreshTimer = new Timer(60 * 1000);
+            const refreshCt = async (): Promise<void> => {
+                do {
+                    const containerTypes = await containerTypeProvider.list();
+                    if (containerTypes.find(ct => 
+                        ct.containerTypeId === containerType.containerTypeId &&
+                        ct.displayName === containerTypeDisplayName)
+                    ) {
+                        DevelopmentTreeViewProvider.instance.refresh();
+                        setTimeout(() => DevelopmentTreeViewProvider.instance.refresh(), 3000);
+                        break;
+                    }
+                    // sleep for 2 seconds
+                    await new Promise(r => setTimeout(r, 2000));
+                } while (!ctRefreshTimer.finished);
+                
+                progressWindow.hide();
+            };
+            refreshCt();
+        } catch (error: any) {
             progressWindow.hide();
-        };
-        refreshCt();
+            vscode.window.showErrorMessage(`Failed to rename container type: ${error}`);
+        }
+        
     }
 }
