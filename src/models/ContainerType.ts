@@ -8,7 +8,7 @@ import { App } from "./App";
 import { ApplicationPermissions } from "./ApplicationPermissions";
 import { ContainerTypeRegistration } from "./ContainerTypeRegistration";
 import { Account } from './Account';
-import { ISpContainerTypeProperties } from '../services/SpAdminProviderNew';
+import { ISpContainerTypeProperties } from '../services/SpAdminProvider';
 import axios from 'axios';
 
 export enum BillingClassification {

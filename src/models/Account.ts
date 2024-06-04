@@ -13,7 +13,7 @@ import { checkJwtForAdminClaim, decodeJwt } from '../utils/token';
 import { StorageProvider } from '../services/StorageProvider';
 import { clientId } from '../client';
 import ContainerTypeProvider from '../services/ContainerTypeProvider';
-import SpAdminProviderNew from '../services/SpAdminProviderNew';
+import SpAdminProvider from '../services/SpAdminProvider';
 import AppProvider from '../services/AppProvider';
 import { GraphProvider } from '../services/GraphProvider';
 import ARMProvider from '../services/ARMProvider';
@@ -69,7 +69,7 @@ export class  Account {
         this.domain = props.domain;
         this.spRootSiteUrl = props.spRootSiteUrl;
         this.spAdminSiteUrl = props.spAdminSiteUrl;
-        const spAdminProvider = new SpAdminProviderNew(Account.authProvider, this.spAdminSiteUrl);
+        const spAdminProvider = new SpAdminProvider(Account.authProvider, this.spAdminSiteUrl);
         this.containerTypeProvider = new ContainerTypeProvider(spAdminProvider);
         this.appProvider = new AppProvider(Account.graphProvider);
         this.armProvider = new ARMProvider(Account.authProvider);

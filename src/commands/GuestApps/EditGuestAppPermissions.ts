@@ -10,7 +10,7 @@ import { GetAccount } from '../Accounts/GetAccount';
 import { RegisterOnLocalTenant } from '../ContainerType/RegisterOnLocalTenant';
 import { App } from '../../models/App';
 import { ApplicationPermissions } from '../../models/ApplicationPermissions';
-import { ISpConsumingApplicationProperties } from '../../services/SpAdminProviderNew';
+import { ISpConsumingApplicationProperties } from '../../services/SpAdminProvider';
 import { GuestApplicationTreeItem } from '../../views/treeview/development/GuestAppTreeItem';
 import { ChooseAppPermissions } from './ChooseAppPermissions';
 import { ProgressWaitNotification } from '../../views/notifications/ProgressWaitNotification';

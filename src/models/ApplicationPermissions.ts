@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ISpConsumingApplicationProperties } from "../services/SpAdminProviderNew";
+import { ISpConsumingApplicationProperties } from "../services/SpAdminProvider";
 import { Account } from "./Account";
 import { App } from "./App";
 import { ContainerTypeRegistration } from "./ContainerTypeRegistration";

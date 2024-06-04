@@ -7,11 +7,11 @@ import { Account } from "../models/Account";
 import { ApplicationPermissions } from "../models/ApplicationPermissions";
 import { BillingClassification, ContainerType } from "../models/ContainerType";
 import { ContainerTypeRegistration } from "../models/ContainerTypeRegistration";
-import SpAdminProviderNew, { ISpContainerTypeCreationProperties } from "./SpAdminProviderNew";
+import SpAdminProvider, { ISpContainerTypeCreationProperties } from "./SpAdminProvider";
 
 export default class ContainerTypeProvider {
 
-    public constructor (private _spAdminProvider: SpAdminProviderNew) {}
+    public constructor (private _spAdminProvider: SpAdminProvider) {}
 
     public async list(): Promise<ContainerType[]> {
         const containerTypesProperties = await this._spAdminProvider.listContainerTypes();
