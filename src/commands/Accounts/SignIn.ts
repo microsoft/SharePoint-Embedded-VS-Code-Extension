@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Command } from './Command';
+import { Command } from './../Command';
 import * as vscode from 'vscode';
-import { Account } from '../models/Account';
+import { Account } from '../../models/Account';
 
 // Static class that handles the sign in command
 export class SignIn extends Command {

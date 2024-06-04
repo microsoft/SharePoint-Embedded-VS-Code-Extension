@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 /* eslint-disable @typescript-eslint/naming-convention */
-import { CancelSignIn as _CancelSignIn } from './CancelSignIn';
+import { CancelSignIn as _CancelSignIn } from './Accounts/CancelSignIn';
 import { CopyContainerTypeId as _CopyContainerTypeId } from './ContainerType/CopyContainerTypeId';
 import { CopyOwningTenantId as _CopyOwningTenantId} from './ContainerType/CopyOwningTenantId';
 import { CopyPostmanConfig as _CopyPostmanConfig } from './App/Postman/CopyPostmanConfig';
@@ -25,8 +25,8 @@ import { Refresh as _Refresh } from './Refresh';
 import { RegisterOnLocalTenant as _RegisterOnLocalTenant } from './ContainerType/RegisterOnLocalTenant';
 import { GetLocalAdminConsent as _GetLocalAdminConsent } from './App/GetLocalAdminConsent';
 import { RenameContainerType as _RenameContainerType } from './ContainerType/RenameContainerType';
-import { SignIn as _SignIn } from './SignIn';
-import { SignOut as _SignOut } from './SignOut';
+import { SignIn as _SignIn } from './Accounts/SignIn';
+import { SignOut as _SignOut } from './Accounts/SignOut';
 import { ViewInAzure as _ViewInAzure } from './App/ViewInAzure';
 import { ViewContainerTypeProperties as _ViewContainerTypeProperties } from './ContainerType/ViewContainerTypeProperties';
 import { RenameContainer as _RenameContainer } from './Container/RenameContainer';

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Command } from './Command';
+import { Command } from './../Command';
 import * as vscode from 'vscode';
 
 // Static class that handles the sign in command

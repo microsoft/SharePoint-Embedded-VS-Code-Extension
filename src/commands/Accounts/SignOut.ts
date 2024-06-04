@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Command } from './Command';
+import { Command } from './../Command';
 import * as vscode from 'vscode';
-import { Account } from '../models/Account';
-import { DevelopmentTreeViewProvider } from '../views/treeview/development/DevelopmentTreeViewProvider';
+import { Account } from '../../models/Account';
+import { DevelopmentTreeViewProvider } from '../../views/treeview/development/DevelopmentTreeViewProvider';
 
 // Static class that handles the sign out command
 export class SignOut extends Command {
