@@ -10,6 +10,7 @@ import { DevelopmentTreeViewProvider } from '../../views/treeview/development/De
 import { ProgressWaitNotification, Timer } from '../../views/notifications/ProgressWaitNotification';
 import { ContainerType } from '../../models/ContainerType';
 import { GetAccount } from '../Accounts/GetAccount';
+import { ActiveContainersError } from '../../utils/errors';
 
 // Static class that handles the delete container type command
 export class DeleteContainerType extends Command {
@@ -68,7 +69,23 @@ export class DeleteContainerType extends Command {
             };
             refreshCt();
         } catch (error: any) {
-            vscode.window.showErrorMessage(`Unable to delete Container Type ${containerType.displayName} : ${error.message}`);
+            let errorDisplayMessage;
+            if (error.response && error.response.status === 400) {
+                const errorMessage = error.response.data && 
+                error.response.data['odata.error'] && 
+                error.response.data['odata.error'].message ? 
+                error.response.data['odata.error'].message.value : error.message;
+
+                switch (errorMessage) {
+                    case ActiveContainersError.serverMessage:
+                        errorDisplayMessage = ActiveContainersError.uiMessage;
+                        break;
+                    default:
+                        errorDisplayMessage = error.message;
+                        break;
+                }
+            }
+            vscode.window.showErrorMessage(`Unable to delete Container Type ${containerType.displayName} : ${errorDisplayMessage || error.message}`);
             progressWindow.hide();
             return;
         }
