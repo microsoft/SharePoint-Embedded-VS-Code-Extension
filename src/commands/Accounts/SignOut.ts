@@ -16,7 +16,7 @@ export class SignOut extends Command {
     // Command handler
     public static async run(): Promise<void> {
         try {
-            const message = "Are you sure you want to log out? All your SharePoint Embedded data will be forgotten.";
+            const message = "Are you sure you want to sign out?";
             const userChoice = await vscode.window.showInformationMessage(
                 message,
                 'OK', 'Cancel'
