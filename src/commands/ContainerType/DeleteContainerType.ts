@@ -11,6 +11,8 @@ import { ProgressWaitNotification, Timer } from '../../views/notifications/Progr
 import { ContainerType } from '../../models/ContainerType';
 import { GetAccount } from '../Accounts/GetAccount';
 import { ActiveContainersError } from '../../utils/errors';
+import { TelemetryProvider } from '../../services/TelemetryProvider';
+import { DeleteTrialContainerType, TrialContainerTypeDeletionFailure } from '../../models/telemetry/telemetry';
 
 // Static class that handles the delete container type command
 export class DeleteContainerType extends Command {
@@ -66,6 +68,7 @@ export class DeleteContainerType extends Command {
                 } while (!ctRefreshTimer.finished);
                 progressWindow.hide();
                 DevelopmentTreeViewProvider.instance.refresh();
+                TelemetryProvider.instance.send(new DeleteTrialContainerType());
             };
             refreshCt();
         } catch (error: any) {
@@ -86,6 +89,7 @@ export class DeleteContainerType extends Command {
                 }
             }
             vscode.window.showErrorMessage(`Unable to delete Container Type ${containerType.displayName} : ${errorDisplayMessage || error.message}`);
+            TelemetryProvider.instance.send(new TrialContainerTypeDeletionFailure(errorDisplayMessage || error.message));
             progressWindow.hide();
             return;
         }

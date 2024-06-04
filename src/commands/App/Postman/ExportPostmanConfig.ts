@@ -13,6 +13,8 @@ import { AppTreeItem } from '../../../views/treeview/development/AppTreeItem';
 import * as fs from 'fs';
 import * as path from 'path';
 import { CreatePostmanConfig } from './CreatePostmanConfig';
+import { TelemetryProvider } from '../../../services/TelemetryProvider';
+import { ExportPostmanConfigFailure } from '../../../models/telemetry/telemetry';
 
 // Static class that handles the Postman export command
 export class ExportPostmanConfig extends Command {
@@ -74,8 +76,9 @@ export class ExportPostmanConfig extends Command {
                 fs.writeFileSync(postmanEnvPath, postmanEnvJson, 'utf8');
                 vscode.window.showInformationMessage(`Postman environment created successfully for ${pmEnv.name}`);
             } 
-        } catch (error) {
+        } catch (error: any) {
             vscode.window.showErrorMessage('Failed to download Postman environment');
+            TelemetryProvider.instance.send(new ExportPostmanConfigFailure(error.message));
         }
     }
 }

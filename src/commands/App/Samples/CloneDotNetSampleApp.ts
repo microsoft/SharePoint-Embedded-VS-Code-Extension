@@ -15,6 +15,8 @@ import { OwningAppTreeItem } from "../../../views/treeview/development/OwningApp
 import fs from 'fs';
 import { exec } from 'child_process';
 import { CreateSecret } from "../Credentials/CreateSecret";
+import { RepoCloneFailure } from "../../../models/telemetry/telemetry";
+import { TelemetryProvider } from "../../../services/TelemetryProvider";
 
 // Static class that handles the clone .NET sample app command
 export class CloneDotNetSampleApp extends Command {
@@ -98,8 +100,9 @@ export class CloneDotNetSampleApp extends Command {
 
                 writeAppSettingsJsonFile(destinationPath, appId, containerTypeId, clientSecret, tenantId);
             }
-        } catch (error) {
+        } catch (error: any) {
             vscode.window.showErrorMessage('Failed to clone Git Repo');
+            TelemetryProvider.instance.send(new RepoCloneFailure(error.message));
         }
     }
 }

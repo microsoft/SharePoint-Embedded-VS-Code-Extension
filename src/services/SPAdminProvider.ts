@@ -7,6 +7,8 @@ import axios, { AxiosResponse } from 'axios';
 import { BillingClassification, ContainerType } from '../models/ContainerType';
 import { BaseAuthProvider } from './BaseAuthProvider';
 import { ApplicationPermission } from '../models/ApplicationPermissions';
+import { TelemetryProvider } from './TelemetryProvider';
+import { CreateTrialContainerTypeApiFailure, CreateTrialContainerTypeApiSuccess, DeleteTrialContainerTypeApiFailure, DeleteTrialContainerTypeApiSuccess } from '../models/telemetry/telemetry';
 
 export default class SpAdminProvider {
     private readonly _baseApiUrl;
@@ -68,9 +70,18 @@ export default class SpAdminProvider {
         const body = {
             containerTypeProperties: properties
         };
-        const response = await this._sendPostRequest(method, body);
-        return response.data as ISpContainerTypeProperties;
-
+        try {
+            const response = await this._sendPostRequest(method, body);
+            if (properties.SPContainerTypeBillingClassification === BillingClassification.FreeTrial) {
+                TelemetryProvider.instance.send(new CreateTrialContainerTypeApiSuccess(response));
+            }
+            return response.data as ISpContainerTypeProperties;
+        } catch (error: any) {
+            if (properties.SPContainerTypeBillingClassification === BillingClassification.FreeTrial) {
+                TelemetryProvider.instance.send(new CreateTrialContainerTypeApiFailure(error.message, error.response));
+            }
+            throw error;
+        }
     }
 
     public async deleteContainerType(containerTypeId: string): Promise<void> {
@@ -80,7 +91,13 @@ export default class SpAdminProvider {
                 ContainerTypeId: containerTypeId
             }
         };
-        const response = await this._sendPostRequest(method, body);
+        try {
+            const response = await this._sendPostRequest(method, body);
+            TelemetryProvider.instance.send(new DeleteTrialContainerTypeApiSuccess(response));
+        } catch (error: any) {
+            TelemetryProvider.instance.send(new DeleteTrialContainerTypeApiFailure(error.message, error.response));
+            throw error;
+        }
     }
 
     public async setContainerTypeProperties(containerTypeId: string, owningAppId?: string, displayName?: string, applicationRedirectUrl?: string): Promise<void> {

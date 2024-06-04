@@ -62,10 +62,10 @@ export abstract class TelemetryErrorEvent extends TelemetryEvent {
 
 // Usage Models
 
-export class CreateContainerTypeEvent extends TelemetryEvent {
+export class CreateTrialContainerTypeEvent extends TelemetryEvent {
     public constructor() {
-        const name = "CreateContainerType";
-        const description = "Container Type created successfully.";
+        const name = "CreateTrialContainerType";
+        const description = "Trial Container Type created successfully.";
         super(name, description);
         this._properties = {
             ...super.properties
@@ -84,10 +84,10 @@ export class CreateContainerEvent extends TelemetryEvent {
     }
 }
 
-export class DeleteContainerType extends TelemetryEvent {
+export class DeleteTrialContainerType extends TelemetryEvent {
     public constructor() {
-        const name = "DeleteContainerType";
-        const description = "Container Type deleted successfully.";
+        const name = "DeleteTrialContainerType";
+        const description = "Trial Container Type deleted successfully.";
         super(name, description);
         this._properties = {
             ...super.properties
@@ -135,7 +135,7 @@ export class CreateTrialContainerTypeApiSuccess extends TelemetryEvent {
 
 export class CreateTrialContainerTypeApiFailure extends TelemetryErrorEvent {
     public constructor(error: any, response: any) {
-        const name = "CreateTrialContainerTypeApiSuccess";
+        const name = "CreateTrialContainerTypeApiFailure";
         const description = "Trial Container Type creation API failed.";
         super(name, description, error);
         this._properties = {
@@ -276,7 +276,7 @@ export class ExportPostmanConfigFailure extends TelemetryErrorEvent {
 export class GuestAppRegisterContainerTypeFailure extends TelemetryErrorEvent {
     public constructor(error: any) {
         const name = "GuestAppRegisterContainerTypeFailure";
-        const description = "Unable to create container object.";
+        const description = "Unable to register guest app.";
         super(name, description, error);
         this._properties = {
             ...super.properties,
@@ -309,34 +309,10 @@ export class RepoCloneFailure extends TelemetryErrorEvent {
     }
 }
 
-export class TermsOfServiceAcceptedFailure extends TelemetryErrorEvent {
-    public constructor(error: any) {
-        const name = "TermsOfServiceAcceptedFailure";
-        const description = "Terms of Service not accepted.";
-        super(name, description, error);
-        this._properties = {
-            ...super.properties,
-            UxError: "true"
-        };
-    }
-}
-
 export class TrialContainerTypeCreationFailure extends TelemetryErrorEvent {
     public constructor(error: any) {
         const name = "TrialContainerTypeCreationFailure";
         const description = "Trial Container Type creation failed.";
-        super(name, description, error);
-        this._properties = {
-            ...super.properties,
-            UxError: "true"
-        };
-    }
-}
-
-export class TrialContainerTypeCreationFlowFailure extends TelemetryErrorEvent {
-    public constructor(error: any) {
-        const name = "TrialContainerTypeCreationFlowFailure";
-        const description = "Error with Trial Container Type creation Ux Flow.";
         super(name, description, error);
         this._properties = {
             ...super.properties,

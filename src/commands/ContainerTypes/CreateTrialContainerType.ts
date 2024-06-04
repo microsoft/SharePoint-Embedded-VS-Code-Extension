@@ -12,6 +12,8 @@ import { GetOrCreateApp } from '../Apps/GetOrCreateApp';
 import { RegisterOnLocalTenant } from '../ContainerType/RegisterOnLocalTenant';
 import { ProgressWaitNotification, Timer } from '../../views/notifications/ProgressWaitNotification';
 import { AppType } from '../../models/App';
+import { CreateTrialContainerTypeEvent, TrialContainerTypeCreationFailure } from '../../models/telemetry/telemetry';
+import { TelemetryProvider } from '../../services/TelemetryProvider';
 
 // Static class that handles the create trial container type command
 export class CreateTrialContainerType extends Command {
@@ -73,6 +75,7 @@ export class CreateTrialContainerType extends Command {
                 errorMessage += `: ${ctCreationError}`;
             }
             vscode.window.showErrorMessage(errorMessage);
+            TelemetryProvider.instance.send(new TrialContainerTypeCreationFailure(errorMessage));
             return;
         }
 
@@ -101,6 +104,7 @@ export class CreateTrialContainerType extends Command {
         if (selection === register) {
             RegisterOnLocalTenant.run(containerType);
         }
+        TelemetryProvider.instance.send(new CreateTrialContainerTypeEvent());
         return containerType;
     }
 }

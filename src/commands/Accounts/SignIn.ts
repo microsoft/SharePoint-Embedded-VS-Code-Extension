@@ -6,6 +6,8 @@
 import { Command } from './../Command';
 import * as vscode from 'vscode';
 import { Account } from '../../models/Account';
+import { SignInEvent, SignInFailure } from '../../models/telemetry/telemetry';
+import { TelemetryProvider } from '../../services/TelemetryProvider';
 
 // Static class that handles the sign in command
 export class SignIn extends Command {
@@ -16,9 +18,11 @@ export class SignIn extends Command {
     public static async run(): Promise<void> {
         try {
             await Account.login();
-        } catch (error) {
+            TelemetryProvider.instance.send(new SignInEvent());
+        } catch (error: any) {
             vscode.window.showErrorMessage(`${error} Failed to sign in, please try again.`);
             vscode.commands.executeCommand('setContext', 'spe:isLoggingIn', false);
+            TelemetryProvider.instance.send(new SignInFailure(error.message));
         }
     }
 }

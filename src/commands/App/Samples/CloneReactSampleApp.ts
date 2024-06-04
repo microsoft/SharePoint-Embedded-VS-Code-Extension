@@ -15,6 +15,8 @@ import { OwningAppTreeItem } from "../../../views/treeview/development/OwningApp
 import fs from 'fs';
 import { exec } from 'child_process';
 import { CreateSecret } from "../Credentials/CreateSecret";
+import { RepoCloneFailure } from "../../../models/telemetry/telemetry";
+import { TelemetryProvider } from "../../../services/TelemetryProvider";
 
 // Static class that handles the clone React sample app command
 export class CloneReactSampleApp extends Command {
@@ -99,8 +101,9 @@ export class CloneReactSampleApp extends Command {
                 writeLocalSettingsJsonFile(destinationPath, appId, containerTypeId, clientSecret, tenantId);
                 writeEnvFile(destinationPath, appId, tenantId);
             }
-        } catch (error) {
+        } catch (error: any) {
             vscode.window.showErrorMessage('Failed to clone Git Repo');
+            TelemetryProvider.instance.send(new RepoCloneFailure(error.message));
         }
     }
 }

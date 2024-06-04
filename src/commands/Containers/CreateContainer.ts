@@ -12,6 +12,8 @@ import { App } from '../../models/App';
 import { GraphProvider } from '../../services/GraphProvider';
 import { Container } from '../../models/Container';
 import { ProgressWaitNotification } from '../../views/notifications/ProgressWaitNotification';
+import { TelemetryProvider } from '../../services/TelemetryProvider';
+import { CreateContainerEvent, CreateContainerFailure } from '../../models/telemetry/telemetry';
 
 // Static class that handles the create container command
 export class CreateContainer extends Command {
@@ -46,10 +48,12 @@ export class CreateContainer extends Command {
             }
             DevelopmentTreeViewProvider.getInstance().refresh(containersViewModel);
             progressWindow.hide();
+            TelemetryProvider.instance.send(new CreateContainerEvent());
             return container;
         } catch (error: any) {
             progressWindow.hide();
             vscode.window.showErrorMessage("Unable to create container object: " + error.message);
+            TelemetryProvider.instance.send(new CreateContainerFailure(error.message));
             return;
         }
     }
