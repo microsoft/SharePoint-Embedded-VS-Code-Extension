@@ -29,11 +29,17 @@ export class CreateContainer extends Command {
         const containerTypeRegistration = containersViewModel.containerTypeRegistration;
         const owningApp: App = containerType.owningApp!;
         const containerDisplayName = await vscode.window.showInputBox({
-            prompt: 'Display name:'
+            placeHolder: 'Enter a display name for your new container',
+            prompt: 'Container display name',
+            validateInput: (value: string) => {
+                if (!value) {
+                    return 'display name is required';
+                }
+                return undefined;
+            }
         });
 
         if (!containerDisplayName) {
-            vscode.window.showErrorMessage('No container display name provided');
             return;
         }
 
