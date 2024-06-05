@@ -46,7 +46,7 @@ export class DeleteContainerType extends Command {
             'OK', 'Cancel'
         );
 
-        if (userChoice === 'Cancel') {
+        if (userChoice !== 'OK') {
             return;
         }
 
