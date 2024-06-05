@@ -28,3 +28,8 @@ export class ActiveContainersError {
     public static serverMessage: string = "Trial Container Type cannot be deleted as there are active containers associated to it.";
     public static uiMessage: string = "Trial Container Type cannot be deleted as there are active containers associated to it. Please ensure there are no active containers and no containers in the recycle bin before proceeding.";   
 }
+
+export class ActiveRecycledContainersError { 
+    public static serverMessage: string = " Trial Container Type cannot be deleted as there are containers in the Recycle Bin associated to it.";
+    public static uiMessage: string = "Trial Container Type cannot be deleted as there are active containers associated to it. Please ensure there are no active containers and no containers in the recycle bin before proceeding.";   
+}

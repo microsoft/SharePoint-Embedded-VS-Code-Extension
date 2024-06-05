@@ -10,7 +10,7 @@ import { DevelopmentTreeViewProvider } from '../../views/treeview/development/De
 import { ProgressWaitNotification, Timer } from '../../views/notifications/ProgressWaitNotification';
 import { ContainerType } from '../../models/ContainerType';
 import { GetAccount } from '../Accounts/GetAccount';
-import { ActiveContainersError } from '../../utils/errors';
+import { ActiveContainersError, ActiveRecycledContainersError } from '../../utils/errors';
 import { TelemetryProvider } from '../../services/TelemetryProvider';
 import { DeleteTrialContainerType, TrialContainerTypeDeletionFailure } from '../../models/telemetry/telemetry';
 
@@ -82,6 +82,9 @@ export class DeleteContainerType extends Command {
                 switch (errorMessage) {
                     case ActiveContainersError.serverMessage:
                         errorDisplayMessage = ActiveContainersError.uiMessage;
+                        break;
+                    case ActiveRecycledContainersError.serverMessage:
+                        errorDisplayMessage = ActiveRecycledContainersError.uiMessage;
                         break;
                     default:
                         errorDisplayMessage = error.message;
