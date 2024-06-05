@@ -4,28 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from "vscode";
-import { ContainerType } from "../../../models/ContainerType";
-import { Account } from "../../../models/Account";
 import { ContainerTypeTreeItem } from "./ContainerTypeTreeItem";
+import { IChildrenProvidingTreeItem } from "./IDataProvidingTreeItem";
+import { ContainerType } from "../../../models/ContainerType";
 
-export class ContainerTypesTreeItem extends vscode.TreeItem {
-
-    constructor(
-        public readonly label: string,
-        public readonly collapsibleState: vscode.TreeItemCollapsibleState
-
-    ) {
-        super(label, collapsibleState);
+export class ContainerTypesTreeItem extends IChildrenProvidingTreeItem {
+    private static readonly label = "Container Types";
+    public constructor(private _containerTypes: ContainerType[]) {
+        super(ContainerTypesTreeItem.label, vscode.TreeItemCollapsibleState.Expanded);
+        this.iconPath = new vscode.ThemeIcon("containertype-icon");
+        this.contextValue = "spe:containerTypesTreeItem";
     }
 
-    public async getChildren() {
-        const containerTypes: ContainerType[] = Account.get()!.containerTypes;
-
-        const containerTypeTreeItems = [...containerTypes.map(containerType => {
-            const containerTypeTreeItem = new ContainerTypeTreeItem(containerType, containerType.displayName, containerType.displayName, vscode.TreeItemCollapsibleState.Expanded);
-            return containerTypeTreeItem;
-        })];
-
-        return containerTypeTreeItems;
+    public async getChildren(): Promise<vscode.TreeItem[]> {
+        return this._containerTypes.map(ct => new ContainerTypeTreeItem(ct));
     }
 }

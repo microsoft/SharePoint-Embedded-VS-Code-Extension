@@ -9,7 +9,6 @@ import * as http from 'http';
 export function sendFile(res: http.ServerResponse, filepath: string, contentType: string) {
     fs.readFile(filepath, (err, body) => {
       if (err) {
-        console.error(err.message);
       } else {
         res.writeHead(200, {
           // eslint-disable-next-line @typescript-eslint/naming-convention

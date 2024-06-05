@@ -15,7 +15,6 @@ export function checkJwtForAdminClaim(decodedToken: any): boolean {
       return false;
     }
   } catch (error) {
-    console.error("Error decoding JWT token:", error);
     throw error;
   }
 }
@@ -32,25 +31,19 @@ export function checkJwtForTenantAdminScope(decodedToken: any, scope: string): b
       return false;
     }
   } catch (error) {
-    console.error("Error decoding JWT token:", error);
     throw error;
   }
 }
 
 export function checkJwtForAppOnlyRole(decodedToken: any, role: string): boolean {
-  try {
-    if (!decodedToken.roles) {
-      return false;
-    }
-    const roles = decodedToken.roles as string[];
-    if (roles.includes(role)) {
-      return true;
-    } else {
-      return false;
-    }
-  } catch (error) {
-    console.error("Error decoding JWT token:", error);
-    throw error;
+  if (!decodedToken.roles) {
+    return false;
+  }
+  const roles = decodedToken.roles as string[];
+  if (roles.includes(role)) {
+    return true;
+  } else {
+    return false;
   }
 }
 
@@ -62,7 +55,6 @@ export function decodeJwt(accessToken: string): any {
   try {
     return jwt_decode(accessToken);
   } catch (error) {
-    console.error("Error decoding JWT token:", error);
     throw error;
   }
 }

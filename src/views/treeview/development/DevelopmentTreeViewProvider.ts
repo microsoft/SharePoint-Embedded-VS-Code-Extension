@@ -6,63 +6,61 @@
 import * as vscode from "vscode";
 import { ContainerTypesTreeItem } from "./ContainerTypesTreeItem";
 import { Account } from "../../../models/Account";
-import { ContainerType } from "../../../models/ContainerType";
+import { IChildrenProvidingTreeItem } from "./IDataProvidingTreeItem";
 
-export class DevelopmentTreeViewProvider implements vscode.TreeDataProvider<ContainerTypesTreeItem | vscode.TreeItem> {
-    private static instance: DevelopmentTreeViewProvider;
+export class DevelopmentTreeViewProvider implements vscode.TreeDataProvider<IChildrenProvidingTreeItem | vscode.TreeItem> {
+    
     public static readonly viewId = "spe-development";
-    private _onDidChangeTreeData: vscode.EventEmitter<ContainerTypesTreeItem | undefined | void> =
-        new vscode.EventEmitter<ContainerTypesTreeItem | undefined | void>();
-    readonly onDidChangeTreeData: vscode.Event<ContainerTypesTreeItem | undefined | void> =
-        this._onDidChangeTreeData.event;
+    
+    private _onDidChangeTreeData: vscode.EventEmitter<vscode.TreeItem | undefined> = new vscode.EventEmitter<vscode.TreeItem | undefined>();
+    readonly onDidChangeTreeData: vscode.Event<vscode.TreeItem | undefined> = this._onDidChangeTreeData.event;
 
+    private constructor() { }
+    public static readonly instance: DevelopmentTreeViewProvider = new DevelopmentTreeViewProvider();
     public static getInstance() {
-        if (!DevelopmentTreeViewProvider.instance) {
-            DevelopmentTreeViewProvider.instance = new DevelopmentTreeViewProvider();
-        }
         return DevelopmentTreeViewProvider.instance;
     }
 
-    public refresh(): void {
-        this._onDidChangeTreeData.fire();
+    public refresh(element?: vscode.TreeItem): void {
+        if (element && element instanceof ContainerTypesTreeItem) {
+            element = undefined;
+        }
+        this._onDidChangeTreeData.fire(element);
     }
 
-    public getTreeItem(element: (any)): vscode.TreeItem {
+    public getTreeItem(element: vscode.TreeItem): vscode.TreeItem {
         return element;
     }
 
-    public getChildren(element?: ContainerTypesTreeItem | vscode.TreeItem): Thenable<(ContainerTypesTreeItem | vscode.TreeItem)[]> {
+    public async getChildren(element?: IChildrenProvidingTreeItem | vscode.TreeItem | undefined): Promise<vscode.TreeItem[]> {
         if (element) {
-            // @ts-ignore
-            return Promise.resolve(element.getChildren());
-        } else {
-            return Promise.resolve(this._getDevelopmentTreeViewChildren());
+            if (element instanceof IChildrenProvidingTreeItem) {
+                return await element.getChildren();
+            } else {
+                return Promise.resolve([]);
+            }
         }
+        return await this._getChildren();
     }
 
-    private _getDevelopmentTreeViewChildren(): (ContainerTypesTreeItem | vscode.TreeItem)[]{
+    private async _getChildren(): Promise<vscode.TreeItem[]> {
         const account = Account.get();
-
         if (!account) {
             return [];
         }
-
-        const isContainerTypeCreating = Account.getContainerTypeCreationState();
-        const containerTypes: ContainerType[] = Account.get()!.containerTypes;
-
-        if (isContainerTypeCreating) {
-            const containerTypeCreatingButton = new vscode.TreeItem("Creating Container Type...", vscode.TreeItemCollapsibleState.None);
-            containerTypeCreatingButton.iconPath = new vscode.ThemeIcon("loading~spin");
-            return [containerTypeCreatingButton];
-        } else if (!isContainerTypeCreating && containerTypes && containerTypes.length > 0) {
-            const containerTypesTreeItem = new ContainerTypesTreeItem(
-                `Container Types`,
-                vscode.TreeItemCollapsibleState.Expanded
-            );
-            return [containerTypesTreeItem];
+        
+        try {
+            await vscode.commands.executeCommand('setContext', 'spe:showGettingStartedView', false);
+            await vscode.commands.executeCommand('setContext', 'spe:showFailedView', false);
+            const containerTypeProvider = account.containerTypeProvider;
+            const containerTypes = await containerTypeProvider.list();
+            if (containerTypes && containerTypes.length > 0) {
+                return [new ContainerTypesTreeItem(containerTypes)];
+            }
+            await vscode.commands.executeCommand('setContext', 'spe:showGettingStartedView', true);
+        } catch {
+            await vscode.commands.executeCommand('setContext', 'spe:showFailedView', true);
         }
-
         return [];
     }
-
 }

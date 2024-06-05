@@ -3,21 +3,86 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export class Container {
+import { ContainerTypeRegistration } from "./ContainerTypeRegistration";
+
+export class Container implements IContainerProperties {
     // instance properties
     public readonly id: string;
+    public get containerTypeId(): string {
+        return this.registration.containerTypeId;
+    }
     public readonly displayName: string;
-    public readonly description: string;
-    public readonly containerTypeId: string;
-    public readonly status: string;
-    public createdDateTime?: string;
+    public readonly description?: string | undefined;
+    public readonly status?: string | undefined;
+    public readonly itemMajorVersionLimit?: number | undefined;
+    public readonly isItemVersioningEnabled?: boolean | undefined;
+    public readonly storageUsedInBytes?: number | undefined;
+    public readonly createdDateTime?: string | undefined;
+    public readonly customProperties?: IContainerCustomProperties | undefined;
+    public readonly permissions?: IContainerPermission[] | undefined;
 
-    public constructor(id: string, displayName: string, description: string, containerTypeId: string, status: string, createdDateTime?: string) {
-        this.id = id;
-        this.displayName = displayName;
-        this.description = description;
-        this.containerTypeId = containerTypeId;
-        this.status = status;
-        this.createdDateTime = createdDateTime;
+    public constructor(public readonly registration: ContainerTypeRegistration, properties: IContainerProperties) {
+        this.id = properties.id;
+        this.displayName = properties.displayName;
+        this.description = properties.description || '';
+        this.status = properties.status;
+        this.itemMajorVersionLimit = properties.itemMajorVersionLimit;
+        this.isItemVersioningEnabled = properties.isItemVersioningEnabled;
+        this.storageUsedInBytes = properties.storageUsedInBytes;
+        this.createdDateTime = properties.createdDateTime;
+        this.customProperties = properties.customProperties;
+        this.permissions = properties.permissions;
+    }
+
+    public getProperties(): IContainerProperties {
+        return {
+            id: this.id,
+            containerTypeId: this.containerTypeId,
+            displayName: this.displayName,
+            description: this.description,
+            status: this.status,
+            itemMajorVersionLimit: this.itemMajorVersionLimit,
+            isItemVersioningEnabled: this.isItemVersioningEnabled,
+            storageUsedInBytes: this.storageUsedInBytes,
+            createdDateTime: this.createdDateTime,
+            customProperties: this.customProperties,
+            permissions: this.permissions
+        };
     }
 }
+
+export interface IContainerProperties {
+    id: string;
+    containerTypeId: string;
+    displayName: string;
+    description?: string;
+    status?: string;
+    itemMajorVersionLimit?: number;
+    isItemVersioningEnabled?: boolean;
+    storageUsedInBytes?: number;
+    createdDateTime?: string;
+    customProperties?: IContainerCustomProperties;
+    permissions?: IContainerPermission[];
+}
+
+export interface IContainerCustomProperties {
+    [key: string]: {
+        value: string;
+        isSearchable: boolean;
+    }
+}
+
+export interface IContainerPermission {
+    id: string;
+    roles: ContainerPermissionRoles[];
+    grantedToV2: {
+        user: {
+            displayName?: string;
+            email?: string;
+            userPrincipalName: string;
+        }
+    }
+}
+
+export type ContainerPermissionRoles = 'reader' | 'writer' | 'manager' | 'owner';
+

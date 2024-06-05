@@ -16,25 +16,30 @@ export abstract class BaseAuthProvider {
     protected authCodeUrlParams: AuthorizationUrlRequest;
     protected interactiveTokenPrompt: string | undefined;
 
-    async getToken(scopes: string[]): Promise<string> {
-        let authResponse: AuthenticationResult;
+    public getAuthHandler(scopes: string[]): AuthHandler {
+        return (done: AuthHandlerCallback) => {
+            this.getToken(scopes)
+                .then(token => done(null, token))
+                .catch(err => done(err, null));
+        };
+    }
+
+    async getToken(scopes: string[], interactiveFallback: boolean = false): Promise<string> {
+        let authResponse: AuthenticationResult | undefined;
         const account = this.account || await this.getAccount();
         if (account) {
-            //authResponse = await this.getTokenSilent({ scopes, account: account });
             authResponse = await this.getTokenSilent({ scopes, account: account, forceRefresh: true });
-        } else {
+        } else if (interactiveFallback) {
             const authCodeRequest = { scopes, redirectUri: this.authCodeUrlParams.redirectUri };
             authResponse = await this.getTokenInteractive(authCodeRequest);
         }
-
-        return authResponse.accessToken || "";
+        return authResponse?.accessToken || "";
     }
 
     async getTokenSilent(tokenRequest: SilentFlowRequest): Promise<AuthenticationResult> {
         try {
             return await this.clientApplication.acquireTokenSilent(tokenRequest);
         } catch (error) {
-            console.log("Silent token acquisition failed, acquiring token using pop up");
             const authCodeRequest = { scopes: tokenRequest.scopes, redirectUri: this.authCodeUrlParams.redirectUri };
             return await this.getTokenInteractive(authCodeRequest);
         }
@@ -75,7 +80,6 @@ export abstract class BaseAuthProvider {
             });
             return tokenResponse;
         } catch (error) {
-            console.error('Error getting token:', error);
             throw error;
         }
     }
@@ -115,7 +119,6 @@ export abstract class BaseAuthProvider {
             });
             return tokenResponse;
         } catch (error) {
-            console.error('Error getting token:', error);
             throw error;
         }
     }
@@ -126,12 +129,10 @@ export abstract class BaseAuthProvider {
         const currentAccounts = await cache.getAllAccounts();
 
         if (currentAccounts === null) {
-            console.log("No accounts detected");
             return null;
         }
 
         if (currentAccounts.length > 1) {
-            console.log("Multiple accounts detected");
             this.account = currentAccounts[0];
             return currentAccounts[0];
         } else if (currentAccounts.length === 1) {
@@ -152,7 +153,6 @@ export abstract class BaseAuthProvider {
             this.account = undefined;
             return true;
         } catch (e) {
-            console.error('Error logging out', e);
             return false;
         }
     }
@@ -193,7 +193,6 @@ export abstract class BaseAuthProvider {
 
             server.listen(0, async () => {
                 const port = (<any>server.address()).port;
-                console.log(`Listening on port ${port}`);
                 authRequest.redirectUri = `http://localhost:${port}/redirect`;
                 const authCodeUrl = await this.clientApplication.getAuthCodeUrl(authRequest);
                 await vscode.env.openExternal(vscode.Uri.parse(authCodeUrl));
@@ -213,6 +212,60 @@ export abstract class BaseAuthProvider {
                         });
                     }
                 }
+            });
+
+            // Clear the timeout if an authorization code is received
+            server.on('close', () => {
+                clearTimeout(timeout);
+            });
+        });
+    }
+
+
+    public static async listenForAdminConsent(clientId: string, tenantId: string): Promise<boolean> {
+        return new Promise<boolean>((resolve, reject) => {
+            const server = http.createServer(async (req, res) => {
+
+                type ConsentResponseQuery = {
+                    // eslint-disable-next-line @typescript-eslint/naming-convention
+                    admin_consent?: string;
+                    tenant?: string;
+                    error?: string;
+                    // eslint-disable-next-line @typescript-eslint/naming-convention
+                    error_description?: string;
+                    // eslint-disable-next-line @typescript-eslint/naming-convention
+                    error_uri?: string;
+                };
+                const responseParams = url.parse(req.url || '', true).query as ConsentResponseQuery;
+                const adminConsent: boolean = responseParams.admin_consent === 'True' ? true : false;
+                const authError = responseParams.error;
+                const authErrorDescription = responseParams.error_description;
+
+                if (!authError && !authErrorDescription) {
+                    // eslint-disable-next-line @typescript-eslint/naming-convention
+                    res.writeHead(200, { 'Content-Type': 'text/html' });
+                    res.end(htmlString);
+                    
+                    resolve(adminConsent);
+
+                    server.close(() => {
+                        resolve(adminConsent);
+                    });
+                }
+            });
+
+            // Timeout of 3 minutes (3 * 60 * 1000 = 300000 milliseconds)
+            const timeout = setTimeout(() => {
+                server.close(() => {
+                    reject(new Error('Consent response not received within the allow timeout.'));
+                });
+            }, 3 * 60 * 1000);
+
+            server.listen(0, async () => {
+                const port = (<any>server.address()).port;
+                const redirectUri = `http://localhost:${port}/redirect`;
+                const adminConsentUrl = `https://login.microsoftonline.com/${tenantId}/adminconsent?client_id=${clientId}&redirect_uri=${redirectUri}`;
+                await vscode.env.openExternal(vscode.Uri.parse(adminConsentUrl));
             });
 
             // Clear the timeout if an authorization code is received
@@ -269,7 +322,6 @@ export abstract class BaseAuthProvider {
 
             server.listen(0, async () => {
                 const port = (<any>server.address()).port;
-                console.log(`Listening on port ${port}`);
                 const redirectUri = `http://localhost:${port}/redirect`;
                 const adminConsentUrl = `https://login.microsoftonline.com/${tenantId}/adminconsent?client_id=${clientId}&redirect_uri=${redirectUri}`;
                 await vscode.env.openExternal(vscode.Uri.parse(adminConsentUrl));
@@ -298,3 +350,6 @@ export abstract class BaseAuthProvider {
         });
     }
 }
+
+export type AuthHandler = (done: AuthHandlerCallback) => void;
+export type AuthHandlerCallback = (error: any, accessToken: string | null) => void;

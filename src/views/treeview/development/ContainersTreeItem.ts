@@ -7,26 +7,30 @@ import * as vscode from "vscode";
 import { ContainerTreeItem } from "./ContainerTreeItem";
 import { ContainerType } from "../../../models/ContainerType";
 import { Container } from "../../../models/Container";
+import { IChildrenProvidingTreeItem } from "./IDataProvidingTreeItem";
+import { ContainerTypeRegistration } from "../../../models/ContainerTypeRegistration";
+import { LocalRegistrationTreeItem } from "./LocalRegistrationTreeItem";
 
-export class ContainersTreeItem extends vscode.TreeItem {
-    private containerItems?: ContainerTreeItem[];
+export class ContainersTreeItem extends IChildrenProvidingTreeItem {
 
-    constructor(
-        public containerType: ContainerType,
-        public readonly label: string,
-        public collapsibleState: vscode.TreeItemCollapsibleState
+    public get containerType(): ContainerType {
+        return this.containerTypeRegistration.containerType;
+    }
 
-    ) {
-        super(label, collapsibleState);
-        this.containerItems = [];
-        this.contextValue = "containers";
+    constructor(public containerTypeRegistration: ContainerTypeRegistration, public reigstrationViewModel: LocalRegistrationTreeItem) {
+        super('Containers', vscode.TreeItemCollapsibleState.Collapsed);
+        this.contextValue = "spe:containersTreeItem";
     }
 
     public async getChildren() {
-        const containers: Container[] = await this.containerType.getContainers();
-        this.containerItems = containers.map((container: Container) => {
-            return new ContainerTreeItem(container.displayName, container.description, vscode.TreeItemCollapsibleState.None);
-        });
-        return this.containerItems;
+        const children: vscode.TreeItem[] = [];
+        try {
+            const containers = await this.containerTypeRegistration.loadContainers();
+            containers?.map((container: Container) => {
+                children.push(new ContainerTreeItem(container, this.reigstrationViewModel));
+            });
+        } catch (error) {
+        }
+        return children;
     }
 }

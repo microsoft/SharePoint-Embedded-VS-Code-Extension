@@ -6,7 +6,7 @@
     "type": "git",
     "url": "https://github.com/microsoft/SharePoint-Embedded-VS-Code-Extension"
   },
-  "version": "0.0.4",
+  "version": "0.0.5",
   "author": "Microsoft Corporation",
   "publisher": "SharepointEmbedded",
   "preview": true,
@@ -71,6 +71,13 @@
           "fontPath": "./media/fabric-icons.woff",
           "fontCharacter": "\\EED6"
         }
+      },
+      "ctregistration-icon": {
+        "description": "Container Type Registration icon",
+        "default": {
+          "fontPath": "./media/fabric-icons.woff",
+          "fontCharacter": "\\E902"
+        }
       }
     },
     "viewsContainers": {
@@ -90,8 +97,13 @@
       },
       {
         "view": "spe-development",
-        "contents": "Get started with a trial Container Type\n [Create Trial Container Type](command:spe.createTrialContainerType)",
-        "when": "spe:isAdmin"
+        "contents": "Get started with SharePoint Embedded\n [Create Trial Container Type](command:spe.ContainerTypes.createTrial) \n",
+        "when": "spe:isAdmin && spe:showGettingStartedView"
+      },
+      {
+        "view": "spe-development",
+        "contents": "Failed to load your SharePoint Embedded data. \n [Retry](command:spe.refresh) \n",
+        "when": "spe:isAdmin && spe:showFailedView"
       }
     ],
     "views": {
@@ -113,8 +125,106 @@
         }
       ]
     },
+    "submenus": [
+      {
+        "id": "spe.App.Postman",
+        "label": "Setup Postman collection"
+      },
+      {
+        "id": "spe.App.SampleApps",
+        "label": "Run sample apps"
+      },
+      {
+        "id": "spe.App.SampleApps.TypeScript+React+AzureFunctions",
+        "label": "TypeScript + React + Azure Functions"
+      },
+      {
+        "id": "spe.App.SampleApps.ASPNET+C#",
+        "label": "ASP.NET + C#"
+      },
+      {
+        "id": "spe.App.Credentials",
+        "label": "Credentials"
+      },
+      {
+        "id": "spe.App.Permissions",
+        "label": "Permissions"
+      },
+      {
+        "id": "spe.App.Permissions.LocalAdminConsent",
+        "label": "Local Admin Consent"
+      }
+    ],
     "menus": {
+      "spe.App.Postman": [
+        {
+          "command": "spe.App.Postman.exportEnvironmentFile",
+          "group": "1@1"
+        },
+        {
+          "command": "spe.App.Postman.copyEnvironmentFile",
+          "group": "1@2"
+        },
+        {
+          "command": "spe.App.Postman.viewDocs",
+          "group": "1@3"
+        }
+      ],
+      "spe.App.SampleApps": [
+        {
+          "submenu": "spe.App.SampleApps.TypeScript+React+AzureFunctions",
+          "command": "spe.App.SampleApps.TypeScript+React+AzureFunctions.clone",
+          "group": "1@1"
+        },
+        {
+          "submenu": "spe.App.SampleApps.ASPNET+C#",
+          "command": "spe.App.SampleApps.ASPNET+C#.clone",
+          "group": "1@2"
+        }
+      ],
+      "spe.App.Credentials": [
+        {
+          "command": "spe.App.Credentials.createSecret",
+          "group": "1@1"
+        },
+        {
+          "when": "viewItem =~ /spe:appTreeItem.*-hasSecret.*/",
+          "command": "spe.App.Credentials.copySecret",
+          "group": "1@2"
+        },
+        {
+          "when": "viewItem =~ /spe:appTreeItem.*-hasSecret.*/",
+          "command": "spe.App.Credentials.deleteSecret",
+          "group": "1@3"
+        },
+        {
+          "command": "spe.App.Credentials.createCert",
+          "group": "2@1"
+        },
+        {
+          "when": "viewItem =~ /spe:appTreeItem.*-hasCert.*/",
+          "command": "spe.App.Credentials.deleteCert",
+          "group": "2@2"
+        }
+      ],
+      "spe.App.Permissions": [
+        {
+          "submenu": "spe.App.Permissions.LocalAdminConsent",
+          "group": "1@1"
+        }
+      ],
+      "spe.App.Permissions.LocalAdminConsent": [
+        {
+          "command": "spe.App.Permissions.LocalAdminConsent.openLink",
+          "group": "1@1"
+        }
+      ],
       "view/item/context": [
+        {
+          "when": "view == spe-developmentasdfasdf",
+          "command": "spe.refresh",
+          "group": "last"
+        },
         {
           "command": "spe.signOut",
           "when": "view == spe-accounts && viewItem == signedinM365",
@@ -126,44 +236,194 @@
           "group": "inline@1"
         },
         {
-          "command": "spe.deleteContainerType",
-          "when": "spe:showDeleteContainerType && view == spe-development && viewItem == containerType",
-          "group": "inline@3"
+          "when": "viewItem == spe:containerTypesTreeItem",
+          "command": "spe.ContainerTypes.createTrial",
+          "group": "1@1"
         },
         {
-          "command": "spe.registerContainerType",
-          "when": "spe:showRegisterContainerType && view == spe-development && viewItem == containerType",
-          "group": "inline@3"
+          "when": "viewItem == spe:containerTypesTreeItem",
+          "command": "spe.refresh",
+          "group": "2@1"
         },
         {
-          "command": "spe.renameApplication",
-          "when": "view == spe-development && (viewItem == owningApplication || viewItem == guestApplication)",
+          "when": "viewItem == spe:containerTypesTreeItem",
+          "command": "spe.refresh",
           "group": "inline@1"
         },
         {
-          "command": "spe.cloneRepo",
-          "when": "view == spe-development && (viewItem == owningApplication || viewItem == guestApplication)",
-          "group": "inline@2"
+          "when": "viewItem =~ /spe:containerTypeTreeItem.*-unregistered.*/",
+          "command": "spe.ContainerType.registerOnLocalTenant",
+          "group": "1@1"
         },
         {
-          "command": "spe.exportPostmanConfig",
-          "when": "view == spe-development && (viewItem == owningApplication || viewItem == guestApplication)",
-          "group": "inline@3"
+          "when": "viewItem =~ /spe:containerTypeTreeItem.*/",
+          "command": "spe.ContainerType.rename",
+          "group": "2@1"
         },
         {
-          "command": "spe.createGuestApp",
-          "when": "view == spe-development && viewItem == guestApplications",
+          "when": "viewItem =~ /spe:containerTypeTreeItem.*/ && viewItem =~ /.*-trial.*/",
+          "command": "spe.ContainerType.delete",
+          "group": "2@3"
+        },
+        {
+          "when": "viewItem =~ /spe:containerTypeTreeItem.*/",
+          "command": "spe.ContainerType.copyId",
+          "group": "3@1"
+        },
+        {
+          "when": "viewItem =~ /spe:containerTypeTreeItem.*-paid.*/",
+          "command": "spe.ContainerType.copySubscriptionId",
+          "group": "3@2"
+        },
+        {
+          "when": "viewItem =~ /spe:containerTypeTreeItem.*/",
+          "command": "spe.ContainerType.copyOwningTenantId",
+          "group": "3@3"
+        },
+        {
+          "when": "viewItem =~ /spe:containerTypeTreeItem.*/",
+          "command": "spe.ContainerType.viewProperties",
+          "group": "4@1"
+        },
+        {
+          "when": "viewItem =~ /spe:containerTypeTreeItem.*-paid.*/",
+          "command": "spe.ContainerType.viewSubscriptionInAzure",
+          "group": "4@2"
+        },
+        {
+          "when": "viewItem =~ /spe:containerTypeTreeItem.*/",
+          "command": "spe.refresh",
+          "group": "4@3"
+        },
+        {
+          "when": "viewItem =~ /spe:containerTypeTreeItem.*/",
+          "command": "spe.refresh",
           "group": "inline@1"
         },
         {
-          "command": "spe.refreshContainerList",
-          "when": "view == spe-development && viewItem == containers",
+          "when": "viewItem =~ /spe:appTreeItem.*/ && viewItem =~ /.*-guest.*/",
+          "command": "spe.GuestApp.editPermissions",
+          "group": "1@1"
+        },
+        {
+          "when": "viewItem =~ /spe:appTreeItem.*/ && viewItem =~ /.*-local.*/",
+          "submenu": "spe.App.Postman",
+          "group": "2@1"
+        },
+        {
+          "when": "viewItem =~ /spe:appTreeItem.*/ && viewItem =~ /.*-local.*/",
+          "submenu": "spe.App.SampleApps",
+          "group": "2@2"
+        },
+        {
+          "when": "viewItem =~ /spe:appTreeItem.*/ && viewItem =~ /.*-local.*/",
+          "command": "spe.App.rename",
+          "group": "3@1"
+        },
+        {
+          "when": "viewItem =~ /spe:appTreeItem.*/ && viewItem =~ /.*-local.*/",
+          "submenu": "spe.App.Credentials",
+          "group": "3@2"
+        },
+        {
+          "when": "viewItem =~ /spe:appTreeItem.*/ && viewItem =~ /.*-local.*/",
+          "submenu": "spe.App.Permissions",
+          "group": "3@3"
+        },
+        {
+          "when": "viewItem =~ /spe:appTreeItem.*/",
+          "command": "spe.App.copyAppId",
+          "group": "4@1"
+        },
+        {
+          "when": "viewItem =~ /spe:appTreeItem.*/ && viewItem =~ /.*-local.*/",
+          "command": "spe.App.viewInAzure",
+          "group": "4@2"
+        },
+        {
+          "when": "viewItem == spe:guestAppsTreeItem",
+          "command": "spe.GuestApps.add",
+          "group": "1@1"
+        },
+        {
+          "when": "viewItem == spe:guestAppsTreeItem",
+          "command": "spe.refresh",
+          "group": "2@1"
+        },
+        {
+          "when": "viewItem == spe:guestAppsTreeItem",
+          "command": "spe.refresh",
           "group": "inline@1"
         },
         {
-          "command": "spe.createContainer",
-          "when": "view == spe-development && viewItem == containers",
-          "group": "inline@2"
+          "when": "viewItem == spe:containersTreeItem",
+          "command": "spe.Containers.create",
+          "group": "1@1"
+        },
+        {
+          "when": "viewItem == spe:containersTreeItem",
+          "command": "spe.refresh",
+          "group": "2@1"
+        },
+        {
+          "when": "viewItem == spe:containersTreeItem",
+          "command": "spe.refresh",
+          "group": "inline@1"
+        },
+        {
+          "when": "viewItem =~ /spe:containerTreeItem.*/",
+          "command": "spe.Container.rename",
+          "group": "1@1"
+        },
+        {
+          "when": "viewItem =~ /spe:containerTreeItem.*/",
+          "command": "spe.Container.editDescription",
+          "group": "1@2"
+        },
+        {
+          "when": "viewItem =~ /spe:containerTreeItem.*/",
+          "command": "spe.Container.recycle",
+          "group": "1@3"
+        },
+        {
+          "when": "viewItem =~ /spe:containerTreeItem.*/",
+          "command": "spe.Container.copyId",
+          "group": "2@1"
+        },
+        {
+          "when": "viewItem =~ /spe:containerTreeItem.*/",
+          "command": "spe.Container.viewProperties",
+          "group": "2@2"
+        },
+        {
+          "when": "viewItem =~ /spe:recycledContainerTreeItem.*/",
+          "command": "spe.RecycledContainer.restore",
+          "group": "1@1"
+        },
+        {
+          "when": "viewItem =~ /spe:recycledContainerTreeItem.*/",
+          "command": "spe.RecycledContainer.delete",
+          "group": "1@2"
+        },
+        {
+          "when": "viewItem =~ /spe:recycledContainerTreeItem.*/",
+          "command": "spe.RecycledContainer.copyId",
+          "group": "2@1"
+        },
+        {
+          "when": "viewItem == spe:recycledContainersTreeItem",
+          "command": "spe.refresh",
+          "group": "2@1"
+        },
+        {
+          "when": "viewItem == spe:recycledContainersTreeItem",
+          "command": "spe.refresh",
+          "group": "inline@1"
+        },
+        {
+          "when": "view == false",
+          "command": "spe.refresh",
+          "group": "blah"
         }
       ]
     },
@@ -171,56 +431,6 @@
       {
         "command": "spe.login",
         "title": "SharePoint Embedded: Login to AAD"
-      },
-      {
-        "command": "spe.registerContainerType",
-        "title": "Register",
-        "icon": "$(unlock)"
-      },
-      {
-        "command": "spe.deleteContainerType",
-        "title": "Delete",
-        "icon": "$(trash)"
-      },
-      {
-        "command": "spe.editDescriptionContainerType",
-        "title": "Edit description",
-        "icon": "$(settings-edit)"
-      },
-      {
-        "command": "spe.renameContainerType",
-        "title": "Rename",
-        "icon": "$(word-wrap)"
-      },
-      {
-        "command": "spe.renameApplication",
-        "title": "Rename",
-        "icon": "$(word-wrap)"
-      },
-      {
-        "command": "spe.createGuestApp",
-        "title": "Create guest app",
-        "icon": "$(plus)"
-      },
-      {
-        "command": "spe.createContainer",
-        "title": "Create container",
-        "icon": "$(plus)"
-      },
-      {
-        "command": "spe.refreshContainerList",
-        "title": "Refresh containers",
-        "icon": "$(refresh)"
-      },
-      {
-        "command": "spe.cloneRepo",
-        "title": "Load sample app",
-        "icon": "$(code)"
-      },
-      {
-        "command": "spe.exportPostmanConfig",
-        "title": "Export Postman config",
-        "icon": "$(export)"
       },
       {
         "command": "spe.signOut",
@@ -231,6 +441,173 @@
         "command": "spe.cancelSignIn",
         "title": "SharePoint Embedded: Cancel Sign In",
         "icon": "$(chrome-close)"
+      },
+      {
+        "command": "spe.ContainerTypes.createTrial",
+        "title": "Create trial container type"
+      },
+      {
+        "command": "spe.ContainerType.registerOnLocalTenant",
+        "title": "Register on local tenant"
+      },
+      {
+        "command": "spe.ContainerType.rename",
+        "title": "Rename..."
+      },
+      {
+        "command": "spe.ContainerType.delete",
+        "title": "Delete"
+      },
+      {
+        "command": "spe.ContainerType.copyId",
+        "title": "Copy container type Id"
+      },
+      {
+        "command": "spe.ContainerType.copySubscriptionId",
+        "title": "Copy subscription Id"
+      },
+      {
+        "command": "spe.ContainerType.copyOwningTenantId",
+        "title": "Copy owning tenant Id"
+      },
+      {
+        "command": "spe.ContainerType.viewProperties",
+        "title": "View properties"
+      },
+      {
+        "command": "spe.ContainerType.viewSubscriptionInAzure",
+        "title": "View subscription in Azure"
+      },
+      {
+        "command": "spe.Apps.getOrCreate",
+        "title": "Create or choose existing app"
+      },
+      {
+        "command": "spe.App.clone",
+        "title": "Clone and configure"
+      },
+      {
+        "command": "spe.App.Postman.exportEnvironmentFile",
+        "title": "Export environment settings file"
+      },
+      {
+        "command": "spe.App.Postman.copyEnvironmentFile",
+        "title": "Copy environment settings"
+      },
+      {
+        "command": "spe.App.Postman.viewDocs",
+        "title": "View documentation"
+      },
+      {
+        "command": "spe.App.SampleApps.TypeScript+React+AzureFunctions.clone",
+        "title": "TypeScript + React + Azure Functions"
+      },
+      {
+        "command": "spe.App.SampleApps.ASPNET+C#.clone",
+        "title": "ASP.NET + C#"
+      },
+      {
+        "command": "spe.App.rename",
+        "title": "Rename..."
+      },
+      {
+        "command": "spe.App.Postman.exportEnvironmentFile",
+        "title": "Export environment settings file"
+      },
+      {
+        "command": "spe.App.Postman.copyEnvironmentFile",
+        "title": "Copy environment settings"
+      },
+      {
+        "command": "spe.App.Postman.viewDocs",
+        "title": "View documentation"
+      },
+      {
+        "command": "spe.App.Credentials.createSecret",
+        "title": "Generate new client secret"
+      },
+      {
+        "command": "spe.App.Credentials.copySecret",
+        "title": "Copy saved secret"
+      },
+      {
+        "command": "spe.App.Credentials.deleteSecret",
+        "title": "Forget saved secret"
+      },
+      {
+        "command": "spe.App.Credentials.createCert",
+        "title": "Generate new self-signed cert"
+      },
+      {
+        "command": "spe.App.Credentials.provideCert",
+        "title": "Provide existing cert details..."
+      },
+      {
+        "command": "spe.App.Credentials.deleteCert",
+        "title": "Forget saved cert"
+      },
+      {
+        "command": "spe.App.Permissions.LocalAdminConsent.openLink",
+        "title": "Open link"
+      },
+      {
+        "command": "spe.App.copyAppId",
+        "title": "Copy app (client) Id"
+      },
+      {
+        "command": "spe.App.viewInAzure",
+        "title": "View in Azure"
+      },
+      {
+        "command": "spe.GuestApps.add",
+        "title": "Add guest app...",
+        "icon": "$(plus)"
+      },
+      {
+        "command": "spe.GuestApp.editPermissions",
+        "title": "Edit application permissions..."
+      },
+      {
+        "command": "spe.Containers.create",
+        "title": "Create container...",
+        "icon": "$(plus)"
+      },
+      {
+        "command": "spe.Container.rename",
+        "title": "Rename..."
+      },
+      {
+        "command": "spe.Container.editDescription",
+        "title": "Edit description..."
+      },
+      {
+        "command": "spe.Container.recycle",
+        "title": "Recycle"
+      },
+      {
+        "command": "spe.Container.copyId",
+        "title": "Copy container Id"
+      },
+      {
+        "command": "spe.Container.viewProperties",
+        "title": "View properties"
+      },
+      {
+        "command": "spe.RecycledContainer.restore",
+        "title": "Restore"
+      },
+      {
+        "command": "spe.RecycledContainer.delete",
+        "title": "Permanently delete"
+      },
+      {
+        "command": "spe.RecycledContainer.copyId",
+        "title": "Copy container Id"
+      },
+      {
+        "command": "spe.refresh",
+        "title": "Refresh",
+        "icon": "$(refresh)"
       }
     ]
   },
@@ -257,6 +634,7 @@
     "@types/node-forge": "^1.3.4",
     "@types/sinon": "^17.0.3",
     "@types/temp": "^0.9.4",
+    "@types/tmp": "^0.2.6",
     "@types/uuid": "^9.0.3",
     "@types/vscode": "^1.81.0",
     "@typescript-eslint/eslint-plugin": "^5.59.8",
@@ -279,6 +657,7 @@
     "@pnp/queryable": "^3.17.0",
     "@pnp/sp": "^3.17.0",
     "@pnp/sp-admin": "^3.17.0",
+    "@vscode/extension-telemetry": "^0.9.6",
     "axios": "^1.6.0",
     "date-fns": "^2.30.0",
     "jsrsasign": "^11.0.0",
@@ -288,6 +667,7 @@
     "msal-node": "^0.0.1-security",
     "node-forge": "^1.3.1",
     "path": "^0.12.7",
+    "tmp": "^0.2.3",
     "uuid": "^9.0.0"
   }
 }

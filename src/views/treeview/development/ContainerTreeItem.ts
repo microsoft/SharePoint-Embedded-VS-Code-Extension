@@ -4,21 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from "vscode";
+import { Container } from "../../../models/Container";
+import { LocalRegistrationTreeItem } from "./LocalRegistrationTreeItem";
 
 export class ContainerTreeItem extends vscode.TreeItem {
-    constructor(
-        public readonly label: string,
-        public readonly tooltip: string,
-        public readonly collapsibleState: vscode.TreeItemCollapsibleState
-
-    ) {
-        super(label, collapsibleState);
-        this.tooltip = tooltip;
+    constructor(public readonly container: Container, public readonly reigstrationViewModel: LocalRegistrationTreeItem) {
+        super(container.displayName, vscode.TreeItemCollapsibleState.None);
         this.iconPath = new vscode.ThemeIcon("container-icon");
-        this.contextValue = "container";
-    }
-
-    public async getChildren() {
-        return [this];
+        this.contextValue = "spe:containerTreeItem";
     }
 }

@@ -4,40 +4,73 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from "vscode";
-import { ContainersTreeItem } from "./ContainersTreeItem";
-import { OwningApplicationTreeItem } from "./OwningApplicationTreeItem";
+import { OwningAppTreeItem } from "./OwningAppTreeItem";
 import { ContainerType } from "../../../models/ContainerType";
-import { GuestApplicationsTreeItem } from "./GuestApplicationsTreeItem";
+import { IChildrenProvidingTreeItem } from "./IDataProvidingTreeItem";
+import { DevelopmentTreeViewProvider } from "./DevelopmentTreeViewProvider";
+import { LocalRegistrationTreeItem } from "./LocalRegistrationTreeItem";
 
-export class ContainerTypeTreeItem extends vscode.TreeItem {
-    constructor(
-        public containerType: ContainerType,
-        public readonly label: string,
-        public readonly tooltip: string,
-        public readonly collapsibleState: vscode.TreeItemCollapsibleState,
+export class ContainerTypeTreeItem extends IChildrenProvidingTreeItem {
 
-    ) {
-        super(label, collapsibleState);
-        if (containerType.containers.length === 0) {
-            vscode.commands.executeCommand('setContext', 'spe:showDeleteContainerType', true);
-        } else {
-            vscode.commands.executeCommand('setContext', 'spe:showDeleteContainerType', false);
-        }
-
-        if (containerType.registrationIds.length === 0) {
-            vscode.commands.executeCommand('setContext', 'spe:showRegisterContainerType', true);
-        } else {
-            vscode.commands.executeCommand('setContext', 'spe:showRegisterContainerType', false);
-        }
+    constructor(public readonly containerType: ContainerType) {
+        super(containerType.displayName, vscode.TreeItemCollapsibleState.Collapsed);
         this.iconPath = new vscode.ThemeIcon("containertype-icon");
-        this.contextValue = "containerType";
+        this.contextValue = "spe:containerTypeTreeItem";
+        if (containerType.isTrial) {
+            let expirationString = '';
+            const daysLeft = containerType.trialDaysLeft;
+            if (daysLeft !== undefined) {
+                if (daysLeft > 0) {
+                    expirationString = ` expires in ${daysLeft} day`;
+                    if (daysLeft !== 1) {
+                        expirationString += 's';
+                    }
+                } else {
+                    expirationString = ' expired';
+                }
+            }
+            this.description = `(trial${expirationString})`;
+            this.contextValue += "-trial";
+        } else {
+            this.contextValue += "-paid";
+        }
+        containerType.loadLocalRegistration()
+            .then((registration) => {
+                if (!registration || !registration.applications.includes(containerType.owningAppId)) {
+                    throw new Error();
+                }
+                this.contextValue += "-registered";
+            })
+            .catch((error) => {
+                this.contextValue += "-unregistered";
+            })
+            .finally(() => {
+                DevelopmentTreeViewProvider.instance.refresh(this);
+            });
     }
+    
+    public async getChildren(): Promise<vscode.TreeItem[]> {
+        const children = [];
+        
+        let owningApp;
+        try {
+            owningApp = await this.containerType.loadOwningApp();
+            if (!owningApp) {
+                throw new Error('Owning app not found');
+            }
+            children.push(new OwningAppTreeItem(this.containerType, this));
+        } catch (error) {
+            return children;
+        }
+        
+        try {
+            const localRegistration = await this.containerType.loadLocalRegistration();
+            if (localRegistration && localRegistration.applications.includes(owningApp.clientId)) {
+                children.push(new LocalRegistrationTreeItem(this.containerType));
+            }
+        } catch (error) {
+        }
 
-    public async getChildren() {
-        const owningApplicationTreeItem = new OwningApplicationTreeItem(this.containerType.owningApp!, this.containerType, `${this.containerType.owningApp!.displayName}`, vscode.TreeItemCollapsibleState.None);
-        const guestAppsTreeItem = new GuestApplicationsTreeItem(this.containerType, 'Guest Apps', vscode.TreeItemCollapsibleState.Collapsed);
-        const containersTreeItem = new ContainersTreeItem(this.containerType, 'Containers', vscode.TreeItemCollapsibleState.Collapsed);
-
-        return [owningApplicationTreeItem, guestAppsTreeItem, containersTreeItem];
+        return children;
     }
 }
