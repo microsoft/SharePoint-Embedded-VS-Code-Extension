@@ -67,7 +67,7 @@ export default class AppOnly3PAuthProvider extends BaseAuthProvider {
             scopes: scopes,
             skipCache: skipCache
         });
-        return authResponse.accessToken || "";
+        return authResponse?.accessToken || "";
     }
 
     public async hasConsent(audience: string, roles: string[]): Promise<boolean> {

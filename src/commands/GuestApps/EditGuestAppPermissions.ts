@@ -42,7 +42,7 @@ export class EditGuestAppPermissions extends Command {
             return;
         }
 
-        const selectedPerms = await ChooseAppPermissions.run();
+        const selectedPerms = await ChooseAppPermissions.run(guestAppTreeItem.appPerms);
         if (!selectedPerms) {
             return;
         }
