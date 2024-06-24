@@ -125,6 +125,7 @@ export class  Account {
             domain = new URL(spRootSiteUrl).hostname.split('.')[0];
         } catch (error) {
             vscode.window.showErrorMessage(`Failed to get root site: ${error}`);
+            await Account.clearSavedAccount();
             Account._notifyLoginFailed();
             return;
         }
@@ -160,6 +161,15 @@ export class  Account {
         });
         Account.instance = undefined;
         Account._notifyLogout();
+    }
+
+    public static async clearSavedAccount(): Promise<void> {
+        await Account.authProvider.logout();
+        StorageProvider.get().secrets.clear();
+        await StorageProvider.get().secrets.delete(clientId);
+        StorageProvider.get().global.getAllKeys().forEach(async (key) => {
+            await StorageProvider.get().global.setValue(key, undefined);    
+        });
     }
 
     public static subscribeLoginListener(listener: LoginChangeListener): void {
