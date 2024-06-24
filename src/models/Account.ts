@@ -125,6 +125,7 @@ export class  Account {
             domain = new URL(spRootSiteUrl).hostname.split('.')[0];
         } catch (error) {
             vscode.window.showErrorMessage(`Failed to get root site: ${error}`);
+            await Account.logout();
             Account._notifyLoginFailed();
             return;
         }
@@ -152,6 +153,10 @@ export class  Account {
     }
 
     public async logout(): Promise<void> {
+        await Account.logout();
+    }
+
+    public static async logout(): Promise<void> {
         await Account.authProvider.logout();
         StorageProvider.get().secrets.clear();
         await StorageProvider.get().secrets.delete(clientId);
