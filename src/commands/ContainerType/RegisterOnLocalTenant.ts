@@ -84,12 +84,12 @@ export class RegisterOnLocalTenant extends Command {
                 }
 
                 try {
-                    await owningAppProvider.addResourceAccess(owningApp!, [{
+                    await owningAppProvider.addResourceAccess(owningApp!, {
                         resourceAppId: owningAppProvider.SharePointResourceAppId,
                         resourceAccess: [
                             owningAppProvider.ContainerSelectedRole
                         ]
-                    }]);
+                    });
                     hasRequiredRole = owningApp.checkRequiredResourceAccess(owningAppProvider.SharePointResourceAppId, owningAppProvider.ContainerSelectedRole.id);
                     if (!hasRequiredRole) {
                         throw new Error();

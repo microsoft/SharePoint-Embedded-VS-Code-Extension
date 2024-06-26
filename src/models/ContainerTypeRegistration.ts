@@ -128,12 +128,12 @@ export class ContainerTypeRegistration {
         // Check if app has been configured with correct role, if not, update it
         const hasFileStorageContainerGraphRole = this.containerType.owningApp!.checkRequiredResourceAccess(appProvider.GraphResourceAppId, appProvider.FileStorageContainerRole.id);
         if (!hasFileStorageContainerGraphRole) {
-            await appProvider.addResourceAccess(this.containerType.owningApp!, [{
+            await appProvider.addResourceAccess(this.containerType.owningApp!, {
                 resourceAppId: appProvider.GraphResourceAppId,
                 resourceAccess: [
                     appProvider.FileStorageContainerRole
                 ]
-            }]);
+            });
         }
 
         // Check if the appOnlyToken has the correct role, if not, consent to the FileStorageContainer.Selected role

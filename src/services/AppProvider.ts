@@ -58,34 +58,69 @@ export default class AppProvider {
         return app;
     }
 
-    public async addResourceAccess(app: App, config: RequiredResourceAccess[]) {
-        if (config.length === 0) {
+    public async update(appId: string) {
+        const existing: Application | undefined  = await this._graph.getApp(appId);
+        if (existing === undefined) {
             return;
         }
-        const merged: RequiredResourceAccess[] = [];
-        const existing = app.requiredResourceAccess;
-        forEach(existing, (resourceAccess: any) => {
-            const existingResourceAccess = config.find((existingResourceAccess: any) => existingResourceAccess.resourceAppId === resourceAccess.resourceAppId);
-            if (existingResourceAccess) {
-                const uniqueItems: { [key: string]: any } = {};
-                const mergedItems = [...resourceAccess.resourceAccess, ...existingResourceAccess.resourceAccess!];
-                mergedItems.forEach((item: any) => {
-                    const key = `${item.id}_${item.type}`;
-                    if (!uniqueItems[key]) {
-                        uniqueItems[key] = item;
-                    }
-                });
-                const filteredItems = Object.values(uniqueItems);
-                const mergedResourceAccess = {
-                    resourceAppId: resourceAccess.resourceAppId,
-                    resourceAccess: filteredItems
-                };
-                merged.push(mergedResourceAccess);
-            } else {
-                merged.push(resourceAccess);
-            }
-        });
+        let merged = {
+            ...this.baseAppConfig,
+            keyCredentials: [...existing.keyCredentials!]
+        } as any;
+        merged.web.redirectUris = [...new Set([...merged.web.redirectUris, ...(existing.web?.redirectUris || [])])];
+        merged.spa.redirectUris = [...new Set([...merged.spa.redirectUris, ...(existing.spa?.redirectUris || [])])];
+        merged.identifierUris = [...new Set([...existing.identifierUris!, `api://${appId}`])];
+        if (existing.api && existing.api.oauth2PermissionScopes && existing.api.oauth2PermissionScopes.find((scope: any) => scope.value === "Container.Manage") !== undefined) {
+            delete merged.api;
+        } else {
+            merged.api.oauth2PermissionScopes[0].id = uuidv4();
+        }
+        delete merged.requiredResourceAccess;
+        await this._graph.updateApp(existing.id!, merged);
+    }
 
+    public async addIdentifierUri(app: App) {
+        const existing: Application | undefined  = await this._graph.getApp(app.clientId);
+        if (existing === undefined) {
+            return;
+        }
+        const merged = {
+            ...existing,
+            identifierUris: [...new Set([...existing.identifierUris!, `api://${app.clientId}`])]
+        };
+        await this._graph.updateApp(existing.id!, merged);
+    }
+
+    public async addResourceAccess(app: App, newResource: RequiredResourceAccess) {
+        if (newResource === undefined) {
+            return;
+        }
+        const existing = app.requiredResourceAccess;
+        const merged: RequiredResourceAccess[] = existing;
+        const existingResourceIndex = merged.findIndex((resourceAccess: any) => resourceAccess.resourceAppId === newResource.resourceAppId);
+        if (existingResourceIndex === -1) {
+            merged.push(newResource);
+        } else {
+            // add the newResource to merged, but remove any duplicates
+            forEach(merged, (resourceAccess: RequiredResourceAccess) => {
+                if (resourceAccess.resourceAppId === newResource.resourceAppId) {
+                    const uniqueItems: { [key: string]: any } = {};
+                    const mergedItems = [...resourceAccess.resourceAccess!, ...newResource.resourceAccess!];
+                    mergedItems.forEach((item: any) => {
+                        const key = `${item.id}_${item.type}`;
+                        if (!uniqueItems[key]) {
+                            uniqueItems[key] = item;
+                        }
+                    });
+                    const filteredItems = Object.values(uniqueItems);
+                    const mergedResourceAccess = {
+                        resourceAppId: resourceAccess.resourceAppId,
+                        resourceAccess: filteredItems
+                    };
+                    merged[existingResourceIndex] = mergedResourceAccess;
+                }
+            });
+        }
         await this._graph.addRequiredResourceAccess(app.objectId, merged);
     }
 

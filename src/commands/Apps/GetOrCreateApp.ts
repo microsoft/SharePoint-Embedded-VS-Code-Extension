@@ -7,6 +7,7 @@ import * as vscode from 'vscode';
 import { Command } from '../Command';
 import { App, AppType } from '../../models/App';
 import { GetAccount } from '../Accounts/GetAccount';
+import { ProgressWaitNotification } from '../../views/notifications/ProgressWaitNotification';
 
 // Static class that handles the create trial container type command
 export class GetOrCreateApp extends Command {
@@ -105,21 +106,46 @@ export class GetOrCreateApp extends Command {
         return new Promise<App | undefined>((resolve) => {
             qp.onDidHide(async () => {
                 qp.dispose();
+                const appProgressWindow = new ProgressWaitNotification('Configuring Entra app...');
+                appProgressWindow.show();
                 if (appId === newAppItem.id && appName) {
                     const app = await account.appProvider.create(appName);
+                    // wait for app creation to propogate before updating identifier URI
+                    setTimeout(() => {}, 5000);
+                    await account.appProvider.addIdentifierUri(app);
                     if (!app) {
                         vscode.window.showErrorMessage('Failed to create a new app');
+                        appProgressWindow.hide();
                         return resolve(undefined);
                     }
+                    appProgressWindow.hide();
                     return resolve(app);
                 } else if (appId) {
                     const app = await account.appProvider.get(appId);
                     if (!app) {
+                        appProgressWindow.hide();
                         vscode.window.showErrorMessage('Failed to get the selected app');
                         return resolve(undefined);
                     }
+                    await account.appProvider.update(appId);
+                    await account.appProvider.addResourceAccess(app, {
+                        resourceAppId: account.appProvider.GraphResourceAppId,
+                        resourceAccess: [
+                            account.appProvider.FileStorageContainerRole,
+                            account.appProvider.FileStorageContainerScope
+                        ]
+                    });
+                    await account.appProvider.addResourceAccess(app, {
+                        resourceAppId: account.appProvider.SharePointResourceAppId,
+                        resourceAccess: [
+                            account.appProvider.ContainerSelectedRole,
+                            account.appProvider.ContainerSelectedScope
+                        ]
+                    });
+                    appProgressWindow.hide();
                     return resolve(app);
                 }
+                appProgressWindow.hide();
                 return resolve(undefined);
             });
             qp.show();
