@@ -7,7 +7,7 @@ import * as vscode from 'vscode';
 import { Command } from '../Command';
 import { App, AppType } from '../../models/App';
 import { GetAccount } from '../Accounts/GetAccount';
-import { ProgressWaitNotification } from '../../views/notifications/ProgressWaitNotification';
+import { ProgressWaitNotification, Timer } from '../../views/notifications/ProgressWaitNotification';
 
 // Static class that handles the create trial container type command
 export class GetOrCreateApp extends Command {
@@ -106,46 +106,37 @@ export class GetOrCreateApp extends Command {
         return new Promise<App | undefined>((resolve) => {
             qp.onDidHide(async () => {
                 qp.dispose();
-                const appProgressWindow = new ProgressWaitNotification('Configuring Entra app...');
-                appProgressWindow.show();
                 if (appId === newAppItem.id && appName) {
+                    const createAppProgressWindow = new ProgressWaitNotification('Creating Entra app...');
+                    createAppProgressWindow.show();
+                    const creationTimer = new Timer(60 * 1000);
                     const app = await account.appProvider.create(appName);
-                    // wait for app creation to propogate before updating identifier URI
-                    setTimeout(() => {}, 5000);
+                    let propogatedApp = await account.appProvider.get(app.clientId);
+                    while (!propogatedApp && !creationTimer.finished) {
+                        await new Promise(r => setTimeout(r, 3000));
+                        propogatedApp = await account.appProvider.get(app.clientId);
+                    }
+
                     await account.appProvider.addIdentifierUri(app);
                     if (!app) {
                         vscode.window.showErrorMessage('Failed to create a new app');
-                        appProgressWindow.hide();
+                        createAppProgressWindow.hide();
                         return resolve(undefined);
                     }
-                    appProgressWindow.hide();
+                    createAppProgressWindow.hide();
                     return resolve(app);
                 } else if (appId) {
+                    const configureAppProgressWindow = new ProgressWaitNotification('Configuring Entra app...');
+                    configureAppProgressWindow.show();
                     const app = await account.appProvider.get(appId);
                     if (!app) {
-                        appProgressWindow.hide();
+                        configureAppProgressWindow.hide();
                         vscode.window.showErrorMessage('Failed to get the selected app');
                         return resolve(undefined);
                     }
-                    await account.appProvider.update(appId);
-                    await account.appProvider.addResourceAccess(app, {
-                        resourceAppId: account.appProvider.GraphResourceAppId,
-                        resourceAccess: [
-                            account.appProvider.FileStorageContainerRole,
-                            account.appProvider.FileStorageContainerScope
-                        ]
-                    });
-                    await account.appProvider.addResourceAccess(app, {
-                        resourceAppId: account.appProvider.SharePointResourceAppId,
-                        resourceAccess: [
-                            account.appProvider.ContainerSelectedRole,
-                            account.appProvider.ContainerSelectedScope
-                        ]
-                    });
-                    appProgressWindow.hide();
+                    configureAppProgressWindow.hide();
                     return resolve(app);
                 }
-                appProgressWindow.hide();
                 return resolve(undefined);
             });
             qp.show();

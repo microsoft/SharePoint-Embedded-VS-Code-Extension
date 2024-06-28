@@ -77,10 +77,35 @@ export class CloneDotNetSampleApp extends Command {
             }
         }
 
+        const account = Account.get()!;
+        const requiredUris = [
+            account.appProvider.WebRedirectUris.serverAppSignInUri,
+            account.appProvider.WebRedirectUris.serverAppSignOnboardingProcessCodeUri,
+            account.appProvider.WebRedirectUris.serverAppSignOutUri
+        ];
+
+        if (!await account.appProvider.checkWebRedirectUris(app, requiredUris)) {
+            const userChoice = await vscode.window.showInformationMessage(
+                "This app registration is missing the required server sample app redirect URIs. Would you like to add them now?",
+                'OK', 'Cancel'
+            );
+            if (userChoice !== 'OK') {
+                return;
+            }
+            else {
+                try {
+                    await account.appProvider.addWebRedirectUris(app, requiredUris);
+                } catch (error: any) {
+                    vscode.window.showErrorMessage(`Failed to add redirect URIs to '${app.displayName}' + ${error.message}`);
+                    return;
+                }
+            }
+        }
+
         try {
             const appId = app.clientId;
             const containerTypeId = containerType.containerTypeId;
-            const tenantId = Account.get()!.tenantId;
+            const tenantId = account.tenantId;
             const clientSecret = appSecrets.clientSecret || '';
             const repoUrl = 'https://github.com/microsoft/SharePoint-Embedded-Samples.git';
             const folders = await vscode.window.showOpenDialog({

@@ -80,7 +80,7 @@ export class App {
         this._appOnlyAuthProviders.delete(tenantId);
     }
 
-    public checkRequiredResourceAccess(resource: string, scopeOrRole: string): boolean {
+    public async checkRequiredResourceAccess(resource: string, scopeOrRole: string, localLookup: boolean): Promise<boolean> {
         if (!this || !scopeOrRole || !resource) {
             return false;
         }
@@ -90,7 +90,14 @@ export class App {
             return false;
         }
 
-        const resourceAccess = this.requiredResourceAccess;
+        let resourceAccess;
+        if (localLookup) {
+            resourceAccess = this.requiredResourceAccess;
+        } else {
+            const app = await this._account.appProvider.get(appId);
+            resourceAccess = app?.requiredResourceAccess || this.requiredResourceAccess;
+        }
+
         if (!resourceAccess) {
             return false;;
         }

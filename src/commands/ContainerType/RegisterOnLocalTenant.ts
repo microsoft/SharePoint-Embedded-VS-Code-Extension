@@ -71,7 +71,7 @@ export class RegisterOnLocalTenant extends Command {
         let consented = await appAuthProvider.hasConsent(localRegistrationScope, ['Container.Selected']);
         adminConsentCheck.hide();
         if (!consented) {
-            let hasRequiredRole = owningApp.checkRequiredResourceAccess(owningAppProvider.SharePointResourceAppId, owningAppProvider.ContainerSelectedRole.id);
+            let hasRequiredRole = await owningApp.checkRequiredResourceAccess(owningAppProvider.SharePointResourceAppId, owningAppProvider.ContainerSelectedRole.id, false);
             if (!hasRequiredRole) {
                 const addRequiredRole = `Add SharePoint Container.Selected role`;
                 const buttons = [addRequiredRole];
@@ -90,7 +90,7 @@ export class RegisterOnLocalTenant extends Command {
                             owningAppProvider.ContainerSelectedRole
                         ]
                     });
-                    hasRequiredRole = owningApp.checkRequiredResourceAccess(owningAppProvider.SharePointResourceAppId, owningAppProvider.ContainerSelectedRole.id);
+                    hasRequiredRole = await owningApp.checkRequiredResourceAccess(owningAppProvider.SharePointResourceAppId, owningAppProvider.ContainerSelectedRole.id, false);
                     if (!hasRequiredRole) {
                         throw new Error();
                     }
@@ -98,6 +98,15 @@ export class RegisterOnLocalTenant extends Command {
                     vscode.window.showErrorMessage(`Failed to add Container.Selected role for '${owningApp.displayName}'`);
                     return;
                 }
+            }
+            // Check if consent URI has been added to app, if not, add it
+            const requiredUris = [
+                owningAppProvider.WebRedirectUris.consentRedirectUri
+            ];
+
+            const consentUriAdded = await owningAppProvider.ensureConsentRedirectUri(owningApp, requiredUris);
+            if (!consentUriAdded) {
+                return;
             }
 
             const openConsent = `Open consent link`;
@@ -144,7 +153,7 @@ export class RegisterOnLocalTenant extends Command {
             vscode.window.showErrorMessage(`Failed to register Container Type '${containerType.displayName}' on local tenant`);
             return;
         }
-        vscode.window.showInformationMessage(`Successfully registered Container Type '${containerType.displayName}' on local tenant`);       
+        vscode.window.showInformationMessage(`Successfully registered Container Type '${containerType.displayName}' on local tenant`);
         DevelopmentTreeViewProvider.instance.refresh();
     }
 }
