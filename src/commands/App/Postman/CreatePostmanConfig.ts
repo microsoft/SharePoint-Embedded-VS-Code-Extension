@@ -54,8 +54,26 @@ export class CreatePostmanConfig extends Command {
         }
 
         const account = Account.get()!;
-        const tid = account.tenantId;
+        const authProvider = await app.getAppOnlyAuthProvider(account.tenantId);
+        const requiredUris = [
+            account.appProvider.WebRedirectUris.postmanBrowserCallbackUri,
+            account.appProvider.WebRedirectUris.postmanCallbackUri
+        ];
 
+        if (!await account.appProvider.checkWebRedirectUris(app, requiredUris)) {
+            const userChoice = await vscode.window.showInformationMessage(
+                `This app registration is missing the required Postman redirect URIs:
+                ${requiredUris.join('\n')}. Would you like to add them to the "Web" redirect URIs of your app configuration?`,
+                'OK', 'Skip'
+            );
+            if (userChoice === 'OK') {
+                await account.appProvider.addWebRedirectUris(app, requiredUris);
+            }
+        }
+
+        await account.appProvider.checkOrConsentFileStorageContainerRole(app, authProvider, "This enables the 'Application-only' requests in the Postman collection. ");
+
+        const tid = account.tenantId;
         const values: any[] = [];
         values.push(
             {
