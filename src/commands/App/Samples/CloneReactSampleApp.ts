@@ -33,7 +33,7 @@ export class CloneReactSampleApp extends Command {
                 return;
             }
         });
-        
+
         if (!applicationTreeItem) {
             return;
         }
@@ -81,67 +81,69 @@ export class CloneReactSampleApp extends Command {
             }
         }
 
-        // Check client app redirect URIs
-        const account =  Account.get()!;
+        const account = Account.get()!;
         const requiredUris = [
             account.appProvider.SpaRedirectUris.reactAppRedirectUri
         ];
 
-        if (!await account.appProvider.checkSpaRedirectUris(app, requiredUris)) {
-            const userChoice = await vscode.window.showInformationMessage(
-                "This app registration is missing the required React sample app redirect URIs. Would you like to add them now?",
-                'OK', 'Skip'
-            );
-            if (userChoice === 'OK') {
-                try {
+        // Check client app redirect URIs
+        try {
+            if (!await account.appProvider.checkSpaRedirectUris(app, requiredUris)) {
+                const userChoice = await vscode.window.showInformationMessage(
+                    `This app registration is missing the required React sample app redirect URIs.
+                 ${requiredUris.join('\n')}.
+                Would you like to add them to the "SPA" redirect URIs of your app configuration?`,
+                    'OK', 'Skip'
+                );
+                if (userChoice === 'OK') {
                     await account.appProvider.addSpaRedirectUris(app, requiredUris);
-                } catch (error: any) {
-                    appConfigurationProgress.hide();
-                    vscode.window.showErrorMessage('Failed to add redirect URIs: ' + error.message);
-                    TelemetryProvider.instance.send(new RepoCloneFailure(error.message));
-                    return;
                 }
             }
+        } catch (error: any) {
+            appConfigurationProgress.hide();
+            vscode.window.showErrorMessage('Failed to add redirect URIs: ' + error.message);
+            TelemetryProvider.instance.send(new RepoCloneFailure(error.message));
+            return;
         }
 
         // Check Identifier URI
-        if (!await account.appProvider.checkIdentiferUri(app)) {
-            const userChoice = await vscode.window.showInformationMessage(
-                `This app registration is missing the required Identifier URI 'api:\\\\${app.clientId}' to run the sample app. Would you like to add it now?`,
-                'OK', 'Skip'
-            );
-            if (userChoice === 'OK') {
-                try {
+        try {
+            if (!await account.appProvider.checkIdentiferUri(app)) {
+                const userChoice = await vscode.window.showInformationMessage(
+                    `This app registration is missing the required Identifier URI 'api:\\\\${app.clientId}' to run the sample app. Would you like to add it now?`,
+                    'OK', 'Skip'
+                );
+                if (userChoice === 'OK') {
                     await account.appProvider.addIdentifierUri(app);
-                } catch (error: any) {
-                    appConfigurationProgress.hide();
-                    vscode.window.showErrorMessage('Failed to add Identifier URI: ' + error.message);
-                    TelemetryProvider.instance.send(new RepoCloneFailure(error.message));
-                    return;
                 }
             }
+        } catch (error: any) {
+            appConfigurationProgress.hide();
+            vscode.window.showErrorMessage('Failed to add Identifier URI: ' + error.message);
+            TelemetryProvider.instance.send(new RepoCloneFailure(error.message));
+            return;
         }
 
         // Check API scope
-        if (!await account.appProvider.checkApiScope(app)) {
-            const userChoice = await vscode.window.showInformationMessage(
-                `This app registration is missing the required API scope Container.Manage to run the sample app. Would you like to add it now?`,
-                'OK', 'Skip'
-            );
-            if (userChoice === 'OK') {
-                try {
+        try {
+            if (!await account.appProvider.checkApiScope(app)) {
+                const userChoice = await vscode.window.showInformationMessage(
+                    `This app registration is missing the required API scope Container.Manage to run the sample app. Would you like to add it now?`,
+                    'OK', 'Skip'
+                );
+                if (userChoice === 'OK') {
                     await account.appProvider.addApiScope(app);
-                } catch (error: any) {
-                    appConfigurationProgress.hide();
-                    vscode.window.showErrorMessage('Failed to add API scope: ' + error.message);
-                    TelemetryProvider.instance.send(new RepoCloneFailure(error.message));
-                    return;
                 }
             }
         }
+        catch (error: any) {
+            appConfigurationProgress.hide();
+            vscode.window.showErrorMessage('Failed to add API scope: ' + error.message);
+            TelemetryProvider.instance.send(new RepoCloneFailure(error.message));
+            return;
+        }
 
         appConfigurationProgress.hide();
-
         try {
             const appId = app.clientId;
             const containerTypeId = containerType.containerTypeId;

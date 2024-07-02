@@ -71,6 +71,8 @@ export class RegisterOnLocalTenant extends Command {
         let consented = await appAuthProvider.hasConsent(localRegistrationScope, ['Container.Selected']);
         adminConsentCheck.hide();
         if (!consented) {
+            const configureAppProgress = new ProgressWaitNotification('Configuring Entra app...');
+            configureAppProgress.show();
             let hasRequiredRole = await owningApp.checkRequiredResourceAccess(owningAppProvider.SharePointResourceAppId, owningAppProvider.ContainerSelectedRole.id, false);
             if (!hasRequiredRole) {
                 const addRequiredRole = `Add SharePoint Container.Selected role`;
@@ -80,6 +82,7 @@ export class RegisterOnLocalTenant extends Command {
                     ...buttons
                 );
                 if (choice !== addRequiredRole) {
+                    configureAppProgress.hide();
                     return;
                 }
 
@@ -93,9 +96,10 @@ export class RegisterOnLocalTenant extends Command {
                     hasRequiredRole = await owningApp.checkRequiredResourceAccess(owningAppProvider.SharePointResourceAppId, owningAppProvider.ContainerSelectedRole.id, false);
                     if (!hasRequiredRole) {
                         throw new Error();
-                    }
+                    } 
                 } catch (error) {
                     vscode.window.showErrorMessage(`Failed to add Container.Selected role for '${owningApp.displayName}'`);
+                    configureAppProgress.hide();
                     return;
                 }
             }
@@ -106,9 +110,12 @@ export class RegisterOnLocalTenant extends Command {
 
             const consentUriAdded = await owningAppProvider.ensureConsentRedirectUri(owningApp, requiredUris);
             if (!consentUriAdded) {
-                return;
+                configureAppProgress.hide();            
+                return;           
             }
 
+            configureAppProgress.hide();
+        
             const openConsent = `Open consent link`;
             const buttons = [openConsent];
             const choice = await vscode.window.showInformationMessage(

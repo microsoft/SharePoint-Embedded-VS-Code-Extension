@@ -32,7 +32,7 @@ export class CloneDotNetSampleApp extends Command {
                 return;
             }
         });
-        
+
         if (!applicationTreeItem) {
             return;
         }
@@ -84,20 +84,25 @@ export class CloneDotNetSampleApp extends Command {
             account.appProvider.WebRedirectUris.serverAppSignOutUri
         ];
 
-        if (!await account.appProvider.checkWebRedirectUris(app, requiredUris)) {
-            const userChoice = await vscode.window.showInformationMessage(
-                "This app registration is missing the required server sample app redirect URIs. Would you like to add them now?",
-                'OK', 'Skip'
-            );
-            if (userChoice === 'OK') {
-                try {
+        // Check server app redirect URIs
+        try {
+            if (!await account.appProvider.checkWebRedirectUris(app, requiredUris)) {
+                const userChoice = await vscode.window.showInformationMessage(
+                    `This app registration is missing the required server sample app redirect URIs.
+                ${requiredUris.join('\n')}. 
+                Would you like to add them to the "Web" redirect URIs of your app configuration?`,
+                    'OK', 'Skip'
+                );
+                if (userChoice === 'OK') {
                     await account.appProvider.addWebRedirectUris(app, requiredUris);
-                } catch (error: any) {
-                    vscode.window.showErrorMessage(`Failed to add redirect URIs to '${app.displayName}' + ${error.message}`);
-                    return;
                 }
             }
         }
+        catch (error: any) {
+            vscode.window.showErrorMessage('Failed to add redirect URIs: ' + error.message);
+            return;
+        }
+
 
         try {
             const appId = app.clientId;

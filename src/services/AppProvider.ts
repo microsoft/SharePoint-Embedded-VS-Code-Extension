@@ -222,7 +222,7 @@ export default class AppProvider {
             const addRequiredRole = `Add FileStorageContainer.Selected role`;
             const buttons = [addRequiredRole, 'Skip'];
             const choice = await vscode.window.showInformationMessage(
-                `Your app '${app.displayName}' requires Graph FileStorageContainer.Selected API permission role to perform this action. ${optionalUserMessage ? optionalUserMessage  : ''} Add it now?`,
+                `Your app '${app.displayName}' requires Graph FileStorageContainer.Selected API permission role to perform this action. ${optionalUserMessage ? optionalUserMessage  : '' } Add it now?`,
                 ...buttons
             );
             if (choice !== addRequiredRole) {
