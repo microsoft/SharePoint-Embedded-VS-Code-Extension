@@ -90,13 +90,9 @@ export class CloneReactSampleApp extends Command {
         if (!await account.appProvider.checkSpaRedirectUris(app, requiredUris)) {
             const userChoice = await vscode.window.showInformationMessage(
                 "This app registration is missing the required React sample app redirect URIs. Would you like to add them now?",
-                'OK', 'Cancel'
+                'OK', 'Skip'
             );
-            if (userChoice !== 'OK') {
-                appConfigurationProgress.hide();
-                return;
-            }
-            else {
+            if (userChoice === 'OK') {
                 try {
                     await account.appProvider.addSpaRedirectUris(app, requiredUris);
                 } catch (error: any) {
@@ -112,13 +108,9 @@ export class CloneReactSampleApp extends Command {
         if (!await account.appProvider.checkIdentiferUri(app)) {
             const userChoice = await vscode.window.showInformationMessage(
                 `This app registration is missing the required Identifier URI 'api:\\\\${app.clientId}' to run the sample app. Would you like to add it now?`,
-                'OK', 'Cancel'
+                'OK', 'Skip'
             );
-            if (userChoice !== 'OK') {
-                appConfigurationProgress.hide();
-                return;
-            }
-            else {
+            if (userChoice === 'OK') {
                 try {
                     await account.appProvider.addIdentifierUri(app);
                 } catch (error: any) {
@@ -134,13 +126,9 @@ export class CloneReactSampleApp extends Command {
         if (!await account.appProvider.checkApiScope(app)) {
             const userChoice = await vscode.window.showInformationMessage(
                 `This app registration is missing the required API scope Container.Manage to run the sample app. Would you like to add it now?`,
-                'OK', 'Cancel'
+                'OK', 'Skip'
             );
-            if (userChoice !== 'OK') {
-                appConfigurationProgress.hide();
-                return;
-            }
-            else {
+            if (userChoice === 'OK') {
                 try {
                     await account.appProvider.addApiScope(app);
                 } catch (error: any) {

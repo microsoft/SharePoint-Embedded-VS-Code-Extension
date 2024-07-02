@@ -178,10 +178,10 @@ export default class AppProvider {
         await this._graph.addRequiredResourceAccess(app.objectId, merged);
     }
 
-    public async checkOrConsentFileStorageContainerRole(app: App, authProvider: AppOnly3PAuthProvider): Promise<boolean> {
+    public async checkOrConsentFileStorageContainerRole(app: App, authProvider: AppOnly3PAuthProvider, optionalUserMessage?: string): Promise<boolean> {
         // Check if app has been configured with correct role, if not, update it
         const appConfigurationProgress = new ProgressWaitNotification('Configuring your app...');
-        const roleAddition = await this._ensureFileStorageContainerGraphRole(app, appConfigurationProgress);
+        const roleAddition = await this._ensureFileStorageContainerGraphRole(app, appConfigurationProgress, optionalUserMessage);
         if (!roleAddition) {
             appConfigurationProgress.hide();
             return false;
@@ -216,13 +216,13 @@ export default class AppProvider {
         return true;
     }
 
-    private async _ensureFileStorageContainerGraphRole(app: App, appConfigurationProgress: ProgressWaitNotification): Promise<boolean> {
+    private async _ensureFileStorageContainerGraphRole(app: App, appConfigurationProgress: ProgressWaitNotification, optionalUserMessage?: string): Promise<boolean> {
         let hasFileStorageContainerGraphRole = await app.checkRequiredResourceAccess(this.GraphResourceAppId, this.FileStorageContainerRole.id, false);
         if (!hasFileStorageContainerGraphRole) {
             const addRequiredRole = `Add FileStorageContainer.Selected role`;
-            const buttons = [addRequiredRole];
+            const buttons = [addRequiredRole, 'Skip'];
             const choice = await vscode.window.showInformationMessage(
-                `Your app '${app.displayName}' requires Graph FileStorageContainer.Selected API permission role to perform this action. Add it now?`,
+                `Your app '${app.displayName}' requires Graph FileStorageContainer.Selected API permission role to perform this action. ${optionalUserMessage ? optionalUserMessage  : ''} Add it now?`,
                 ...buttons
             );
             if (choice !== addRequiredRole) {

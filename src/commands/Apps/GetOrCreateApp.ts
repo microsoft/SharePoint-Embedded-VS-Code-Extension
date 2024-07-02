@@ -116,7 +116,6 @@ export class GetOrCreateApp extends Command {
                         await new Promise(r => setTimeout(r, 3000));
                         propogatedApp = await account.appProvider.get(app.clientId);
                     }
-
                     await account.appProvider.addIdentifierUri(app);
                     if (!app) {
                         vscode.window.showErrorMessage('Failed to create a new app');

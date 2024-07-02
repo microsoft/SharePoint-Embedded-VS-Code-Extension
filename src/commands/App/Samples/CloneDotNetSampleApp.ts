@@ -87,12 +87,9 @@ export class CloneDotNetSampleApp extends Command {
         if (!await account.appProvider.checkWebRedirectUris(app, requiredUris)) {
             const userChoice = await vscode.window.showInformationMessage(
                 "This app registration is missing the required server sample app redirect URIs. Would you like to add them now?",
-                'OK', 'Cancel'
+                'OK', 'Skip'
             );
-            if (userChoice !== 'OK') {
-                return;
-            }
-            else {
+            if (userChoice === 'OK') {
                 try {
                     await account.appProvider.addWebRedirectUris(app, requiredUris);
                 } catch (error: any) {
