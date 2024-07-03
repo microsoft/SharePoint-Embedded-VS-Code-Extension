@@ -83,6 +83,13 @@ export class GraphProvider {
         return response as Application;
     }
 
+    public async updateApp(objectId: string, config: Application): Promise<Application> {
+        const response = await this._client
+            .api(`/applications/${objectId}`)
+            .patch(config);
+        return response as Application;
+    }
+
     public async renameApp(objectId: string, displayName: string): Promise<Application> {
         const response = await this._client
             .api(`/applications/${objectId}`)

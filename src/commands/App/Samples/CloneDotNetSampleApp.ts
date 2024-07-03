@@ -32,7 +32,7 @@ export class CloneDotNetSampleApp extends Command {
                 return;
             }
         });
-        
+
         if (!applicationTreeItem) {
             return;
         }
@@ -77,10 +77,37 @@ export class CloneDotNetSampleApp extends Command {
             }
         }
 
+        const account = Account.get()!;
+        const requiredUris = [
+            account.appProvider.WebRedirectUris.serverAppSignInUri,
+            account.appProvider.WebRedirectUris.serverAppSignOnboardingProcessCodeUri,
+            account.appProvider.WebRedirectUris.serverAppSignOutUri
+        ];
+
+        // Check server app redirect URIs
+        try {
+            if (!await account.appProvider.checkWebRedirectUris(app, requiredUris)) {
+                const userChoice = await vscode.window.showInformationMessage(
+                    `This app registration is missing the required server sample app redirect URIs.
+                ${requiredUris.join('\n')}. 
+                Would you like to add them to the "Web" redirect URIs of your app configuration?`,
+                    'OK', 'Skip'
+                );
+                if (userChoice === 'OK') {
+                    await account.appProvider.addWebRedirectUris(app, requiredUris);
+                }
+            }
+        }
+        catch (error: any) {
+            vscode.window.showErrorMessage('Failed to add redirect URIs: ' + error.message);
+            return;
+        }
+
+
         try {
             const appId = app.clientId;
             const containerTypeId = containerType.containerTypeId;
-            const tenantId = Account.get()!.tenantId;
+            const tenantId = account.tenantId;
             const clientSecret = appSecrets.clientSecret || '';
             const repoUrl = 'https://github.com/microsoft/SharePoint-Embedded-Samples.git';
             const folders = await vscode.window.showOpenDialog({

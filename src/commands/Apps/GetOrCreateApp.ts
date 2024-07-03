@@ -7,6 +7,7 @@ import * as vscode from 'vscode';
 import { Command } from '../Command';
 import { App, AppType } from '../../models/App';
 import { GetAccount } from '../Accounts/GetAccount';
+import { ProgressWaitNotification, Timer } from '../../views/notifications/ProgressWaitNotification';
 
 // Static class that handles the create trial container type command
 export class GetOrCreateApp extends Command {
@@ -106,18 +107,33 @@ export class GetOrCreateApp extends Command {
             qp.onDidHide(async () => {
                 qp.dispose();
                 if (appId === newAppItem.id && appName) {
+                    const createAppProgressWindow = new ProgressWaitNotification('Creating Entra app...');
+                    createAppProgressWindow.show();
+                    const creationTimer = new Timer(60 * 1000);
                     const app = await account.appProvider.create(appName);
+                    let propogatedApp = await account.appProvider.get(app.clientId);
+                    while (!propogatedApp && !creationTimer.finished) {
+                        await new Promise(r => setTimeout(r, 3000));
+                        propogatedApp = await account.appProvider.get(app.clientId);
+                    }
                     if (!app) {
                         vscode.window.showErrorMessage('Failed to create a new app');
+                        createAppProgressWindow.hide();
                         return resolve(undefined);
                     }
+                    await account.appProvider.addIdentifierUri(app);
+                    createAppProgressWindow.hide();
                     return resolve(app);
                 } else if (appId) {
+                    const configureAppProgressWindow = new ProgressWaitNotification('Configuring Entra app...');
+                    configureAppProgressWindow.show();
                     const app = await account.appProvider.get(appId);
                     if (!app) {
+                        configureAppProgressWindow.hide();
                         vscode.window.showErrorMessage('Failed to get the selected app');
                         return resolve(undefined);
                     }
+                    configureAppProgressWindow.hide();
                     return resolve(app);
                 }
                 return resolve(undefined);

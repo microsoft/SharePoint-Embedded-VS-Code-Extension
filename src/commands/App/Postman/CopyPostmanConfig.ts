@@ -43,6 +43,18 @@ export class CopyPostmanConfig extends Command {
             vscode.window.showErrorMessage('Failed to create Postman environment');
             return;
         }
+
+        if (await app.hasCert() === true || await app.hasSecret() === true) {
+            const message = "This will put your app's secret and other settings in a plain text Postman environment file on your clipboard. Are you sure you want to continue?";
+            const userChoice = await vscode.window.showInformationMessage(
+                message,
+                'OK', 'Cancel'
+            );
+            if (userChoice === 'Cancel') {
+                return;
+            }
+        }
+
         try {
             await vscode.env.clipboard.writeText(JSON.stringify(pmEnv, null, 2));
             vscode.window.showInformationMessage(`Postman environment copied to clipboard for '${pmEnv.name}'`);

@@ -66,7 +66,7 @@ export class ContainerTypeRegistration {
             const appProvider = Account.get()!.appProvider;
             const appOnlyGraphProvider = new GraphProvider(authProvider);
 
-            const hasRole = await this._checkOrConsentFileStorageContainerRole(appProvider, authProvider);
+            const hasRole = await appProvider.checkOrConsentFileStorageContainerRole(this.containerType.owningApp, authProvider);
             if (!hasRole) {
                 return;
             }
@@ -93,7 +93,7 @@ export class ContainerTypeRegistration {
             const appProvider = Account.get()!.appProvider;
             const appOnlyGraphProvider = new GraphProvider(authProvider);
 
-            const hasRole = await this._checkOrConsentFileStorageContainerRole(appProvider, authProvider);
+            const hasRole = await appProvider.checkOrConsentFileStorageContainerRole(this.containerType.owningApp, authProvider);
             if (!hasRole) {
                 return;
             }
@@ -118,41 +118,6 @@ export class ContainerTypeRegistration {
                 await CreateAppCert.run(this.containerType.owningApp);
                 return true;
             } else {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    private async _checkOrConsentFileStorageContainerRole(appProvider: AppProvider, authProvider: AppOnly3PAuthProvider): Promise<boolean> {
-        // Check if app has been configured with correct role, if not, update it
-        const hasFileStorageContainerGraphRole = this.containerType.owningApp!.checkRequiredResourceAccess(appProvider.GraphResourceAppId, appProvider.FileStorageContainerRole.id);
-        if (!hasFileStorageContainerGraphRole) {
-            await appProvider.addResourceAccess(this.containerType.owningApp!, [{
-                resourceAppId: appProvider.GraphResourceAppId,
-                resourceAccess: [
-                    appProvider.FileStorageContainerRole
-                ]
-            }]);
-        }
-
-        // Check if the appOnlyToken has the correct role, if not, consent to the FileStorageContainer.Selected role
-        const token = await authProvider.getToken(['https://graph.microsoft.com/.default']);
-        const decodedToken = decodeJwt(token);
-        const hasRole = checkJwtForAppOnlyRole(decodedToken, 'FileStorageContainer.Selected');
-
-        if (!hasRole) {
-            const grantConsent = `Grant consent`;
-            const buttons = [grantConsent];
-            const choice = await vscode.window.showInformationMessage(
-                `The owning app '${this.containerType.owningApp?.displayName}' does not have the necessary consent to perform this action. You need to grant consent to the app before perform container operations. Do you want to grant consent now?`,
-                ...buttons
-            );
-            if (choice !== grantConsent) {
-                return false;
-            }
-            const consented = await GetLocalAdminConsent.run(this.containerType.owningApp);
-            if (!consented) {
                 return false;
             }
         }

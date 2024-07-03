@@ -54,8 +54,38 @@ export class CreatePostmanConfig extends Command {
         }
 
         const account = Account.get()!;
-        const tid = account.tenantId;
+        const authProvider = await app.getAppOnlyAuthProvider(account.tenantId);
+        const requiredUris = [
+            account.appProvider.WebRedirectUris.postmanBrowserCallbackUri,
+            account.appProvider.WebRedirectUris.postmanCallbackUri
+        ];
 
+        // Check Postman redirect URIs
+        try {
+            if (!await account.appProvider.checkWebRedirectUris(app, requiredUris)) {
+                const userChoice = await vscode.window.showInformationMessage(
+                    `This app registration is missing the required Postman redirect URIs:
+                ${requiredUris.join('\n')}. Would you like to add them to the "Web" redirect URIs of your app configuration?`,
+                    'OK', 'Skip'
+                );
+                if (userChoice === 'OK') {
+                    await account.appProvider.addWebRedirectUris(app, requiredUris);
+                }
+            }
+        } catch (error: any) {
+            vscode.window.showErrorMessage('Failed to add redirect URIs: ' +  error.message);
+            return;
+        }
+
+        // Check for or enable App-Only auth
+        try {
+            await account.appProvider.checkOrConsentFileStorageContainerRole(app, authProvider, "This enables the 'Application-only' requests in the Postman collection. ");
+        } catch (error: any) {
+            vscode.window.showErrorMessage('Failed to add and consent the FileStorageContainer.Selected required role: ' + error.message);
+            return;
+        }
+
+        const tid = account.tenantId;
         const values: any[] = [];
         values.push(
             {

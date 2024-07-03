@@ -17,6 +17,7 @@ import { exec } from 'child_process';
 import { CreateSecret } from "../Credentials/CreateSecret";
 import { RepoCloneFailure } from "../../../models/telemetry/telemetry";
 import { TelemetryProvider } from "../../../services/TelemetryProvider";
+import { ProgressWaitNotification } from "../../../views/notifications/ProgressWaitNotification";
 
 // Static class that handles the clone React sample app command
 export class CloneReactSampleApp extends Command {
@@ -32,7 +33,7 @@ export class CloneReactSampleApp extends Command {
                 return;
             }
         });
-        
+
         if (!applicationTreeItem) {
             return;
         }
@@ -65,6 +66,9 @@ export class CloneReactSampleApp extends Command {
             return;
         }
 
+        const appConfigurationProgress = new ProgressWaitNotification('Configuring your app...');
+        appConfigurationProgress.show();
+
         let appSecrets = await app.getSecrets();
         if (!appSecrets.clientSecret) {
             const userChoice = await vscode.window.showInformationMessage(
@@ -77,10 +81,73 @@ export class CloneReactSampleApp extends Command {
             }
         }
 
+        const account = Account.get()!;
+        const requiredUris = [
+            account.appProvider.SpaRedirectUris.reactAppRedirectUri
+        ];
+
+        // Check client app redirect URIs
+        try {
+            if (!await account.appProvider.checkSpaRedirectUris(app, requiredUris)) {
+                const userChoice = await vscode.window.showInformationMessage(
+                    `This app registration is missing the required React sample app redirect URIs.
+                 ${requiredUris.join('\n')}.
+                Would you like to add them to the "SPA" redirect URIs of your app configuration?`,
+                    'OK', 'Skip'
+                );
+                if (userChoice === 'OK') {
+                    await account.appProvider.addSpaRedirectUris(app, requiredUris);
+                }
+            }
+        } catch (error: any) {
+            appConfigurationProgress.hide();
+            vscode.window.showErrorMessage('Failed to add redirect URIs: ' + error.message);
+            TelemetryProvider.instance.send(new RepoCloneFailure(error.message));
+            return;
+        }
+
+        // Check Identifier URI
+        try {
+            if (!await account.appProvider.checkIdentiferUri(app)) {
+                const userChoice = await vscode.window.showInformationMessage(
+                    `This app registration is missing the required Identifier URI 'api:\\\\${app.clientId}' to run the sample app. Would you like to add it now?`,
+                    'OK', 'Skip'
+                );
+                if (userChoice === 'OK') {
+                    await account.appProvider.addIdentifierUri(app);
+                }
+            }
+        } catch (error: any) {
+            appConfigurationProgress.hide();
+            vscode.window.showErrorMessage('Failed to add Identifier URI: ' + error.message);
+            TelemetryProvider.instance.send(new RepoCloneFailure(error.message));
+            return;
+        }
+
+        // Check API scope
+        try {
+            if (!await account.appProvider.checkApiScope(app)) {
+                const userChoice = await vscode.window.showInformationMessage(
+                    `This app registration is missing the required API scope Container.Manage to run the sample app. Would you like to add it now?`,
+                    'OK', 'Skip'
+                );
+                if (userChoice === 'OK') {
+                    await account.appProvider.addApiScope(app);
+                }
+            }
+        }
+        catch (error: any) {
+            appConfigurationProgress.hide();
+            vscode.window.showErrorMessage('Failed to add API scope: ' + error.message);
+            TelemetryProvider.instance.send(new RepoCloneFailure(error.message));
+            return;
+        }
+
+        appConfigurationProgress.hide();
         try {
             const appId = app.clientId;
             const containerTypeId = containerType.containerTypeId;
-            const tenantId = Account.get()!.tenantId;
+            const tenantId = account.tenantId;
             const clientSecret = appSecrets.clientSecret || '';
             const repoUrl = 'https://github.com/microsoft/SharePoint-Embedded-Samples.git';
             const folders = await vscode.window.showOpenDialog({
