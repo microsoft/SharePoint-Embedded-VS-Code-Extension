@@ -28,7 +28,7 @@ export class RestoreContainer extends Command {
         const container: Container = containerViewModel.container;
         const owningApp: App = containerType.owningApp!;
 
-        const progressWindow = new ProgressWaitNotification('Restoring container');  
+        const progressWindow = new ProgressWaitNotification(vscode.l10n.t('Restoring container...'));  
         progressWindow.show();
         try {
             const authProvider = await owningApp.getAppOnlyAuthProvider(containerTypeRegistration.tenantId);
@@ -38,7 +38,8 @@ export class RestoreContainer extends Command {
             progressWindow.hide();
         } catch (error: any) {
             progressWindow.hide();
-            vscode.window.showErrorMessage("Unable to restore container object: " + error.message);
+            const message = vscode.l10n.t('Error restoring container: {0}', error.message);
+            vscode.window.showErrorMessage(message);
             return;
         }
     }

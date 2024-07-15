@@ -29,11 +29,11 @@ export class CreateContainer extends Command {
         const containerTypeRegistration = containersViewModel.containerTypeRegistration;
         const owningApp: App = containerType.owningApp!;
         const containerDisplayName = await vscode.window.showInputBox({
-            placeHolder: 'Enter a display name for your new container',
-            prompt: 'Container display name',
+            placeHolder: vscode.l10n.t('Enter a display name for your new container'),
+            prompt: vscode.l10n.t('Container display name'),
             validateInput: (value: string) => {
                 if (!value) {
-                    return 'display name is required';
+                    return vscode.l10n.t('Display name is required');
                 }
                 return undefined;
             }
@@ -43,14 +43,14 @@ export class CreateContainer extends Command {
             return;
         }
 
-        const progressWindow = new ProgressWaitNotification('Creating container');  
+        const progressWindow = new ProgressWaitNotification(vscode.l10n.t('Creating container...'));  
         progressWindow.show();
         try {
             const authProvider = await owningApp.getAppOnlyAuthProvider(containerTypeRegistration.tenantId);
             const graphProvider = new GraphProvider(authProvider);
             const container = await graphProvider.createContainer(containerTypeRegistration, containerDisplayName);
             if (!container) {
-                throw new Error ("Failed to create container");
+                throw new Error (vscode.l10n.t('Failed to create container'));
             }
             DevelopmentTreeViewProvider.getInstance().refresh(containersViewModel);
             progressWindow.hide();
@@ -58,7 +58,8 @@ export class CreateContainer extends Command {
             return container;
         } catch (error: any) {
             progressWindow.hide();
-            vscode.window.showErrorMessage("Unable to create container object: " + error.message);
+            const message = vscode.l10n.t('Unable to create container object: {0}', error.message);
+            vscode.window.showErrorMessage(message);
             TelemetryProvider.instance.send(new CreateContainerFailure(error.message));
             return;
         }

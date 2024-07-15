@@ -34,7 +34,7 @@ export class ViewContainerTypeProperties extends Command {
             await vscode.languages.setTextDocumentLanguage(doc, 'json');
             registration.dispose();
         } catch (error: any) {
-            vscode.window.showErrorMessage("Failed to open container type properties: " + error.message);
-        }
+            const message = vscode.l10n.t('Failed to open container type properties: {0}', error.message);
+            vscode.window.showErrorMessage(message);        }
     }
 }

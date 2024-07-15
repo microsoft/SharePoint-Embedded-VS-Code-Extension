@@ -28,9 +28,9 @@ export class EditContainerDescription extends Command {
         const container: Container = containerViewModel.container;
         const owningApp: App = containerType.owningApp!;
         const containerDescription = await vscode.window.showInputBox({
-            title: 'New description',
+            title: vscode.l10n.t('New description'),
             value: container.description,
-            prompt: 'Enter the new description for the container:',
+            prompt: vscode.l10n.t('Enter the new description for the container:'),
 
         });
 
@@ -38,21 +38,22 @@ export class EditContainerDescription extends Command {
             return;
         }
 
-        const progressWindow = new ProgressWaitNotification('Saving new container description...');  
+        const progressWindow = new ProgressWaitNotification(vscode.l10n.t('Saving new container description...'));  
         progressWindow.show();
         try {
             const authProvider = await owningApp.getAppOnlyAuthProvider(containerTypeRegistration.tenantId);
             const graphProvider = new GraphProvider(authProvider);
             const updatedContainer = await graphProvider.updateContainer(containerTypeRegistration, container.id, container.displayName, containerDescription || '');
             if (!updatedContainer) {
-                throw new Error ("Failed to change container description");
+                throw new Error (vscode.l10n.t("Failed to change container description"));
             }
             DevelopmentTreeViewProvider.getInstance().refresh(containerViewModel.reigstrationViewModel);
             progressWindow.hide();
             return updatedContainer;
         } catch (error: any) {
             progressWindow.hide();
-            vscode.window.showErrorMessage("Unable to edit container object: " + error.message);
+            const message = vscode.l10n.t('Unable to edit container object: {0}', error.message);
+            vscode.window.showErrorMessage(message);
             return;
         }
     }

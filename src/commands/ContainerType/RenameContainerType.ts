@@ -25,12 +25,12 @@ export class RenameContainerType extends Command {
         const containerType = containerTypeViewModel.containerType;
 
         const containerTypeDisplayName = await vscode.window.showInputBox({
-            title: 'New display name:',
+            title: vscode.l10n.t('New display name:'),
             value: containerType.displayName,
-            prompt: 'Enter the new display name for the container type:',
+            prompt: vscode.l10n.t('Enter the new display name for the container type:'),
             validateInput: (value: string): string | undefined => {
                 if (!value) {
-                    return 'Display name cannot be empty';
+                    return vscode.l10n.t('Display name cannot be empty');
                 }
                 return undefined;
             }
@@ -41,12 +41,12 @@ export class RenameContainerType extends Command {
         }
 
         if (containerTypeDisplayName === '') {
-            vscode.window.showWarningMessage('Container type display name cannot be empty');
+            vscode.window.showWarningMessage(vscode.l10n.t('Container type display name cannot be empty'));
             return;
         }
 
         const containerTypeProvider = account.containerTypeProvider;
-        const progressWindow = new ProgressWaitNotification('Renaming container type (may take a minute)...');
+        const progressWindow = new ProgressWaitNotification(vscode.l10n.t('Renaming container type (may take a minute)...'));
         progressWindow.show();
         try {
             await containerTypeProvider.rename(containerType, containerTypeDisplayName);
@@ -71,7 +71,8 @@ export class RenameContainerType extends Command {
             refreshCt();
         } catch (error: any) {
             progressWindow.hide();
-            vscode.window.showErrorMessage(`Failed to rename container type: ${error}`);
+            const message = vscode.l10n.t('Unable to rename container type: {0}', error);
+            vscode.window.showErrorMessage(message);
         }
         
     }

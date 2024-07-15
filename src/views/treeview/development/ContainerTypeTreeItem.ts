@@ -56,7 +56,7 @@ export class ContainerTypeTreeItem extends IChildrenProvidingTreeItem {
         try {
             owningApp = await this.containerType.loadOwningApp();
             if (!owningApp) {
-                throw new Error('Owning app not found');
+                throw new Error(vscode.l10n.t('Owning app not found'));
             }
             children.push(new OwningAppTreeItem(this.containerType, this));
         } catch (error) {

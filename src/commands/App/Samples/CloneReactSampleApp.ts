@@ -29,21 +29,21 @@ export class CloneReactSampleApp extends Command {
         exec('git --version', (err, stdout, stderr) => {
             if (err) {
                 // Git is not installed
-                vscode.window.showErrorMessage('Git is not installed. Please install Git before proceeding.');
+                vscode.window.showErrorMessage(vscode.l10n.t('Git is not installed. Please install Git before proceeding.'));
                 return;
             }
         });
 
         if (!applicationTreeItem) {
             return;
-        }
-        const message = "This will clone the selected sample and put your app's secret and other settings in plain text in a configuration file on your local machine. Are you sure you want to continue?";
+        }        
+        const message = vscode.l10n.t("This will clone the selected sample and put your app's secret and other settings in plain text in a configuration file on your local machine. Are you sure you want to continue?");
         const userChoice = await vscode.window.showInformationMessage(
             message,
-            'OK', 'Cancel'
+            vscode.l10n.t('OK'), vscode.l10n.t('Cancel')
         );
 
-        if (userChoice === 'Cancel') {
+        if (userChoice === vscode.l10n.t('Cancel')) {
             return;
         }
 
@@ -62,20 +62,20 @@ export class CloneReactSampleApp extends Command {
             containerType = applicationTreeItem.containerType;
         }
         if (!app || !containerType) {
-            vscode.window.showErrorMessage('Could not find app or container type');
+            vscode.window.showErrorMessage(vscode.l10n.t('Could not find app or container type'));
             return;
         }
 
-        const appConfigurationProgress = new ProgressWaitNotification('Configuring your app...');
+        const appConfigurationProgress = new ProgressWaitNotification(vscode.l10n.t('Configuring your app...'));
         appConfigurationProgress.show();
 
         let appSecrets = await app.getSecrets();
         if (!appSecrets.clientSecret) {
             const userChoice = await vscode.window.showInformationMessage(
-                "No client secret was found. Would you like to create one for this app?",
-                'OK', 'Skip'
+                vscode.l10n.t("No client secret was found. Would you like to create one for this app?"),
+                vscode.l10n.t('OK'), vscode.l10n.t('Skip')
             );
-            if (userChoice === 'OK') {
+            if (userChoice === vscode.l10n.t('OK')) {
                 await CreateSecret.run(applicationTreeItem);
                 appSecrets = await app.getSecrets();
             }
@@ -89,19 +89,18 @@ export class CloneReactSampleApp extends Command {
         // Check client app redirect URIs
         try {
             if (!await account.appProvider.checkSpaRedirectUris(app, requiredUris)) {
-                const userChoice = await vscode.window.showInformationMessage(
-                    `This app registration is missing the required React sample app redirect URIs.
-                 ${requiredUris.join('\n')}.
-                Would you like to add them to the "SPA" redirect URIs of your app configuration?`,
-                    'OK', 'Skip'
+                const message = vscode.l10n.t('This app registration is missing the required React sample app redirect URIs: {0}. Would you like to add them to the "SPA" redirect URIs of your app configuration?', requiredUris.join('\n'));
+                const userChoice = await vscode.window.showInformationMessage(message,
+                    vscode.l10n.t('OK'), vscode.l10n.t('Skip')
                 );
-                if (userChoice === 'OK') {
+                if (userChoice === vscode.l10n.t('OK')) {
                     await account.appProvider.addSpaRedirectUris(app, requiredUris);
                 }
             }
         } catch (error: any) {
             appConfigurationProgress.hide();
-            vscode.window.showErrorMessage('Failed to add redirect URIs: ' + error.message);
+            const message = vscode.l10n.t('Failed to add redirect URIs: {0}', error.message);
+            vscode.window.showErrorMessage(message);
             TelemetryProvider.instance.send(new RepoCloneFailure(error.message));
             return;
         }
@@ -109,17 +108,19 @@ export class CloneReactSampleApp extends Command {
         // Check Identifier URI
         try {
             if (!await account.appProvider.checkIdentiferUri(app)) {
+                const message = vscode.l10n.t('This app registration is missing the required Identifier URI "api:\\\\{0}" to run the sample app. Would you like to add it now?', app.clientId);
                 const userChoice = await vscode.window.showInformationMessage(
-                    `This app registration is missing the required Identifier URI 'api:\\\\${app.clientId}' to run the sample app. Would you like to add it now?`,
-                    'OK', 'Skip'
+                    message,
+                    vscode.l10n.t('OK'), vscode.l10n.t('Skip')
                 );
-                if (userChoice === 'OK') {
+                if (userChoice === vscode.l10n.t('OK')) {
                     await account.appProvider.addIdentifierUri(app);
                 }
             }
         } catch (error: any) {
             appConfigurationProgress.hide();
-            vscode.window.showErrorMessage('Failed to add Identifier URI: ' + error.message);
+            const message = vscode.l10n.t('Failed to add Identifier URI: {0}', error.message);
+            vscode.window.showErrorMessage(message);
             TelemetryProvider.instance.send(new RepoCloneFailure(error.message));
             return;
         }
@@ -127,18 +128,20 @@ export class CloneReactSampleApp extends Command {
         // Check API scope
         try {
             if (!await account.appProvider.checkApiScope(app)) {
+                const message = vscode.l10n.t('This app registration is missing the required API scope Container.Manage to run the sample app. Would you like to add it now?');
                 const userChoice = await vscode.window.showInformationMessage(
-                    `This app registration is missing the required API scope Container.Manage to run the sample app. Would you like to add it now?`,
-                    'OK', 'Skip'
+                    message,
+                    vscode.l10n.t('OK'), vscode.l10n.t('Skip')
                 );
-                if (userChoice === 'OK') {
+                if (userChoice === vscode.l10n.t('OK')) {
                     await account.appProvider.addApiScope(app);
                 }
             }
         }
         catch (error: any) {
             appConfigurationProgress.hide();
-            vscode.window.showErrorMessage('Failed to add API scope: ' + error.message);
+            const message = vscode.l10n.t('Failed to add API scope: {0}', error.message);
+            vscode.window.showErrorMessage(message);
             TelemetryProvider.instance.send(new RepoCloneFailure(error.message));
             return;
         }
@@ -169,7 +172,7 @@ export class CloneReactSampleApp extends Command {
                 writeEnvFile(destinationPath, appId, tenantId);
             }
         } catch (error: any) {
-            vscode.window.showErrorMessage('Failed to clone Git Repo');
+            vscode.window.showErrorMessage(vscode.l10n.t('Failed to clone Git Repo'));
             TelemetryProvider.instance.send(new RepoCloneFailure(error.message));
         }
     }

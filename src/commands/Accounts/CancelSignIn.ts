@@ -16,7 +16,7 @@ export class CancelSignIn extends Command {
         try {
             vscode.commands.executeCommand('setContext', 'spe:isLoggingIn', false);
         } catch (error) {
-            vscode.window.showErrorMessage('Failed to cancel sign in flow.');
+            vscode.window.showErrorMessage(vscode.l10n.t('Failed to cancel sign in flow.'));
         }
     }
 }

@@ -27,10 +27,10 @@ export class CreatePostmanConfig extends Command {
 
         if (!appSecrets.clientSecret) {
             const userChoice = await vscode.window.showInformationMessage(
-                "No client secret was found. Would you like to create one for this app?",
-                'OK', 'Skip'
+                vscode.l10n.t("No client secret was found. Would you like to create one for this app?"),
+                vscode.l10n.t('OK'), vscode.l10n.t('Skip')
             );
-            if (userChoice === 'OK') {
+            if (userChoice === vscode.l10n.t('OK')) {
                 await CreateSecret.run(applicationTreeItem);
                 appSecrets = await app.getSecrets();
             }
@@ -38,10 +38,10 @@ export class CreatePostmanConfig extends Command {
 
         if (!appSecrets.privateKey || !appSecrets.thumbprint) {
             const userChoice = await vscode.window.showInformationMessage(
-                "No certificate was found. Would you like to create one for this app?",
-                'OK', 'Skip'
+                vscode.l10n.t('No certificate was found. Would you like to create one for this app?'),
+                vscode.l10n.t('OK'), vscode.l10n.t('Skip')
             );
-            if (userChoice === 'OK') {
+            if (userChoice === vscode.l10n.t('OK')) {
                 await CreateAppCert.run(applicationTreeItem);
                 appSecrets = await app.getSecrets();
 
@@ -63,25 +63,27 @@ export class CreatePostmanConfig extends Command {
         // Check Postman redirect URIs
         try {
             if (!await account.appProvider.checkWebRedirectUris(app, requiredUris)) {
+                const message = vscode.l10n.t('This app registration is missing the required Postman redirect URIs: {0}. Would you like to add them to the "Web" redirect URIs of your app configuration?', requiredUris.join('\n'));
                 const userChoice = await vscode.window.showInformationMessage(
-                    `This app registration is missing the required Postman redirect URIs:
-                ${requiredUris.join('\n')}. Would you like to add them to the "Web" redirect URIs of your app configuration?`,
-                    'OK', 'Skip'
+                    message,
+                    vscode.l10n.t('OK'), vscode.l10n.t('Skip')
                 );
-                if (userChoice === 'OK') {
+                if (userChoice === vscode.l10n.t('OK')) {
                     await account.appProvider.addWebRedirectUris(app, requiredUris);
                 }
             }
         } catch (error: any) {
-            vscode.window.showErrorMessage('Failed to add redirect URIs: ' +  error.message);
+            const message = vscode.l10n.t('Failed to add redirect URIs: {0}', error.message);
+            vscode.window.showErrorMessage(message);
             return;
         }
 
         // Check for or enable App-Only auth
         try {
-            await account.appProvider.checkOrConsentFileStorageContainerRole(app, authProvider, "This enables the 'Application-only' requests in the Postman collection. ");
+            await account.appProvider.checkOrConsentFileStorageContainerRole(app, authProvider, vscode.l10n.t("This enables the 'Application-only' requests in the Postman collection. "));
         } catch (error: any) {
-            vscode.window.showErrorMessage('Failed to add and consent the FileStorageContainer.Selected required role: ' + error.message);
+            const message = vscode.l10n.t('Failed to add and consent the FileStorageContainer.Selected required role: {0}', error.message);
+            vscode.window.showErrorMessage(message);
             return;
         }
 

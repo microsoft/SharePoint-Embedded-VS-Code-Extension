@@ -39,7 +39,7 @@ export class GetLocalAdminConsent extends Command {
             return false;
         }
 
-        const consentProgress = new ProgressWaitNotification('Waiting for admin consent...', true);
+        const consentProgress = new ProgressWaitNotification(vscode.l10n.t('Waiting for admin consent...'), true);
         consentProgress.show();
         try {
             const adminConsent = await BaseAuthProvider.listenForAdminConsent(app.clientId, account.tenantId);
@@ -47,7 +47,8 @@ export class GetLocalAdminConsent extends Command {
             return adminConsent;
         } catch (error: any) {
             consentProgress.hide();
-            vscode.window.showErrorMessage(`Failed to get admin consent for app '${app.displayName}': ${error}`);
+            const message = vscode.l10n.t('Failed to get admin consent for app {0}: {1}', app.displayName, error);
+            vscode.window.showErrorMessage(message);
             return false;
         }
     }

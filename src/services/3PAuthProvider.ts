@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as vscode from 'vscode';
 // @ts-ignore
 import { AccountInfo, AuthorizationUrlRequest, ConfidentialClientApplication, LogLevel } from '@azure/msal-node';
 import { CachePluginFactory } from '../utils/CacheFactory';
@@ -14,7 +15,7 @@ export default class ThirdPartyAuthProvider extends BaseAuthProvider {
     protected clientApplication: ConfidentialClientApplication;
     protected account: AccountInfo | null;
     protected authCodeUrlParams: AuthorizationUrlRequest;
-    protected readonly interactiveTokenPrompt: string = "Grant consent to your new Azure AD application? This step is required in order to create a Free Trial Container Type. This will open a new web browser where you can grant consent with the administrator account on your tenant";;
+    protected readonly interactiveTokenPrompt: string = vscode.l10n.t("Grant consent to your new Azure AD application? This step is required in order to create a Free Trial Container Type. This will open a new web browser where you can grant consent with the administrator account on your tenant");
 
     constructor(clientId: string, thumbprint: string, privateKey: string) {
         super();

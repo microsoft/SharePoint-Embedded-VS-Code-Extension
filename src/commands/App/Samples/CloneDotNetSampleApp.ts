@@ -28,7 +28,7 @@ export class CloneDotNetSampleApp extends Command {
         exec('git --version', (err, stdout, stderr) => {
             if (err) {
                 // Git is not installed
-                vscode.window.showErrorMessage('Git is not installed. Please install Git before proceeding.');
+                vscode.window.showErrorMessage(vscode.l10n.t('Git is not installed. Please install Git before proceeding.'));
                 return;
             }
         });
@@ -36,13 +36,13 @@ export class CloneDotNetSampleApp extends Command {
         if (!applicationTreeItem) {
             return;
         }
-        const message = "This will clone the selected sample and put your app's secret and other settings in plain text in a configuration file on your local machine. Are you sure you want to continue?";
+        const message = vscode.l10n.t("This will clone the selected sample and put your app's secret and other settings in plain text in a configuration file on your local machine. Are you sure you want to continue?");
         const userChoice = await vscode.window.showInformationMessage(
             message,
-            'OK', 'Cancel'
+            vscode.l10n.t('OK'), vscode.l10n.t('Cancel')
         );
 
-        if (userChoice === 'Cancel') {
+        if (userChoice === vscode.l10n.t('Cancel')) {
             return;
         }
 
@@ -61,17 +61,17 @@ export class CloneDotNetSampleApp extends Command {
             containerType = applicationTreeItem.containerType;
         }
         if (!app || !containerType) {
-            vscode.window.showErrorMessage('Could not find app or container type');
+            vscode.window.showErrorMessage(vscode.l10n.t('Could not find app or container type'));
             return;
         }
 
         let appSecrets = await app.getSecrets();
         if (!appSecrets.clientSecret) {
             const userChoice = await vscode.window.showInformationMessage(
-                "No client secret was found. Would you like to create one for this app?",
-                'OK', 'Skip'
+                vscode.l10n.t("No client secret was found. Would you like to create one for this app?"),
+                vscode.l10n.t('OK'), vscode.l10n.t('Skip')
             );
-            if (userChoice === 'OK') {
+            if (userChoice === vscode.l10n.t('OK')) {
                 await CreateSecret.run(applicationTreeItem);
                 appSecrets = await app.getSecrets();
             }
@@ -87,19 +87,18 @@ export class CloneDotNetSampleApp extends Command {
         // Check server app redirect URIs
         try {
             if (!await account.appProvider.checkWebRedirectUris(app, requiredUris)) {
-                const userChoice = await vscode.window.showInformationMessage(
-                    `This app registration is missing the required server sample app redirect URIs.
-                ${requiredUris.join('\n')}. 
-                Would you like to add them to the "Web" redirect URIs of your app configuration?`,
-                    'OK', 'Skip'
+                const message = vscode.l10n.t('This app registration is missing the required server sample app redirect URIs: {0} Would you like to add them to the "Web" redirect URIs of your app configuration?', requiredUris.join('\n'));
+                const userChoice = await vscode.window.showInformationMessage(message,
+                    vscode.l10n.t('OK'), vscode.l10n.t('Skip')
                 );
-                if (userChoice === 'OK') {
+                if (userChoice === vscode.l10n.t('OK')) {
                     await account.appProvider.addWebRedirectUris(app, requiredUris);
                 }
             }
         }
         catch (error: any) {
-            vscode.window.showErrorMessage('Failed to add redirect URIs: ' + error.message);
+            const message = vscode.l10n.t('Failed to add redirect URIs: {0}', error.message);
+            vscode.window.showErrorMessage(message);
             return;
         }
 
@@ -128,7 +127,7 @@ export class CloneDotNetSampleApp extends Command {
                 writeAppSettingsJsonFile(destinationPath, appId, containerTypeId, clientSecret, tenantId);
             }
         } catch (error: any) {
-            vscode.window.showErrorMessage('Failed to clone Git Repo');
+            vscode.window.showErrorMessage(vscode.l10n.t('Failed to clone Git Repo'));
             TelemetryProvider.instance.send(new RepoCloneFailure(error.message));
         }
     }

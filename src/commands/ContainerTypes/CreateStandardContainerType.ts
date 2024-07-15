@@ -27,12 +27,12 @@ export class CreatePaidContainerType extends Command {
         }
 
         const displayName = await vscode.window.showInputBox({
-            placeHolder: 'Enter a display name for your new container type',
-            prompt: 'Container type display name',
+            placeHolder: vscode.l10n.t('Enter a display name for your new container type'),
+            prompt: vscode.l10n.t('Container type display name'),
             ignoreFocusOut: true,
             validateInput: (value: string) => {
                 if (!value) {
-                    return 'display name is required';
+                    return vscode.l10n.t('Display name is required');
                 }
                 return undefined;
             }
@@ -43,12 +43,12 @@ export class CreatePaidContainerType extends Command {
 
         //TODO: Get the Azure subscription Id, resource group, and region from Graph API
         const azureSubscriptionId = await vscode.window.showInputBox({
-            placeHolder: 'Enter the Azure subscription Id of your billing profile',
-            prompt: 'Azure subscription Id',
+            placeHolder: vscode.l10n.t('Enter the Azure subscription Id of your billing profile'),
+            prompt: vscode.l10n.t('Azure Subscription Id'),
             ignoreFocusOut: true,
             validateInput: (value: string) => {
                 if (!value) {
-                    return 'Azure Subscription Id is required';
+                    return vscode.l10n.t('Azure Subscription Id is required');
                 }
                 return undefined;
             }
@@ -59,12 +59,12 @@ export class CreatePaidContainerType extends Command {
         }
 
         const resourceGroup = await vscode.window.showInputBox({
-            placeHolder: 'Enter the resource group of your billing profile',
-            prompt: 'Resource group',
+            placeHolder: vscode.l10n.t('Enter the resource group of your billing profile'),
+            prompt: vscode.l10n.t('Resource group'),
             ignoreFocusOut: true,
             validateInput: (value: string) => {
                 if (!value) {
-                    return 'Resource group is required';
+                    return vscode.l10n.t('Resource group is required');
                 }
                 return undefined;
             }
@@ -75,12 +75,12 @@ export class CreatePaidContainerType extends Command {
         }
 
         const region = await vscode.window.showInputBox({
-            placeHolder: 'Enter the region of your billing profile',
-            prompt: 'Region',
+            placeHolder: vscode.l10n.t('Enter the region of your billing profile'),
+            prompt: vscode.l10n.t('Region'),
             ignoreFocusOut: true,
             validateInput: (value: string) => {
                 if (!value) {
-                    return 'Region is required';
+                    return vscode.l10n.t('Region is required');
                 }
                 return undefined;
             }
@@ -95,13 +95,13 @@ export class CreatePaidContainerType extends Command {
         }
 
         //TODO: improve? allow AppId to propogate if new app
-        const appProgressWindow = new ProgressWaitNotification('Configuring owning Entra app');
+        const appProgressWindow = new ProgressWaitNotification(vscode.l10n.t('Configuring owning Entra app...'));
         appProgressWindow.show();
         const appTimer = new Timer(30 * 1000);
         while (!appTimer.finished) { };
         appProgressWindow.hide();
 
-        const ctCreationProgressWindow = new ProgressWaitNotification('Creating container type');
+        const ctCreationProgressWindow = new ProgressWaitNotification(vscode.l10n.t('Creating container type...'));
         ctCreationProgressWindow.show();
         const ctTimer = new Timer(30 * 1000);
         const containerTypeProvider = account.containerTypeProvider;
@@ -116,7 +116,7 @@ export class CreatePaidContainerType extends Command {
         } while (!containerType && !ctTimer.finished);
 
         if (!containerType) {
-            vscode.window.showErrorMessage('Failed to create container type');
+            vscode.window.showErrorMessage(vscode.l10n.t('Failed to create container type'));
             ctCreationProgressWindow.hide();
             return;
         }
@@ -139,13 +139,13 @@ export class CreatePaidContainerType extends Command {
 
         // Register Syntex Provider
         const armProvider = account.armProvider;
-        const billingProgressWindow = new ProgressWaitNotification('Setting up your billing profile. Please be patient, this may take up to five minutes.');
+        const billingProgressWindow = new ProgressWaitNotification(vscode.l10n.t('Setting up your billing profile. Please be patient, this may take up to five minutes.'));
         billingProgressWindow.show();
         const syntexRegistrationTimer = new Timer(60 * 5 * 1000);   
         try {
             const syntexProviderDetails = await armProvider.createSyntexProvider(azureSubscriptionId, {});
             if (!syntexProviderDetails) {
-                throw new Error('Failed to create Syntex provider. Please try creating a container type again.');
+                throw new Error(vscode.l10n.t('Failed to create Syntex provider. Please try creating a container type again.'));
             }
             let registrationComplete = false;
             const refreshRegistrationStatus = async (): Promise<void> => {
@@ -162,7 +162,7 @@ export class CreatePaidContainerType extends Command {
             };
             await refreshRegistrationStatus();
             if (!registrationComplete) {
-                throw new Error('Failed registering Syntex provider. Please try creating a container type again, as the registration may have not propogated.');
+                throw new Error(vscode.l10n.t('Failed registering Syntex provider. Please try creating a container type again, as the registration may have not propogated.'));
             }
         } catch (error: any) {
             billingProgressWindow.hide();
@@ -174,7 +174,7 @@ export class CreatePaidContainerType extends Command {
         try {
             const armAccountDetails = await armProvider.createArmAccount(azureSubscriptionId, resourceGroup, region, containerType.containerTypeId);
             if (armAccountDetails.properties.provisioningState !== 'Succeeded') {
-                throw new Error('Failed to create a billing profile. Please try creating a container type again.');
+                throw new Error(vscode.l10n.t('Failed to create a billing profile. Please try creating a container type again.'));
             }
         } catch (error: any) {
             billingProgressWindow.hide();
@@ -184,10 +184,10 @@ export class CreatePaidContainerType extends Command {
         }
 
         billingProgressWindow.hide();
-        const register = 'Register on local tenant';
+        const register = vscode.l10n.t('Register on local tenant');
         const buttons = [register];
         const selection = await vscode.window.showInformationMessage(
-            `Your container type has been created. Would you like to register it on your local tenant?`,
+            vscode.l10n.t(`Your container type has been created. Would you like to register it on your local tenant?`),
             ...buttons
         );
         if (selection === register) {

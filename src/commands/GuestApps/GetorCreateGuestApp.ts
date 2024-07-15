@@ -49,18 +49,19 @@ export class GetorCreateGuestApp extends Command {
             return;
         }
 
-        const loadRegistrationProgress = new ProgressWaitNotification('Loading existing container type registration for update...');
+        const loadRegistrationProgress = new ProgressWaitNotification(vscode.l10n.t('Loading existing container type registration for update...'));
         loadRegistrationProgress.show();
         let containerTypeRegistration: ContainerTypeRegistration | undefined;
         try {
             containerTypeRegistration = await containerType.loadLocalRegistration();
             loadRegistrationProgress.hide();
             if (!containerTypeRegistration) {
-                throw new Error('Existing registration not found.');
+                throw new Error(vscode.l10n.t('Existing registration not found.'));
             }
-        } catch (error) {
+        } catch (error: any) {
             loadRegistrationProgress.hide();
-            vscode.window.showErrorMessage('Error loading container type registration: ' + error);
+            const message = vscode.l10n.t('Error loading container type registration: {0}', error);
+            vscode.window.showErrorMessage(message);
             return;
         }
 

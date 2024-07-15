@@ -18,7 +18,7 @@ export class GuestAppsTreeItem extends IChildrenProvidingTreeItem {
     }
 
     constructor (public readonly containerTypeRegistration: ContainerTypeRegistration) {
-        super('Guest Apps', vscode.TreeItemCollapsibleState.Collapsed);
+        super(vscode.l10n.t('Guest Apps'), vscode.TreeItemCollapsibleState.Collapsed);
         this.contextValue = "spe:guestAppsTreeItem";
     }
 
@@ -29,11 +29,11 @@ export class GuestAppsTreeItem extends IChildrenProvidingTreeItem {
             const owningApp = this.containerType.owningApp!;
             const registration = this.containerType.localRegistration!;
             if (!owningApp || !registration) { 
-                throw new Error('Owning app or registration not found');
+                throw new Error(vscode.l10n.t('Owning app or registration not found'));
             }
             await registration.loadApplicationPermissions();
             if (!registration.applicationPermissions) {
-                throw new Error('No application permissions found');
+                throw new Error(vscode.l10n.t('No application permissions found'));
             }
             registration.applicationPermissions.map((app: ApplicationPermissions) => {
                 if (app.appId !== owningApp.clientId) {

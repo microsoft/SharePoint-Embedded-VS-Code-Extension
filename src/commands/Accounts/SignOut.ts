@@ -18,13 +18,13 @@ export class SignOut extends Command {
     // Command handler
     public static async run(): Promise<void> {
         try {
-            const message = "Are you sure you want to sign out?";
+            const message = vscode.l10n.t("Are you sure you want to sign out?");
             const userChoice = await vscode.window.showInformationMessage(
                 message,
-                'OK', 'Cancel'
+                vscode.l10n.t('OK'), vscode.l10n.t('Cancel')
             );
 
-            if (userChoice === 'Cancel') {
+            if (userChoice === vscode.l10n.t('Cancel')) {
                 return;
             }
 
@@ -32,7 +32,7 @@ export class SignOut extends Command {
             DevelopmentTreeViewProvider.instance.refresh();
             TelemetryProvider.instance.send(new SignOutEvent());
         } catch (error: any) {
-            vscode.window.showErrorMessage('Failed to obtain access token.');
+            vscode.window.showErrorMessage(vscode.l10n.t('Failed to obtain access token.'));
             TelemetryProvider.instance.send(new SignOutFailure(error.message));
         }
     }

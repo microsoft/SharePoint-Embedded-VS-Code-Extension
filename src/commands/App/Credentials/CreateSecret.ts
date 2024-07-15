@@ -40,18 +40,20 @@ export class CreateSecret extends Command {
             return;
         }
         
-        const progressWindow = new ProgressWaitNotification('Creating app secret...');
+        const progressWindow = new ProgressWaitNotification(vscode.l10n.t('Creating app secret...'));
         progressWindow.show();
         try {
             const appProvider = account.appProvider;
             await appProvider.addSecret(app);
             progressWindow.hide();
-            vscode.window.showInformationMessage(`Secret created for app '${app.displayName}'`);
+            const message = vscode.l10n.t('Secret created for app {0}', app.displayName);
+            vscode.window.showInformationMessage(message);
             DevelopmentTreeViewProvider.instance.refresh();
             return app;
         } catch (error: any) {
             progressWindow.hide();
-            vscode.window.showErrorMessage(`Failed to create secret for app ${app.displayName}: ${error}`);
+            const message = vscode.l10n.t('Failed to create secret for app {0}: {1}', app.displayName, error);
+            vscode.window.showErrorMessage(message);
             return;
         }
     };

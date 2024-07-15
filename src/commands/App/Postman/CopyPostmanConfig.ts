@@ -34,32 +34,33 @@ export class CopyPostmanConfig extends Command {
             containerType = applicationTreeItem.containerType;
         }
         if (!app || !containerType) {
-            vscode.window.showErrorMessage('Could not find app or container type');
+            vscode.window.showErrorMessage(vscode.l10n.t('Could not find app or container type'));
             return;
         }
 
         const pmEnv = await CreatePostmanConfig.run(applicationTreeItem, app, containerType);
         if (!pmEnv) {
-            vscode.window.showErrorMessage('Failed to create Postman environment');
+            vscode.window.showErrorMessage(vscode.l10n.t('Failed to create Postman environment'));
             return;
         }
 
         if (await app.hasCert() === true || await app.hasSecret() === true) {
-            const message = "This will put your app's secret and other settings in a plain text Postman environment file on your clipboard. Are you sure you want to continue?";
+            const message = vscode.l10n.t("This will put your app's secret and other settings in a plain text Postman environment file on your clipboard. Are you sure you want to continue?");
             const userChoice = await vscode.window.showInformationMessage(
                 message,
-                'OK', 'Cancel'
+                vscode.l10n.t('OK'), vscode.l10n.t('Cancel')
             );
-            if (userChoice === 'Cancel') {
+            if (userChoice === vscode.l10n.t('Cancel')) {
                 return;
             }
         }
 
         try {
             await vscode.env.clipboard.writeText(JSON.stringify(pmEnv, null, 2));
-            vscode.window.showInformationMessage(`Postman environment copied to clipboard for '${pmEnv.name}'`);
+            const message = vscode.l10n.t('Postman environment copied to clipboard for {0}', pmEnv.name);
+            vscode.window.showInformationMessage(message);
         } catch (error) {
-            vscode.window.showErrorMessage('Failed to copy Postman environment');
+            vscode.window.showErrorMessage(vscode.l10n.t('Failed to copy Postman environment'));
         }
     }
 }

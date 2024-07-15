@@ -40,18 +40,20 @@ export class CreateAppCert extends Command {
             return;
         }
         
-        const progressWindow = new ProgressWaitNotification('Creating app certificate...');
+        const progressWindow = new ProgressWaitNotification(vscode.l10n.t('Creating app certificate...'));
         progressWindow.show();
         try {
             const appProvider = account.appProvider;
             await appProvider.addCert(app);
             progressWindow.hide();
-            vscode.window.showInformationMessage(`Cert created for app '${app.displayName}'`);
+            const message = vscode.l10n.t('Certificate created for app {0}', app.displayName);
+            vscode.window.showInformationMessage(message);
             DevelopmentTreeViewProvider.instance.refresh();
             return app;
         } catch (error: any) {
             progressWindow.hide();
-            vscode.window.showErrorMessage(`Failed to create cert for app ${app.displayName}: ${error}`);
+            const messsage = vscode.l10n.t('Failed to create cert for app {0}: {1}', app.displayName, error);
+            vscode.window.showErrorMessage(messsage);
             return;
         }
     };

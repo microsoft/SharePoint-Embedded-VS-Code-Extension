@@ -15,7 +15,7 @@ export class GetAccount extends Command {
     public static async run(): Promise<Account | undefined> {
         const account = Account.get();
         if (!account) {
-            vscode.window.showErrorMessage('Please sign in first.');
+            vscode.window.showErrorMessage(vscode.l10n.t('Please sign in first.'));
             return;
         }
         return account;

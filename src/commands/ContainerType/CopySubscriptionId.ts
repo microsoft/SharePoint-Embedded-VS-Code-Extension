@@ -22,9 +22,10 @@ export class CopySubscriptionId extends Command {
         try {
             const azureSubscriptionId = containerType.azureSubscriptionId;
             await vscode.env.clipboard.writeText(azureSubscriptionId ? azureSubscriptionId : '');
-            vscode.window.showInformationMessage('Azure subscription id copied to clipboard.');
+            vscode.window.showInformationMessage(vscode.l10n.t('Azure subscription id copied to clipboard.'));
         } catch (error: any) {
-            vscode.window.showErrorMessage("Failed to copy Azure subscription id to clipboard" + error.message);
+            const message = vscode.l10n.t('Failed to copy Azure subscription id to clipboard: {0}', error.message);
+            vscode.window.showErrorMessage(message);
             return;
         }
     }
