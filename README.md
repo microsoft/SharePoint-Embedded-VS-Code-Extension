@@ -1,4 +1,4 @@
-# SharePoint Embedded for Visual Studio Code
+# SharePoint Embedded for Visual Studio Code (Preview)
 
 The SharePoint Embedded Visual Studio Code extension helps developers get started for free with SharePoint Embedded application development. 
 
