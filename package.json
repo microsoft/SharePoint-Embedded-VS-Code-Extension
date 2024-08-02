@@ -6,7 +6,7 @@
     "type": "git",
     "url": "https://github.com/microsoft/SharePoint-Embedded-VS-Code-Extension"
   },
-  "version": "0.0.8",
+  "version": "0.0.9",
   "author": "Microsoft Corporation",
   "publisher": "SharepointEmbedded",
   "preview": true,
@@ -21,6 +21,7 @@
     "Other"
   ],
   "main": "./out/extension.js",
+  "l10n": "./l10n",
   "contributes": {
     "icons": {
       "spe-m365": {
@@ -430,171 +431,159 @@
     "commands": [
       {
         "command": "spe.login",
-        "title": "SharePoint Embedded: Login to AAD"
+        "title": "%commands.spe.login%"
       },
       {
         "command": "spe.signOut",
-        "title": "SharePoint Embedded: Sign out account",
+        "title": "%commands.spe.signOut%",
         "icon": "$(sign-out)"
       },
       {
         "command": "spe.cancelSignIn",
-        "title": "SharePoint Embedded: Cancel Sign In",
+        "title": "%commands.spe.cancelSignIn%",
         "icon": "$(chrome-close)"
       },
       {
         "command": "spe.ContainerTypes.createTrial",
-        "title": "Create trial container type"
+        "title": "%commands.spe.ContainerTypes.createTrial%"
       },
       {
         "command": "spe.ContainerType.registerOnLocalTenant",
-        "title": "Register on local tenant"
+        "title": "%commands.spe.ContainerType.registerOnLocalTenant%"
       },
       {
         "command": "spe.ContainerType.rename",
-        "title": "Rename..."
+        "title": "%commands.spe.ContainerType.rename%"
       },
       {
         "command": "spe.ContainerType.delete",
-        "title": "Delete"
+        "title": "%commands.spe.ContainerType.delete%"
       },
       {
         "command": "spe.ContainerType.copyId",
-        "title": "Copy container type Id"
+        "title": "%commands.spe.ContainerType.copyId%"
       },
       {
         "command": "spe.ContainerType.copySubscriptionId",
-        "title": "Copy subscription Id"
+        "title": "%commands.spe.ContainerType.copySubscriptionId%"
       },
       {
         "command": "spe.ContainerType.copyOwningTenantId",
-        "title": "Copy owning tenant Id"
+        "title": "%commands.spe.ContainerType.copyOwningTenantId%"
       },
       {
         "command": "spe.ContainerType.viewProperties",
-        "title": "View properties"
+        "title": "%commands.spe.ContainerType.viewProperties%"
       },
       {
         "command": "spe.ContainerType.viewSubscriptionInAzure",
-        "title": "View subscription in Azure"
+        "title": "%commands.spe.ContainerType.viewSubscriptionInAzure%"
       },
       {
         "command": "spe.Apps.getOrCreate",
-        "title": "Create or choose existing app"
+        "title": "%commands.spe.Apps.getOrCreate%"
       },
       {
         "command": "spe.App.clone",
-        "title": "Clone and configure"
+        "title": "%commands.spe.App.clone%"
       },
       {
         "command": "spe.App.Postman.exportEnvironmentFile",
-        "title": "Export environment settings file"
+        "title": "%commands.spe.App.Postman.exportEnvironmentFile%"
       },
       {
         "command": "spe.App.Postman.copyEnvironmentFile",
-        "title": "Copy environment settings"
+        "title": "%commands.spe.App.Postman.copyEnvironmentFile%"
       },
       {
         "command": "spe.App.Postman.viewDocs",
-        "title": "View documentation"
+        "title": "%commands.spe.App.Postman.viewDocs%"
       },
       {
         "command": "spe.App.SampleApps.TypeScript+React+AzureFunctions.clone",
-        "title": "TypeScript + React + Azure Functions"
+        "title": "%commands.spe.App.SampleApps.TypeScript+React+AzureFunctions.clone%"
       },
       {
         "command": "spe.App.SampleApps.ASPNET+C#.clone",
-        "title": "ASP.NET + C#"
+        "title": "%commands.spe.App.SampleApps.ASPNET+C#.clone%"
       },
       {
         "command": "spe.App.rename",
-        "title": "Rename..."
-      },
-      {
-        "command": "spe.App.Postman.exportEnvironmentFile",
-        "title": "Export environment settings file"
-      },
-      {
-        "command": "spe.App.Postman.copyEnvironmentFile",
-        "title": "Copy environment settings"
-      },
-      {
-        "command": "spe.App.Postman.viewDocs",
-        "title": "View documentation"
+        "title": "%commands.spe.App.rename%"
       },
       {
         "command": "spe.App.Credentials.createSecret",
-        "title": "Generate new client secret"
+        "title": "%commands.spe.App.Credentials.createSecret%"
       },
       {
         "command": "spe.App.Credentials.copySecret",
-        "title": "Copy saved secret"
+        "title": "%commands.spe.App.Credentials.copySecret%"
       },
       {
         "command": "spe.App.Credentials.deleteSecret",
-        "title": "Forget saved secret"
+        "title": "%commands.spe.App.Credentials.deleteSecret%"
       },
       {
         "command": "spe.App.Credentials.createCert",
-        "title": "Generate new self-signed cert"
+        "title": "%commands.spe.App.Credentials.createCert%"
       },
       {
         "command": "spe.App.Credentials.provideCert",
-        "title": "Provide existing cert details..."
+        "title": "%commands.spe.App.Credentials.provideCert%"
       },
       {
         "command": "spe.App.Credentials.deleteCert",
-        "title": "Forget saved cert"
+        "title": "%commands.spe.App.Credentials.deleteCert%"
       },
       {
         "command": "spe.App.Permissions.LocalAdminConsent.openLink",
-        "title": "Open link"
+        "title": "%commands.spe.App.Permissions.LocalAdminConsent.openLink%"
       },
       {
         "command": "spe.App.copyAppId",
-        "title": "Copy app (client) Id"
+        "title": "%commands.spe.App.copyAppId%"
       },
       {
         "command": "spe.App.viewInAzure",
-        "title": "View in Azure"
+        "title": "%commands.spe.App.viewInAzure%"
       },
       {
         "command": "spe.GuestApps.add",
-        "title": "Add guest app...",
+        "title": "%commands.spe.GuestApps.add%",
         "icon": "$(plus)"
       },
       {
         "command": "spe.GuestApp.editPermissions",
-        "title": "Edit application permissions..."
+        "title": "%commands.spe.GuestApp.editPermissions%"
       },
       {
         "command": "spe.Containers.create",
-        "title": "Create container...",
+        "title": "%commands.spe.Containers.create%",
         "icon": "$(plus)"
       },
       {
         "command": "spe.Container.rename",
-        "title": "Rename..."
+        "title": "%commands.spe.Container.rename%"
       },
       {
         "command": "spe.Container.editDescription",
-        "title": "Edit description..."
+        "title": "%commands.spe.Container.editDescription%"
       },
       {
         "command": "spe.Container.recycle",
-        "title": "Recycle"
+        "title": "%commands.spe.Container.recycle"
       },
       {
         "command": "spe.Container.copyId",
-        "title": "Copy container Id"
+        "title": "%commands.spe.Container.copyId%"
       },
       {
         "command": "spe.Container.viewProperties",
-        "title": "View properties"
+        "title": "%commands.spe.Container.viewProperties%"
       },
       {
         "command": "spe.RecycledContainer.restore",
-        "title": "Restore"
+        "title": "%commands.spe.RecycledContainer.restore%"
       },
       {
         "command": "spe.RecycledContainer.delete",
@@ -602,11 +591,11 @@
       },
       {
         "command": "spe.RecycledContainer.copyId",
-        "title": "Copy container Id"
+        "title": "%commands.spe.RecycledContainer.copyId%"
       },
       {
         "command": "spe.refresh",
-        "title": "Refresh",
+        "title": "%commands.spe.refresh%",
         "icon": "$(refresh)"
       }
     ]

@@ -29,20 +29,20 @@ export class CopyAppId extends Command {
             app = applicationTreeItem.containerType.owningApp!;
         }
         if (!app) {
-            vscode.window.showErrorMessage('Could not find app');
+            vscode.window.showErrorMessage(vscode.l10n.t('Could not find app'));
             return;
         }
 
         const appId = app.clientId;
         if (!appId) {
-            vscode.window.showErrorMessage('Could not find app id');
+            vscode.window.showErrorMessage(vscode.l10n.t('Could not find app id'));
             return;
         }
         try {
             await vscode.env.clipboard.writeText(appId);
-            vscode.window.showInformationMessage('App Id copied to clipboard.');
+            vscode.window.showInformationMessage(vscode.l10n.t('App Id copied to clipboard.'));
         } catch (error) {
-            vscode.window.showErrorMessage('Failed to copy App Id to clipboard');
+            vscode.window.showErrorMessage(vscode.l10n.t('Failed to copy App Id to clipboard'));
         }
     }
 }

@@ -38,24 +38,26 @@ export class ExportPostmanConfig extends Command {
             containerType = applicationTreeItem.containerType;
         }
         if (!app || !containerType) {
-            vscode.window.showErrorMessage('Could not find app or container type');
+            const messsage = vscode.l10n.t('Could not find app or container type');
+            vscode.window.showErrorMessage(messsage);
             return;
         }
 
         const pmEnv = await CreatePostmanConfig.run(applicationTreeItem, app, containerType);
         if (!pmEnv) {
-            vscode.window.showErrorMessage('Failed to create Postman environment');
+            const message = vscode.l10n.t('Failed to create Postman environment');
+            vscode.window.showErrorMessage(message);
             return;
         }
         
         if (await app.hasCert() === true || await app.hasSecret() === true) {
-            const message = "This will put your app's secret and other settings in a plain text Postman environment file on your local machine. Are you sure you want to continue?";
+            const message = vscode.l10n.t("This will put your app's secret and other settings in a plain text Postman environment file on your local machine. Are you sure you want to continue?");
             const userChoice = await vscode.window.showInformationMessage(
                 message,
-                'OK', 'Cancel'
+                vscode.l10n.t('OK'), vscode.l10n.t('Cancel')
             );
     
-            if (userChoice === 'Cancel') {
+            if (userChoice === vscode.l10n.t('Cancel')) {
                 return;
             }
         }
@@ -65,7 +67,7 @@ export class ExportPostmanConfig extends Command {
                 canSelectFiles: false,
                 canSelectFolders: true,
                 canSelectMany: false,
-                openLabel: 'Save Here',
+                openLabel: vscode.l10n.t('Save Here'),
             });
 
             if (folders && folders.length > 0) {
@@ -74,10 +76,12 @@ export class ExportPostmanConfig extends Command {
                 const postmanEnvPath = path.join(destinationPath, `${app.clientId}_postman_environment.json`);
 
                 fs.writeFileSync(postmanEnvPath, postmanEnvJson, 'utf8');
-                vscode.window.showInformationMessage(`Postman environment created successfully for ${pmEnv.name}`);
+                const message = vscode.l10n.t('Postman environment created successfully for {0}', pmEnv.name);
+                vscode.window.showInformationMessage(message);
             } 
         } catch (error: any) {
-            vscode.window.showErrorMessage('Failed to download Postman environment');
+            const message = vscode.l10n.t('Failed to download Postman environment');
+            vscode.window.showErrorMessage(message);
             TelemetryProvider.instance.send(new ExportPostmanConfigFailure(error.message));
         }
     }

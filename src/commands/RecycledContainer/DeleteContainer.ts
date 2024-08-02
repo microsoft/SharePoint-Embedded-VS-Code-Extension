@@ -28,17 +28,17 @@ export class DeleteContainer extends Command {
         const container: Container = containerViewModel.container;
         const owningApp: App = containerType.owningApp!;
 
-        const message = "Are you sure you want to permanently delete this container? This is an unrecoverable operation.";
+        const message = vscode.l10n.t("Are you sure you want to permanently delete this container? This is an unrecoverable operation.");
         const userChoice = await vscode.window.showInformationMessage(
             message,
-            'OK', 'Cancel'
+            vscode.l10n.t('OK'), vscode.l10n.t('Cancel')
         );
 
-        if (userChoice === 'Cancel') {
+        if (userChoice === vscode.l10n.t('Cancel')) {
             return;
         }
 
-        const progressWindow = new ProgressWaitNotification('Deleting container');  
+        const progressWindow = new ProgressWaitNotification(vscode.l10n.t('Deleting container...'));  
         progressWindow.show();
         try {
             const authProvider = await owningApp.getAppOnlyAuthProvider(containerTypeRegistration.tenantId);
@@ -48,7 +48,8 @@ export class DeleteContainer extends Command {
             progressWindow.hide();
         } catch (error: any) {
             progressWindow.hide();
-            vscode.window.showErrorMessage("Unable to delete container object: " + error.message);
+            const message = vscode.l10n.t('Error deleting container: {0}', error.message);
+            vscode.window.showErrorMessage(message);
             return;
         }
     }

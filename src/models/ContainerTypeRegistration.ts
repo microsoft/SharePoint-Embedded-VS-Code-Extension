@@ -11,12 +11,7 @@ import { ApplicationPermissions } from "./ApplicationPermissions";
 import { Container } from "./Container";
 import { ContainerType } from "./ContainerType";
 import { CreateSecret } from "../commands/App/Credentials/CreateSecret";
-import { checkJwtForAppOnlyRole, decodeJwt } from "../utils/token";
-import { GetLocalAdminConsent } from "../commands/App/GetLocalAdminConsent";
 import { CreateAppCert } from "../commands/App/Credentials/CreateAppCert";
-import AppProvider from "../services/AppProvider";
-import AppOnly3PAuthProvider from "../services/AppOnly3PAuthProvider";
-
 
 // Class that represents a Container Type Registration object
 export class ContainerTypeRegistration {
@@ -103,13 +98,13 @@ export class ContainerTypeRegistration {
     }
 
     private async _checkOrCreateCredentials(): Promise<boolean> {
-        const secretPrompt = 'Create secret';
-        const certificatePrompt = 'Create certificate';
+        const secretPrompt = vscode.l10n.t('Create secret');
+        const certificatePrompt = vscode.l10n.t('Create certificate');
         const hasCreds = await this.containerType.owningApp!.hasCert() || await this.containerType.owningApp!.hasSecret();
         if (!hasCreds) {
             const userChoice = await vscode.window.showInformationMessage(
-                "No credentials were found on this app. Would you like to create one?",
-                secretPrompt, certificatePrompt, 'Cancel'
+                vscode.l10n.t("No credentials were found on this app. Would you like to create one?"),
+                secretPrompt, certificatePrompt, vscode.l10n.t('Cancel')
             );
             if (userChoice === secretPrompt) {
                 await CreateSecret.run(this.containerType.owningApp);

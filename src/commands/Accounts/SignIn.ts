@@ -20,7 +20,8 @@ export class SignIn extends Command {
             await Account.login();
             TelemetryProvider.instance.send(new SignInEvent());
         } catch (error: any) {
-            vscode.window.showErrorMessage(`${error} Failed to sign in, please try again.`);
+            const message = vscode.l10n.t('{0} Failed to sign in, please try again.', error);
+            vscode.window.showErrorMessage(message);
             vscode.commands.executeCommand('setContext', 'spe:isLoggingIn', false);
             TelemetryProvider.instance.send(new SignInFailure(error.message));
         }

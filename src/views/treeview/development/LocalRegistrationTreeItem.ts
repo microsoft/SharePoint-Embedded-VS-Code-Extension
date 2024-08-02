@@ -15,7 +15,7 @@ import { RecycledContainersTreeItem } from "./RecycledContainersTreeItem";
 export class LocalRegistrationTreeItem extends IChildrenProvidingTreeItem {
     private readonly _registration: ContainerTypeRegistration;
     constructor(private readonly _containerType: ContainerType) {
-        super('Local tenant registration', vscode.TreeItemCollapsibleState.Collapsed);
+        super(vscode.l10n.t('Local tenant registration'), vscode.TreeItemCollapsibleState.Collapsed);
         this.iconPath = new vscode.ThemeIcon("ctregistration-icon");
         this.description = `(${Account.get()!.domain})`;
         this.contextValue = "spe:localRegistrationTreeItem";

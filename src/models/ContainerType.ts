@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as vscode from 'vscode';
 import _ from 'lodash';
 import { App } from "./App";
 import { ApplicationPermissions } from "./ApplicationPermissions";
@@ -108,7 +109,7 @@ export class ContainerType {
         const account = Account.get()!;
         const app = await this.loadOwningApp();
         if (!app) {
-            throw new Error("Unable to load owning app");
+            throw new Error(vscode.l10n.t("Unable to load owning app"));
         }
         const authProvider = await app.getAppOnlyAuthProvider(account.tenantId);
         const scope = `${account.spRootSiteUrl}/.default`;

@@ -22,9 +22,10 @@ export class CopyOwningTenantId extends Command {
         try {
             const owningTenantId = containerType.owningTenantId;
             await vscode.env.clipboard.writeText(owningTenantId);
-            vscode.window.showInformationMessage('Owning tenant Id copied to clipboard.');
+            vscode.window.showInformationMessage(vscode.l10n.t('Owning tenant Id copied to clipboard.'));
         } catch (error: any) {
-            vscode.window.showErrorMessage("Failed to copy Owning tenant Id to clipboard" + error.message);
+            const message = vscode.l10n.t('Failed to copy Owning tenant Id to clipboard: {0}', error.message);
+            vscode.window.showErrorMessage(message);
             return;
         }
     }

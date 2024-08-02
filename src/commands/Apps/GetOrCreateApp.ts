@@ -22,8 +22,8 @@ export class GetOrCreateApp extends Command {
         }
 
         const qp = vscode.window.createQuickPick<AppQuickPickItem>();
-        qp.title = (appType === undefined || appType === AppType.OwningApp) ? 'Select or create an Owning Application for your Container Type' : 'Select or Create a Guest Application for your Container Type';
-        qp.placeholder = 'Enter a new app name or search for an existing app by name or Id';
+        qp.title = (appType === undefined || appType === AppType.OwningApp) ? vscode.l10n.t('Select or create an Owning Application for your Container Type') : vscode.l10n.t('Select or Create a Guest Application for your Container Type');
+        qp.placeholder = vscode.l10n.t('Enter a new app name or search for an existing app by name or Id');
 
         // Disable default filtering and sorting behavior on the quick pick
         // https://github.com/microsoft/vscode/issues/73904#issuecomment-680298036
@@ -36,16 +36,17 @@ export class GetOrCreateApp extends Command {
             name?: string;
         }
         const defaultAppName = 'SharePoint Embedded App';
+        const label = vscode.l10n.t('Create Azure app: {0}', defaultAppName);
         const newAppItem: AppQuickPickItem = {
             id: 'new',
-            label: `Create Azure app: ${defaultAppName}`,
-            detail: 'Creates a new Azure Entra app registration',
+            label: label,
+            detail: vscode.l10n.t('Creates a new Azure Entra app registration'),
             alwaysShow: true,
             iconPath: new vscode.ThemeIcon('new-app-icon')
         };
         const azureAppsSeparator: AppQuickPickItem = {
             kind: vscode.QuickPickItemKind.Separator,
-            label: 'Your Azure Apps',
+            label: vscode.l10n.t('Your Azure Apps'),
             id: 'all'
         };
 
@@ -81,7 +82,8 @@ export class GetOrCreateApp extends Command {
         let timeout: NodeJS.Timeout | undefined;
         qp.onDidChangeValue(value => {
             newAppItem.name = value || defaultAppName;
-            newAppItem.label = `New Azure AD Application: ${newAppItem.name}`;
+            const label = vscode.l10n.t('New Azure AD Application: {0}', newAppItem.name);
+            newAppItem.label = label;
 
             if (timeout) {
                 clearTimeout(timeout);
@@ -107,7 +109,7 @@ export class GetOrCreateApp extends Command {
             qp.onDidHide(async () => {
                 qp.dispose();
                 if (appId === newAppItem.id && appName) {
-                    const createAppProgressWindow = new ProgressWaitNotification('Creating Entra app...');
+                    const createAppProgressWindow = new ProgressWaitNotification(vscode.l10n.t('Creating Entra app...'));
                     createAppProgressWindow.show();
                     const creationTimer = new Timer(60 * 1000);
                     const app = await account.appProvider.create(appName);
@@ -117,7 +119,7 @@ export class GetOrCreateApp extends Command {
                         propogatedApp = await account.appProvider.get(app.clientId);
                     }
                     if (!app) {
-                        vscode.window.showErrorMessage('Failed to create a new app');
+                        vscode.window.showErrorMessage(vscode.l10n.t('Failed to create a new app'));
                         createAppProgressWindow.hide();
                         return resolve(undefined);
                     }
@@ -125,12 +127,12 @@ export class GetOrCreateApp extends Command {
                     createAppProgressWindow.hide();
                     return resolve(app);
                 } else if (appId) {
-                    const configureAppProgressWindow = new ProgressWaitNotification('Configuring Entra app...');
+                    const configureAppProgressWindow = new ProgressWaitNotification(vscode.l10n.t('Configuring Entra app...'));
                     configureAppProgressWindow.show();
                     const app = await account.appProvider.get(appId);
                     if (!app) {
                         configureAppProgressWindow.hide();
-                        vscode.window.showErrorMessage('Failed to get the selected app');
+                        vscode.window.showErrorMessage(vscode.l10n.t('Failed to get the selected app'));
                         return resolve(undefined);
                     }
                     configureAppProgressWindow.hide();

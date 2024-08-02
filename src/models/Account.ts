@@ -104,10 +104,11 @@ export class  Account {
         try {
             graphToken = await Account.authProvider.getToken(Account.graphScopes, true);
             if (!graphToken) {
-                throw new Error('access token empty');
+                throw new Error(vscode.l10n.t('access token empty'));
             }
-        } catch (error) {
-            vscode.window.showErrorMessage(`Failed to get access token: ${error}`);
+        } catch (error: any) {
+            const message = vscode.l10n.t('Failed to get access token: {0}', error);
+            vscode.window.showErrorMessage(message);
             Account._notifyLoginFailed();
             return;
         }
@@ -118,13 +119,14 @@ export class  Account {
         try {
             const spUrls = await Account.graphProvider.getSpUrls();
             if (!spUrls) {
-                throw new Error('root site url empty');
+                throw new Error(vscode.l10n.t('root site url empty'));
             }
             spRootSiteUrl = spUrls.root;
             spAdminSiteUrl = spUrls.admin;
             domain = new URL(spRootSiteUrl).hostname.split('.')[0];
-        } catch (error) {
-            vscode.window.showErrorMessage(`Failed to get root site: ${error}`);
+        } catch (error: any) {
+            const message = vscode.l10n.t('Failed to get root site: {0}', error);
+            vscode.window.showErrorMessage(message);
             await Account.logout();
             Account._notifyLoginFailed();
             return;

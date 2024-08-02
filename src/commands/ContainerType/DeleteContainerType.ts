@@ -43,10 +43,10 @@ export class DeleteContainerType extends Command {
         const message = `Are you sure you delete the '${containerType.displayName}' Container Type?`;
         const userChoice = await vscode.window.showInformationMessage(
             message,
-            'OK', 'Cancel'
+            vscode.l10n.t('OK'), vscode.l10n.t('Cancel')
         );
 
-        if (userChoice !== 'OK') {
+        if (userChoice !== vscode.l10n.t('OK')) {
             return;
         }
 

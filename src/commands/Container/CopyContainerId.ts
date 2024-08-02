@@ -21,9 +21,10 @@ export class CopyContainerId extends Command {
         const id: string = containerViewModel.container.id;
         try {
             await vscode.env.clipboard.writeText(id);
-            vscode.window.showInformationMessage('Container Id copied to clipboard.');
+            vscode.window.showInformationMessage(vscode.l10n.t('Container Id copied to clipboard.'));
         } catch (error: any) {
-            vscode.window.showErrorMessage("Failed to copy Container Id to clipboard" + error.message);
+            const message = vscode.l10n.t('Failed to copy Container Id to clipboard: {0}', error.message);
+            vscode.window.showErrorMessage(message);
             return;
         }
     }

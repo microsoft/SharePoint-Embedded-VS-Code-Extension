@@ -44,7 +44,8 @@ export class CopySecret extends Command {
         }
 
         await vscode.env.clipboard.writeText(secrets.clientSecret);
-        vscode.window.showInformationMessage(`App '${app.displayName}' secret copied to clipboard`);
+        const message = vscode.l10n.t('App {0} secret copied to clipboard', app.displayName);
+        vscode.window.showInformationMessage(message);
     };
 }
 

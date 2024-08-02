@@ -180,7 +180,7 @@ export default class AppProvider {
 
     public async checkOrConsentFileStorageContainerRole(app: App, authProvider: AppOnly3PAuthProvider, optionalUserMessage?: string): Promise<boolean> {
         // Check if app has been configured with correct role, if not, update it
-        const appConfigurationProgress = new ProgressWaitNotification('Configuring your app...');
+        const appConfigurationProgress = new ProgressWaitNotification(vscode.l10n.t('Configuring your app...'));
         const roleAddition = await this._ensureFileStorageContainerGraphRole(app, appConfigurationProgress, optionalUserMessage);
         if (!roleAddition) {
             appConfigurationProgress.hide();
@@ -219,10 +219,11 @@ export default class AppProvider {
     private async _ensureFileStorageContainerGraphRole(app: App, appConfigurationProgress: ProgressWaitNotification, optionalUserMessage?: string): Promise<boolean> {
         let hasFileStorageContainerGraphRole = await app.checkRequiredResourceAccess(this.GraphResourceAppId, this.FileStorageContainerRole.id, false);
         if (!hasFileStorageContainerGraphRole) {
-            const addRequiredRole = `Add FileStorageContainer.Selected role`;
-            const buttons = [addRequiredRole, 'Skip'];
+            const addRequiredRole = vscode.l10n.t(`Add FileStorageContainer.Selected role`);
+            const buttons = [addRequiredRole, vscode.l10n.t('Skip')];
+            const message = vscode.l10n.t('Your app {0} requires Graph FileStorageContainer.Selected API permission role to perform this action. {1} Add it now?', app.displayName, optionalUserMessage ? optionalUserMessage : '');
             const choice = await vscode.window.showInformationMessage(
-                `Your app '${app.displayName}' requires Graph FileStorageContainer.Selected API permission role to perform this action. ${optionalUserMessage ? optionalUserMessage  : '' } Add it now?`,
+                message,
                 ...buttons
             );
             if (choice !== addRequiredRole) {
@@ -250,10 +251,11 @@ export default class AppProvider {
     }
 
     private async _ensureGraphConsent(app: App, authProvider: AppOnly3PAuthProvider): Promise<boolean> {
-        const grantConsent = `Grant consent`;
+        const grantConsent = vscode.l10n.t(`Grant consent`);
         const buttons = [grantConsent];
+        const message = vscode.l10n.t(`The owning app '{0}' does not have the necessary consent to perform this action. Do you want to grant consent now?`, app.displayName);
         const choice = await vscode.window.showInformationMessage(
-            `The owning app '${app.displayName}' does not have the necessary consent to perform this action. Do you want to grant consent now?`,
+            message,
             ...buttons
         );
         if (choice !== grantConsent) {
@@ -264,7 +266,7 @@ export default class AppProvider {
             return false;
         }
 
-        const consentPropagationProgress = new ProgressWaitNotification('Waiting for consent to propagate in Azure (may take a minute)...');
+        const consentPropagationProgress = new ProgressWaitNotification(vscode.l10n.t('Waiting for consent to propagate in Azure (may take a minute)...'));
         consentPropagationProgress.show();
         const consentPropagationTimer = new Timer(60 * 1000);
         let graphConsent = await authProvider.hasConsent('https://graph.microsoft.com/.default', ['FileStorageContainer.Selected']);
@@ -280,11 +282,12 @@ export default class AppProvider {
         if (await this.checkWebRedirectUris(app, requiredUris)) {
             return true;
         }
+        const message = vscode.l10n.t('Your owning app {0} is missing the required consent redirect URI. Would you like to add it now?', app.displayName);
         const userChoice = await vscode.window.showInformationMessage(
-            `Your owning app '${app.displayName}' is missing the required admin consent redirect URI. Would you like to add it now?`,
-            'OK', 'Cancel'
+            message,
+            vscode.l10n.t('OK'), vscode.l10n.t('Cancel')
         );
-        if (userChoice !== 'OK') {
+        if (userChoice !== vscode.l10n.t('OK')) {
             return false;
         }
 
@@ -296,7 +299,8 @@ export default class AppProvider {
         }
 
         if (!await this.checkWebRedirectUris(app, requiredUris)) {
-            vscode.window.showErrorMessage(`Failed to add consent redirect URI to '${app.displayName}'`);
+            const message = vscode.l10n.t('Failed to add consent redirect URI to {0}', app.displayName);
+            vscode.window.showErrorMessage(message);
             return false;
         }
 

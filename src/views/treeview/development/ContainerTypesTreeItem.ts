@@ -9,7 +9,7 @@ import { IChildrenProvidingTreeItem } from "./IDataProvidingTreeItem";
 import { ContainerType } from "../../../models/ContainerType";
 
 export class ContainerTypesTreeItem extends IChildrenProvidingTreeItem {
-    private static readonly label = "Container Types";
+    private static readonly label = vscode.l10n.t("Container Types");
     public constructor(private _containerTypes: ContainerType[]) {
         super(ContainerTypesTreeItem.label, vscode.TreeItemCollapsibleState.Expanded);
         this.iconPath = new vscode.ThemeIcon("containertype-icon");

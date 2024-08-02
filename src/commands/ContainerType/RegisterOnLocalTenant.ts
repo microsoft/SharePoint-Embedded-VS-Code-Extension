@@ -47,10 +47,10 @@ export class RegisterOnLocalTenant extends Command {
 
         let hasCert = await owningApp.hasCert();
         if (!hasCert) {
-            const createCert = 'Create certificate credential';
+            const createCert = vscode.l10n.t('Create certificate credential');
             const buttons = [createCert];
             const choice = await vscode.window.showInformationMessage(
-                'The owning app does not have a certificate credential. You need one to register a container type. Do you want to create one now?',
+                vscode.l10n.t('The owning app does not have a certificate credential. You need one to register a container type. Do you want to create one now?'),
                 ...buttons
             );
             if (choice !== createCert) {
@@ -63,7 +63,7 @@ export class RegisterOnLocalTenant extends Command {
             return;
         }
 
-        const adminConsentCheck = new ProgressWaitNotification('Checking for admin consent on your owning app...');
+        const adminConsentCheck = new ProgressWaitNotification(vscode.l10n.t('Checking for admin consent on your owning app...'));
         adminConsentCheck.show();
         const localRegistrationScope = containerType.localRegistrationScope;
         const owningAppProvider = account.appProvider;
@@ -71,14 +71,15 @@ export class RegisterOnLocalTenant extends Command {
         let consented = await appAuthProvider.hasConsent(localRegistrationScope, ['Container.Selected']);
         adminConsentCheck.hide();
         if (!consented) {
-            const configureAppProgress = new ProgressWaitNotification('Configuring Entra app...');
+            const configureAppProgress = new ProgressWaitNotification(vscode.l10n.t('Configuring Entra app...'));
             configureAppProgress.show();
             let hasRequiredRole = await owningApp.checkRequiredResourceAccess(owningAppProvider.SharePointResourceAppId, owningAppProvider.ContainerSelectedRole.id, false);
             if (!hasRequiredRole) {
                 const addRequiredRole = `Add SharePoint Container.Selected role`;
                 const buttons = [addRequiredRole];
+                const message = vscode.l10n.t('Your owning app {0} requires SharePoint Container.Selected API permission role. Add it now?', owningApp.displayName);
                 const choice = await vscode.window.showInformationMessage(
-                    `Your owning app '${owningApp.displayName}' requires SharePoint Container.Selected API permission role. Add it now?`,
+                    message,
                     ...buttons
                 );
                 if (choice !== addRequiredRole) {
@@ -97,8 +98,9 @@ export class RegisterOnLocalTenant extends Command {
                     if (!hasRequiredRole) {
                         throw new Error();
                     } 
-                } catch (error) {
-                    vscode.window.showErrorMessage(`Failed to add Container.Selected role for '${owningApp.displayName}'`);
+                } catch (error: any) {
+                    const message = vscode.l10n.t('Failed to add SharePoint Container.Selected role for {0}', owningApp.displayName);
+                    vscode.window.showErrorMessage(message);
                     configureAppProgress.hide();
                     return;
                 }
@@ -116,10 +118,11 @@ export class RegisterOnLocalTenant extends Command {
 
             configureAppProgress.hide();
         
-            const openConsent = `Open consent link`;
+            const openConsent = vscode.l10n.t(`Open consent link`);
             const buttons = [openConsent];
+            const message = vscode.l10n.t('Your owning app {0} requires admin consent on your local tenant. Grant consent now?', owningApp.displayName);
             const choice = await vscode.window.showInformationMessage(
-                `Your owning app '${owningApp.displayName}' requires admin consent on your local tenant. Grant consent now?`,
+                message,
                 ...buttons
             );
             if (choice !== openConsent) {
@@ -128,11 +131,12 @@ export class RegisterOnLocalTenant extends Command {
 
             consented = await GetLocalAdminConsent.run(owningApp);
             if (!consented) {
-                vscode.window.showErrorMessage(`Failed to get required Container.Selected permission on '${owningApp.displayName}' to register container type`);
+                const message = vscode.l10n.t('Failed to get required Container.Selected permission on {0} to register container type', owningApp.displayName);
+                vscode.window.showErrorMessage(message);
                 return;
             }
 
-            const consentPropagationProgress = new ProgressWaitNotification('Waiting for consent to propagate in Azure (may take a minute)...');
+            const consentPropagationProgress = new ProgressWaitNotification(vscode.l10n.t('Waiting for consent to propagate in Azure (may take a minute)...'));
             consentPropagationProgress.show();
             const consentPropagationTimer = new Timer(60 * 1000);
             let sharePointConsent = await appAuthProvider.hasConsent(localRegistrationScope, ['Container.Selected']);
@@ -143,7 +147,7 @@ export class RegisterOnLocalTenant extends Command {
             consentPropagationProgress.hide();
         }
 
-        const registrationProgress = new ProgressWaitNotification('Registering container type on local tenant (may take a minute)...');
+        const registrationProgress = new ProgressWaitNotification(vscode.l10n.t('Registering container type on local tenant (may take a minute)...'));
         registrationProgress.show();
         const registrationTimer = new Timer(60 * 1000);
         let registered = false;
@@ -157,10 +161,12 @@ export class RegisterOnLocalTenant extends Command {
         }
         registrationProgress.hide();
         if (!registered) {
-            vscode.window.showErrorMessage(`Failed to register Container Type '${containerType.displayName}' on local tenant`);
+            const message = vscode.l10n.t('Failed to register Container Type {0} on local tenant', containerType.displayName);
+            vscode.window.showErrorMessage(message);
             return;
         }
-        vscode.window.showInformationMessage(`Successfully registered Container Type '${containerType.displayName}' on local tenant`);
+        const message = vscode.l10n.t('Successfully registered Container Type {0} on local tenant', containerType.displayName);
+        vscode.window.showInformationMessage(message);
         DevelopmentTreeViewProvider.instance.refresh();
     }
 }

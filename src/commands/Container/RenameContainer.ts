@@ -28,12 +28,12 @@ export class RenameContainer extends Command {
         const container: Container = containerViewModel.container;
         const owningApp: App = containerType.owningApp!;
         const containerDisplayName = await vscode.window.showInputBox({
-            title: 'New display name:',
+            title: vscode.l10n.t('New display name:'),
             value: container.displayName,
-            prompt: 'Enter the new display name for the container:',
+            prompt: vscode.l10n.t('Enter the new display name for the container:'),
             validateInput: (value: string): string | undefined => {
                 if (!value) {
-                    return 'Display name cannot be empty';
+                    return vscode.l10n.t('Display name cannot be empty');
                 }
                 return undefined;
             }
@@ -43,21 +43,22 @@ export class RenameContainer extends Command {
             return;
         }
 
-        const progressWindow = new ProgressWaitNotification('Renaming container');  
+        const progressWindow = new ProgressWaitNotification(vscode.l10n.t('Renaming container...'));  
         progressWindow.show();
         try {
             const authProvider = await owningApp.getAppOnlyAuthProvider(containerTypeRegistration.tenantId);
             const graphProvider = new GraphProvider(authProvider);
             const updatedContainer = await graphProvider.updateContainer(containerTypeRegistration, container.id, containerDisplayName, '');
             if (!updatedContainer) {
-                throw new Error ("Failed to create container");
+                throw new Error (vscode.l10n.t("Failed to create container"));
             }
             DevelopmentTreeViewProvider.getInstance().refresh(containerViewModel.reigstrationViewModel);
             progressWindow.hide();
             return updatedContainer;
         } catch (error: any) {
             progressWindow.hide();
-            vscode.window.showErrorMessage("Unable to rename container object: " + error.message);
+            const message = vscode.l10n.t('Unable to rename container object: {0}', error.message);
+            vscode.window.showErrorMessage(message);
             return;
         }
     }

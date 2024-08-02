@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as vscode from 'vscode';
 import { Application, RequiredResourceAccess } from "@microsoft/microsoft-graph-types";
 import _ from 'lodash';
 import { Account } from "./Account";
@@ -68,7 +69,7 @@ export class App {
             cred = { clientSecret: secrets.clientSecret };
             mapKey += '-secret';
         } else {
-            throw new Error('App is missing credentials');
+            throw new Error(vscode.l10n.t('App is missing credentials'));
         }
         if (!this._appOnlyAuthProviders.has(mapKey)) {
             this._appOnlyAuthProviders.set(mapKey, new AppOnly3PAuthProvider(this.clientId, tenantId, cred));

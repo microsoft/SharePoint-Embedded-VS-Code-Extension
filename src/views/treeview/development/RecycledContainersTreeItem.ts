@@ -18,7 +18,7 @@ export class RecycledContainersTreeItem extends IChildrenProvidingTreeItem {
     }
 
     constructor(public containerTypeRegistration: ContainerTypeRegistration, public reigstrationViewModel: LocalRegistrationTreeItem) {
-        super('Recycled Containers', vscode.TreeItemCollapsibleState.Collapsed);
+        super(vscode.l10n.t('Recycled Containers'), vscode.TreeItemCollapsibleState.Collapsed);
         this.contextValue = "spe:recycledContainersTreeItem";
     }
 

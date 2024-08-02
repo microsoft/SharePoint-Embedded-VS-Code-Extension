@@ -28,11 +28,11 @@ export class CreateTrialContainerType extends Command {
         }
 
         const displayName = await vscode.window.showInputBox({
-            placeHolder: 'Enter a display name for your new container type',
-            prompt: 'Container type display name',
+            placeHolder: vscode.l10n.t('Enter a display name for your new container type'),
+            prompt: vscode.l10n.t('Container type display name'),
             validateInput: (value: string) => {
                 if (!value) {
-                    return 'display name is required';
+                    return vscode.l10n.t('Display name is required');
                 }
                 return undefined;
             }
@@ -46,7 +46,7 @@ export class CreateTrialContainerType extends Command {
             return;
         }
 
-        const progressWindow = new ProgressWaitNotification('Creating container type (may take up to 30 seconds)...');
+        const progressWindow = new ProgressWaitNotification(vscode.l10n.t('Creating container type (may take up to 30 seconds)...'));
         progressWindow.show();
         const ctTimer = new Timer(30 * 1000);
         const containerTypeProvider = account.containerTypeProvider;
@@ -70,7 +70,7 @@ export class CreateTrialContainerType extends Command {
 
         if (!containerType) {
             progressWindow.hide();
-            let errorMessage = 'Failed to create container type';
+            let errorMessage = vscode.l10n.t('Failed to create container type');
             if (ctCreationError) {
                 errorMessage += `: ${ctCreationError}`;
             }
@@ -94,11 +94,11 @@ export class CreateTrialContainerType extends Command {
         };
         await refreshCt();
         progressWindow.hide();
-        const register = 'Register on local tenant';
-        const skip = 'Skip';
+        const register = vscode.l10n.t('Register on local tenant');
+        const skip = vscode.l10n.t('Skip');
         const buttons = [register, skip];
         const selection = await vscode.window.showInformationMessage(
-            `Your container type has been created. Would you like to register it on your local tenant?`,
+            vscode.l10n.t(`Your container type has been created. Would you like to register it on your local tenant?`),
             ...buttons
         );
         if (selection === register) {

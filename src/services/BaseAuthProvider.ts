@@ -50,10 +50,10 @@ export abstract class BaseAuthProvider {
             const userChoice = await vscode.window.showInformationMessage(
                 this.interactiveTokenPrompt,
                 { modal: true },
-                'OK'
+                vscode.l10n.t('OK')
             );
 
-            if (userChoice !== 'OK') {
+            if (userChoice !== vscode.l10n.t('OK')) {
                 vscode.window.showWarningMessage('You must consent to your new Azure AD application to continue.');
                 throw new Error("Consent on app was not accepted.");
             }
@@ -161,7 +161,7 @@ export abstract class BaseAuthProvider {
                     const userChoice = await vscode.window.showInformationMessage(
                         "Seeing an AADSTS165000 error? Try copying the consent link and visiting it in an InPrivate browser.",
                         'Copy Consent Link',
-                        'Cancel'
+                        vscode.l10n.t('Cancel')
                     );
 
                     if (userChoice === 'Copy Consent Link') {
