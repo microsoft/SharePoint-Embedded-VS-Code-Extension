@@ -571,7 +571,7 @@
       },
       {
         "command": "spe.Container.recycle",
-        "title": "%commands.spe.Container.recycle"
+        "title": "%commands.spe.Container.recycle%"
       },
       {
         "command": "spe.Container.copyId",
