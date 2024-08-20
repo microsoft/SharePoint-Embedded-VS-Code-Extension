@@ -77,13 +77,23 @@ export class GetOrCreateApp extends Command {
             ));
             qp.items = [newAppItem, azureAppsSeparator, ...appItems];
             qp.busy = false;
+            
+            if (!validateAppName(query)) {
+                qp.title = vscode.l10n.t('Invalid app name. App name must be less than 120 characters and not contain the characters < > ; & %');
+                qp.items = [];
+                return;
+            } else {
+                qp.title = (appType === undefined || appType === AppType.OwningApp) ? vscode.l10n.t('Select or create an Owning Application for your Container Type') : vscode.l10n.t('Select or Create a Guest Application for your Container Type');
+            }
         };
 
         let timeout: NodeJS.Timeout | undefined;
         qp.onDidChangeValue(value => {
-            newAppItem.name = value || defaultAppName;
-            const label = vscode.l10n.t('New Azure AD Application: {0}', newAppItem.name);
-            newAppItem.label = label;
+            if (validateAppName(value)) {
+                newAppItem.name = value || defaultAppName;
+                const label = vscode.l10n.t('New Azure AD Application: {0}', newAppItem.name);
+                newAppItem.label = label;
+            }
 
             if (timeout) {
                 clearTimeout(timeout);
@@ -142,7 +152,12 @@ export class GetOrCreateApp extends Command {
             });
             qp.show();
             refreshQuickPickItems();
-        });   
+        });
     };
 }
 
+function validateAppName(name: string | undefined): boolean {
+    const validNamePattern = /^[^<>;&%]{0,120}$/;
+    const isValidName = validNamePattern.test(name || '');
+    return isValidName;
+}

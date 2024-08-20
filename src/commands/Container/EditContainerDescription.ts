@@ -31,7 +31,17 @@ export class EditContainerDescription extends Command {
             title: vscode.l10n.t('New description'),
             value: container.description,
             prompt: vscode.l10n.t('Enter the new description for the container:'),
-
+            validateInput: (value: string): string | undefined => {
+                const maxLength = 300;
+                const alphanumericRegex = /^[a-zA-Z0-9\s-_.]+$/;
+                if (value.length > maxLength) {
+                    return vscode.l10n.t(`Container description must be no more than {0} characters long`, maxLength);
+                }
+                if (!alphanumericRegex.test(value)) {
+                    return vscode.l10n.t('Container description must only contain alphanumeric characters');
+                }
+                return undefined;
+            }
         });
 
         if (containerDescription === undefined) {

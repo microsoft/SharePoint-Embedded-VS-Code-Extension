@@ -32,8 +32,16 @@ export class RenameContainer extends Command {
             value: container.displayName,
             prompt: vscode.l10n.t('Enter the new display name for the container:'),
             validateInput: (value: string): string | undefined => {
+                const maxLength = 50;
+                const alphanumericRegex = /^[a-zA-Z0-9\s-_]+$/;
                 if (!value) {
                     return vscode.l10n.t('Display name cannot be empty');
+                }
+                if (value.length > maxLength) {
+                    return vscode.l10n.t(`Display name must be no more than {0} characters long`, maxLength);
+                }
+                if (!alphanumericRegex.test(value)) {
+                    return vscode.l10n.t('Display name must only contain alphanumeric characters');
                 }
                 return undefined;
             }

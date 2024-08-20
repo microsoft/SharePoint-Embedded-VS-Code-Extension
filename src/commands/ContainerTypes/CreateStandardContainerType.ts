@@ -31,8 +31,16 @@ export class CreatePaidContainerType extends Command {
             prompt: vscode.l10n.t('Container type display name'),
             ignoreFocusOut: true,
             validateInput: (value: string) => {
+                const maxLength = 50;
+                const alphanumericRegex = /^[a-zA-Z0-9\s-_]+$/;
                 if (!value) {
-                    return vscode.l10n.t('Display name is required');
+                    return vscode.l10n.t('Display name cannot be empty');
+                }
+                if (value.length > maxLength) {
+                    return vscode.l10n.t(`Display name must be no more than {0} characters long`, maxLength);
+                }
+                if (!alphanumericRegex.test(value)) {
+                    return vscode.l10n.t('Display name must only contain alphanumeric characters');
                 }
                 return undefined;
             }

@@ -46,8 +46,16 @@ export class RenameApp extends Command {
             value: app.displayName,
             prompt: vscode.l10n.t('Enter the new display name for the app:'),
             validateInput: (value: string): string | undefined => {
+                const maxLength = 50;
+                const alphanumericRegex = /^[a-zA-Z0-9\s-_]+$/;
                 if (!value) {
                     return vscode.l10n.t('Display name cannot be empty');
+                }
+                if (value.length > maxLength) {
+                    return vscode.l10n.t(`Display name must be no more than {0} characters long`, maxLength);
+                }
+                if (!alphanumericRegex.test(value)) {
+                    return vscode.l10n.t('Display name must only contain alphanumeric characters');
                 }
                 return undefined;
             }
@@ -56,7 +64,7 @@ export class RenameApp extends Command {
         if (appDisplayName === undefined) {
             return;
         }
-        
+
         const progressWindow = new ProgressWaitNotification(vscode.l10n.t('Renaming application...'));
         progressWindow.show();
         try {
@@ -68,7 +76,7 @@ export class RenameApp extends Command {
             } else {
                 DevelopmentTreeViewProvider.getInstance().refresh();
             }
-            progressWindow.hide();            
+            progressWindow.hide();
         } catch (error: any) {
             progressWindow.hide();
             const message = vscode.l10n.t('Error renaming application: {0}', error);
