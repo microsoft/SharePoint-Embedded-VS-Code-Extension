@@ -647,7 +647,7 @@
     "@pnp/sp": "^3.17.0",
     "@pnp/sp-admin": "^3.17.0",
     "@vscode/extension-telemetry": "^0.9.6",
-    "axios": "^1.6.0",
+    "axios": "^1.7.4",
     "date-fns": "^2.30.0",
     "jsrsasign": "^11.0.0",
     "jsrsasign-util": "^1.0.5",
