@@ -13,7 +13,7 @@ import { checkJwtForAdminClaim, decodeJwt } from '../utils/token';
 import { StorageProvider } from '../services/StorageProvider';
 import { clientId } from '../client';
 import ContainerTypeProvider from '../services/ContainerTypeProvider';
-import SpAdminProvider from '../services/SpAdminProvider';
+import SpAdminProvider from '../services/SPAdminProvider';
 import AppProvider from '../services/AppProvider';
 import { GraphProvider } from '../services/GraphProvider';
 import ARMProvider from '../services/ARMProvider';

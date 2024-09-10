@@ -5,7 +5,7 @@
 
 import * as vscode from "vscode";
 import { GraphProvider } from "../services/GraphProvider";
-import { ISpConsumingApplicationProperties } from "../services/SpAdminProvider";
+import { ISpConsumingApplicationProperties } from "../services/SPAdminProvider";
 import { Account } from "./Account";
 import { ApplicationPermissions } from "./ApplicationPermissions";
 import { Container } from "./Container";

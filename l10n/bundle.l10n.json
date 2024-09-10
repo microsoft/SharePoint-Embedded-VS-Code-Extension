@@ -100,6 +100,8 @@
   "Failed to copy Owning tenant Id to clipboard: {0}": "Failed to copy Owning tenant Id to clipboard: {0}",
   "Container Type Id copied to clipboard.": "Container Type Id copied to clipboard.",
   "Failed to copy Container Type Id to clipboard: {0}": "Failed to copy Container Type Id to clipboard: {0}",
+  "Unable to enable container type discoverability: {0}": "Unable to enable container type discoverability: {0}",
+  "Unable to disable container type discoverability: {0}": "Unable to disable container type discoverability: {0}",
   "Enter a display name for your new container": "Enter a display name for your new container",
   "Container display name": "Container display name",
   "Creating container...": "Creating container...",

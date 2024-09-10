@@ -7,7 +7,7 @@ import { Account } from "../models/Account";
 import { ApplicationPermissions } from "../models/ApplicationPermissions";
 import { BillingClassification, ContainerType } from "../models/ContainerType";
 import { ContainerTypeRegistration } from "../models/ContainerTypeRegistration";
-import SpAdminProvider, { ISpContainerTypeConfigurationProperties, ISpContainerTypeCreationProperties, NullableBoolean } from "./SpAdminProvider";
+import SpAdminProvider, { ISpContainerTypeConfigurationProperties, ISpContainerTypeCreationProperties, NullableBoolean } from "./SPAdminProvider";
 
 export default class ContainerTypeProvider {
 

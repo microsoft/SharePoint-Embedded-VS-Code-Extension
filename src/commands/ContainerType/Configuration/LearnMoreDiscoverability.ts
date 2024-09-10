@@ -9,7 +9,6 @@
 import * as vscode from 'vscode';
 import { Command } from '../../Command';
 
-// Static class that opens Postman Collection documentation
 export class LearnMoreDiscoverability extends Command {
     // Command name
     public static readonly COMMAND = 'ContainerType.learnMoreDiscoverability';

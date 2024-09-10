@@ -9,7 +9,7 @@ import { App } from "./App";
 import { ApplicationPermissions } from "./ApplicationPermissions";
 import { ContainerTypeRegistration } from "./ContainerTypeRegistration";
 import { Account } from './Account';
-import { ISpContainerTypeProperties, booleanToNullableBoolean, nullableBooleanToBoolean } from '../services/SpAdminProvider';
+import { ISpContainerTypeProperties, booleanToNullableBoolean, nullableBooleanToBoolean } from '../services/SPAdminProvider';
 import axios from 'axios';
 
 export enum BillingClassification {

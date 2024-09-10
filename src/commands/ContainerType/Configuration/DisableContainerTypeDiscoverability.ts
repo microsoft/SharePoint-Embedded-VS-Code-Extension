@@ -11,7 +11,7 @@ import { ProgressWaitNotification, Timer } from '../../../views/notifications/Pr
 import { ContainerType } from '../../../models/ContainerType';
 import { GetAccount } from '../../Accounts/GetAccount';
 
-// Static class that handles the delete container type command
+// Static class that handles the disable discoverability command
 export class DisableContainerTypeDiscoverability extends Command {
     // Command name
     public static readonly COMMAND = 'ContainerType.disableDiscoverability';

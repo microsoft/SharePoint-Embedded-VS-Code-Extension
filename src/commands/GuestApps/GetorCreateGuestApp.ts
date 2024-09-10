@@ -12,7 +12,7 @@ import { RegisterOnLocalTenant } from '../ContainerType/RegisterOnLocalTenant';
 import { App, AppType } from '../../models/App';
 import { GuestAppsTreeItem } from '../../views/treeview/development/GuestAppsTreeItem';
 import { ApplicationPermissions } from '../../models/ApplicationPermissions';
-import { ISpConsumingApplicationProperties } from '../../services/SpAdminProvider';
+import { ISpConsumingApplicationProperties } from '../../services/SPAdminProvider';
 import { ChooseAppPermissions } from './ChooseAppPermissions';
 import { ProgressWaitNotification } from '../../views/notifications/ProgressWaitNotification';
 import { ContainerTypeRegistration } from '../../models/ContainerTypeRegistration';
