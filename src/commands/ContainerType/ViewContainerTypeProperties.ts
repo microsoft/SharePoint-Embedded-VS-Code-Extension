@@ -20,7 +20,7 @@ export class ViewContainerTypeProperties extends Command {
         }
         const containerType: ContainerType = containerTypeViewModel.containerType;
         try {
-            const containerTypeProperties = JSON.stringify(containerType.getProperties(), null, 4);
+            const containerTypeProperties = containerType.toString();
             const provider = new (class implements vscode.TextDocumentContentProvider {
                 provideTextDocumentContent(uri: vscode.Uri): string {
                     return containerTypeProperties;

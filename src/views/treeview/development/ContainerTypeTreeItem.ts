@@ -34,6 +34,7 @@ export class ContainerTypeTreeItem extends IChildrenProvidingTreeItem {
         } else {
             this.contextValue += "-paid";
         }
+        this.contextValue += containerType.configuration.isDiscoverablilityDisabled === true ? "-discoverabilityDisabled" : "-discoverabilityEnabled";
         containerType.loadLocalRegistration()
             .then((registration) => {
                 if (!registration || !registration.applications.includes(containerType.owningAppId)) {

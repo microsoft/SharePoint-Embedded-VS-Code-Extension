@@ -154,6 +154,10 @@
       {
         "id": "spe.App.Permissions.LocalAdminConsent",
         "label": "Local Admin Consent"
+      },
+      {
+        "id": "spe.ContainerType.Configuration",
+        "label": "Configuration"
       }
     ],
     "menus": {
@@ -220,6 +224,22 @@
           "group": "1@1"
         }
       ],
+      "spe.ContainerType.Configuration": [
+        {
+          "when": "viewItem =~ /spe:containerTypeTreeItem.*-discoverabilityEnabled.*/",
+          "command": "spe.ContainerType.disableDiscoverability",
+          "group": "1@1"
+        },
+        {
+          "when": "viewItem =~ /spe:containerTypeTreeItem.*-discoverabilityDisabled.*/",
+          "command": "spe.ContainerType.enableDiscoverability",
+          "group": "1@2"
+        },
+        {
+          "command": "spe.ContainerType.learnMoreDiscoverability",
+          "group": "1@3"
+        }
+      ],
       "view/item/context": [
         {
           "when": "view == spe-developmentasdfasdf",
@@ -264,37 +284,42 @@
         {
           "when": "viewItem =~ /spe:containerTypeTreeItem.*/ && viewItem =~ /.*-trial.*/",
           "command": "spe.ContainerType.delete",
-          "group": "2@3"
+          "group": "2@2"
+        },
+        {
+          "when": "viewItem =~ /spe:containerTypeTreeItem.*/",
+          "submenu": "spe.ContainerType.Configuration",
+          "group": "3@1"
         },
         {
           "when": "viewItem =~ /spe:containerTypeTreeItem.*/",
           "command": "spe.ContainerType.copyId",
-          "group": "3@1"
-        },
-        {
-          "when": "viewItem =~ /spe:containerTypeTreeItem.*-paid.*/",
-          "command": "spe.ContainerType.copySubscriptionId",
-          "group": "3@2"
-        },
-        {
-          "when": "viewItem =~ /spe:containerTypeTreeItem.*/",
-          "command": "spe.ContainerType.copyOwningTenantId",
-          "group": "3@3"
-        },
-        {
-          "when": "viewItem =~ /spe:containerTypeTreeItem.*/",
-          "command": "spe.ContainerType.viewProperties",
           "group": "4@1"
         },
         {
           "when": "viewItem =~ /spe:containerTypeTreeItem.*-paid.*/",
-          "command": "spe.ContainerType.viewSubscriptionInAzure",
+          "command": "spe.ContainerType.copySubscriptionId",
           "group": "4@2"
         },
         {
           "when": "viewItem =~ /spe:containerTypeTreeItem.*/",
-          "command": "spe.refresh",
+          "command": "spe.ContainerType.copyOwningTenantId",
           "group": "4@3"
+        },
+        {
+          "when": "viewItem =~ /spe:containerTypeTreeItem.*/",
+          "command": "spe.ContainerType.viewProperties",
+          "group": "5@1"
+        },
+        {
+          "when": "viewItem =~ /spe:containerTypeTreeItem.*-paid.*/",
+          "command": "spe.ContainerType.viewSubscriptionInAzure",
+          "group": "5@2"
+        },
+        {
+          "when": "viewItem =~ /spe:containerTypeTreeItem.*/",
+          "command": "spe.refresh",
+          "group": "5@3"
         },
         {
           "when": "viewItem =~ /spe:containerTypeTreeItem.*/",
@@ -458,6 +483,18 @@
       {
         "command": "spe.ContainerType.delete",
         "title": "%commands.spe.ContainerType.delete%"
+      },
+      {
+        "command": "spe.ContainerType.disableDiscoverability",
+        "title": "%commands.spe.ContainerType.disableDiscoverability%"
+      },
+      {
+        "command": "spe.ContainerType.enableDiscoverability",
+        "title": "%commands.spe.ContainerType.enableDiscoverability%"
+      },
+      {
+        "command": "spe.ContainerType.learnMoreDiscoverability",
+        "title": "%commands.spe.ContainerType.learnMoreDiscoverability%"
       },
       {
         "command": "spe.ContainerType.copyId",

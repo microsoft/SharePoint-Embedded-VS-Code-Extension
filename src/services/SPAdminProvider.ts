@@ -49,6 +49,7 @@ export default class SpAdminProvider {
             containerTenantType: 1
         };
         const response = await this._sendPostRequest(method, body);
+        response.data.Configuration = await this.getContainerTypeConfiguration(containerTypeId);
         return response.data as ISpContainerTypeProperties;
     }
 
@@ -75,6 +76,8 @@ export default class SpAdminProvider {
             if (properties.SPContainerTypeBillingClassification === BillingClassification.FreeTrial) {
                 TelemetryProvider.instance.send(new CreateTrialContainerTypeApiSuccess(response));
             }
+            const containerTypeId = response.data.ContainerTypeId;
+            response.data.Configuration = this.getContainerTypeConfiguration(containerTypeId);
             return response.data as ISpContainerTypeProperties;
         } catch (error: any) {
             if (properties.SPContainerTypeBillingClassification === BillingClassification.FreeTrial) {
@@ -114,6 +117,26 @@ export default class SpAdminProvider {
         const response = await this._sendPostRequest(method, body);
     }
 
+    public async getContainerTypeConfiguration(containerTypeId: string): Promise<ISpContainerTypeConfigurationProperties> {
+        const method = 'GetSPOContainerTypeConfigurationByContainerTypeId';
+        const body = {
+            containerTypeId: containerTypeId
+        };
+        const response = await this._sendPostRequest(method, body);
+        return response.data as ISpContainerTypeConfigurationProperties;
+    }
+
+    public async setContainerTypeConfiguration(containerTypeId: string, configuration: ISpContainerTypeConfigurationProperties): Promise<void> {
+        const method = 'SetSPOContainerTypeConfiguration';
+        const body = {
+            spContainerTypeConfigurationProperties: {
+                ContainerTypeId: containerTypeId,
+                ...configuration
+            }
+        };
+        await this._sendPostRequest(method, body);
+    }
+
 }
 
 export interface ISpApplicationPermissions {
@@ -124,7 +147,6 @@ export interface ISpApplicationPermissions {
 
 
 export interface ISpContainerTypeProperties {
-    ApplicationRedirectUrl: string | null | undefined;
     AzureSubscriptionId: string | null;
     ContainerTypeId: string;
     CreationDate: string | null;
@@ -136,6 +158,7 @@ export interface ISpContainerTypeProperties {
     Region: string | null | undefined;
     ResourceGroup: string | null | undefined;
     SPContainerTypeBillingClassification: BillingClassification;
+    Configuration: ISpContainerTypeConfigurationProperties;
 }
 
 export interface ISpContainerTypeCreationProperties {
@@ -145,6 +168,46 @@ export interface ISpContainerTypeCreationProperties {
     AzureSubscriptionId?: string;
     Region?: string;
     ResourceGroup?: string;
+}
+
+export interface ISpContainerTypeConfigurationProperties {
+    IsDiscoverablilityDisabled?: NullableBoolean;
+    IsMoveDisabled?: NullableBoolean;
+    IsRenameDisabled?: NullableBoolean;
+    IsSharingRestricted?: NullableBoolean;
+    ApplicationRedirectUrl?: string | null | undefined;
+}
+
+export enum NullableBoolean {
+    Null = 0,
+    True = 1,
+    False = 2
+}
+
+export function nullableBooleanToBoolean(value?: NullableBoolean): boolean | null | undefined {
+    switch (value) {
+        case undefined:
+            return undefined;
+        case NullableBoolean.Null:
+            return null;
+        case NullableBoolean.True:
+            return true;
+        case NullableBoolean.False:
+            return false;
+    }
+}
+
+export function booleanToNullableBoolean(value: boolean | null | undefined): NullableBoolean {
+    switch (value) {
+        case undefined:
+            return NullableBoolean.Null;
+        case null:
+            return NullableBoolean.Null;
+        case true:
+            return NullableBoolean.True;
+        case false:
+            return NullableBoolean.False;
+    }
 }
 
 export interface ISpConsumingApplicationProperties {

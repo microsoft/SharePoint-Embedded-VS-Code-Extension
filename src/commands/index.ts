@@ -19,6 +19,9 @@ import { CopySecret as _CopySecret } from './App/Credentials/CopySecret';
 import { CreateTrialContainerType as _CreateTrialContainerType } from './ContainerTypes/CreateTrialContainerType';
 import { CreatePaidContainerType as _CreatePaidContainerType } from './ContainerTypes/CreateStandardContainerType';
 import { DeleteContainerType as _DeleteContainerType } from './ContainerType/DeleteContainerType';
+import { LearnMoreDiscoverability as _LearnMoreDiscoverability } from './ContainerType/Configuration/LearnMoreDiscoverability';
+import { EnableContainerTypeDiscoverability as _EnableContainerTypeDiscoverability } from './ContainerType/Configuration/EnableContainerTypeDiscoverability';
+import { DisableContainerTypeDiscoverability as _DisableContainerTypeDiscoverability } from './ContainerType/Configuration/DisableContainerTypeDiscoverability';
 import { ExportPostmanConfig as _ExportPostmanConfig } from './App/Postman/ExportPostmanConfig';
 import { GetOrCreateApp as _GetOrCreateApp } from './Apps/GetOrCreateApp';
 import { Refresh as _Refresh } from './Refresh';
@@ -63,6 +66,9 @@ export namespace Commands {
   export const ViewContainerTypeProperties = _ViewContainerTypeProperties;
   export const RegisterOnLocalTenant = _RegisterOnLocalTenant;
   export const RenameContainerType = _RenameContainerType;
+  export const LearnMoreDiscoverability = _LearnMoreDiscoverability;
+  export const EnableContainerTypeDiscoverability = _EnableContainerTypeDiscoverability;
+  export const DisableContainerTypeDiscoverability = _DisableContainerTypeDiscoverability;
 
   // Apps Commands
   export const GetOrCreateApp = _GetOrCreateApp;

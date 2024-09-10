@@ -7,7 +7,7 @@ import { Account } from "../models/Account";
 import { ApplicationPermissions } from "../models/ApplicationPermissions";
 import { BillingClassification, ContainerType } from "../models/ContainerType";
 import { ContainerTypeRegistration } from "../models/ContainerTypeRegistration";
-import SpAdminProvider, { ISpContainerTypeCreationProperties } from "./SpAdminProvider";
+import SpAdminProvider, { ISpContainerTypeConfigurationProperties, ISpContainerTypeCreationProperties, NullableBoolean } from "./SpAdminProvider";
 
 export default class ContainerTypeProvider {
 
@@ -75,5 +75,19 @@ export default class ContainerTypeProvider {
 
     public async rename(containerType: ContainerType, displayName: string): Promise<void> {
         await this._spAdminProvider.setContainerTypeProperties(containerType.containerTypeId, undefined, displayName, undefined);
+    }
+
+    public async enableDiscoverability(containerType: ContainerType): Promise<void> {
+        const configUpdates: ISpContainerTypeConfigurationProperties = {
+            IsDiscoverablilityDisabled: NullableBoolean.False
+        };
+        await this._spAdminProvider.setContainerTypeConfiguration(containerType.containerTypeId, configUpdates);
+    }
+    
+    public async disableDiscoverability(containerType: ContainerType): Promise<void> {
+        const configUpdates: ISpContainerTypeConfigurationProperties = {
+            IsDiscoverablilityDisabled: NullableBoolean.True
+        };
+        await this._spAdminProvider.setContainerTypeConfiguration(containerType.containerTypeId, configUpdates);
     }
 }

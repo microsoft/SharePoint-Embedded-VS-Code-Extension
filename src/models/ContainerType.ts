@@ -9,7 +9,7 @@ import { App } from "./App";
 import { ApplicationPermissions } from "./ApplicationPermissions";
 import { ContainerTypeRegistration } from "./ContainerTypeRegistration";
 import { Account } from './Account';
-import { ISpContainerTypeProperties } from '../services/SpAdminProvider';
+import { ISpContainerTypeProperties, booleanToNullableBoolean, nullableBooleanToBoolean } from '../services/SpAdminProvider';
 import axios from 'axios';
 
 export enum BillingClassification {
@@ -31,7 +31,13 @@ export class ContainerType {
     public readonly isBillingProfileRequired: boolean;
     public readonly region?: string | undefined;
     public readonly resourceGroup?: string | undefined;
-    public readonly applicationRedirectUrl?: string | undefined;
+    public readonly configuration: {
+        applicationRedirectUrl?: string | null;
+        isDiscoverablilityDisabled?: boolean | null;
+        isMoveDisabled?: boolean | null;
+        isRenameDisabled?: boolean | null;
+        isSharingRestricted?: boolean | null;
+    };
 
     public get isTrial(): boolean {
         return this.billingClassification === BillingClassification.FreeTrial;
@@ -81,23 +87,36 @@ export class ContainerType {
         this.creationDate = properties.CreationDate;
         this.expiryDate = properties.ExpiryDate;
         this.isBillingProfileRequired = properties.IsBillingProfileRequired;
+        this.configuration = {
+            applicationRedirectUrl: properties.Configuration.ApplicationRedirectUrl,
+            isDiscoverablilityDisabled: nullableBooleanToBoolean(properties.Configuration.IsDiscoverablilityDisabled),
+            isMoveDisabled: nullableBooleanToBoolean(properties.Configuration.IsMoveDisabled),
+            isRenameDisabled: nullableBooleanToBoolean(properties.Configuration.IsRenameDisabled),
+            isSharingRestricted: nullableBooleanToBoolean(properties.Configuration.IsSharingRestricted)
+        };
     }
 
-    public getProperties(): ISpContainerTypeProperties {
-        return {
+    public toString(): string {
+        return JSON.stringify({
             AzureSubscriptionId: this.azureSubscriptionId,
             DisplayName: this.displayName,
             OwningAppId: this.owningAppId,
-            SPContainerTypeBillingClassification: this.billingClassification,
+            SPContainerTypeBillingClassification: BillingClassification[this.billingClassification],
             ContainerTypeId: this.containerTypeId,
             OwningTenantId: this.owningTenantId,
             CreationDate: this.creationDate,
             ExpiryDate: this.expiryDate,
             IsBillingProfileRequired: this.isBillingProfileRequired,
-            ApplicationRedirectUrl: '',
             Region: this.region,
-            ResourceGroup: this.resourceGroup
-        };
+            ResourceGroup: this.resourceGroup,
+            Configuration: {
+                ApplicationRedirectUrl: this.configuration.applicationRedirectUrl,
+                IsDiscoverablilityDisabled: this.configuration.isDiscoverablilityDisabled,
+                IsMoveDisabled: this.configuration.isMoveDisabled,
+                IsRenameDisabled: this.configuration.isRenameDisabled,
+                IsSharingRestricted: this.configuration.isSharingRestricted
+            }
+        }, null, 4);
     }
 
     public get localRegistrationScope(): string {

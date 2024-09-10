@@ -47,7 +47,6 @@ export async function activate(context: vscode.ExtensionContext) {
     Commands.SignOut.register(context);
     Commands.CreateTrialContainerType.register(context);
     Commands.CreatePaidContainerType.register(context);
-    //Commands.RegisterContainerType.register(context);
     Commands.DeleteContainerType.register(context);
     Commands.ExportPostmanConfig.register(context);
     Commands.CancelSignIn.register(context);
@@ -60,6 +59,9 @@ export async function activate(context: vscode.ExtensionContext) {
     Commands.ViewContainerTypeProperties.register(context);
     Commands.RegisterOnLocalTenant.register(context);
     Commands.RenameContainerType.register(context);
+    Commands.LearnMoreDiscoverability.register(context);
+    Commands.EnableContainerTypeDiscoverability.register(context);
+    Commands.DisableContainerTypeDiscoverability.register(context);
 
     // App Context Menu Commands
     Commands.CopyPostmanConfig.register(context);
