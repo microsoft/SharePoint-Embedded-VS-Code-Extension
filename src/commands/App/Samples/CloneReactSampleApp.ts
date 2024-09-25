@@ -151,6 +151,7 @@ export class CloneReactSampleApp extends Command {
             const appId = app.clientId;
             const containerTypeId = containerType.containerTypeId;
             const tenantId = account.tenantId;
+            const tenantDomain = account.domain;
             const clientSecret = appSecrets.clientSecret || '';
             const repoUrl = 'https://github.com/microsoft/SharePoint-Embedded-Samples.git';
             const folders = await vscode.window.showOpenDialog({
@@ -162,14 +163,14 @@ export class CloneReactSampleApp extends Command {
 
             if (folders && folders.length > 0) {
                 const destinationPath = folders[0].fsPath;
-                const subfolder = 'SharePoint-Embedded-Samples/Samples/spa-azurefunction/';
+                const subfolder = 'SharePoint-Embedded-Samples/Samples/spe-typescript-react-azurefunction/';
 
                 const folderPathInRepository = path.join(destinationPath, subfolder);
                 await vscode.commands.executeCommand('git.clone', repoUrl, destinationPath);
                 await vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(folderPathInRepository));
 
                 writeLocalSettingsJsonFile(destinationPath, appId, containerTypeId, clientSecret, tenantId);
-                writeEnvFile(destinationPath, appId, tenantId);
+                writeEnvFile(destinationPath, appId, tenantId, tenantDomain, containerTypeId);
             }
         } catch (error: any) {
             vscode.window.showErrorMessage(vscode.l10n.t('Failed to clone Git Repo'));
@@ -184,26 +185,39 @@ const writeLocalSettingsJsonFile = (destinationPath: string, appId: string, cont
         Values: {
             AzureWebJobsStorage: "",
             FUNCTIONS_WORKER_RUNTIME: "node",
-            APP_CLIENT_ID: `${appId}`,
-            APP_AUTHORITY: `https://login.microsoftonline.com/${tenantId}`,
-            APP_AUDIENCE: `api://${appId}`,
-            APP_CLIENT_SECRET: `${secretText}`,
-            APP_CONTAINER_TYPE_ID: containerTypeId
+            AzureWebJobsFeatureFlags: "EnableWorkerIndexing",
+
+            AZURE_SPA_CLIENT_ID: appId,
+            AZURE_CLIENT_ID: appId,
+            SPE_CONTAINER_TYPE_ID: containerTypeId,
+            AZURE_CLIENT_SECRET: secretText
         },
         Host: {
+            LocalHttpPort: 7072,
             CORS: "*"
         }
     };
 
     const localSettingsJson = JSON.stringify(localSettings, null, 2);
-    const localSettingsPath = path.join(destinationPath, 'SharePoint-Embedded-Samples', 'Samples', 'spa-azurefunction', 'packages', 'azure-functions', 'local.settings.json');
+    const localSettingsPath = path.join(destinationPath, 'SharePoint-Embedded-Samples', 'Samples', 'spe-typescript-react-azurefunction', 'function-api', 'local.settings.json');
 
     fs.writeFileSync(localSettingsPath, localSettingsJson, 'utf8');
 };
 
-const writeEnvFile = (destinationPath: string, appId: string, tenantId: string) => {
-    const envContent = `REACT_APP_CLIENT_ID='${appId}'\nREACT_APP_TENANT_ID='${tenantId}'`;
-    const envFilePath = path.join(destinationPath, 'SharePoint-Embedded-Samples', 'Samples', 'spa-azurefunction', 'packages', 'client-app', '.env');
+const writeEnvFile = (destinationPath: string, appId: string, tenantId: string, tenantDomain: string, containerTypeId: string) => {
+    const envContent = `
+REACT_APP_SPO_HOST=${tenantDomain}
+REACT_APP_TENANT_ID=${tenantId}
+
+REACT_APP_AZURE_SERVER_APP_ID=${appId}
+REACT_APP_AZURE_APP_ID=${appId}
+REACT_APP_SPE_CONTAINER_TYPE_ID=${containerTypeId}
+
+REACT_APP_SAMPLE_API_URL=http://localhost:7072/api
+PORT=8080
+
+`;
+    const envFilePath = path.join(destinationPath, 'SharePoint-Embedded-Samples', 'Samples', 'spe-typescript-react-azurefunction', 'react-client', '.env');
 
     fs.writeFileSync(envFilePath, envContent, 'utf8');
 };
