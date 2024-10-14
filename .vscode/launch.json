@@ -11,7 +11,6 @@
 			"request": "launch",
 			"args": [
 				"--extensionDevelopmentPath=${workspaceFolder}",
-				"--disable-telemetry"
 			],
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"
@@ -27,7 +26,6 @@
 			"args": [
 				"--extensionDevelopmentPath=${workspaceFolder}",
 				"--extensionTestsPath=${workspaceFolder}/out/test/suite/index",
-				"--disable-telemetry"
 			],
 			"preLaunchTask": "${defaultBuildTask}"
 		}

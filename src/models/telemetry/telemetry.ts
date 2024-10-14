@@ -2,6 +2,7 @@
 *  Copyright (c) Microsoft Corporation. All rights reserved.
 *  Licensed under the MIT License. See License.txt in the project root for license information.
 *--------------------------------------------------------------------------------------------*/
+import * as vscode from 'vscode';
 
 export abstract class TelemetryEvent {
     protected _name: string;
@@ -68,7 +69,8 @@ export class CreateTrialContainerTypeEvent extends TelemetryEvent {
         const description = "Trial Container Type created successfully.";
         super(name, description);
         this._properties = {
-            ...super.properties
+            ...super.properties,
+            language: vscode.env.language
         };
     }
 }
@@ -79,7 +81,8 @@ export class CreateContainerEvent extends TelemetryEvent {
         const description = "Container created successfully.";
         super(name, description);
         this._properties = {
-            ...super.properties
+            ...super.properties,
+            language: vscode.env.language
         };
     }
 }
@@ -90,7 +93,8 @@ export class DeleteTrialContainerType extends TelemetryEvent {
         const description = "Trial Container Type deleted successfully.";
         super(name, description);
         this._properties = {
-            ...super.properties
+            ...super.properties,
+            language: vscode.env.language
         };
     }
 }
@@ -102,7 +106,8 @@ export class SignInEvent extends TelemetryEvent {
         const description = "User signed in successfully.";
         super(name, description);
         this._properties = {
-            ...super.properties
+            ...super.properties,
+            language: vscode.env.language
         };
     }
 }
@@ -113,7 +118,8 @@ export class SignOutEvent extends TelemetryEvent {
         const description = "User signed out successfully.";
         super(name, description);
         this._properties = {
-            ...super.properties
+            ...super.properties,
+            language: vscode.env.language
         };
     }
 }
@@ -128,7 +134,8 @@ export class CreateTrialContainerTypeApiSuccess extends TelemetryEvent {
         this._properties = {
             ...super.properties,
             responseCode: response.status,
-            spRequestGuid: response.headers["sprequestguid"]
+            spRequestGuid: response.headers["sprequestguid"],
+            language: vscode.env.language
         };
     }
 }
@@ -146,6 +153,7 @@ export class CreateTrialContainerTypeApiFailure extends TelemetryErrorEvent {
                 response.data['odata.error'].message ? 
                 response.data['odata.error'].message.value : response.statusText,
             spRequestGuid: response.headers["sprequestguid"],
+            language: vscode.env.language
         };
     }
 }
@@ -158,7 +166,8 @@ export class DeleteTrialContainerTypeApiSuccess extends TelemetryEvent {
         this._properties = {
             ...super.properties,
             responseCode: response.status,
-            spRequestGuid: response.headers["sprequestguid"]
+            spRequestGuid: response.headers["sprequestguid"],
+            language: vscode.env.language
         };
     }
 }
@@ -176,6 +185,7 @@ export class DeleteTrialContainerTypeApiFailure extends TelemetryErrorEvent {
                 response.data['odata.error'].message ? 
                 response.data['odata.error'].message.value : response.statusText,
             spRequestGuid: response.headers["sprequestguid"],
+            language: vscode.env.language
         };
     }
 }
@@ -188,7 +198,8 @@ export class RegisterTrialContainerTypeApiSuccess extends TelemetryEvent {
         this._properties = {
             ...super.properties,
             responseCode: response.status,
-            spRequestGuid: response.headers["sprequestguid"]
+            spRequestGuid: response.headers["sprequestguid"],
+            language: vscode.env.language
         };
     }
 }
@@ -206,6 +217,7 @@ export class RegisterTrialContainerTypeApiFailure extends TelemetryErrorEvent {
                 response.data.error.message ? 
                 response.data.error.message : response.statusText,
             spRequestGuid: response.headers["sprequestguid"],
+            language: vscode.env.language
         };
     }
 }
@@ -219,7 +231,8 @@ export class AppCreationFailure extends TelemetryErrorEvent {
         super(name, description, error);
         this._properties = {
             ...super.properties,
-            UxError: "true"
+            UxError: "true",
+            language: vscode.env.language
         };
     }
 }
@@ -231,7 +244,8 @@ export class AppImportFailure extends TelemetryErrorEvent {
         super(name, description, error);
         this._properties = {
             ...super.properties,
-            UxError: "true"
+            UxError: "true",
+            language: vscode.env.language
         };
     }
 }
@@ -243,7 +257,8 @@ export class CancelSignInFailure extends TelemetryErrorEvent {
         super(name, description, error);
         this._properties = {
             ...super.properties,
-            UxError: "true"
+            UxError: "true",
+            language: vscode.env.language
         };
     }
 }
@@ -256,7 +271,8 @@ export class CreateContainerFailure extends TelemetryErrorEvent {
         super(name, description, error);
         this._properties = {
             ...super.properties,
-            UxError: "true"
+            UxError: "true",
+            language: vscode.env.language
         };
     }
 }
@@ -268,7 +284,8 @@ export class ExportPostmanConfigFailure extends TelemetryErrorEvent {
         super(name, description, error);
         this._properties = {
             ...super.properties,
-            UxError: "true"
+            UxError: "true",
+            language: vscode.env.language
         };
     }
 }   
@@ -280,7 +297,8 @@ export class GuestAppRegisterContainerTypeFailure extends TelemetryErrorEvent {
         super(name, description, error);
         this._properties = {
             ...super.properties,
-            UxError: "true"
+            UxError: "true",
+            language: vscode.env.language
         };
     }
 }
@@ -292,7 +310,8 @@ export class GuestAppCreateOrImportAppFailure extends TelemetryErrorEvent {
         super(name, description, error);
         this._properties = {
             ...super.properties,
-            UxError: "true"
+            UxError: "true",
+            language: vscode.env.language
         };
     }
 }
@@ -304,7 +323,8 @@ export class RepoCloneFailure extends TelemetryErrorEvent {
         super(name, description, error);
         this._properties = {
             ...super.properties,
-            UxError: "true"
+            UxError: "true",
+            language: vscode.env.language
         };
     }
 }
@@ -316,7 +336,8 @@ export class TrialContainerTypeCreationFailure extends TelemetryErrorEvent {
         super(name, description, error);
         this._properties = {
             ...super.properties,
-            UxError: "true"
+            UxError: "true",
+            language: vscode.env.language
         };
     }
 }
@@ -328,7 +349,8 @@ export class TrialContainerTypeDeletionFailure extends TelemetryErrorEvent {
         super(name, description, error);
         this._properties = {
             ...super.properties,
-            UxError: "true"
+            UxError: "true",
+            language: vscode.env.language
         };
     }
 }
@@ -340,7 +362,8 @@ export class TrialContainerTypeFetchFailure extends TelemetryErrorEvent {
         super(name, description, error);
         this._properties = {
             ...super.properties,
-            UxError: "true"
+            UxError: "true",
+            language: vscode.env.language
         };
     }
 }
@@ -352,7 +375,8 @@ export class TrialContainerTypeImportFailure extends TelemetryErrorEvent {
         super(name, description, error);
         this._properties = {
             ...super.properties,
-            UxError: "true"
+            UxError: "true",
+            language: vscode.env.language
         };
     }
 }
@@ -364,7 +388,8 @@ export class TrialContainerTypeRegistrationFailure extends TelemetryErrorEvent {
         super(name, description, error);
         this._properties = {
             ...super.properties,
-            UxError: "true"
+            UxError: "true",
+            language: vscode.env.language
         };
     }
 }
@@ -376,7 +401,8 @@ export class SignInFailure extends TelemetryErrorEvent {
         super(name, description, error);
         this._properties = {
             ...super.properties,
-            UxError: "true"
+            UxError: "true",
+            language: vscode.env.language
         };
     }
 }
@@ -388,7 +414,8 @@ export class SignOutFailure extends TelemetryErrorEvent {
         super(name, description, error);
         this._properties = {
             ...super.properties,
-            UxError: "true"
+            UxError: "true",
+            language: vscode.env.language
         };
     }
 }

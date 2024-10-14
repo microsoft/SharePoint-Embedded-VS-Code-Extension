@@ -36,7 +36,7 @@ export class CloneReactSampleApp extends Command {
 
         if (!applicationTreeItem) {
             return;
-        }        
+        }
         const message = vscode.l10n.t("This will clone the selected sample and put your app's secret and other settings in plain text in a configuration file on your local machine. Are you sure you want to continue?");
         const userChoice = await vscode.window.showInformationMessage(
             message,
