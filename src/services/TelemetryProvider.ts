@@ -33,11 +33,11 @@ export class TelemetryProvider {
     }
 
     public async send(ev: TelemetryEvent): Promise<void> {
-        ev.addProperty("telemetryInstallationId", this.getTelemetryInstallationId());
+        ev.addProperty("installationId", this.getTelemetryInstallationId());
         const account = Account.get();
         if (account) {  
-            ev.addProperty("telemetryUserId", await account.getTelemetryUserId());
-            ev.addProperty("telemetryTenantId", await account.getTelemetryTenantId());
+            ev.addProperty("userId", await account.getTelemetryUserId());
+            ev.addProperty("tenantId", await account.getTelemetryTenantId());
         }
         if (ev instanceof TelemetryErrorEvent) {
             this.sendTelemetryErrorEvent(ev);
