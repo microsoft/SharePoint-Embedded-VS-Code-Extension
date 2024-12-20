@@ -11,6 +11,7 @@ import { LocalStorageService, StorageProvider } from './services/StorageProvider
 import { TelemetryProvider } from './services/TelemetryProvider';
 import { Account } from './models/Account';
 import { Commands } from './commands/';
+import { ResourcesTreeViewProvider } from './views/treeview/resources/ResourcesTreeViewProvider';
 
 export async function activate(context: vscode.ExtensionContext) {
     ext.context = context;
@@ -26,6 +27,7 @@ export async function activate(context: vscode.ExtensionContext) {
     await StorageProvider.purgeOldCache();
 
     vscode.window.registerTreeDataProvider(AccountTreeViewProvider.viewId, AccountTreeViewProvider.getInstance());
+    vscode.window.registerTreeDataProvider(ResourcesTreeViewProvider.viewId, ResourcesTreeViewProvider.instance);
     vscode.window.registerTreeDataProvider(DevelopmentTreeViewProvider.viewId, DevelopmentTreeViewProvider.getInstance());
 
     Account.subscribeLoginListener({
@@ -95,4 +97,8 @@ export async function activate(context: vscode.ExtensionContext) {
     Commands.CopyRecycledContainerId.register(context);
     Commands.DeleteContainer.register(context);
     Commands.RestoreContainer.register(context);
+
+    // Resources Commands
+    Commands.OpenDocumentation.register(context);
+    Commands.OpenVideos.register(context);
 }

@@ -123,6 +123,10 @@
           "id": "spe-development",
           "name": "Development",
           "when": "spe:isAdmin"
+        },
+        {
+          "id": "spe-resources",
+          "name": "Resources"
         }
       ]
     },
@@ -634,6 +638,93 @@
         "command": "spe.refresh",
         "title": "%commands.spe.refresh%",
         "icon": "$(refresh)"
+      },
+      {
+        "command": "spe.Resources.openDocumentation",
+        "title": "Documentation",
+        "icon": "$(book)"
+      },
+      {
+        "command": "spe.Resources.openVideos",
+        "title": "Video Tutorials",
+        "icon": "$(play-circle)"
+      }
+    ],
+    "walkthroughs": [
+      {
+        "id": "spe.gettingStarted",
+        "title": "Get Started with SP Embedded",
+        "description": "%walkthroughs.spe.gettingStarted.description%",
+        "steps": [
+          {
+            "id": "spe.gettingStarted.signIn",
+            "title": "Sign in with a work or school account",
+            "description": "Use an account with at least the SharePoint Embedded Administrator role assigned to see file storage containers.\n\n[Sign in](command:spe.login)",
+            "when": "!spe:isLoggedIn",
+            "media": {
+							"markdown": "media/gettingStarted/signIn.md"
+						},
+						"completionEvents": [
+							"onContext:spe:isLoggedIn"
+						]
+          },
+          {
+            "id": "spe.gettingStarted.signedIn",
+            "title": "Sign in with a work or school account",
+            "description": "Use an account with at least the SharePoint Embedded Administrator role assigned to see file storage containers.\n\n",
+            "when": "spe:isLoggedIn",
+            "media": {
+							"markdown": "media/gettingStarted/signIn.md"
+						},
+						"completionEvents": [
+							"onContext:spe:isLoggedIn"
+						]
+          },
+          {
+            "id": "spe.gettingStarted.createApp",
+            "title": "Register an Azure Entra app",
+            "description": "Register a trust relationship between your application and the identity provider, Microsoft identity platform\n\n[Register app](command:spe.Apps.getOrCreate)",
+            "media": {
+							"markdown": "media/gettingStarted/createApp.md"
+						},
+            "completionEvents": [
+              "onContext:spe:hasConfiguredApp"
+            ]
+          },
+          {
+            "id": "spe.gettingStarted.createContainerType",
+            "title": "Create a container type",
+            "description": "Connects your app to Microsoft 365 file storage\n\n[Create](command:spe.ContainerTypes.createTrial)",
+            "media": {
+							"markdown": "media/gettingStarted/createContainerType.md"
+						},
+            "completionEvents": [
+              "onContext:spe:hasContainerTypes"
+            ]
+          },
+          {
+            "id": "spe.gettingStarted.registerContainerType",
+            "title": "Register your container type",
+            "description": "Gives your app permission to manage containers on your tenant\n\n[Register](command:spe.ContainerTypes.registerOnLocalTenant)",
+            "media": {
+							"markdown": "media/gettingStarted/registerContainerType.md"
+						},
+            "completionEvents": [
+              "onContext:spe:hasContainerTypeRegistrations"
+            ]
+          },
+          {
+            "id": "spe.gettingStarted.createContainer",
+            "title": "Create your first storage container",
+            "description": "All SharePoint Embedded content is stored in file storage containers\n\n[Create](command:spe.Containers.create)",
+            "media": {
+							"markdown": "media/gettingStarted/createContainer.md"
+						},
+            "completionEvents": [
+              "onContext:spe:hasContainers"
+            ]
+          }
+        ]
       }
     ]
   },

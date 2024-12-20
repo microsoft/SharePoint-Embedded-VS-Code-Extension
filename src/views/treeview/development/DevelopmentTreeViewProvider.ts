@@ -52,9 +52,13 @@ export class DevelopmentTreeViewProvider implements vscode.TreeDataProvider<IChi
         try {
             await vscode.commands.executeCommand('setContext', 'spe:showGettingStartedView', false);
             await vscode.commands.executeCommand('setContext', 'spe:showFailedView', false);
+            await vscode.commands.executeCommand('setContext', 'spe:hasContainerTypes', false);
+            await vscode.commands.executeCommand('setContext', 'spe:hasContainerTypeRegistrations', false);
+            await vscode.commands.executeCommand('setContext', 'spe:hasContainers', false);
             const containerTypeProvider = account.containerTypeProvider;
             const containerTypes = await containerTypeProvider.list();
             if (containerTypes && containerTypes.length > 0) {
+                vscode.commands.executeCommand('setContext', 'spe:hasContainerTypes', true);
                 return [new ContainerTypesTreeItem(containerTypes)];
             }
             await vscode.commands.executeCommand('setContext', 'spe:showGettingStartedView', true);

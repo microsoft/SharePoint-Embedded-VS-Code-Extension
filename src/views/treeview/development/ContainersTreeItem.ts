@@ -26,6 +26,9 @@ export class ContainersTreeItem extends IChildrenProvidingTreeItem {
         const children: vscode.TreeItem[] = [];
         try {
             const containers = await this.containerTypeRegistration.loadContainers();
+            if (containers && containers.length > 0) {
+                vscode.commands.executeCommand('setContext', 'spe:hasContainers', true);
+            }
             containers?.map((container: Container) => {
                 children.push(new ContainerTreeItem(container, this.reigstrationViewModel));
             });

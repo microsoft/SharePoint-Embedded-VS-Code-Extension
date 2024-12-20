@@ -40,6 +40,7 @@ export class ContainerTypeTreeItem extends IChildrenProvidingTreeItem {
                 if (!registration || !registration.applications.includes(containerType.owningAppId)) {
                     throw new Error();
                 }
+                vscode.commands.executeCommand('setContext', 'spe:hasContainerTypeRegistrations', true);
                 this.contextValue += "-registered";
             })
             .catch((error) => {

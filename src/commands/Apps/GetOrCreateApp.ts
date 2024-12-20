@@ -135,6 +135,7 @@ export class GetOrCreateApp extends Command {
                     }
                     await account.appProvider.addIdentifierUri(app);
                     createAppProgressWindow.hide();
+                    vscode.commands.executeCommand('setContext', 'spe:hasConfiguredApp', true);
                     return resolve(app);
                 } else if (appId) {
                     const configureAppProgressWindow = new ProgressWaitNotification(vscode.l10n.t('Configuring Entra app...'));
@@ -146,6 +147,7 @@ export class GetOrCreateApp extends Command {
                         return resolve(undefined);
                     }
                     configureAppProgressWindow.hide();
+                    vscode.commands.executeCommand('setContext', 'spe:hasConfiguredApp', true);
                     return resolve(app);
                 }
                 return resolve(undefined);

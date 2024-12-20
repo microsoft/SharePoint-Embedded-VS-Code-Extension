@@ -41,5 +41,8 @@
     "commands.spe.Container.viewProperties": "View properties",
     "commands.spe.RecycledContainer.restore": "Restore",
     "commands.spe.RecycledContainer.copyId": "Copy container Id",
-    "commands.spe.refresh": "Refresh"
+    "commands.spe.refresh": "Refresh",
+
+    "walkthroughs.spe.gettingStarted.title": "Start using SharePoint Embedded",
+    "walkthroughs.spe.gettingStarted.description": "Store files in Microsoft 365 for any app you make"
 }

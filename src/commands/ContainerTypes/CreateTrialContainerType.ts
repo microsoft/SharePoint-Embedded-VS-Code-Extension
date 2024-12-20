@@ -27,6 +27,11 @@ export class CreateTrialContainerType extends Command {
             return;
         }
 
+        const app = await GetOrCreateApp.run(AppType.OwningApp);
+        if (!app) {
+            return;
+        }
+
         const displayName = await vscode.window.showInputBox({
             placeHolder: vscode.l10n.t('Enter a display name for your new container type'),
             prompt: vscode.l10n.t('Container type display name'),
@@ -48,11 +53,6 @@ export class CreateTrialContainerType extends Command {
             }
         });
         if (!displayName) {
-            return;
-        }
-
-        const app = await GetOrCreateApp.run(AppType.OwningApp);
-        if (!app) {
             return;
         }
 
