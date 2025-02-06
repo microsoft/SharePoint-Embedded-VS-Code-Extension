@@ -140,7 +140,7 @@ export class CreatePostmanConfig extends Command {
             }
         );
 
-        const envName = `${containerType!.displayName} (appId: ${app!.clientId})`;
+        const envName = `${containerType!.displayName} (appId ${app!.clientId})`;
         const pmEnv: PostmanEnvironmentConfig = {
             id: uuidv4(),
             name: envName,
