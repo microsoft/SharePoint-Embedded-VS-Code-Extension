@@ -17,7 +17,7 @@ export class TelemetryProvider {
     private _sessionStartTime;
 
     public constructor() {
-        this.reporter = new TelemetryReporter(telemetryKey);
+        this.reporter = new TelemetryReporter('');
         this._sessionId = uuidv4();
         this._sessionStartTime = Date.now();
     }
