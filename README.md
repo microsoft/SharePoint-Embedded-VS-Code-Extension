@@ -1,4 +1,4 @@
-# SharePoint Embedded for Visual Studio Code (Preview)
+# SharePoint Embedded for Visual Studio Code
 
 The SharePoint Embedded Visual Studio Code extension helps developers get started for free with SharePoint Embedded application development. 
 
@@ -12,8 +12,6 @@ The SharePoint Embedded Visual Studio Code extension helps developers get starte
 1. Search "SharePoint Embedded" in the Extensions view. You can also view the extension in [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=SharepointEmbedded.ms-sharepoint-embedded-vscode-extension).
 1. Select **"Install"** and the SharePoint Embedded icon will appear on the activity bar.
 1. Select the icon to open the SharePoint Embedded view and create a container type with trial configuration.
-
-![SharePoint Embedded VS Extensions](./readme-images/n1downloadvsx.png)
 
 ### Sign in with admin credentials
 
