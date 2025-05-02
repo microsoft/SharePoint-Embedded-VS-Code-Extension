@@ -1,6 +1,6 @@
 
 ## Container type registration
 
-To enable your application to interact with the SharePoint Embedded APIs, you need to register your container type in your consuming tenant. In trial container types this is the owning tenant. This process will prompt you to log in and grant tenant-wide admin consent to your SharePoint Embedded application. 
+Registering a container type on your tenant allows your app to manage containers. Your app must have the `Container.Selected` application permission role granted on your tenant in order to complete this step. 
 
 [Learn more about container type registration](https://learn.microsoft.com/sharepoint/dev/embedded/concepts/app-concepts/register-api-documentation)

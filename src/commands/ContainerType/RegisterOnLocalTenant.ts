@@ -21,21 +21,56 @@ export class RegisterOnLocalTenant extends Command {
 
     // Command handler
     public static async run(commandProps?: RegistrationCommandProps, newApplicationPermissions?: ApplicationPermissions): Promise<void> {
-        if (!commandProps) {
-            return;
-        }
-
+        console.log('RegisterOnLocalTenant.run', commandProps);
         const account = await GetAccount.run();
         if (!account) {
             return;
         }
 
-        let containerType: ContainerType;
+        let containerType: ContainerType | undefined;
         if (commandProps instanceof ContainerTypeTreeItem) {
             containerType = commandProps.containerType;
-        } else {
+        } else if (commandProps instanceof ContainerType) {
             containerType = commandProps;
         }
+
+        if (!containerType) {
+            console.log("No container type found in commandProps");
+            // No arguments passed -- let the user choose from their existing container types
+            try {
+                const containerTypeProvider = account.containerTypeProvider;
+                const containerTypes = await containerTypeProvider.list();
+                console.log(containerTypes);
+                if (!containerTypes || containerTypes.length === 0) {
+                    vscode.window.showErrorMessage('No container types found');
+                    return;
+                }
+                class ContainerTypeQuickPickItem implements vscode.QuickPickItem {
+                    label: string;
+                    description: string;
+                    containerType: ContainerType;
+                    constructor(containerType: ContainerType) {
+                        this.label = containerType.displayName;
+                        this.description = containerType.isTrial ? 'Trial' : 'Paid';
+                        this.containerType = containerType;
+                    }
+                }
+                const options: ContainerTypeQuickPickItem[] = containerTypes.map((ct) => {
+                    return new ContainerTypeQuickPickItem(ct);
+                });
+                const selected = await vscode.window.showQuickPick(options, {
+                    placeHolder: 'Select a container type to register on your local tenant'
+                });
+                if (!selected) {
+                    return;
+                }
+                containerType = selected.containerType;
+            } catch (error: any) {
+                vscode.window.showErrorMessage(`Failed to fetch container types: ${error.message}`);
+                return;
+            }
+        }
+
         if (!containerType) {
             return;
         }

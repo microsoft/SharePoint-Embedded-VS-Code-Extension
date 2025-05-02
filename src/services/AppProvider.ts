@@ -313,6 +313,7 @@ export default class AppProvider {
                 redirectUris: [
                     this.WebRedirectUris.consentRedirectUri,
                     this.WebRedirectUris.postmanBrowserCallbackUri,
+                    this.WebRedirectUris.postmanVscodeCallbackUri,
                     this.WebRedirectUris.postmanCallbackUri,
                     this.WebRedirectUris.serverAppSignInUri,
                     this.WebRedirectUris.serverAppSignOnboardingProcessCodeUri,
@@ -361,6 +362,7 @@ export default class AppProvider {
         return {
             consentRedirectUri: 'http://localhost/redirect',
             postmanBrowserCallbackUri: 'https://oauth.pstmn.io/v1/browser-callback',
+            postmanVscodeCallbackUri: 'https://oauth.pstmn.io/v1/vscode-callback',
             postmanCallbackUri: 'https://oauth.pstmn.io/v1/callback',
             serverAppSignInUri: 'https://localhost/signin-oidc',
             serverAppSignOnboardingProcessCodeUri: 'https://localhost/Onboarding/ProcessCode',

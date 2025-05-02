@@ -93,12 +93,12 @@
     "viewsWelcome": [
       {
         "view": "spe-welcome",
-        "contents": "Sign into your Microsoft 365 tenant with an administrator account to get started.\n[Sign into Microsoft 365](command:spe.login) \n\n\n If you don't have administrator access to a Microsoft 365 tenant, [get your own tenant with the Microsoft 365 Developer Program](https://developer.microsoft.com/en-us/microsoft-365/dev-program).",
+        "contents": "Sign in with a work or school account that has the Global Administrator role to get started.\n[Sign in](command:spe.login) \n\n\n If you need an account with administrative access, you can join the [Microsoft 365 Developer Program](https://developer.microsoft.com/microsoft-365/dev-program) or create a free trial of an [Microsoft 365 E3 license](https://www.microsoft.com/microsoft-365/enterprise/microsoft365-plans-and-pricing).",
         "when": "!spe:isLoggedIn && !spe:isLoggingIn"
       },
       {
         "view": "spe-development",
-        "contents": "Get started with SharePoint Embedded\n [Create Trial Container Type](command:spe.ContainerTypes.createTrial) \n",
+        "contents": "Create an Azure Entra app registration and container type to get started.\n [Create](command:spe.ContainerTypes.createTrial) \n",
         "when": "spe:isAdmin && spe:showGettingStartedView"
       },
       {
@@ -111,12 +111,12 @@
       "sharepoint-embedded": [
         {
           "id": "spe-welcome",
-          "name": "",
+          "name": "Work or school account",
           "when": "!spe:isLoggedIn && !spe:isLoggingIn"
         },
         {
           "id": "spe-accounts",
-          "name": "Account",
+          "name": "Work or school account",
           "when": "spe:isLoggedIn || spe:isLoggingIn"
         },
         {
@@ -653,48 +653,37 @@
     "walkthroughs": [
       {
         "id": "spe.gettingStarted",
-        "title": "Get Started with SP Embedded",
-        "description": "%walkthroughs.spe.gettingStarted.description%",
+        "title": "Try SharePoint Embedded",
+        "description": "Store files in containers with a free trial container type.",
         "steps": [
           {
             "id": "spe.gettingStarted.signIn",
             "title": "Sign in with a work or school account",
-            "description": "Use an account with at least the SharePoint Embedded Administrator role assigned to see file storage containers.\n\n[Sign in](command:spe.login)",
+            "description": "Use an account with the Global Administrator role.\n\n[Sign in](command:spe.login)",
             "when": "!spe:isLoggedIn",
             "media": {
 							"markdown": "media/gettingStarted/signIn.md"
 						},
 						"completionEvents": [
-							"onContext:spe:isLoggedIn"
+							"onContext:spe:isAdmin"
 						]
           },
           {
             "id": "spe.gettingStarted.signedIn",
             "title": "Sign in with a work or school account",
-            "description": "Use an account with at least the SharePoint Embedded Administrator role assigned to see file storage containers.\n\n",
+            "description": "Use an account with the Global Administrator role.",
             "when": "spe:isLoggedIn",
             "media": {
 							"markdown": "media/gettingStarted/signIn.md"
 						},
 						"completionEvents": [
-							"onContext:spe:isLoggedIn"
+							"onContext:spe:isAdmin"
 						]
           },
           {
-            "id": "spe.gettingStarted.createApp",
-            "title": "Register an Azure Entra app",
-            "description": "Register a trust relationship between your application and the identity provider, Microsoft identity platform\n\n[Register app](command:spe.Apps.getOrCreate)",
-            "media": {
-							"markdown": "media/gettingStarted/createApp.md"
-						},
-            "completionEvents": [
-              "onContext:spe:hasConfiguredApp"
-            ]
-          },
-          {
             "id": "spe.gettingStarted.createContainerType",
-            "title": "Create a container type",
-            "description": "Connects your app to Microsoft 365 file storage\n\n[Create](command:spe.ContainerTypes.createTrial)",
+            "title": "Create a trial container type",
+            "description": "Create an Azure Entra app registration and trial container type to get started.\n\n[Create](command:spe.ContainerTypes.createTrial)",
             "media": {
 							"markdown": "media/gettingStarted/createContainerType.md"
 						},
@@ -705,7 +694,7 @@
           {
             "id": "spe.gettingStarted.registerContainerType",
             "title": "Register your container type",
-            "description": "Gives your app permission to manage containers on your tenant\n\n[Register](command:spe.ContainerTypes.registerOnLocalTenant)",
+            "description": "Allows your app to manage containers on your tenant. \n\n[Register](command:spe.ContainerType.registerOnLocalTenant)",
             "media": {
 							"markdown": "media/gettingStarted/registerContainerType.md"
 						},
