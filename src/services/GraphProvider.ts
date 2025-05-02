@@ -100,7 +100,7 @@ export class GraphProvider {
     public async addAppSecret(objectId: string, name: string = 'SharePointEmbeddedVSCode'): Promise<string> {
         const currentDate = new Date();
         const newEndDateTime = new Date(currentDate);
-        newEndDateTime.setDate(currentDate.getDate() + 30); // 30 day TTL
+        newEndDateTime.setDate(currentDate.getDate() + 60); // 60 day TTL
 
         const response = await this._client
             .api(`/applications/${objectId}/addPassword`)
