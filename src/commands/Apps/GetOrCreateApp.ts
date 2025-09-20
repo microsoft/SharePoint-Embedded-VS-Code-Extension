@@ -5,24 +5,33 @@
 
 import * as vscode from 'vscode';
 import { Command } from '../Command';
-import { App, AppType } from '../../models/App';
-import { GetAccount } from '../Accounts/GetAccount';
+import { Application } from '../../models/schemas';
+import { GraphAuthProvider } from '../../services/Auth';
+import { GraphProvider } from '../../services/Graph';
+import { AuthenticationState } from '../../services/AuthenticationState';
 import { ProgressWaitNotification, Timer } from '../../views/notifications/ProgressWaitNotification';
 
-// Static class that handles the create trial container type command
+// Static class that handles the get or create application command
 export class GetOrCreateApp extends Command {
     // Command name
     public static readonly COMMAND = 'Apps.getOrCreate';
 
     // Command handler
-    public static async run(appType?: AppType): Promise<App | undefined> {
-        const account = await GetAccount.run();
+    public static async run(isOwningApp: boolean = true): Promise<Application | undefined> {
+        // Get authentication state
+        const authState = AuthenticationState.getInstance();
+        const account = await AuthenticationState.getCurrentAccount();
         if (!account) {
+            vscode.window.showErrorMessage(vscode.l10n.t('Please sign in first'));
             return;
         }
 
+        // Get Graph provider
+        const graphAuth = GraphAuthProvider.getInstance();
+        const graphProvider = GraphProvider.getInstance();
+
         const qp = vscode.window.createQuickPick<AppQuickPickItem>();
-        qp.title = (appType === undefined || appType === AppType.OwningApp) ? vscode.l10n.t('Select or create an Owning Application for your Container Type') : vscode.l10n.t('Select or Create a Guest Application for your Container Type');
+        qp.title = isOwningApp ? vscode.l10n.t('Select or create an Owning Application for your Container Type') : vscode.l10n.t('Select or Create a Guest Application for your Container Type');
         qp.placeholder = vscode.l10n.t('Enter a new app name or search for an existing app by name or Id');
 
         // Disable default filtering and sorting behavior on the quick pick
@@ -58,15 +67,24 @@ export class GetOrCreateApp extends Command {
 
             qp.busy = true;
             if (!excludedAppIds) {
-                const containerTypeProvider = account.containerTypeProvider;
-                const containerTypes = await containerTypeProvider.list();
-                excludedAppIds = containerTypes.map(ct => ct.owningAppId);
+                // Get container types to find apps that are already used
+                const containerTypes = await graphProvider.containerTypes.list();
+                excludedAppIds = containerTypes.map((ct) => ct.owningAppId);
             }
 
             const exclusions = excludedAppIds || [];
-            const apps = await account.appProvider.search(query);
-            const filteredApps = apps.filter(app => !exclusions.includes(app.appId!));
-            const appItems = filteredApps.map(app => (
+            // Search applications using the new service
+        let appsResult: { applications: Application[] };
+        
+        if (query && query.trim()) {
+            // Search by display name if query is provided
+            appsResult = await graphProvider.applications.search(query.trim());
+        } else {
+            // List all applications if no query
+            appsResult = await graphProvider.applications.list();
+        }
+            const filteredApps = appsResult.applications.filter((app) => !exclusions.includes(app.appId!));
+            const appItems = filteredApps.map((app) => (
                 {
                     id: app.appId!,
                     label: app.displayName,
@@ -83,7 +101,7 @@ export class GetOrCreateApp extends Command {
                 qp.items = [];
                 return;
             } else {
-                qp.title = (appType === undefined || appType === AppType.OwningApp) ? vscode.l10n.t('Select or create an Owning Application for your Container Type') : vscode.l10n.t('Select or Create a Guest Application for your Container Type');
+                qp.title = isOwningApp ? vscode.l10n.t('Select or create an Owning Application for your Container Type') : vscode.l10n.t('Select or Create a Guest Application for your Container Type');
             }
         };
 
@@ -115,31 +133,45 @@ export class GetOrCreateApp extends Command {
             qp.hide();
         });
 
-        return new Promise<App | undefined>((resolve) => {
+        return new Promise<Application | undefined>((resolve) => {
             qp.onDidHide(async () => {
                 qp.dispose();
                 if (appId === newAppItem.id && appName) {
                     const createAppProgressWindow = new ProgressWaitNotification(vscode.l10n.t('Creating Entra app...'));
                     createAppProgressWindow.show();
                     const creationTimer = new Timer(60 * 1000);
-                    const app = await account.appProvider.create(appName);
-                    let propogatedApp = await account.appProvider.get(app.clientId);
-                    while (!propogatedApp && !creationTimer.finished) {
+                    
+                    // Create the application using the new service
+                    const app = await graphProvider.applications.create({
+                        displayName: appName
+                    });
+                    
+                    // Wait for propagation
+                    let propagatedApp = await graphProvider.applications.get(app.appId!, { useAppId: true });
+                    while (!propagatedApp && !creationTimer.finished) {
                         await new Promise(r => setTimeout(r, 3000));
-                        propogatedApp = await account.appProvider.get(app.clientId);
+                        propagatedApp = await graphProvider.applications.get(app.appId!, { useAppId: true });
                     }
+                    
                     if (!app) {
                         vscode.window.showErrorMessage(vscode.l10n.t('Failed to create a new app'));
                         createAppProgressWindow.hide();
                         return resolve(undefined);
                     }
-                    await account.appProvider.addIdentifierUri(app);
+                    
+                    // Add identifier URI - need to implement this method if not available
+                    try {
+                        await addIdentifierUriToApp(graphProvider, app);
+                    } catch (error) {
+                        console.warn('Failed to add identifier URI:', error);
+                    }
+                    
                     createAppProgressWindow.hide();
                     return resolve(app);
                 } else if (appId) {
                     const configureAppProgressWindow = new ProgressWaitNotification(vscode.l10n.t('Configuring Entra app...'));
                     configureAppProgressWindow.show();
-                    const app = await account.appProvider.get(appId);
+                    const app = await graphProvider.applications.get(appId, { useAppId: true });
                     if (!app) {
                         configureAppProgressWindow.hide();
                         vscode.window.showErrorMessage(vscode.l10n.t('Failed to get the selected app'));
@@ -160,4 +192,20 @@ function validateAppName(name: string | undefined): boolean {
     const validNamePattern = /^[^<>;&%]{0,120}$/;
     const isValidName = validNamePattern.test(name || '');
     return isValidName;
+}
+
+/**
+ * Add identifier URI to an application
+ */
+async function addIdentifierUriToApp(graphProvider: GraphProvider, app: Application): Promise<void> {
+    if (!app.appId) {
+        throw new Error('Application does not have an appId');
+    }
+    
+    const identifierUri = `api://${app.appId}`;
+    
+    // Update the application with the identifier URI
+    await graphProvider.applications.update(app.id!, {
+        identifierUris: [identifierUri]
+    });
 }

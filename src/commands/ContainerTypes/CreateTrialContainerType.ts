@@ -5,13 +5,15 @@
 
 import * as vscode from 'vscode';
 import { Command } from '../Command';
-import { ContainerType } from '../../models/ContainerType';
+import { ContainerType } from '../../models/schemas';
 import { DevelopmentTreeViewProvider } from '../../views/treeview/development/DevelopmentTreeViewProvider';
-import { GetAccount } from '../Accounts/GetAccount';
+import { AuthenticationState } from '../../services/AuthenticationState';
+import { GraphAuthProvider } from '../../services/Auth';
+import { GraphProvider } from '../../services/Graph';
 import { GetOrCreateApp } from '../Apps/GetOrCreateApp';
-import { RegisterOnLocalTenant } from '../ContainerType/RegisterOnLocalTenant';
+// import { RegisterOnLocalTenant } from '../ContainerType/RegisterOnLocalTenant';
 import { ProgressWaitNotification, Timer } from '../../views/notifications/ProgressWaitNotification';
-import { AppType } from '../../models/App';
+import { Application } from '../../models/schemas';
 import { CreateTrialContainerTypeEvent, TrialContainerTypeCreationFailure } from '../../models/telemetry/telemetry';
 import { TelemetryProvider } from '../../services/TelemetryProvider';
 
@@ -22,10 +24,19 @@ export class CreateTrialContainerType extends Command {
 
     // Command handler
     public static async run(): Promise<ContainerType | undefined> {
-        const account = await GetAccount.run();
-        if (!account) {
+        const isSignedIn = await AuthenticationState.isSignedIn();
+        if (!isSignedIn) {
+            vscode.window.showErrorMessage('Please sign in to create a trial container type.');
             return;
         }
+
+        const account = await AuthenticationState.getCurrentAccount();
+        if (!account) {
+            vscode.window.showErrorMessage('Authentication not available. Please try signing in again.');
+            return;
+        }
+
+        const graphProvider = GraphProvider.getInstance();
 
         const displayName = await vscode.window.showInputBox({
             placeHolder: vscode.l10n.t('Enter a display name for your new container type'),
@@ -51,7 +62,7 @@ export class CreateTrialContainerType extends Command {
             return;
         }
 
-        const app = await GetOrCreateApp.run(AppType.OwningApp);
+        const app = await GetOrCreateApp.run(true); // true for owning app
         if (!app) {
             return;
         }
@@ -59,12 +70,22 @@ export class CreateTrialContainerType extends Command {
         const progressWindow = new ProgressWaitNotification(vscode.l10n.t('Creating container type (may take up to 30 seconds)...'));
         progressWindow.show();
         const ctTimer = new Timer(30 * 1000);
-        const containerTypeProvider = account.containerTypeProvider;
+        
         let containerType: ContainerType | undefined;
         let ctCreationError: any;
         do {
             try {
-                containerType = await containerTypeProvider.createTrial(displayName, app.clientId);
+                const containerTypeData = {
+                    name: displayName,
+                    owningAppId: app.appId!,
+                    billingClassification: 'trial' as const,
+                    billingStatus: 'valid' as const,
+                    settings: {
+                        isDiscoverabilityEnabled: false
+                    }
+                };
+                
+                containerType = await graphProvider.containerTypes.create(containerTypeData);
                 if (!containerType) {
                     throw new Error();
                 }
@@ -112,7 +133,9 @@ export class CreateTrialContainerType extends Command {
             ...buttons
         );
         if (selection === register) {
-            RegisterOnLocalTenant.run(containerType);
+            // TODO: Update RegisterOnLocalTenant to use new authentication system
+            // RegisterOnLocalTenant.run(containerType);
+            vscode.window.showInformationMessage('Container type registration will be available after the authentication system migration.');
         }
         TelemetryProvider.instance.send(new CreateTrialContainerTypeEvent());
         return containerType;

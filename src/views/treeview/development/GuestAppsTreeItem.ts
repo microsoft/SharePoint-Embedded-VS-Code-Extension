@@ -5,7 +5,7 @@
 
 import * as vscode from "vscode";
 import { GuestApplicationTreeItem } from "./GuestAppTreeItem";
-import { ApplicationPermissions } from "../../../models/ApplicationPermissions";
+import { ApplicationPermissionGrant } from "../../../models/ApplicationPermissions";
 import { ContainerTypeRegistration } from "../../../models/ContainerTypeRegistration";
 import _ from "lodash";
 import { ContainerType } from "../../../models/ContainerType";
@@ -35,7 +35,7 @@ export class GuestAppsTreeItem extends IChildrenProvidingTreeItem {
             if (!registration.applicationPermissions) {
                 throw new Error(vscode.l10n.t('No application permissions found'));
             }
-            registration.applicationPermissions.map((app: ApplicationPermissions) => {
+            registration.applicationPermissions.map((app: ApplicationPermissionGrant) => {
                 if (app.appId !== owningApp.clientId) {
                     children.push(new GuestApplicationTreeItem(app, this));
                 }

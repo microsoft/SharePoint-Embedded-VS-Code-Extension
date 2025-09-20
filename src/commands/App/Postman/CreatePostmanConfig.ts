@@ -92,7 +92,7 @@ export class CreatePostmanConfig extends Command {
         values.push(
             {
                 key: "ContainerTypeId",
-                value: containerType!.containerTypeId,
+                value: containerType!.id,
                 type: "default",
                 enabled: true
             },
@@ -140,7 +140,7 @@ export class CreatePostmanConfig extends Command {
             }
         );
 
-        const envName = `${containerType!.displayName} (appId ${app!.clientId})`;
+        const envName = `${containerType!.name} (appId ${app!.clientId})`;
         const pmEnv: PostmanEnvironmentConfig = {
             id: uuidv4(),
             name: envName,

@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import { Command } from "../Command";
-import { ApplicationPermissions } from '../../models/ApplicationPermissions';
+import { ApplicationPermissionGrant } from '../../models/ApplicationPermissions';
 
 interface ApplicationPermissionOption extends vscode.QuickPickItem {
     value: string;
@@ -18,7 +18,7 @@ export class SelectedAppPermissions {
 
 export class ChooseAppPermissions extends Command {
     
-    public static async run(appPerms?: ApplicationPermissions): Promise<SelectedAppPermissions | undefined> {
+    public static async run(appPerms?: ApplicationPermissionGrant): Promise<SelectedAppPermissions | undefined> {
 
         const existingDelegatedPerms = appPerms?.delegated;
         const existingAppPerms = appPerms?.appOnly;

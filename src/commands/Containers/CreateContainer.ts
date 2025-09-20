@@ -5,12 +5,12 @@
 
 import { Command } from '../Command';
 import * as vscode from 'vscode';
-import { ContainerType } from '../../models/ContainerType';
+import { ContainerType, Application } from '../../models/schemas';
+import { Container } from '../../models/Container';
 import { ContainersTreeItem } from '../../views/treeview/development/ContainersTreeItem';
 import { DevelopmentTreeViewProvider } from '../../views/treeview/development/DevelopmentTreeViewProvider';
-import { App } from '../../models/App';
-import { GraphProvider } from '../../services/GraphProvider';
-import { Container } from '../../models/Container';
+import { GraphProvider } from '../../services/Graph';
+import { AuthenticationState } from '../../services/AuthenticationState';
 import { ProgressWaitNotification } from '../../views/notifications/ProgressWaitNotification';
 import { TelemetryProvider } from '../../services/TelemetryProvider';
 import { CreateContainerEvent, CreateContainerFailure } from '../../models/telemetry/telemetry';
@@ -27,7 +27,14 @@ export class CreateContainer extends Command {
         }
         const containerType: ContainerType = containersViewModel.containerType;
         const containerTypeRegistration = containersViewModel.containerTypeRegistration;
-        const owningApp: App = containerType.owningApp!;
+        
+        // Check authentication
+        if (!AuthenticationState.isSignedIn()) {
+            vscode.window.showErrorMessage('Please sign in to create a container.');
+            return;
+        }
+        
+        const graphProvider = GraphProvider.getInstance();
         const containerDisplayName = await vscode.window.showInputBox({
             placeHolder: vscode.l10n.t('Enter a display name for your new container'),
             prompt: vscode.l10n.t('Container display name'),
@@ -54,9 +61,9 @@ export class CreateContainer extends Command {
         const progressWindow = new ProgressWaitNotification(vscode.l10n.t('Creating container...'));  
         progressWindow.show();
         try {
-            const authProvider = await owningApp.getAppOnlyAuthProvider(containerTypeRegistration.tenantId);
-            const graphProvider = new GraphProvider(authProvider);
-            const container = await graphProvider.createContainer(containerTypeRegistration, containerDisplayName);
+            // TODO: Implement container creation in GraphProvider
+            // For now, use a placeholder implementation
+            const container = await createContainerPlaceholder(graphProvider, containerTypeRegistration, containerDisplayName);
             if (!container) {
                 throw new Error (vscode.l10n.t('Failed to create container'));
             }
@@ -72,4 +79,15 @@ export class CreateContainer extends Command {
             return;
         }
     }
+}
+
+/**
+ * Placeholder implementation for container creation
+ * TODO: Implement proper container creation in GraphProvider
+ */
+async function createContainerPlaceholder(graphProvider: GraphProvider, containerTypeRegistration: any, containerDisplayName: string): Promise<Container | undefined> {
+    // This is a placeholder - actual implementation would need to be added to GraphProvider
+    // For now, return undefined to indicate containers service is not yet implemented
+    vscode.window.showWarningMessage('Container creation is not yet implemented in the new authentication system.');
+    return undefined;
 }

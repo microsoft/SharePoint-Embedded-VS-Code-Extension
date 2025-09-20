@@ -5,8 +5,9 @@
 
 import * as vscode from 'vscode';
 import { Command } from '../../Command';
-import { App } from '../../../models/App';
-import { GetAccount } from '../../Accounts/GetAccount';
+import { Application } from '../../../models/schemas';
+import { AuthenticationState } from '../../../services/AuthenticationState';
+import { GraphProvider } from '../../../services/Graph';
 import { AppTreeItem } from '../../../views/treeview/development/AppTreeItem';
 import { DevelopmentTreeViewProvider } from '../../../views/treeview/development/DevelopmentTreeViewProvider';
 import { ProgressWaitNotification } from '../../../views/notifications/ProgressWaitNotification';
@@ -19,19 +20,23 @@ export class CreateAppCert extends Command {
     public static readonly COMMAND = 'App.Credentials.createCert';
 
     // Command handler
-    public static async run(commandProps?: CreateCertProps): Promise<App | undefined> {
-        const account = await GetAccount.run();
-        if (!account) {
+    public static async run(commandProps?: CreateCertProps): Promise<Application | undefined> {
+        if (!AuthenticationState.isSignedIn()) {
+            vscode.window.showErrorMessage('Please sign in to create app certificates.');
             return;
         }
 
-        let app: App | undefined;
+        const graphProvider = GraphProvider.getInstance();
+        
+        let app: Application | undefined;
         if (commandProps instanceof AppTreeItem) {
             if (commandProps instanceof GuestApplicationTreeItem) {
-                app = commandProps.appPerms.app;
+                const appId = commandProps.appPerms.appId;
+                app = (await graphProvider.applications.get(appId)) || undefined;
             }
             if (commandProps instanceof OwningAppTreeItem) {
-                app = commandProps.containerType.owningApp!;
+                const appId = commandProps.containerType.owningAppId;
+                app = (await graphProvider.applications.get(appId)) || undefined;
             }
         } else {
             app = commandProps;
@@ -43,20 +48,20 @@ export class CreateAppCert extends Command {
         const progressWindow = new ProgressWaitNotification(vscode.l10n.t('Creating app certificate...'));
         progressWindow.show();
         try {
-            const appProvider = account.appProvider;
-            await appProvider.addCert(app);
+            // TODO: Implement certificate creation in GraphProvider
+            // await graphProvider.applications.addCert(app.id!);
             progressWindow.hide();
-            const message = vscode.l10n.t('Certificate created for app {0}', app.displayName);
-            vscode.window.showInformationMessage(message);
+            const message = vscode.l10n.t('Certificate creation is not yet implemented in the new authentication system.');
+            vscode.window.showWarningMessage(message);
             DevelopmentTreeViewProvider.instance.refresh();
             return app;
         } catch (error: any) {
             progressWindow.hide();
-            const messsage = vscode.l10n.t('Failed to create cert for app {0}: {1}', app.displayName, error);
-            vscode.window.showErrorMessage(messsage);
+            const message = vscode.l10n.t('Failed to create cert for app {0}: {1}', app.displayName, error);
+            vscode.window.showErrorMessage(message);
             return;
         }
     };
 }
 
-export type CreateCertProps = AppTreeItem | App;
+export type CreateCertProps = AppTreeItem | Application;

@@ -6,28 +6,42 @@
 import * as vscode from "vscode";
 import { DynamicNode } from "../DynamicNode";
 import { m365Icon } from "./common";
-import { Account, LoginChangeListener } from "../../../models/Account";
+import { AuthenticationState, AuthStateChangeListener, AuthenticatedAccount } from "../../../services/AuthenticationState";
 import { AccountTreeViewProvider } from "./AccountTreeViewProvider";
 import { DevelopmentTreeViewProvider } from "../development/DevelopmentTreeViewProvider";
 
-export class M365AccountNode extends DynamicNode implements LoginChangeListener {
+export class M365AccountNode extends DynamicNode implements AuthStateChangeListener {
   private static readonly _signingInLabel = "Signing into your account...";
 
   constructor(private _eventEmitter: vscode.EventEmitter<DynamicNode | undefined | void>) {
     super(M365AccountNode._signingInLabel);
-    Account.subscribeLoginListener(this);
+    AuthenticationState.subscribe(this);
     this.iconPath = new vscode.ThemeIcon("loading~spin");
     this.collapsibleState = vscode.TreeItemCollapsibleState.None;
     this.contextValue = "signingInM365";
+    this._initializeState();
   }
 
-  public onBeforeLogin(): void {
+  private async _initializeState(): Promise<void> {
+    const isSignedIn = await AuthenticationState.isSignedIn();
+    if (isSignedIn) {
+      const account = await AuthenticationState.getCurrentAccount();
+      if (account) {
+        this.onSignIn(account);
+      }
+    }
+  }
+
+  public onBeforeSignIn(): void {
+    this.label = M365AccountNode._signingInLabel;
+    this.iconPath = new vscode.ThemeIcon("loading~spin");
+    this.contextValue = "signingInM365";
     vscode.commands.executeCommand('setContext', 'spe:isLoggingIn', true);
     AccountTreeViewProvider.getInstance().refresh();
   }
 
-  public onLogin(account: Account): void {
-    this.label = account.username;
+  public onSignIn(account: AuthenticatedAccount): void {
+    this.label = account.name || account.username;
     this.iconPath = m365Icon;
     this.contextValue = "signedinM365";
     vscode.commands.executeCommand('setContext', 'spe:isLoggingIn', false);
@@ -37,13 +51,16 @@ export class M365AccountNode extends DynamicNode implements LoginChangeListener 
     DevelopmentTreeViewProvider.getInstance().refresh();
   }
 
-  public onLoginFailed(): void {
+  public onSignInFailed(): void {
+    this.label = M365AccountNode._signingInLabel;
+    this.iconPath = new vscode.ThemeIcon("loading~spin");
+    this.contextValue = "signingInM365";
     vscode.commands.executeCommand('setContext', 'spe:isLoggingIn', false);
     DevelopmentTreeViewProvider.getInstance().refresh();
     AccountTreeViewProvider.getInstance().refresh();
   }
 
-  public onLogout(): void {
+  public onSignOut(): void {
     DevelopmentTreeViewProvider.getInstance().refresh();
     this.label = M365AccountNode._signingInLabel;
     this.iconPath = new vscode.ThemeIcon("loading~spin");
@@ -59,5 +76,9 @@ export class M365AccountNode extends DynamicNode implements LoginChangeListener 
 
   public getTreeItem(): vscode.TreeItem | Promise<vscode.TreeItem> {
     return this;
+  }
+
+  dispose(): void {
+    AuthenticationState.unsubscribe(this);
   }
 }

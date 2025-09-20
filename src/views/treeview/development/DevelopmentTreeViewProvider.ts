@@ -5,7 +5,9 @@
 
 import * as vscode from "vscode";
 import { ContainerTypesTreeItem } from "./ContainerTypesTreeItem";
-import { Account } from "../../../models/Account";
+import { AuthenticationState } from "../../../services/AuthenticationState";
+import { GraphAuthProvider } from "../../../services/Auth/GraphAuthProvider";
+import { GraphProvider } from "../../../services/Graph/GraphProvider";
 import { IChildrenProvidingTreeItem } from "./IDataProvidingTreeItem";
 
 export class DevelopmentTreeViewProvider implements vscode.TreeDataProvider<IChildrenProvidingTreeItem | vscode.TreeItem> {
@@ -44,16 +46,21 @@ export class DevelopmentTreeViewProvider implements vscode.TreeDataProvider<IChi
     }
 
     private async _getChildren(): Promise<vscode.TreeItem[]> {
-        const account = Account.get();
-        if (!account) {
+        // Check if user is signed in using the new authentication system
+        const isSignedIn = await AuthenticationState.isSignedIn();
+        if (!isSignedIn) {
             return [];
         }
         
         try {
             await vscode.commands.executeCommand('setContext', 'spe:showGettingStartedView', false);
             await vscode.commands.executeCommand('setContext', 'spe:showFailedView', false);
-            const containerTypeProvider = account.containerTypeProvider;
-            const containerTypes = await containerTypeProvider.list();
+            
+            // Use GraphAuthProvider to get container types
+            const graphAuth = GraphAuthProvider.getInstance();
+            const graphProvider = GraphProvider.getInstance();
+            const containerTypes = await graphProvider.containerTypes.list();
+            
             if (containerTypes && containerTypes.length > 0) {
                 return [new ContainerTypesTreeItem(containerTypes)];
             }

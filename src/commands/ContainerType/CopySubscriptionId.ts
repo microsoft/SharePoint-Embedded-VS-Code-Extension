@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import { ContainerTypeTreeItem } from '../../views/treeview/development/ContainerTypeTreeItem';
 import { Command } from '../Command';
-import { ContainerType } from '../../models/ContainerType';
+import { ContainerType } from '../../models/schemas';
 
 // Static class that handles the copy subscription id command
 export class CopySubscriptionId extends Command {
@@ -18,15 +18,6 @@ export class CopySubscriptionId extends Command {
         if (!containerTypeViewModel) {
             return;
         }
-        const containerType: ContainerType = containerTypeViewModel.containerType;
-        try {
-            const azureSubscriptionId = containerType.azureSubscriptionId;
-            await vscode.env.clipboard.writeText(azureSubscriptionId ? azureSubscriptionId : '');
-            vscode.window.showInformationMessage(vscode.l10n.t('Azure subscription id copied to clipboard.'));
-        } catch (error: any) {
-            const message = vscode.l10n.t('Failed to copy Azure subscription id to clipboard: {0}', error.message);
-            vscode.window.showErrorMessage(message);
-            return;
-        }
+        console.log('CopySubscriptionId command not implemented yet');
     }
 }

@@ -43,4 +43,8 @@ export class AccountTreeViewProvider implements vscode.TreeDataProvider<DynamicN
     private _getAccountNodes(): DynamicNode[] {
         return [this.m365AccountNode];
     }
+
+    public dispose(): void {
+        this.m365AccountNode?.dispose();
+    }
 }

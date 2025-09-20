@@ -20,7 +20,7 @@ export class CopyContainerTypeId extends Command {
         }
         const containerType: ContainerType = containerTypeViewModel.containerType;
         try {
-            const containerTypeId = containerType.containerTypeId;
+            const containerTypeId = containerType.id;
             await vscode.env.clipboard.writeText(containerTypeId);
             vscode.window.showInformationMessage(vscode.l10n.t('Container Type Id copied to clipboard.'));
         } catch (error: any) {

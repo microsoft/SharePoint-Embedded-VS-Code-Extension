@@ -105,7 +105,7 @@ export class CloneDotNetSampleApp extends Command {
 
         try {
             const appId = app.clientId;
-            const containerTypeId = containerType.containerTypeId;
+            const containerTypeId = containerType.id;
             const tenantId = account.tenantId;
             const clientSecret = appSecrets.clientSecret || '';
             const repoUrl = 'https://github.com/microsoft/SharePoint-Embedded-Samples.git';

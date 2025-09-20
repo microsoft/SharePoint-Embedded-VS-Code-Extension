@@ -180,7 +180,7 @@ export class CreatePaidContainerType extends Command {
         }
 
         try {
-            const armAccountDetails = await armProvider.createArmAccount(azureSubscriptionId, resourceGroup, region, containerType.containerTypeId);
+            const armAccountDetails = await armProvider.createArmAccount(azureSubscriptionId, resourceGroup, region, containerType.id);
             if (armAccountDetails.properties.provisioningState !== 'Succeeded') {
                 throw new Error(vscode.l10n.t('Failed to create a billing profile. Please try creating a container type again.'));
             }

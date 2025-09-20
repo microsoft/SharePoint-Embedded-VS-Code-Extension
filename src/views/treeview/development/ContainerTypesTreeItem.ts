@@ -6,7 +6,7 @@
 import * as vscode from "vscode";
 import { ContainerTypeTreeItem } from "./ContainerTypeTreeItem";
 import { IChildrenProvidingTreeItem } from "./IDataProvidingTreeItem";
-import { ContainerType } from "../../../models/ContainerType";
+import { ContainerType } from "../../../models/schemas";
 
 export class ContainerTypesTreeItem extends IChildrenProvidingTreeItem {
     private static readonly label = vscode.l10n.t("Container Types");

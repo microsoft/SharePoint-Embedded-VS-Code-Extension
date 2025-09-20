@@ -5,7 +5,7 @@
 
 import { Command } from './../Command';
 import * as vscode from 'vscode';
-import { Account } from '../../models/Account';
+import { AuthenticationState } from '../../services/AuthenticationState';
 import { DevelopmentTreeViewProvider } from '../../views/treeview/development/DevelopmentTreeViewProvider';
 import { SignOutEvent, SignOutFailure } from '../../models/telemetry/telemetry';
 import { TelemetryProvider } from '../../services/TelemetryProvider';
@@ -28,11 +28,11 @@ export class SignOut extends Command {
                 return;
             }
 
-            await Account.get()!.logout();
+            await AuthenticationState.signOut();
             DevelopmentTreeViewProvider.instance.refresh();
             TelemetryProvider.instance.send(new SignOutEvent());
         } catch (error: any) {
-            vscode.window.showErrorMessage(vscode.l10n.t('Failed to obtain access token.'));
+            vscode.window.showErrorMessage(vscode.l10n.t('Failed to sign out.'));
             TelemetryProvider.instance.send(new SignOutFailure(error.message));
         }
     }

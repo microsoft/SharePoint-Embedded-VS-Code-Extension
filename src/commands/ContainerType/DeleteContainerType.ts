@@ -8,8 +8,10 @@ import * as vscode from 'vscode';
 import { ContainerTypeTreeItem } from '../../views/treeview/development/ContainerTypeTreeItem';
 import { DevelopmentTreeViewProvider } from '../../views/treeview/development/DevelopmentTreeViewProvider';
 import { ProgressWaitNotification, Timer } from '../../views/notifications/ProgressWaitNotification';
-import { ContainerType } from '../../models/ContainerType';
-import { GetAccount } from '../Accounts/GetAccount';
+import { ContainerType } from '../../models/schemas';
+import { GraphAuthProvider } from '../../services/Auth';
+import { GraphProvider } from '../../services/Graph';
+import { AuthenticationState } from '../../services/AuthenticationState';
 import { ActiveContainersError, ActiveRecycledContainersError } from '../../utils/errors';
 import { TelemetryProvider } from '../../services/TelemetryProvider';
 import { DeleteTrialContainerType, TrialContainerTypeDeletionFailure } from '../../models/telemetry/telemetry';
@@ -25,10 +27,16 @@ export class DeleteContainerType extends Command {
             return;
         }
 
-        const account = await GetAccount.run();
+        // Get authentication and check admin status
+        const account = await AuthenticationState.getCurrentAccount();
         if (!account) {
+            vscode.window.showErrorMessage(vscode.l10n.t('Please sign in first'));
             return;
         }
+
+        // Get Graph provider
+        const graphAuth = GraphAuthProvider.getInstance();
+        const graphProvider = GraphProvider.getInstance();
 
         let containerType: ContainerType;
         if (commandProps instanceof ContainerTypeTreeItem) {
@@ -40,7 +48,7 @@ export class DeleteContainerType extends Command {
             return;
         }
 
-        const message = `Are you sure you delete the '${containerType.displayName}' Container Type?`;
+        const message = `Are you sure you delete the '${containerType.name}' Container Type?`;
         const userChoice = await vscode.window.showInformationMessage(
             message,
             vscode.l10n.t('OK'), vscode.l10n.t('Cancel')
@@ -53,14 +61,16 @@ export class DeleteContainerType extends Command {
         const progressWindow = new ProgressWaitNotification('Deleting container type (make take a minute)...');
         try {    
             progressWindow.show();
-            const containerTypeProvider = account.containerTypeProvider;
-            await containerTypeProvider.delete(containerType);
+            
+            // Use the new service to delete the container type
+            await graphProvider.containerTypes.delete(containerType.id);
+            
             const ctRefreshTimer = new Timer(60 * 1000);
             const refreshCt = async (): Promise<void> => {
                 DevelopmentTreeViewProvider.instance.refresh();
                 do {
-                    const containerTypes = await containerTypeProvider.list();
-                    if (!containerTypes.find(ct => ct.containerTypeId === containerType.containerTypeId)) {
+                    const containerTypes = await graphProvider.containerTypes.list();
+                    if (!containerTypes.find((ct: ContainerType) => ct.id === containerType.id)) {
                         break;
                     }
                     // sleep for 5 seconds
@@ -91,7 +101,7 @@ export class DeleteContainerType extends Command {
                         break;
                 }
             }
-            vscode.window.showErrorMessage(`Unable to delete Container Type ${containerType.displayName} : ${errorDisplayMessage || error.message}`);
+            vscode.window.showErrorMessage(`Unable to delete Container Type ${containerType.name} : ${errorDisplayMessage || error.message}`);
             TelemetryProvider.instance.send(new TrialContainerTypeDeletionFailure(errorDisplayMessage || error.message));
             progressWindow.hide();
             return;

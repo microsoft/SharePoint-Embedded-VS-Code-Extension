@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from "vscode";
-import { App } from "../../../models/App";
+import { Application } from "../../../models/schemas";
 import { IChildrenProvidingTreeItem } from "./IDataProvidingTreeItem";
 
 export class AppTreeItem extends vscode.TreeItem {
-    constructor(public readonly app: App | string, public readonly parentView?: IChildrenProvidingTreeItem) {
-        const label = typeof app === "string" ? app : app.name;
+    constructor(public readonly app: Application | string, public readonly parentView?: IChildrenProvidingTreeItem) {
+        const label = typeof app === "string" ? app : app.displayName || app.appId || 'Unknown App';
         super(label,  vscode.TreeItemCollapsibleState.None);
         this.iconPath = new vscode.ThemeIcon("app-icon");
         this.contextValue = "spe:appTreeItem";

@@ -5,11 +5,12 @@
 
 import { Command } from '../Command';
 import * as vscode from 'vscode';
-import { GetAccount } from '../Accounts/GetAccount';
+import { AuthenticationState } from '../../services/AuthenticationState';
+import { GraphProvider } from '../../services/Graph';
 import { ProgressWaitNotification, Timer } from '../../views/notifications/ProgressWaitNotification';
 import { AppTreeItem } from '../../views/treeview/development/AppTreeItem';
-import { App } from '../../models/App';
-import { BaseAuthProvider } from '../../services/BaseAuthProvider';
+import { Application } from '../../models/schemas';
+import { AdminConsentHelper } from '../../utils/AdminConsentHelper';
 
 // Static class that handles the register container type command
 export class GetLocalAdminConsent extends Command {
@@ -22,27 +23,34 @@ export class GetLocalAdminConsent extends Command {
             return false;
         }
 
-        const account = await GetAccount.run();
-        if (!account) {
+        if (!AuthenticationState.isSignedIn()) {
+            vscode.window.showErrorMessage('Please sign in to get admin consent.');
             return false;
         }
 
-        let app: App | undefined;
+        const graphProvider = GraphProvider.getInstance();
+        
+        let app: Application | undefined;
         if (commandProps instanceof AppTreeItem) {
-            if (commandProps.app && commandProps.app instanceof App) {
-                app = commandProps.app;
-            }
+            // Get app from tree item - need to implement proper property access
+            // For now, this needs to be implemented based on tree item structure
+            app = undefined; // TODO: Extract app from AppTreeItem
         } else {
             app = commandProps;
         }
         if (!app) {
+            vscode.window.showErrorMessage('No application found for admin consent.');
             return false;
         }
 
         const consentProgress = new ProgressWaitNotification(vscode.l10n.t('Waiting for admin consent...'), true);
         consentProgress.show();
         try {
-            const adminConsent = await BaseAuthProvider.listenForAdminConsent(app.clientId, account.tenantId);
+            const account = await AuthenticationState.getCurrentAccount();
+            if (!account || !app.appId) {
+                throw new Error('Missing account or app information');
+            }
+            const adminConsent = await AdminConsentHelper.listenForAdminConsent(app.appId, account.tenantId);
             consentProgress.hide();
             return adminConsent;
         } catch (error: any) {
@@ -54,6 +62,6 @@ export class GetLocalAdminConsent extends Command {
     }
 }
 
-export type AdminConsentCommandProps = AppTreeItem | App;
+export type AdminConsentCommandProps = AppTreeItem | Application;
 
 

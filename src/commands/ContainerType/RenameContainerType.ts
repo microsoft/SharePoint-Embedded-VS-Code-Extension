@@ -4,7 +4,9 @@
 *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { Account } from '../../models/Account';
+import { AuthenticationState } from '../../services/AuthenticationState';
+import { GraphAuthProvider } from '../../services/Auth/GraphAuthProvider';
+import { GraphProvider } from '../../services/Graph/GraphProvider';
 import { DevelopmentTreeViewProvider } from '../../views/treeview/development/DevelopmentTreeViewProvider';
 import { Command } from '../Command';
 import { ContainerTypeTreeItem } from '../../views/treeview/development/ContainerTypeTreeItem';
@@ -21,12 +23,20 @@ export class RenameContainerType extends Command {
             return;
         }
 
-        const account = Account.get()!;
+        // Get authentication and Graph provider
+        const account = await AuthenticationState.getCurrentAccount();
+        if (!account) {
+            vscode.window.showErrorMessage(vscode.l10n.t('Please sign in first'));
+            return;
+        }
+
+        const graphAuth = GraphAuthProvider.getInstance();
+        const graphProvider = GraphProvider.getInstance();
         const containerType = containerTypeViewModel.containerType;
 
         const containerTypeDisplayName = await vscode.window.showInputBox({
             title: vscode.l10n.t('New display name:'),
-            value: containerType.displayName,
+            value: containerType.name,
             prompt: vscode.l10n.t('Enter the new display name for the container type:'),
             validateInput: (value: string): string | undefined => {
                 const maxLength = 50;
@@ -53,18 +63,30 @@ export class RenameContainerType extends Command {
             return;
         }
 
-        const containerTypeProvider = account.containerTypeProvider;
         const progressWindow = new ProgressWaitNotification(vscode.l10n.t('Renaming container type (may take a minute)...'));
         progressWindow.show();
         try {
-            await containerTypeProvider.rename(containerType, containerTypeDisplayName);
+            // Update the container type display name using the new service
+            // Note: We need the current etag for the update operation
+            const currentContainerType = await graphProvider.containerTypes.get(containerType.id);
+            if (!currentContainerType) {
+                throw new Error('Container type not found');
+            }
+
+            // Update the container type
+            await graphProvider.containerTypes.update(
+                containerType.id, 
+                { name: containerTypeDisplayName },
+                currentContainerType.etag || ''
+            );
+
             const ctRefreshTimer = new Timer(60 * 1000);
             const refreshCt = async (): Promise<void> => {
                 do {
-                    const containerTypes = await containerTypeProvider.list();
-                    if (containerTypes.find(ct => 
-                        ct.containerTypeId === containerType.containerTypeId &&
-                        ct.displayName === containerTypeDisplayName)
+                    const containerTypes = await graphProvider.containerTypes.list();
+                    if (containerTypes.find((ct) => 
+                        ct.id === containerType.id &&
+                        ct.name === containerTypeDisplayName)
                     ) {
                         DevelopmentTreeViewProvider.instance.refresh();
                         setTimeout(() => DevelopmentTreeViewProvider.instance.refresh(), 3000);

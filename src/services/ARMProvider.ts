@@ -4,14 +4,31 @@
  *--------------------------------------------------------------------------------------------*/
 
 import axios, { AxiosResponse } from "axios";
-import { BaseAuthProvider } from "./BaseAuthProvider";
+import { ARMAuthProvider } from "./Auth";
 import { v4 as uuidv4 } from 'uuid';
+import {
+    ArmSubscription,
+    ArmResourceGroup,
+    ArmSyntexProvider,
+    ArmAccount,
+    ArmAccountCreate,
+    ArmSubscriptionsResponse,
+    ArmResourceGroupsResponse,
+    ArmAccountsResponse,
+    armSubscriptionSchema,
+    armResourceGroupSchema,
+    armSyntexProviderSchema,
+    armAccountSchema,
+    armSubscriptionsResponseSchema,
+    armResourceGroupsResponseSchema,
+    armAccountsResponseSchema
+} from '../models/schemas';
 
 export default class ARMProvider {
     private readonly _baseApiUrl;
     private readonly _scopes;
 
-    public constructor(private _authProvider: BaseAuthProvider) {
+    public constructor(private _authProvider: ARMAuthProvider) {
         this._baseApiUrl = 'https://management.azure.com/';
         this._scopes = [`${this._baseApiUrl}/user_impersonation`];
     }
@@ -55,121 +72,94 @@ export default class ARMProvider {
         return axios.put(url, JSON.stringify(body), options);
     }
 
-    public async getSubscriptions(): Promise<IArmSubscriptionProperties[]> {
+    public async getSubscriptions(): Promise<ArmSubscription[]> {
         const response = await this._sendGetRequest(`subscriptions`, `api-version=2021-04-01`);
-        return response.data.value as IArmSubscriptionProperties[];
+        const validated = armSubscriptionsResponseSchema.parse(response.data);
+        return validated.value;
     }
 
-    public async getSubscriptionById(subscriptionId: string): Promise<IArmSubscriptionProperties> {
+    public async getSubscriptionById(subscriptionId: string): Promise<ArmSubscription> {
         const response = await this._sendGetRequest(`subscriptions/${subscriptionId}`, `api-version=2021-04-01`);
-        return response.data as IArmSubscriptionProperties;
+        return armSubscriptionSchema.parse(response.data);
     }
     
-    public async getSubscriptionResourceGroups(subscriptionId: string): Promise<IArmResourceGroupProperties[]> {
+    public async getSubscriptionResourceGroups(subscriptionId: string): Promise<ArmResourceGroup[]> {
         const response = await this._sendGetRequest(`subscriptions/${subscriptionId}/resourceGroups`, `api-version=2021-04-01`);
-        return response.data.value as IArmResourceGroupProperties[];
+        const validated = armResourceGroupsResponseSchema.parse(response.data);
+        return validated.value;
     }
 
-    public async getSyntexProvider(subscriptionId: string): Promise<IArmSyntexProviderProperties> {
+    public async getSyntexProvider(subscriptionId: string): Promise<ArmSyntexProvider> {
         const response = await this._sendGetRequest(`subscriptions/${subscriptionId}/providers/Microsoft.Syntex`, `api-version=2021-04-01`);
-        return response.data as IArmSyntexProviderProperties;
+        return armSyntexProviderSchema.parse(response.data);
     }
 
-    public async createSyntexProvider(subscriptionId: string, body: any): Promise<IArmSyntexProviderProperties> {
+    public async createSyntexProvider(subscriptionId: string): Promise<ArmSyntexProvider> {
         const response = await this._sendPostRequest(`subscriptions/${subscriptionId}/providers/Microsoft.Syntex/register`, {}, `api-version=2021-04-01`);
-        return response.data as IArmSyntexProviderProperties;
+        return armSyntexProviderSchema.parse(response.data);
     }
 
-    public async getArmAccounts(subscriptionId: string, resourceGroup: string): Promise<any> {
+    public async getArmAccounts(subscriptionId: string, resourceGroup: string): Promise<ArmAccount[]> {
         const response = await this._sendGetRequest(`subscriptions/${subscriptionId}/resourceGroups/${resourceGroup}/providers/Microsoft.Syntex/accounts`, `api-version=2023-01-04-preview`);
-        return response.data.value as IArmAccountProperties[];
+        const validated = armAccountsResponseSchema.parse(response.data);
+        return validated.value;
     }
 
-    public async createArmAccount(subscriptionId: string, resourceGroup: string, region: string, containerTypeId: string) {
-        const body = {
+    public async createArmAccount(subscriptionId: string, resourceGroup: string, region: string, containerTypeId: string): Promise<ArmAccount> {
+        const accountCreate: ArmAccountCreate = {
             location: region,
             properties: {
                 friendlyName: `CT_${containerTypeId}`,
                 service: 'SPO',
                 identityType: 'ContainerType',
-                identityId: `${containerTypeId}`,
+                identityId: containerTypeId,
                 feature: 'RaaS',
                 scope: 'Global'
             }
         };
-        const response = await this._sendPutRequest(`subscriptions/${subscriptionId}/resourceGroups/${resourceGroup}/providers/Microsoft.Syntex/accounts/${uuidv4()}`, body, `api-version=2023-01-04-preview`);
-        return response.data as IArmAccountProperties;
+        const response = await this._sendPutRequest(`subscriptions/${subscriptionId}/resourceGroups/${resourceGroup}/providers/Microsoft.Syntex/accounts/${uuidv4()}`, accountCreate, `api-version=2023-01-04-preview`);
+        return armAccountSchema.parse(response.data);
     }
-}
 
-export interface IArmAccountProperties {
-    id: string;
-    location: string;
-    name: string;
-    type: string;
-    properties: IArmAccountPropertiesBag;
-    systemData: IArmAccountSystemData;
-}
+    /**
+     * Validate ARM subscription data against schema
+     */
+    public validateSubscription(data: unknown): ArmSubscription {
+        return armSubscriptionSchema.parse(data);
+    }
 
-export interface IArmAccountPropertiesBag {
-    friendlyName: string;
-    identityId: string;
-    identityType: string;
-    provisioningState: string;
-    feature: string;
-    scope: string;
-    service: string;
-}
+    /**
+     * Validate ARM resource group data against schema
+     */
+    public validateResourceGroup(data: unknown): ArmResourceGroup {
+        return armResourceGroupSchema.parse(data);
+    }
 
-export interface IArmAccountSystemData {    
-    createdBy: string;
-    createdByType: string
-    createdAt: string;
-    lastModifiedAt: string;
-    lastModifiedBy: string;
-    lastModifiedByType: string
-}
+    /**
+     * Validate ARM account data against schema
+     */
+    public validateAccount(data: unknown): ArmAccount {
+        return armAccountSchema.parse(data);
+    }
 
-export interface IArmSyntexProviderProperties {
-    id: string;
-    namespace: string;
-    registrationState: string;
-    authorizations: any[];
-    resourceTypes: any[];
-    registrationPolicy: string;
-}
+    /**
+     * Safely validate ARM subscription collection response
+     */
+    public validateSubscriptionsResponse(data: unknown): ArmSubscriptionsResponse {
+        return armSubscriptionsResponseSchema.parse(data);
+    }
 
-export interface IArmSubscriptionProperties {
-    id: string;
-    authorizationSource: string;
-    managedByTenants: string[];
-    subscriptionId: string;
-    subscriptionPolicies: IArmSubscriptionPolicyProperties;
-    tenantId: string;
-    displayName: string;
-    state: string;
-}
+    /**
+     * Safely validate ARM resource groups collection response
+     */
+    public validateResourceGroupsResponse(data: unknown): ArmResourceGroupsResponse {
+        return armResourceGroupsResponseSchema.parse(data);
+    }
 
-export interface IArmSubscriptionPolicyProperties {
-    locationPlacementId: string;
-    quotaId: string;
-    spendingLimit: string;
-    quotaPeriod: string;
-    spendingLimitPerSubscription: string;
-    spendingLimitPerSubscriptionPeriod: string;
-    quotaPeriodType: string;
-    spendingLimitPerSubscriptionPeriodType: string;
-}
-
-export interface IArmResourceGroupProperties { 
-    id: string;
-    location: string;
-    managedBy: string;
-    name: string;
-    properties: IArmResourceGroupPropertiesBag;
-    tags: string;
-}
-
-export interface IArmResourceGroupPropertiesBag {
-    provisioningState: string;
+    /**
+     * Safely validate ARM accounts collection response
+     */
+    public validateAccountsResponse(data: unknown): ArmAccountsResponse {
+        return armAccountsResponseSchema.parse(data);
+    }
 }

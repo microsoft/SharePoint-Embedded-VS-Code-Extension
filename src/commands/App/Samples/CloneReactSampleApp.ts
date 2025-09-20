@@ -149,7 +149,7 @@ export class CloneReactSampleApp extends Command {
         appConfigurationProgress.hide();
         try {
             const appId = app.clientId;
-            const containerTypeId = containerType.containerTypeId;
+            const containerTypeId = containerType.id;
             const tenantId = account.tenantId;
             const tenantDomain = account.domain;
             const clientSecret = appSecrets.clientSecret || '';

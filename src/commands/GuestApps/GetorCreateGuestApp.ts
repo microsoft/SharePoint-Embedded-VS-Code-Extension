@@ -11,7 +11,7 @@ import { GetOrCreateApp } from '../Apps/GetOrCreateApp';
 import { RegisterOnLocalTenant } from '../ContainerType/RegisterOnLocalTenant';
 import { App, AppType } from '../../models/App';
 import { GuestAppsTreeItem } from '../../views/treeview/development/GuestAppsTreeItem';
-import { ApplicationPermissions } from '../../models/ApplicationPermissions';
+import { ApplicationPermissionGrant } from '../../models/ApplicationPermissions';
 import { ISpConsumingApplicationProperties } from '../../services/SPAdminProvider';
 import { ChooseAppPermissions } from './ChooseAppPermissions';
 import { ProgressWaitNotification } from '../../views/notifications/ProgressWaitNotification';
@@ -70,13 +70,13 @@ export class GetorCreateGuestApp extends Command {
             DelegatedPermissions: selectedPerms.delegatedPerms,
             AppOnlyPermissions: selectedPerms.applicationPerms,
             TenantId: account.tenantId,
-            ContainerTypeId: containerType.containerTypeId,
+            ContainerTypeId: containerType.id,
             ApplicationId: app.clientId,
             ApplicationName: app.displayName,
             Applications: containerTypeRegistration!.applications,
             OwningApplicationName:containerType.owningApp!.displayName,
         };
-        const appPermissionsToRegister = new ApplicationPermissions(containerTypeRegistration!, newApplicationPermissions);
+        const appPermissionsToRegister = new ApplicationPermissionGrant(containerTypeRegistration!, newApplicationPermissions);
         await RegisterOnLocalTenant.run(containerType, appPermissionsToRegister);
         return app;
     }

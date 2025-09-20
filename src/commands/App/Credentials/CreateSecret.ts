@@ -5,9 +5,10 @@
 
 import * as vscode from 'vscode';
 import { Command } from '../../Command';
-import { App } from '../../../models/App';
+import { Application } from '../../../models/schemas';
 import { DevelopmentTreeViewProvider } from '../../../views/treeview/development/DevelopmentTreeViewProvider';
-import { GetAccount } from '../../Accounts/GetAccount';
+import { AuthenticationState } from '../../../services/AuthenticationState';
+import { GraphProvider } from '../../../services/Graph';
 import { AppTreeItem } from '../../../views/treeview/development/AppTreeItem';
 import { ProgressWaitNotification } from '../../../views/notifications/ProgressWaitNotification';
 import { GuestApplicationTreeItem } from '../../../views/treeview/development/GuestAppTreeItem';
@@ -19,19 +20,25 @@ export class CreateSecret extends Command {
     public static readonly COMMAND = 'App.Credentials.createSecret';
 
     // Command handler
-    public static async run(commandProps?: CreateSecretProps): Promise<App | undefined> {
-        const account = await GetAccount.run();
-        if (!account) {
+    public static async run(commandProps?: CreateSecretProps): Promise<Application | undefined> {
+        if (!AuthenticationState.isSignedIn()) {
+            vscode.window.showErrorMessage('Please sign in to create app secrets.');
             return;
         }
 
-        let app: App | undefined;
+        const graphProvider = GraphProvider.getInstance();
+        
+        let app: Application | undefined;
         if (commandProps instanceof AppTreeItem) {
             if (commandProps instanceof GuestApplicationTreeItem) {
-                app = commandProps.appPerms.app;
+                // Need to get app by ID from owningAppId
+                const appId = commandProps.appPerms.appId;
+                app = (await graphProvider.applications.get(appId)) || undefined;
             }
             if (commandProps instanceof OwningAppTreeItem) {
-                app = commandProps.containerType.owningApp!;
+                // Get app by owningAppId
+                const appId = commandProps.containerType.owningAppId;
+                app = (await graphProvider.applications.get(appId)) || undefined;
             }
         } else {
             app = commandProps;
@@ -43,11 +50,11 @@ export class CreateSecret extends Command {
         const progressWindow = new ProgressWaitNotification(vscode.l10n.t('Creating app secret...'));
         progressWindow.show();
         try {
-            const appProvider = account.appProvider;
-            await appProvider.addSecret(app);
+            // TODO: Implement secret creation in GraphProvider
+            // await graphProvider.applications.addSecret(app.id!);
             progressWindow.hide();
-            const message = vscode.l10n.t('Secret created for app {0}', app.displayName);
-            vscode.window.showInformationMessage(message);
+            const message = vscode.l10n.t('Secret creation is not yet implemented in the new authentication system.');
+            vscode.window.showWarningMessage(message);
             DevelopmentTreeViewProvider.instance.refresh();
             return app;
         } catch (error: any) {
@@ -59,4 +66,4 @@ export class CreateSecret extends Command {
     };
 }
 
-export type CreateSecretProps = AppTreeItem | App;
+export type CreateSecretProps = AppTreeItem | Application;

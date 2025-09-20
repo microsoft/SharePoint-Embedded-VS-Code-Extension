@@ -5,7 +5,7 @@
 
 import { Command } from './../Command';
 import * as vscode from 'vscode';
-import { Account } from '../../models/Account';
+import { AuthenticationState } from '../../services/AuthenticationState';
 import { SignInEvent, SignInFailure } from '../../models/telemetry/telemetry';
 import { TelemetryProvider } from '../../services/TelemetryProvider';
 
@@ -17,7 +17,7 @@ export class SignIn extends Command {
     // Command handler
     public static async run(): Promise<void> {
         try {
-            await Account.login();
+            await AuthenticationState.signIn();
             TelemetryProvider.instance.send(new SignInEvent());
         } catch (error: any) {
             const message = vscode.l10n.t('{0} Failed to sign in, please try again.', error);

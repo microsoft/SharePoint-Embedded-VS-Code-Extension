@@ -37,7 +37,7 @@ export class EnableContainerTypeDiscoverability extends Command {
             return;
         }
 
-        const message = `Are you sure you want to enable Discoverability on the '${containerType.displayName}' Container Type?`;
+        const message = `Are you sure you want to enable Discoverability on the '${containerType.name}' Container Type?`;
         const userChoice = await vscode.window.showInformationMessage(
             message,
             vscode.l10n.t('OK'), vscode.l10n.t('Cancel')
@@ -58,8 +58,8 @@ export class EnableContainerTypeDiscoverability extends Command {
                 do {
                     const containerTypes = await containerTypeProvider.list();
                     if (containerTypes.find(ct => 
-                        ct.containerTypeId === containerType.containerTypeId &&
-                        ct.configuration.isDiscoverablilityDisabled === false)
+                        ct.id === containerType.id &&
+                        ct.settings.isDiscoverabilityEnabled === false)
                     ) {
                         DevelopmentTreeViewProvider.instance.refresh();
                         break;

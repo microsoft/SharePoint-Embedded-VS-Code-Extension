@@ -9,7 +9,7 @@ import { AccountTreeViewProvider } from './views/treeview/account/AccountTreeVie
 import { DevelopmentTreeViewProvider } from './views/treeview/development/DevelopmentTreeViewProvider';
 import { LocalStorageService, StorageProvider } from './services/StorageProvider';
 import { TelemetryProvider } from './services/TelemetryProvider';
-import { Account } from './models/Account';
+import { AuthenticationState } from './services/AuthenticationState';
 import { Commands } from './commands/';
 
 export async function activate(context: vscode.ExtensionContext) {
@@ -28,20 +28,18 @@ export async function activate(context: vscode.ExtensionContext) {
     vscode.window.registerTreeDataProvider(AccountTreeViewProvider.viewId, AccountTreeViewProvider.getInstance());
     vscode.window.registerTreeDataProvider(DevelopmentTreeViewProvider.viewId, DevelopmentTreeViewProvider.getInstance());
 
-    Account.subscribeLoginListener({
-        onLogin: () => {
+    // Subscribe to authentication state changes for development tree view
+    AuthenticationState.subscribe({
+        onSignIn: () => {
             DevelopmentTreeViewProvider.getInstance().refresh();
         },
-        onLogout: () => {
+        onSignOut: () => {
             DevelopmentTreeViewProvider.getInstance().refresh();
         }
     });
 
-    Account.hasSavedAccount().then(async hasSavedAccount => {
-        if (hasSavedAccount) {
-            Account.loginToSavedAccount();
-        }
-    });
+    // Initialize authentication state and check if already signed in
+    await AuthenticationState.initialize();
 
     Commands.SignIn.register(context);
     Commands.SignOut.register(context);
@@ -95,4 +93,9 @@ export async function activate(context: vscode.ExtensionContext) {
     Commands.CopyRecycledContainerId.register(context);
     Commands.DeleteContainer.register(context);
     Commands.RestoreContainer.register(context);
+}
+
+// Cleanup when extension is deactivated
+export function deactivate() {
+    AccountTreeViewProvider.getInstance().dispose();
 }

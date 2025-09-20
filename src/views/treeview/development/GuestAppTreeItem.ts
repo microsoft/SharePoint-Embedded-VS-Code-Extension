@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { AppTreeItem } from "./AppTreeItem";
-import { ApplicationPermissions } from "../../../models/ApplicationPermissions";
+import { ApplicationPermissionGrant } from "../../../models/ApplicationPermissions";
 import { DevelopmentTreeViewProvider } from "./DevelopmentTreeViewProvider";
 import { IChildrenProvidingTreeItem } from "./IDataProvidingTreeItem";
 
 export class GuestApplicationTreeItem extends AppTreeItem {
-    constructor(public appPerms: ApplicationPermissions, public readonly parentView: IChildrenProvidingTreeItem) {
+    constructor(public appPerms: ApplicationPermissionGrant, public readonly parentView: IChildrenProvidingTreeItem) {
         super(appPerms.app ? appPerms.app : appPerms.appId);
         this.contextValue += '-guest';
         if (!appPerms.app) {
