@@ -6,7 +6,7 @@
     "type": "git",
     "url": "https://github.com/microsoft/SharePoint-Embedded-VS-Code-Extension"
   },
-  "version": "1.0.0",
+  "version": "1.0.1",
   "author": "Microsoft Corporation",
   "publisher": "SharepointEmbedded",
   "preview": false,
