@@ -168,7 +168,7 @@ export class GraphProvider {
     public async getContainer(containerTypeRegistration: ContainerTypeRegistration, id: string): Promise<Container> {
         const response = await this._client
             .api(`/storage/fileStorage/containers/${id}`)
-            .select('id,displayName,containerTypeId,status,description,customProperties,itemMajorVersionLimit,isItemVersioningEnabled')
+            .select('id,displayName,containerTypeId,status,description,customProperties,settings')
             .expand('permissions')
             .version('beta')
             .get();
