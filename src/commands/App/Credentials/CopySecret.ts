@@ -6,10 +6,10 @@
 import * as vscode from 'vscode';
 import { Command } from '../../Command';
 import { App } from '../../../models/App';
-import { GetAccount } from '../../Accounts/GetAccount';
 import { AppTreeItem } from '../../../views/treeview/development/AppTreeItem';
 import { GuestApplicationTreeItem } from '../../../views/treeview/development/GuestAppTreeItem';
 import { OwningAppTreeItem } from '../../../views/treeview/development/OwningAppTreeItem';
+import { AuthenticationState } from '../../../services/AuthenticationState';
 
 // Static class that copies an app secret to the clipboard
 export class CopySecret extends Command {
@@ -18,9 +18,8 @@ export class CopySecret extends Command {
 
     // Command handler
     public static async run(commandProps?: CopySecretProps): Promise<void> {
-        const account = await GetAccount.run();
-        if (!account) {
-            return;
+        if (!AuthenticationState.isSignedIn()) {
+            vscode.window.showErrorMessage('Please sign in to create app secrets.');
         }
 
         let app: App | undefined;
@@ -37,7 +36,7 @@ export class CopySecret extends Command {
         if (!app) {
             return;
         }
-        
+
         const secrets = await app.getSecrets();
         if (!secrets.clientSecret) {
             return;

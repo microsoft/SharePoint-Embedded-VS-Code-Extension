@@ -1,6 +1,6 @@
 import * as path from 'path';
 import * as temp from 'temp';
-import { ExtensionContext, Uri, SecretStorage, Event, SecretStorageChangeEvent } from 'vscode';
+import { ExtensionContext, Uri, SecretStorage, Event, SecretStorageChangeEvent, LanguageModelAccessInformation } from 'vscode';
 
 export class MockExtensionContext implements ExtensionContext {
     extensionPath: string;
@@ -53,6 +53,10 @@ export class MockExtensionContext implements ExtensionContext {
         this.logPath = temp.mkdirSync('log-path');
         this.logUri = Uri.file(this.logPath);
     }
+    languageModelAccessInformation: LanguageModelAccessInformation = {
+        onDidChange: undefined as any,
+        canSendRequest: () => undefined
+    };
 
     asAbsolutePath(relativePath: string): string {
         return path.resolve(this.extensionPath, relativePath);

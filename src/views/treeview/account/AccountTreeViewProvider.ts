@@ -10,7 +10,7 @@ import { M365AccountNode } from "./M365AccountNode";
 export class AccountTreeViewProvider implements vscode.TreeDataProvider<DynamicNode> {
     private static instance: AccountTreeViewProvider;
     public static readonly viewId = "spe-accounts";
-    
+
     private _onDidChangeTreeData: vscode.EventEmitter<DynamicNode | undefined | void> = new vscode.EventEmitter<DynamicNode | undefined | void>();
     readonly onDidChangeTreeData: vscode.Event<DynamicNode | undefined | void> = this._onDidChangeTreeData.event;
 
@@ -28,7 +28,7 @@ export class AccountTreeViewProvider implements vscode.TreeDataProvider<DynamicN
     public refresh(): void {
         this._onDidChangeTreeData.fire();
     }
-    
+
     public getTreeItem(element: DynamicNode): vscode.TreeItem | Promise<vscode.TreeItem> {
         return element.getTreeItem();
     }
@@ -42,5 +42,9 @@ export class AccountTreeViewProvider implements vscode.TreeDataProvider<DynamicN
 
     private _getAccountNodes(): DynamicNode[] {
         return [this.m365AccountNode];
+    }
+
+    public dispose(): void {
+        this.m365AccountNode?.dispose();
     }
 }
