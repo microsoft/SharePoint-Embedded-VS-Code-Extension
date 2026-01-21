@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import { ContainerTypeTreeItem } from '../../views/treeview/development/ContainerTypeTreeItem';
 import { Command } from '../Command';
-import { ContainerType } from '../../models/ContainerType';
+import { ContainerType } from '../../models/schemas';
 
 // Static class that handles the copy container type id command
 export class CopyContainerTypeId extends Command {
@@ -20,7 +20,7 @@ export class CopyContainerTypeId extends Command {
         }
         const containerType: ContainerType = containerTypeViewModel.containerType;
         try {
-            const containerTypeId = containerType.containerTypeId;
+            const containerTypeId = containerType.id;
             await vscode.env.clipboard.writeText(containerTypeId);
             vscode.window.showInformationMessage(vscode.l10n.t('Container Type Id copied to clipboard.'));
         } catch (error: any) {

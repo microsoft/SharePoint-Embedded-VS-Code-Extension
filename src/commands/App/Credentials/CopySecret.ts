@@ -10,6 +10,7 @@ import { AppTreeItem } from '../../../views/treeview/development/AppTreeItem';
 import { GuestApplicationTreeItem } from '../../../views/treeview/development/GuestAppTreeItem';
 import { OwningAppTreeItem } from '../../../views/treeview/development/OwningAppTreeItem';
 import { AuthenticationState } from '../../../services/AuthenticationState';
+import { Account } from '../../../models/Account';
 
 // Static class that copies an app secret to the clipboard
 export class CopySecret extends Command {
@@ -26,14 +27,18 @@ export class CopySecret extends Command {
         if (commandProps instanceof AppTreeItem) {
             if (commandProps instanceof GuestApplicationTreeItem) {
                 app = commandProps.appPerms.app;
-            }
-            if (commandProps instanceof OwningAppTreeItem) {
-                app = commandProps.containerType.owningApp!;
+            } else if (commandProps instanceof OwningAppTreeItem) {
+                // For owning apps, load the old App model for credential operations
+                const account = Account.get();
+                if (account?.appProvider) {
+                    app = await account.appProvider.get(commandProps.containerType.owningAppId);
+                }
             }
         } else {
             app = commandProps;
         }
         if (!app) {
+            vscode.window.showErrorMessage(vscode.l10n.t('Could not find app'));
             return;
         }
 

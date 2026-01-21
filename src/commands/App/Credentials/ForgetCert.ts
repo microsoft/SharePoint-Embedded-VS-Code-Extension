@@ -27,9 +27,11 @@ export class ForgetAppCert extends Command {
         if (commandProps instanceof AppTreeItem) {
             if (commandProps instanceof GuestApplicationTreeItem) {
                 app = commandProps.appPerms.app;
-            }
-            if (commandProps instanceof OwningAppTreeItem) {
-                app = commandProps.containerType.owningApp!;
+            } else if (commandProps instanceof OwningAppTreeItem) {
+                // For owning apps, load the old App model for credential operations
+                if (account?.appProvider) {
+                    app = await account.appProvider.get(commandProps.containerType.owningAppId);
+                }
             }
         } else {
             app = commandProps;

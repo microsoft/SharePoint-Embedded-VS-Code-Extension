@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import { ContainerTypeTreeItem } from '../../views/treeview/development/ContainerTypeTreeItem';
 import { Command } from '../Command';
-import { ContainerType } from '../../models/ContainerType';
+import { ContainerType } from '../../models/schemas';
 
 // Static class that handles the view properties command
 export class ViewContainerTypeProperties extends Command {
@@ -20,7 +20,7 @@ export class ViewContainerTypeProperties extends Command {
         }
         const containerType: ContainerType = containerTypeViewModel.containerType;
         try {
-            const containerTypeProperties = containerType.toString();
+            const containerTypeProperties = JSON.stringify(containerType, null, 4);
             const provider = new (class implements vscode.TextDocumentContentProvider {
                 provideTextDocumentContent(uri: vscode.Uri): string {
                     return containerTypeProperties;
@@ -28,7 +28,7 @@ export class ViewContainerTypeProperties extends Command {
             })();
 
             const registration = vscode.workspace.registerTextDocumentContentProvider('virtual', provider);
-            let uri = vscode.Uri.parse(`virtual://${containerType.containerTypeId}/${containerType.displayName}.json`, true);
+            let uri = vscode.Uri.parse(`virtual://${containerType.id}/${containerType.name}.json`, true);
             const doc = await vscode.workspace.openTextDocument(uri);
             await vscode.window.showTextDocument(doc, { preview: true});
             await vscode.languages.setTextDocumentLanguage(doc, 'json');

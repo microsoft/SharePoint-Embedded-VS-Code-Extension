@@ -8,13 +8,15 @@ import { Command } from '../../Command';
 import { GuestApplicationTreeItem } from '../../../views/treeview/development/GuestAppTreeItem';
 import { OwningAppTreeItem } from '../../../views/treeview/development/OwningAppTreeItem';
 import { App } from '../../../models/App';
-import { ContainerType } from '../../../models/ContainerType';
+import { ContainerType as OldContainerType } from '../../../models/ContainerType';
+import { ContainerType as NewContainerType } from '../../../models/schemas';
 import { AppTreeItem } from '../../../views/treeview/development/AppTreeItem';
 import * as fs from 'fs';
 import * as path from 'path';
 import { CreatePostmanConfig } from './CreatePostmanConfig';
 import { TelemetryProvider } from '../../../services/TelemetryProvider';
 import { ExportPostmanConfigFailure } from '../../../models/telemetry/telemetry';
+import { Account } from '../../../models/Account';
 
 // Static class that handles the Postman export command
 export class ExportPostmanConfig extends Command {
@@ -28,15 +30,20 @@ export class ExportPostmanConfig extends Command {
         }
 
         let app: App | undefined;
-        let containerType: ContainerType | undefined;
+        let containerType: OldContainerType | NewContainerType | undefined;
+
         if (applicationTreeItem instanceof GuestApplicationTreeItem) {
             app = applicationTreeItem.appPerms.app;
             containerType = applicationTreeItem.appPerms.containerTypeRegistration.containerType;
-        }
-        if (applicationTreeItem instanceof OwningAppTreeItem) {
-            app = applicationTreeItem.containerType.owningApp!;
+        } else if (applicationTreeItem instanceof OwningAppTreeItem) {
+            // For owning apps, load the old App model for credential operations
+            const account = Account.get();
+            if (account?.appProvider) {
+                app = await account.appProvider.get(applicationTreeItem.containerType.owningAppId);
+            }
             containerType = applicationTreeItem.containerType;
         }
+
         if (!app || !containerType) {
             const messsage = vscode.l10n.t('Could not find app or container type');
             vscode.window.showErrorMessage(messsage);

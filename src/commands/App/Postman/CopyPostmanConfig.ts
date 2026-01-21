@@ -8,9 +8,11 @@ import { Command } from '../../Command';
 import { GuestApplicationTreeItem } from '../../../views/treeview/development/GuestAppTreeItem';
 import { OwningAppTreeItem } from '../../../views/treeview/development/OwningAppTreeItem';
 import { App } from '../../../models/App';
-import { ContainerType } from '../../../models/ContainerType';
+import { ContainerType as OldContainerType } from '../../../models/ContainerType';
+import { ContainerType as NewContainerType } from '../../../models/schemas';
 import { AppTreeItem } from '../../../views/treeview/development/AppTreeItem';
 import { CreatePostmanConfig } from './CreatePostmanConfig';
+import { Account } from '../../../models/Account';
 
 // Static class that handles the Postman copy command
 export class CopyPostmanConfig extends Command {
@@ -24,15 +26,20 @@ export class CopyPostmanConfig extends Command {
         }
 
         let app: App | undefined;
-        let containerType: ContainerType | undefined;
+        let containerType: OldContainerType | NewContainerType | undefined;
+
         if (applicationTreeItem instanceof GuestApplicationTreeItem) {
             app = applicationTreeItem.appPerms.app;
             containerType = applicationTreeItem.appPerms.containerTypeRegistration.containerType;
-        }
-        if (applicationTreeItem instanceof OwningAppTreeItem) {
-            app = applicationTreeItem.containerType.owningApp!;
+        } else if (applicationTreeItem instanceof OwningAppTreeItem) {
+            // For owning apps, load the old App model for credential operations
+            const account = Account.get();
+            if (account?.appProvider) {
+                app = await account.appProvider.get(applicationTreeItem.containerType.owningAppId);
+            }
             containerType = applicationTreeItem.containerType;
         }
+
         if (!app || !containerType) {
             vscode.window.showErrorMessage(vscode.l10n.t('Could not find app or container type'));
             return;

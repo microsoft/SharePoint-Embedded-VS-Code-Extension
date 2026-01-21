@@ -24,60 +24,61 @@ export class GetorCreateGuestApp extends Command {
 
     // Command handler
     public static async run(guestAppsTreeItem?: GuestAppsTreeItem): Promise<App | undefined> {
-        if (!guestAppsTreeItem) {
-            return;
-        }
+        return undefined;
+        // if (!guestAppsTreeItem) {
+        //     return;
+        // }
 
-        const account = await GetAccount.run();
-        if (!account) {
-            return;
-        }
+        // const account = await GetAccount.run();
+        // if (!account) {
+        //     return;
+        // }
 
-        const containerType: ContainerType = guestAppsTreeItem.containerType;
+        // const containerType: ContainerType = guestAppsTreeItem.containerType;
         
-        if (!containerType) {
-            return;
-        }
+        // if (!containerType) {
+        //     return;
+        // }
         
-        const app = await GetOrCreateApp.run(AppType.GuestApp);
-        if (!app) {
-            return;
-        }
+        // const app = await GetOrCreateApp.run(AppType.GuestApp);
+        // if (!app) {
+        //     return;
+        // }
 
-        const selectedPerms = await ChooseAppPermissions.run();
-        if (!selectedPerms) {
-            return;
-        }
+        // const selectedPerms = await ChooseAppPermissions.run();
+        // if (!selectedPerms) {
+        //     return;
+        // }
 
-        const loadRegistrationProgress = new ProgressWaitNotification(vscode.l10n.t('Loading existing container type registration for update...'));
-        loadRegistrationProgress.show();
-        let containerTypeRegistration: ContainerTypeRegistration | undefined;
-        try {
-            containerTypeRegistration = await containerType.loadLocalRegistration();
-            loadRegistrationProgress.hide();
-            if (!containerTypeRegistration) {
-                throw new Error(vscode.l10n.t('Existing registration not found.'));
-            }
-        } catch (error: any) {
-            loadRegistrationProgress.hide();
-            const message = vscode.l10n.t('Error loading container type registration: {0}', error);
-            vscode.window.showErrorMessage(message);
-            return;
-        }
+        // const loadRegistrationProgress = new ProgressWaitNotification(vscode.l10n.t('Loading existing container type registration for update...'));
+        // loadRegistrationProgress.show();
+        // let containerTypeRegistration: ContainerTypeRegistration | undefined;
+        // try {
+        //     containerTypeRegistration = await containerType.loadLocalRegistration();
+        //     loadRegistrationProgress.hide();
+        //     if (!containerTypeRegistration) {
+        //         throw new Error(vscode.l10n.t('Existing registration not found.'));
+        //     }
+        // } catch (error: any) {
+        //     loadRegistrationProgress.hide();
+        //     const message = vscode.l10n.t('Error loading container type registration: {0}', error);
+        //     vscode.window.showErrorMessage(message);
+        //     return;
+        // }
 
-        const newApplicationPermissions: ISpConsumingApplicationProperties = {
-            OwningApplicationId: containerType.owningApp!.clientId,
-            DelegatedPermissions: selectedPerms.delegatedPerms,
-            AppOnlyPermissions: selectedPerms.applicationPerms,
-            TenantId: account.tenantId,
-            ContainerTypeId: containerType.containerTypeId,
-            ApplicationId: app.clientId,
-            ApplicationName: app.displayName,
-            Applications: containerTypeRegistration!.applications,
-            OwningApplicationName:containerType.owningApp!.displayName,
-        };
-        const appPermissionsToRegister = new ApplicationPermissions(containerTypeRegistration!, newApplicationPermissions);
-        await RegisterOnLocalTenant.run(containerType, appPermissionsToRegister);
-        return app;
+        // const newApplicationPermissions: ISpConsumingApplicationProperties = {
+        //     OwningApplicationId: containerType.owningApp!.clientId,
+        //     DelegatedPermissions: selectedPerms.delegatedPerms,
+        //     AppOnlyPermissions: selectedPerms.applicationPerms,
+        //     TenantId: account.tenantId,
+        //     ContainerTypeId: containerType.containerTypeId,
+        //     ApplicationId: app.clientId,
+        //     ApplicationName: app.displayName,
+        //     Applications: containerTypeRegistration!.applications,
+        //     OwningApplicationName:containerType.owningApp!.displayName,
+        // };
+        // const appPermissionsToRegister = new ApplicationPermissions(containerTypeRegistration!, newApplicationPermissions);
+        // await RegisterOnLocalTenant.run(containerType, appPermissionsToRegister);
+        // return app;
     }
 }

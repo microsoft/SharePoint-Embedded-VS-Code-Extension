@@ -4,13 +4,13 @@
 *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { Account } from '../../models/Account';
-import { DevelopmentTreeViewProvider } from '../../views/treeview/development/DevelopmentTreeViewProvider';
 import { Command } from '../Command';
 import { ContainerTypeTreeItem } from '../../views/treeview/development/ContainerTypeTreeItem';
-import { ProgressWaitNotification, Timer } from '../../views/notifications/ProgressWaitNotification';
+import { ContainerType } from '../../models/schemas';
+import { GetAccount } from '../Accounts/GetAccount';
 
-// Static class that handles the rename application command
+// Static class that handles the rename container type command
+// TODO: This command needs to be updated to use the new ContainerTypeService when SharePoint Admin API integration is complete
 export class RenameContainerType extends Command {
     // Command name
     public static readonly COMMAND = 'ContainerType.rename';
@@ -21,67 +21,17 @@ export class RenameContainerType extends Command {
             return;
         }
 
-        const account = Account.get()!;
-        const containerType = containerTypeViewModel.containerType;
-
-        const containerTypeDisplayName = await vscode.window.showInputBox({
-            title: vscode.l10n.t('New display name:'),
-            value: containerType.displayName,
-            prompt: vscode.l10n.t('Enter the new display name for the container type:'),
-            validateInput: (value: string): string | undefined => {
-                const maxLength = 50;
-                const alphanumericRegex = /^[a-zA-Z0-9\s-_]+$/;
-                if (!value) {
-                    return vscode.l10n.t('Display name cannot be empty');
-                }
-                if (value.length > maxLength) {
-                    return vscode.l10n.t(`Display name must be no more than {0} characters long`, maxLength);
-                }
-                if (!alphanumericRegex.test(value)) {
-                    return vscode.l10n.t('Display name must only contain alphanumeric characters');
-                }
-                return undefined;
-            }
-        });
-
-        if (containerTypeDisplayName === undefined) {
+        const account = await GetAccount.run();
+        if (!account) {
             return;
         }
 
-        if (containerTypeDisplayName === '') {
-            vscode.window.showWarningMessage(vscode.l10n.t('Container type display name cannot be empty'));
-            return;
-        }
+        const containerType: ContainerType = containerTypeViewModel.containerType;
 
-        const containerTypeProvider = account.containerTypeProvider;
-        const progressWindow = new ProgressWaitNotification(vscode.l10n.t('Renaming container type (may take a minute)...'));
-        progressWindow.show();
-        try {
-            await containerTypeProvider.rename(containerType, containerTypeDisplayName);
-            const ctRefreshTimer = new Timer(60 * 1000);
-            const refreshCt = async (): Promise<void> => {
-                do {
-                    const containerTypes = await containerTypeProvider.list();
-                    if (containerTypes.find(ct => 
-                        ct.containerTypeId === containerType.containerTypeId &&
-                        ct.displayName === containerTypeDisplayName)
-                    ) {
-                        DevelopmentTreeViewProvider.instance.refresh();
-                        setTimeout(() => DevelopmentTreeViewProvider.instance.refresh(), 3000);
-                        break;
-                    }
-                    // sleep for 2 seconds
-                    await new Promise(r => setTimeout(r, 2000));
-                } while (!ctRefreshTimer.finished);
-                
-                progressWindow.hide();
-            };
-            refreshCt();
-        } catch (error: any) {
-            progressWindow.hide();
-            const message = vscode.l10n.t('Unable to rename container type: {0}', error);
-            vscode.window.showErrorMessage(message);
-        }
-        
+        // TODO: Implement using new ContainerTypeService with SharePoint Admin API
+        // This requires the ContainerTypeService.update() method
+        vscode.window.showWarningMessage(
+            vscode.l10n.t('Rename container type feature requires SharePoint Admin API integration. This will be available in a future update.')
+        );
     }
 }

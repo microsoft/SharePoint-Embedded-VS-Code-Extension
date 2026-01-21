@@ -6,12 +6,11 @@
 import { Command } from '../../Command';
 import * as vscode from 'vscode';
 import { ContainerTypeTreeItem } from '../../../views/treeview/development/ContainerTypeTreeItem';
-import { DevelopmentTreeViewProvider } from '../../../views/treeview/development/DevelopmentTreeViewProvider';
-import { ProgressWaitNotification, Timer } from '../../../views/notifications/ProgressWaitNotification';
-import { ContainerType } from '../../../models/ContainerType';
+import { ContainerType } from '../../../models/schemas';
 import { GetAccount } from '../../Accounts/GetAccount';
 
 // Static class that handles the enable discoverability command
+// TODO: This command needs to be updated to use the new ContainerTypeService when SharePoint Admin API integration is complete
 export class EnableContainerTypeDiscoverability extends Command {
     // Command name
     public static readonly COMMAND = 'ContainerType.enableDiscoverability';
@@ -37,44 +36,11 @@ export class EnableContainerTypeDiscoverability extends Command {
             return;
         }
 
-        const message = `Are you sure you want to enable Discoverability on the '${containerType.displayName}' Container Type?`;
-        const userChoice = await vscode.window.showInformationMessage(
-            message,
-            vscode.l10n.t('OK'), vscode.l10n.t('Cancel')
+        // TODO: Implement using new ContainerTypeService with Graph API
+        // This requires the ContainerTypeService.updateSettings() method
+        vscode.window.showWarningMessage(
+            vscode.l10n.t('Enable discoverability feature requires SharePoint Admin API integration. This will be available in a future update.')
         );
-
-        if (userChoice !== vscode.l10n.t('OK')) {
-            return;
-        }
-
-        const progressWindow = new ProgressWaitNotification('Enabling container type discoverability (make take a minute)...');
-        try {    
-            progressWindow.show();
-            const containerTypeProvider = account.containerTypeProvider;
-            await containerTypeProvider.enableDiscoverability(containerType);
-            const ctRefreshTimer = new Timer(60 * 1000);
-            const refreshCt = async (): Promise<void> => {
-                DevelopmentTreeViewProvider.instance.refresh();
-                do {
-                    const containerTypes = await containerTypeProvider.list();
-                    if (containerTypes.find(ct => 
-                        ct.containerTypeId === containerType.containerTypeId &&
-                        ct.configuration.isDiscoverablilityDisabled === false)
-                    ) {
-                        DevelopmentTreeViewProvider.instance.refresh();
-                        break;
-                    }
-                    // sleep for 5 seconds
-                    await new Promise(r => setTimeout(r, 5000));
-                } while (!ctRefreshTimer.finished);
-                progressWindow.hide();
-            };
-            refreshCt();
-        } catch (error: any) {
-            progressWindow.hide();
-            const message = vscode.l10n.t('Unable to enable container type discoverability: {0}', error);
-            vscode.window.showErrorMessage(message);
-        }
     }
 }
 

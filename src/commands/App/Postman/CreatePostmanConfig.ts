@@ -5,7 +5,8 @@
 
 import * as vscode from 'vscode';
 import { App } from "../../../models/App";
-import { ContainerType } from "../../../models/ContainerType";
+import { ContainerType as OldContainerType } from "../../../models/ContainerType";
+import { ContainerType as NewContainerType } from "../../../models/schemas";
 import { AppTreeItem } from "../../../views/treeview/development/AppTreeItem";
 import { Command } from "../../Command";
 import { v4 as uuidv4 } from 'uuid';
@@ -18,10 +19,20 @@ export class CreatePostmanConfig extends Command {
     // Command name
     public static readonly COMMAND = 'App.Postman.createConfigFile';
     // Command handler
-    public static async run(applicationTreeItem?: AppTreeItem, app?: App, containerType?: ContainerType): Promise<PostmanEnvironmentConfig | undefined> {
+    public static async run(applicationTreeItem?: AppTreeItem, app?: App, containerType?: OldContainerType | NewContainerType): Promise<PostmanEnvironmentConfig | undefined> {
         if (!applicationTreeItem || !app || !containerType) {
             return;
         }
+
+        // Helper function to get containerTypeId from either model
+        const getContainerTypeId = (ct: OldContainerType | NewContainerType): string => {
+            return 'containerTypeId' in ct ? ct.containerTypeId : ct.id;
+        };
+
+        // Helper function to get display name from either model
+        const getDisplayName = (ct: OldContainerType | NewContainerType): string => {
+            return 'displayName' in ct ? ct.displayName : ct.name;
+        };
 
         let appSecrets = await app.getSecrets();
 
@@ -92,7 +103,7 @@ export class CreatePostmanConfig extends Command {
         values.push(
             {
                 key: "ContainerTypeId",
-                value: containerType!.containerTypeId,
+                value: getContainerTypeId(containerType!),
                 type: "default",
                 enabled: true
             },
@@ -140,7 +151,7 @@ export class CreatePostmanConfig extends Command {
             }
         );
 
-        const envName = `${containerType!.displayName} (appId ${app!.clientId})`;
+        const envName = `${getDisplayName(containerType!)} (appId ${app!.clientId})`;
         const pmEnv: PostmanEnvironmentConfig = {
             id: uuidv4(),
             name: envName,
