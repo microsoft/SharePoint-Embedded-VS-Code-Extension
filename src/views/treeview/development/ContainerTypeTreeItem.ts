@@ -7,7 +7,7 @@ import * as vscode from "vscode";
 import { OwningAppTreeItem } from "./OwningAppTreeItem";
 import { ContainerType } from "../../../models/schemas";
 import { IChildrenProvidingTreeItem } from "./IDataProvidingTreeItem";
-import { DevelopmentTreeViewProvider } from "./DevelopmentTreeViewProvider";
+import { GraphProvider } from "../../../services/Graph/GraphProvider";
 // import { LocalRegistrationTreeItem } from "./LocalRegistrationTreeItem"; // TODO: Fix this after updating LocalRegistrationTreeItem
 
 export class ContainerTypeTreeItem extends IChildrenProvidingTreeItem {
@@ -57,11 +57,29 @@ export class ContainerTypeTreeItem extends IChildrenProvidingTreeItem {
         try {
             // Add owning app tree item
             children.push(new OwningAppTreeItem(this.containerType, this));
-            
-            // TODO: Add local registration check when we have the registration service
-            // This would require calling the registration service to check if the container type
-            // is registered in the current tenant
-            
+
+            // Check if container type is registered
+            try {
+                const graphProvider = GraphProvider.getInstance();
+                const isRegistered = await graphProvider.registrations.isRegistered(this.containerType.id);
+
+                if (isRegistered) {
+                    const registration = await graphProvider.registrations.get(this.containerType.id);
+                    if (registration) {
+                        // Update context value for menu visibility
+                        if (this.contextValue) {
+                            this.contextValue = this.contextValue.replace('-unregistered', '-registered');
+                        }
+
+                        // TODO: Add LocalRegistrationTreeItem when it's updated for new schema
+                        // For now, just update the context value so menus work correctly
+                        // children.push(new LocalRegistrationTreeItem(this.containerType, registration));
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to check registration status:', error);
+            }
+
         } catch (error) {
             console.error('Error loading container type children:', error);
         }

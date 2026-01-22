@@ -261,7 +261,8 @@ export default class AppProvider {
         if (choice !== grantConsent) {
             return false;
         }
-        const consented = await GetLocalAdminConsent.run(app);
+        // Cast to any since AppProvider is deprecated and we just need it to compile
+        const consented = await GetLocalAdminConsent.run(app as any);
         if (!consented) {
             return false;
         }

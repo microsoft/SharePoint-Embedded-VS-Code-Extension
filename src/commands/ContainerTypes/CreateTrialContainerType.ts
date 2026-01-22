@@ -10,7 +10,7 @@ import { DevelopmentTreeViewProvider } from '../../views/treeview/development/De
 import { AuthenticationState } from '../../services/AuthenticationState';
 import { GraphAuthProvider } from '../../services/Auth';
 import { GetOrCreateApp } from '../Apps/GetOrCreateApp';
-// import { RegisterOnLocalTenant } from '../ContainerType/RegisterOnLocalTenant';
+import { RegisterOnLocalTenant } from '../ContainerType/RegisterOnLocalTenant';
 import { ProgressWaitNotification, Timer } from '../../views/notifications/ProgressWaitNotification';
 import { Application } from '../../models/schemas';
 import { CreateTrialContainerTypeEvent, TrialContainerTypeCreationFailure } from '../../models/telemetry/telemetry';
@@ -133,9 +133,7 @@ export class CreateTrialContainerType extends Command {
             ...buttons
         );
         if (selection === register) {
-            // TODO: Update RegisterOnLocalTenant to use new authentication system
-            // RegisterOnLocalTenant.run(containerType);
-            vscode.window.showInformationMessage('Container type registration will be available after the authentication system migration.');
+            await RegisterOnLocalTenant.run(containerType);
         }
         TelemetryProvider.instance.send(new CreateTrialContainerTypeEvent());
         return containerType;

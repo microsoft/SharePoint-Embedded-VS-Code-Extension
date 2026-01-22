@@ -30,18 +30,17 @@ export const containerTypeRegistrationSchema = baseResourceSchema.extend({
 
 /**
  * Schema for creating a new containerTypeRegistration
- * Excludes read-only fields like id, registeredDateTime, etag
+ * According to Graph API docs, the PUT request body should only contain applicationPermissionGrants (optional)
+ * The container type ID in the URL identifies which container type to register
+ * See: https://learn.microsoft.com/en-us/graph/api/filestorage-post-containertyperegistrations
  */
-export const containerTypeRegistrationCreateSchema = containerTypeRegistrationSchema.omit({
-    id: true,
-    registeredDateTime: true,
-    etag: true,
-    ['@odata.type']: true
-}).extend({
-    // Make name optional since it might be derived from the container type
-    name: z.string().optional(),
-    // Override billing classification to be optional with default
-    billingClassification: billingClassificationSchema.default('standard').optional()
+export const containerTypeRegistrationCreateSchema = z.object({
+    // Optional: Application permission grants to set during registration
+    applicationPermissionGrants: z.array(z.object({
+        appId: guidSchema,
+        delegatedPermissions: z.array(z.string()).optional(),
+        applicationPermissions: z.array(z.string()).optional()
+    })).optional()
 });
 
 /**

@@ -573,4 +573,101 @@ export class ApplicationService {
             throw new Error(`Failed to remove key credential from application ${idOrAppId}: ${error.message || error}`);
         }
     }
+
+    // === Permission Management Methods ===
+
+    /**
+     * Check and ensure application has required Microsoft Graph permissions for container type operations
+     * Adds all necessary scopes for a container type owning application
+     * Returns true if permissions were already configured, false if they were added
+     *
+     * @param idOrAppId - Application ID or appId (client ID)
+     * @param options - Optional parameters (useAppId)
+     * @returns Object indicating whether permissions were added and if consent is needed
+     */
+    async ensureContainerTypePermissions(
+        idOrAppId: string,
+        options?: { useAppId?: boolean }
+    ): Promise<{ permissionsAdded: boolean; requiresConsent: boolean }> {
+        try {
+            console.log(`[ApplicationService.ensureContainerTypePermissions] Checking permissions for ${idOrAppId}`);
+
+            // Get current application configuration
+            const app = await this.get(idOrAppId, options);
+            if (!app) {
+                throw new Error(`Application ${idOrAppId} not found`);
+            }
+
+            // Microsoft Graph resource
+            const GRAPH_RESOURCE_APP_ID = "00000003-0000-0000-c000-000000000000";
+
+            // Required scopes for container type owning applications (delegated permissions)
+            const REQUIRED_SCOPES = [
+                { id: "c319a7df-930e-44c0-a43b-7e5e9c7f4f24", name: "FileStorageContainerTypeReg.Manage.All" },
+                { id: "085ca537-6565-41c2-aca7-db852babc212", name: "FileStorageContainer.Selected" },
+                { id: "8e6ec84c-5fcd-4cc7-ac8a-2296efc0ed9b", name: "FileStorageContainerType.Manage.All" },
+                { id: "527b6d64-cdf5-4b8b-b336-4aa0b8ca2ce5", name: "FileStorageContainer.Manage.All" },
+                { id: "e1fe6dd8-ba31-4d61-89e7-88639da4683d", name: "User.Read" },
+            ];
+
+            const existingRequiredResourceAccess = app.requiredResourceAccess || [];
+            const graphResourceAccess = existingRequiredResourceAccess.find(
+                (rra: any) => rra.resourceAppId === GRAPH_RESOURCE_APP_ID
+            );
+
+            const existingScopes = graphResourceAccess?.resourceAccess || [];
+            const existingScopeIds = new Set(
+                existingScopes
+                    .filter((ra: any) => ra.type === "Scope")
+                    .map((ra: any) => ra.id)
+            );
+
+            // Check which scopes are missing
+            const missingScopes = REQUIRED_SCOPES.filter(
+                scope => !existingScopeIds.has(scope.id)
+            );
+
+            if (missingScopes.length === 0) {
+                console.log(`[ApplicationService.ensureContainerTypePermissions] App ${idOrAppId} already has all required permissions`);
+                return { permissionsAdded: false, requiresConsent: false };
+            }
+
+            console.log(`[ApplicationService.ensureContainerTypePermissions] Adding missing scopes:`, missingScopes.map(s => s.name));
+
+            // Add the missing scopes
+            const newResourceAccess = [
+                ...existingScopes,
+                ...missingScopes.map(scope => ({ id: scope.id, type: "Scope" }))
+            ];
+
+            let updatedRequiredResourceAccess;
+            if (graphResourceAccess) {
+                // Update existing Graph resource access
+                graphResourceAccess.resourceAccess = newResourceAccess;
+                updatedRequiredResourceAccess = existingRequiredResourceAccess;
+            } else {
+                // Add new Graph resource access entry
+                updatedRequiredResourceAccess = [
+                    ...existingRequiredResourceAccess,
+                    {
+                        resourceAppId: GRAPH_RESOURCE_APP_ID,
+                        resourceAccess: newResourceAccess
+                    }
+                ];
+            }
+
+            // Update the application
+            await this.update(app.id!, {
+                requiredResourceAccess: updatedRequiredResourceAccess
+            });
+
+            console.log(`[ApplicationService.ensureContainerTypePermissions] Added ${missingScopes.length} missing scope(s) to ${idOrAppId}`);
+
+            return { permissionsAdded: true, requiresConsent: true };
+
+        } catch (error: any) {
+            console.error(`[ApplicationService.ensureContainerTypePermissions] Error ensuring permissions for ${idOrAppId}:`, error);
+            throw new Error(`Failed to ensure container type permissions for application ${idOrAppId}: ${error.message || error}`);
+        }
+    }
 }
