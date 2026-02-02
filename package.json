@@ -193,23 +193,8 @@
           "group": "1@1"
         },
         {
-          "when": "viewItem =~ /spe:appTreeItem.*-hasSecret.*/",
-          "command": "spe.App.Credentials.copySecret",
-          "group": "1@2"
-        },
-        {
-          "when": "viewItem =~ /spe:appTreeItem.*-hasSecret.*/",
-          "command": "spe.App.Credentials.deleteSecret",
-          "group": "1@3"
-        },
-        {
           "command": "spe.App.Credentials.createCert",
           "group": "2@1"
-        },
-        {
-          "when": "viewItem =~ /spe:appTreeItem.*-hasCert.*/",
-          "command": "spe.App.Credentials.deleteCert",
-          "group": "2@2"
         }
       ],
       "spe.App.Permissions": [
@@ -553,24 +538,8 @@
         "title": "%commands.spe.App.Credentials.createSecret%"
       },
       {
-        "command": "spe.App.Credentials.copySecret",
-        "title": "%commands.spe.App.Credentials.copySecret%"
-      },
-      {
-        "command": "spe.App.Credentials.deleteSecret",
-        "title": "%commands.spe.App.Credentials.deleteSecret%"
-      },
-      {
         "command": "spe.App.Credentials.createCert",
         "title": "%commands.spe.App.Credentials.createCert%"
-      },
-      {
-        "command": "spe.App.Credentials.provideCert",
-        "title": "%commands.spe.App.Credentials.provideCert%"
-      },
-      {
-        "command": "spe.App.Credentials.deleteCert",
-        "title": "%commands.spe.App.Credentials.deleteCert%"
       },
       {
         "command": "spe.App.Permissions.LocalAdminConsent.openLink",

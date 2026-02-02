@@ -22,7 +22,9 @@ import {
     addKeyCredentialRequestSchema,
     removeKeyCredentialRequestSchema,
     passwordCredentialSchema,
-    keyCredentialSchema
+    keyCredentialSchema,
+    ServicePrincipal,
+    servicePrincipalSchema
 } from '../../models/schemas';
 
 /**
@@ -668,6 +670,68 @@ export class ApplicationService {
         } catch (error: any) {
             console.error(`[ApplicationService.ensureContainerTypePermissions] Error ensuring permissions for ${idOrAppId}:`, error);
             throw new Error(`Failed to ensure container type permissions for application ${idOrAppId}: ${error.message || error}`);
+        }
+    }
+
+    // === Service Principal Management ===
+
+    /**
+     * Create a service principal for an application in the current tenant
+     * A service principal is required for an application to be used in a tenant.
+     * POST /servicePrincipals
+     *
+     * @param appId - The appId (client ID) of the application
+     * @returns The created ServicePrincipal
+     */
+    async createServicePrincipal(appId: string): Promise<ServicePrincipal> {
+        try {
+            console.log(`[ApplicationService.createServicePrincipal] Creating service principal for appId: ${appId}`);
+
+            const response = await this._client
+                .api('/servicePrincipals')
+                .version(ApplicationService.API_VERSION)
+                .post({ appId });
+
+            console.log(`[ApplicationService.createServicePrincipal] Service principal created successfully: ${response.id}`);
+            return servicePrincipalSchema.parse(response);
+        } catch (error: any) {
+            // If the service principal already exists, that's fine - return null or handle gracefully
+            if (error.code === 'Request_MultipleObjectsWithSameKeyValue' ||
+                error.message?.includes('already exists')) {
+                console.log(`[ApplicationService.createServicePrincipal] Service principal already exists for appId: ${appId}`);
+                // Try to get the existing service principal
+                return this.getServicePrincipal(appId);
+            }
+            console.error(`[ApplicationService.createServicePrincipal] Error creating service principal for ${appId}:`, error);
+            throw new Error(`Failed to create service principal for application ${appId}: ${error.message || error}`);
+        }
+    }
+
+    /**
+     * Get a service principal by appId
+     * GET /servicePrincipals(appId='{appId}')
+     *
+     * @param appId - The appId (client ID) of the application
+     * @returns The ServicePrincipal or null if not found
+     */
+    async getServicePrincipal(appId: string): Promise<ServicePrincipal> {
+        try {
+            console.log(`[ApplicationService.getServicePrincipal] Getting service principal for appId: ${appId}`);
+
+            const response = await this._client
+                .api(`/servicePrincipals(appId='${appId}')`)
+                .version(ApplicationService.API_VERSION)
+                .get();
+
+            console.log(`[ApplicationService.getServicePrincipal] Found service principal: ${response.id}`);
+            return servicePrincipalSchema.parse(response);
+        } catch (error: any) {
+            if (error.code === 'Request_ResourceNotFound' || error.statusCode === 404) {
+                console.log(`[ApplicationService.getServicePrincipal] Service principal not found for appId: ${appId}`);
+                throw new Error(`Service principal not found for application ${appId}`);
+            }
+            console.error(`[ApplicationService.getServicePrincipal] Error getting service principal for ${appId}:`, error);
+            throw new Error(`Failed to get service principal for application ${appId}: ${error.message || error}`);
         }
     }
 }

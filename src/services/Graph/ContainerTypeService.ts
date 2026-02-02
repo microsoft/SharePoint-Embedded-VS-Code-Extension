@@ -73,21 +73,30 @@ export class ContainerTypeService {
      * Get a specific container type by ID
      * GET /storage/fileStorage/containerTypes/{id}
      */
-    async get(id: string, options?: { 
+    async get(id: string, options?: {
         select?: string[];
+        noCache?: boolean;
     }): Promise<ContainerType | null> {
         try {
             let request = this._client
                 .api(`${ContainerTypeService.BASE_PATH}/${id}`)
                 .version(ContainerTypeService.API_VERSION);
 
+            // Add cache-control header to prevent stale data
+            if (options?.noCache) {
+                request = request.header('Cache-Control', 'no-cache');
+            }
+
             if (options?.select) {
                 request = request.select(options.select.join(','));
             }
 
+            console.log(`[ContainerTypeService.get] Fetching container type ${id}`);
             const response = await request.get();
+            console.log(`[ContainerTypeService.get] Response:`, JSON.stringify(response, null, 2));
             return containerTypeSchema.parse(response);
         } catch (error: any) {
+            console.error(`[ContainerTypeService.get] Error fetching ${id}:`, error);
             if (error.code === 'NotFound' || error.statusCode === 404) {
                 return null;
             }

@@ -8,10 +8,11 @@ import * as vscode from 'vscode';
 import { ContainerTypeTreeItem } from '../../views/treeview/development/ContainerTypeTreeItem';
 import { ContainerType as NewContainerType } from '../../models/schemas';
 import { ContainerType as OldContainerType } from '../../models/ContainerType';
-import { GetAccount } from '../Accounts/GetAccount';
+import { GraphProvider } from '../../services/Graph/GraphProvider';
+import { DevelopmentTreeViewProvider } from '../../views/treeview/development/DevelopmentTreeViewProvider';
+import { ProgressWaitNotification } from '../../views/notifications/ProgressWaitNotification';
 
 // Static class that handles the delete container type command
-// TODO: This command needs to be updated to use the new ContainerTypeService when SharePoint Admin API integration is complete
 export class DeleteContainerType extends Command {
     // Command name
     public static readonly COMMAND = 'ContainerType.delete';
@@ -22,24 +23,106 @@ export class DeleteContainerType extends Command {
             return;
         }
 
-        const account = await GetAccount.run();
-        if (!account) {
+        // Extract container type info from command props
+        const { id, name } = getContainerTypeInfo(commandProps);
+        if (!id) {
+            vscode.window.showErrorMessage(vscode.l10n.t('Could not determine container type ID'));
             return;
         }
 
-        // Accept both old and new container type models for now
-        // TODO: Remove old model support when all commands are migrated
-        if (commandProps instanceof ContainerTypeTreeItem) {
-            // Container type from tree item is new schema
-        } else {
-            // Direct container type parameter can be old or new model
+        // Confirm deletion with user
+        const confirmMessage = vscode.l10n.t(
+            'Are you sure you want to delete the container type "{0}"? This action cannot be undone.',
+            name || id
+        );
+        const deleteButton = vscode.l10n.t('Delete');
+        const cancelButton = vscode.l10n.t('Cancel');
+
+        const selection = await vscode.window.showWarningMessage(
+            confirmMessage,
+            { modal: true },
+            deleteButton,
+            cancelButton
+        );
+
+        if (selection !== deleteButton) {
+            return;
         }
 
-        // TODO: Implement using new ContainerTypeService with SharePoint Admin API
-        // This requires the ContainerTypeService.delete() method
-        vscode.window.showWarningMessage(
-            vscode.l10n.t('Delete container type feature requires SharePoint Admin API integration. This will be available in a future update.')
+        // Delete the container type
+        const progressWindow = new ProgressWaitNotification(
+            vscode.l10n.t('Deleting container type...')
         );
+        progressWindow.show();
+
+        try {
+            const graphProvider = GraphProvider.getInstance();
+            await graphProvider.containerTypes.delete(id);
+
+            progressWindow.hide();
+            vscode.window.showInformationMessage(
+                vscode.l10n.t('Container type "{0}" has been deleted.', name || id)
+            );
+
+            // Refresh the tree view
+            DevelopmentTreeViewProvider.getInstance().refresh();
+        } catch (error: any) {
+            progressWindow.hide();
+            console.error('[DeleteContainerType] Error deleting container type:', error);
+
+            let errorMessage = vscode.l10n.t('Failed to delete container type');
+            if (error.message) {
+                errorMessage += `: ${error.message}`;
+            }
+
+            // Check for common error scenarios
+            if (error.statusCode === 400 || error.code === 'BadRequest') {
+                errorMessage = vscode.l10n.t(
+                    'Cannot delete container type. Make sure all containers are deleted and the container type is unregistered from all tenants first.'
+                );
+            } else if (error.statusCode === 403 || error.code === 'Forbidden') {
+                errorMessage = vscode.l10n.t(
+                    'You do not have permission to delete this container type.'
+                );
+            } else if (error.statusCode === 404 || error.code === 'NotFound') {
+                errorMessage = vscode.l10n.t(
+                    'Container type not found. It may have already been deleted.'
+                );
+                // Still refresh the tree view since it's gone
+                DevelopmentTreeViewProvider.getInstance().refresh();
+            }
+
+            vscode.window.showErrorMessage(errorMessage);
+        }
+    }
+}
+
+/**
+ * Helper to extract container type info from various input types
+ */
+function getContainerTypeInfo(props: DeletionCommandProps): { id: string | undefined; name: string | undefined } {
+    if (props instanceof ContainerTypeTreeItem) {
+        return {
+            id: props.containerType.id,
+            name: props.containerType.name
+        };
+    }
+
+    // Handle both old and new ContainerType models
+    // New schema uses 'id' and 'name'
+    // Old model uses 'containerTypeId' and 'displayName'
+    if ('containerTypeId' in props) {
+        // Old model
+        return {
+            id: (props as OldContainerType).containerTypeId,
+            name: (props as OldContainerType).displayName
+        };
+    } else {
+        // New schema
+        return {
+            id: (props as NewContainerType).id,
+            name: (props as NewContainerType).name
+        };
     }
 }
 

@@ -7,10 +7,11 @@ import { Command } from '../../Command';
 import * as vscode from 'vscode';
 import { ContainerTypeTreeItem } from '../../../views/treeview/development/ContainerTypeTreeItem';
 import { ContainerType } from '../../../models/schemas';
-import { GetAccount } from '../../Accounts/GetAccount';
+import { GraphProvider } from '../../../services/Graph/GraphProvider';
+import { DevelopmentTreeViewProvider } from '../../../views/treeview/development/DevelopmentTreeViewProvider';
+import { ProgressWaitNotification } from '../../../views/notifications/ProgressWaitNotification';
 
 // Static class that handles the enable discoverability command
-// TODO: This command needs to be updated to use the new ContainerTypeService when SharePoint Admin API integration is complete
 export class EnableContainerTypeDiscoverability extends Command {
     // Command name
     public static readonly COMMAND = 'ContainerType.enableDiscoverability';
@@ -18,11 +19,6 @@ export class EnableContainerTypeDiscoverability extends Command {
     // Command handler
     public static async run(commandProps?: EnableDiscoverabilityCommandProps): Promise<void> {
         if (!commandProps) {
-            return;
-        }
-
-        const account = await GetAccount.run();
-        if (!account) {
             return;
         }
 
@@ -36,11 +32,50 @@ export class EnableContainerTypeDiscoverability extends Command {
             return;
         }
 
-        // TODO: Implement using new ContainerTypeService with Graph API
-        // This requires the ContainerTypeService.updateSettings() method
-        vscode.window.showWarningMessage(
-            vscode.l10n.t('Enable discoverability feature requires SharePoint Admin API integration. This will be available in a future update.')
+        const progressWindow = new ProgressWaitNotification(
+            vscode.l10n.t('Enabling discoverability...')
         );
+        progressWindow.show();
+
+        try {
+            const graphProvider = GraphProvider.getInstance();
+
+            // Get the latest container type to ensure we have the current etag
+            const latestCT = await graphProvider.containerTypes.get(containerType.id);
+            if (!latestCT) {
+                throw new Error('Container type not found');
+            }
+
+            const etag = latestCT.etag;
+            if (!etag) {
+                throw new Error('Container type etag not available - cannot update');
+            }
+
+            // Update the container type settings
+            await graphProvider.containerTypes.update(
+                containerType.id,
+                { settings: { isDiscoverabilityEnabled: true } },
+                etag
+            );
+
+            progressWindow.hide();
+            vscode.window.showInformationMessage(
+                vscode.l10n.t('Discoverability has been enabled for "{0}".', containerType.name)
+            );
+
+            // Refresh the tree view
+            DevelopmentTreeViewProvider.getInstance().refresh();
+        } catch (error: any) {
+            progressWindow.hide();
+            console.error('[EnableContainerTypeDiscoverability] Error:', error);
+
+            let errorMessage = vscode.l10n.t('Failed to enable discoverability');
+            if (error.message) {
+                errorMessage += `: ${error.message}`;
+            }
+
+            vscode.window.showErrorMessage(errorMessage);
+        }
     }
 }
 

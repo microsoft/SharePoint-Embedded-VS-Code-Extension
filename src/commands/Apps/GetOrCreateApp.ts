@@ -158,7 +158,17 @@ export class GetOrCreateApp extends Command {
                         createAppProgressWindow.hide();
                         return resolve(undefined);
                     }
-                    
+
+                    // Create service principal for the app in the current tenant
+                    // This is required for container type registration to work
+                    try {
+                        console.log('[GetOrCreateApp] Creating service principal for app:', app.appId);
+                        await graphProvider.applications.createServicePrincipal(app.appId!);
+                        console.log('[GetOrCreateApp] Service principal created successfully');
+                    } catch (error) {
+                        console.warn('[GetOrCreateApp] Failed to create service principal (may already exist):', error);
+                    }
+
                     // Add identifier URI - need to implement this method if not available
                     try {
                         await addIdentifierUriToApp(graphProvider, app);

@@ -439,3 +439,20 @@ export type AddPasswordCredentialRequest = z.infer<typeof addPasswordCredentialR
 export type RemovePasswordCredentialRequest = z.infer<typeof removePasswordCredentialRequestSchema>;
 export type AddKeyCredentialRequest = z.infer<typeof addKeyCredentialRequestSchema>;
 export type RemoveKeyCredentialRequest = z.infer<typeof removeKeyCredentialRequestSchema>;
+
+/**
+ * Service Principal schema (minimal version for creation response)
+ * A service principal is the local representation of an application in a specific tenant
+ * https://learn.microsoft.com/en-us/graph/api/resources/serviceprincipal?view=graph-rest-1.0
+ */
+export const servicePrincipalSchema = z.object({
+    id: z.string(),
+    appId: z.string().nullish(),
+    displayName: z.string().nullish(),
+    servicePrincipalType: z.string().nullish(),
+    appOwnerOrganizationId: z.string().nullish(),
+    accountEnabled: z.boolean().nullish(),
+    createdDateTime: z.string().nullish(),
+}).passthrough(); // Allow additional properties from Graph API
+
+export type ServicePrincipal = z.infer<typeof servicePrincipalSchema>;

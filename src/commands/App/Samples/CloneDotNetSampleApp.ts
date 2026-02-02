@@ -8,16 +8,17 @@ import { Account } from "../../../models/Account";
 import { AppTreeItem } from "../../../views/treeview/development/AppTreeItem";
 import { Command } from "../../Command";
 import * as vscode from 'vscode';
-import { App } from "../../../models/App";
 import { ContainerType as OldContainerType } from "../../../models/ContainerType";
 import { ContainerType as NewContainerType } from "../../../models/schemas";
 import { GuestApplicationTreeItem } from "../../../views/treeview/development/GuestAppTreeItem";
 import { OwningAppTreeItem } from "../../../views/treeview/development/OwningAppTreeItem";
 import fs from 'fs';
 import { exec } from 'child_process';
-import { CreateSecret } from "../Credentials/CreateSecret";
 import { RepoCloneFailure } from "../../../models/telemetry/telemetry";
 import { TelemetryProvider } from "../../../services/TelemetryProvider";
+import { ProgressWaitNotification } from "../../../views/notifications/ProgressWaitNotification";
+import { GraphProvider } from "../../../services/Graph/GraphProvider";
+import { AuthenticationState } from "../../../services/AuthenticationState";
 
 // Static class that handles the clone .NET sample app command
 export class CloneDotNetSampleApp extends Command {
@@ -37,83 +38,89 @@ export class CloneDotNetSampleApp extends Command {
         if (!applicationTreeItem) {
             return;
         }
-        const message = vscode.l10n.t("This will clone the selected sample and put your app's secret and other settings in plain text in a configuration file on your local machine. Are you sure you want to continue?");
-        const userChoice = await vscode.window.showInformationMessage(
-            message,
-            vscode.l10n.t('OK'), vscode.l10n.t('Cancel')
-        );
 
-        if (userChoice === vscode.l10n.t('Cancel')) {
-            return;
-        }
+        const graphProvider = GraphProvider.getInstance();
 
-        if (!applicationTreeItem) {
-            return;
-        }
-
-        let app: App | undefined;
+        // Extract app info from tree item
+        let appId: string | undefined;
+        let objectId: string | undefined;
         let containerType: OldContainerType | NewContainerType | undefined;
 
         if (applicationTreeItem instanceof GuestApplicationTreeItem) {
-            app = applicationTreeItem.appPerms.app;
-            containerType = applicationTreeItem.appPerms.containerTypeRegistration.containerType;
-        } else if (applicationTreeItem instanceof OwningAppTreeItem) {
-            // For owning apps, load the old App model for credential operations
-            const account = Account.get();
-            if (account?.appProvider) {
-                app = await account.appProvider.get(applicationTreeItem.containerType.owningAppId);
+            const legacyApp = applicationTreeItem.appPerms?.app;
+            if (legacyApp) {
+                appId = legacyApp.clientId;
+                objectId = legacyApp.objectId;
             }
+            containerType = applicationTreeItem.appPerms?.containerTypeRegistration?.containerType;
+        } else if (applicationTreeItem instanceof OwningAppTreeItem) {
+            appId = applicationTreeItem.containerType.owningAppId;
             containerType = applicationTreeItem.containerType;
+            // Fetch app to get object ID
+            const app = await graphProvider.applications.get(appId, { useAppId: true });
+            if (app) {
+                objectId = app.id;
+            }
         }
 
-        if (!app || !containerType) {
+        if (!appId || !objectId || !containerType) {
             vscode.window.showErrorMessage(vscode.l10n.t('Could not find app or container type'));
             return;
         }
 
-        let appSecrets = await app.getSecrets();
-        if (!appSecrets.clientSecret) {
-            const userChoice = await vscode.window.showInformationMessage(
-                vscode.l10n.t("No client secret was found. Would you like to create one for this app?"),
-                vscode.l10n.t('OK'), vscode.l10n.t('Skip')
-            );
-            if (userChoice === vscode.l10n.t('OK')) {
-                await CreateSecret.run(applicationTreeItem);
-                appSecrets = await app.getSecrets();
-            }
-        }
+        // Ask if user wants to create a secret for this clone
+        let clientSecret: string | undefined;
+        const createSecretChoice = await vscode.window.showInformationMessage(
+            vscode.l10n.t('Do you want to create a new client secret for this sample app?'),
+            vscode.l10n.t('Yes, create secret'),
+            vscode.l10n.t('No, skip')
+        );
 
-        const account = Account.get()!;
-        const requiredUris = [
-            account.appProvider.WebRedirectUris.serverAppSignInUri,
-            account.appProvider.WebRedirectUris.serverAppSignOnboardingProcessCodeUri,
-            account.appProvider.WebRedirectUris.serverAppSignOutUri
-        ];
-
-        // Check server app redirect URIs
-        try {
-            if (!await account.appProvider.checkWebRedirectUris(app, requiredUris)) {
-                const message = vscode.l10n.t('This app registration is missing the required server sample app redirect URIs: {0} Would you like to add them to the "Web" redirect URIs of your app configuration?', requiredUris.join('\n'));
-                const userChoice = await vscode.window.showInformationMessage(message,
-                    vscode.l10n.t('OK'), vscode.l10n.t('Skip')
-                );
-                if (userChoice === vscode.l10n.t('OK')) {
-                    await account.appProvider.addWebRedirectUris(app, requiredUris);
+        if (createSecretChoice === vscode.l10n.t('Yes, create secret')) {
+            try {
+                const credential = await graphProvider.applications.addPassword(objectId, {
+                    displayName: '.NET Sample App Secret'
+                });
+                clientSecret = credential.secretText ?? undefined;
+                if (clientSecret) {
+                    vscode.window.showInformationMessage(
+                        vscode.l10n.t('Client secret created. It will be included in the sample app configuration.')
+                    );
                 }
+            } catch (error: any) {
+                console.error('[CloneDotNetSampleApp] Error creating secret:', error);
+                vscode.window.showWarningMessage(
+                    vscode.l10n.t('Failed to create client secret: {0}. You can add it manually later.', error.message)
+                );
             }
         }
-        catch (error: any) {
-            const message = vscode.l10n.t('Failed to add redirect URIs: {0}', error.message);
-            vscode.window.showErrorMessage(message);
-            return;
+
+        // Warn about plaintext if secret was created
+        if (clientSecret) {
+            const message = vscode.l10n.t("This will put your app's secret in plain text in configuration files. Are you sure you want to continue?");
+            const userChoice = await vscode.window.showInformationMessage(
+                message,
+                vscode.l10n.t('OK'), vscode.l10n.t('Cancel')
+            );
+
+            if (userChoice === vscode.l10n.t('Cancel')) {
+                return;
+            }
         }
 
+        const appConfigurationProgress = new ProgressWaitNotification(vscode.l10n.t('Configuring your app...'));
+        appConfigurationProgress.show();
+
+        // Get tenant info from Account if available, otherwise from auth state
+        const account = Account.get();
+        const authAccount = AuthenticationState.getCurrentAccountSync();
+        const tenantId = account?.tenantId || authAccount?.tenantId || '';
+        // Note: App configuration (redirect URIs) requires legacy providers
+        // These are skipped in the new flow - user can configure manually if needed
+        appConfigurationProgress.hide();
 
         try {
-            const appId = app.clientId;
             const containerTypeId = 'containerTypeId' in containerType ? containerType.containerTypeId : containerType.id;
-            const tenantId = account.tenantId;
-            const clientSecret = appSecrets.clientSecret || '';
             const repoUrl = 'https://github.com/microsoft/SharePoint-Embedded-Samples.git';
             const folders = await vscode.window.showOpenDialog({
                 canSelectFiles: false,
@@ -130,7 +137,7 @@ export class CloneDotNetSampleApp extends Command {
                 await vscode.commands.executeCommand('git.clone', repoUrl, destinationPath);
                 await vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(folderPathInRepository));
 
-                writeAppSettingsJsonFile(destinationPath, appId, containerTypeId, clientSecret, tenantId);
+                writeAppSettingsJsonFile(destinationPath, appId, containerTypeId, clientSecret || '', tenantId);
             }
         } catch (error: any) {
             vscode.window.showErrorMessage(vscode.l10n.t('Failed to clone Git Repo'));

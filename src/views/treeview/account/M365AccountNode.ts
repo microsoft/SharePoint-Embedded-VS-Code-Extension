@@ -41,7 +41,7 @@ export class M365AccountNode extends DynamicNode implements AuthStateChangeListe
   }
 
   public onSignIn(account: AuthenticatedAccount): void {
-    this.label = account.name || account.username;
+    this.label = account.username;
     this.iconPath = m365Icon;
     this.contextValue = "signedinM365";
     vscode.commands.executeCommand('setContext', 'spe:isLoggingIn', false);

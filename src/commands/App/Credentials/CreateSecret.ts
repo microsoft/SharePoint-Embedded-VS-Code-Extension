@@ -7,59 +7,120 @@ import * as vscode from 'vscode';
 import { Command } from '../../Command';
 import { App } from '../../../models/App';
 import { DevelopmentTreeViewProvider } from '../../../views/treeview/development/DevelopmentTreeViewProvider';
-import { GetAccount } from '../../Accounts/GetAccount';
 import { AppTreeItem } from '../../../views/treeview/development/AppTreeItem';
 import { ProgressWaitNotification } from '../../../views/notifications/ProgressWaitNotification';
 import { GuestApplicationTreeItem } from '../../../views/treeview/development/GuestAppTreeItem';
 import { OwningAppTreeItem } from '../../../views/treeview/development/OwningAppTreeItem';
+import { GraphProvider } from '../../../services/Graph/GraphProvider';
+import { Application, PasswordCredential } from '../../../models/schemas';
+
+/**
+ * Result of creating a secret - includes the secret text which is only available at creation time
+ */
+export interface CreateSecretResult {
+    appId: string;
+    displayName: string;
+    credential: PasswordCredential;
+    secretText: string;
+}
 
 // Static class that creates a secret on an app
 export class CreateSecret extends Command {
     // Command name
     public static readonly COMMAND = 'App.Credentials.createSecret';
 
-    // Command handler
-    public static async run(commandProps?: CreateSecretProps): Promise<App | undefined> {
-        const account = await GetAccount.run();
-        if (!account) {
+    /**
+     * Create a new client secret for an application.
+     * Returns the secret text directly - it is NOT stored locally.
+     * The secret text is only available at creation time from the Graph API response.
+     */
+    public static async run(commandProps?: CreateSecretProps): Promise<CreateSecretResult | undefined> {
+        if (!commandProps) {
             return;
         }
 
-        let app: App | undefined;
-        if (commandProps instanceof AppTreeItem) {
-            if (commandProps instanceof GuestApplicationTreeItem) {
-                app = commandProps.appPerms.app;
-            } else if (commandProps instanceof OwningAppTreeItem) {
-                // For owning apps, load the old App model for credential operations
-                if (account?.appProvider) {
-                    app = await account.appProvider.get(commandProps.containerType.owningAppId);
-                }
+        const graphProvider = GraphProvider.getInstance();
+
+        // Extract app info from command props
+        let appId: string | undefined;
+        let objectId: string | undefined;
+        let displayName: string | undefined;
+
+        if (commandProps instanceof OwningAppTreeItem) {
+            appId = commandProps.containerType.owningAppId;
+            // Fetch the full application to get object ID
+            const app = await graphProvider.applications.get(appId, { useAppId: true });
+            if (app) {
+                objectId = app.id;
+                displayName = app.displayName;
             }
-        } else {
-            app = commandProps;
+        } else if (commandProps instanceof GuestApplicationTreeItem) {
+            // Guest app - get from appPerms
+            const legacyApp = commandProps.appPerms?.app;
+            if (legacyApp) {
+                objectId = legacyApp.objectId;
+                appId = legacyApp.clientId;
+                displayName = legacyApp.displayName;
+            }
+        } else if ('objectId' in commandProps) {
+            // Legacy App model
+            objectId = (commandProps as App).objectId;
+            appId = (commandProps as App).clientId;
+            displayName = (commandProps as App).displayName;
+        } else if ('id' in commandProps) {
+            // New Application schema
+            objectId = (commandProps as Application).id;
+            appId = (commandProps as Application).appId!;
+            displayName = (commandProps as Application).displayName;
         }
-        if (!app) {
-            vscode.window.showErrorMessage(vscode.l10n.t('Could not find app'));
+
+        if (!objectId || !appId) {
+            vscode.window.showErrorMessage(vscode.l10n.t('Could not find application'));
             return;
         }
-        
+
         const progressWindow = new ProgressWaitNotification(vscode.l10n.t('Creating app secret...'));
         progressWindow.show();
+
         try {
-            const appProvider = account.appProvider;
-            await appProvider.addSecret(app);
+            // Create the secret using ApplicationService
+            const credential = await graphProvider.applications.addPassword(objectId, {
+                displayName: 'SPE Extension Secret'
+            });
+
             progressWindow.hide();
-            const message = vscode.l10n.t('Secret created for app {0}', app.displayName);
-            vscode.window.showInformationMessage(message);
-            DevelopmentTreeViewProvider.instance.refresh();
-            return app;
+
+            // The secretText is only available in the response at creation time
+            const secretText = credential.secretText;
+            if (!secretText) {
+                throw new Error('Secret was created but secretText was not returned');
+            }
+
+            vscode.window.showInformationMessage(
+                vscode.l10n.t('Secret created for app "{0}". Note: This secret is not stored locally.', displayName || appId)
+            );
+
+            DevelopmentTreeViewProvider.getInstance().refresh();
+
+            return {
+                appId,
+                displayName: displayName || appId,
+                credential,
+                secretText
+            };
         } catch (error: any) {
             progressWindow.hide();
-            const message = vscode.l10n.t('Failed to create secret for app {0}: {1}', app.displayName, error);
-            vscode.window.showErrorMessage(message);
+            console.error('[CreateSecret] Error creating secret:', error);
+
+            let errorMessage = vscode.l10n.t('Failed to create secret');
+            if (error.message) {
+                errorMessage += `: ${error.message}`;
+            }
+
+            vscode.window.showErrorMessage(errorMessage);
             return;
         }
-    };
+    }
 }
 
-export type CreateSecretProps = AppTreeItem | App;
+export type CreateSecretProps = AppTreeItem | App | Application;

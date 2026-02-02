@@ -83,6 +83,15 @@ export class AuthenticationState {
     }
 
     /**
+     * Get current authenticated account information (synchronous)
+     * Returns cached account if available, undefined otherwise
+     * Use getCurrentAccount() for async version that will fetch if needed
+     */
+    public static getCurrentAccountSync(): AuthenticatedAccount | undefined {
+        return AuthenticationState._currentAccount;
+    }
+
+    /**
      * Get current authenticated account information
      */
     public static async getCurrentAccount(): Promise<AuthenticatedAccount | undefined> {

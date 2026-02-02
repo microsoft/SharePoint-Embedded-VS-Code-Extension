@@ -25,7 +25,7 @@ export const containerTypeSchema = baseResourceSchema.extend({
     billingStatus: billingStatusSchema,
     createdDateTime: dateTimeSchema.optional(),
     expirationDateTime: dateTimeSchema.nullable().optional(),
-    settings: containerTypeSettingsSchema
+    settings: containerTypeSettingsSchema.optional()
 });
 
 /**

@@ -6,7 +6,8 @@
 import * as vscode from "vscode";
 import { ContainerTypeTreeItem } from "./ContainerTypeTreeItem";
 import { IChildrenProvidingTreeItem } from "./IDataProvidingTreeItem";
-import { ContainerType } from "../../../models/schemas";
+import { ContainerType, ContainerTypeRegistration } from "../../../models/schemas";
+import { GraphProvider } from "../../../services/Graph/GraphProvider";
 
 export class ContainerTypesTreeItem extends IChildrenProvidingTreeItem {
     private static readonly label = vscode.l10n.t("Container Types");
@@ -17,6 +18,21 @@ export class ContainerTypesTreeItem extends IChildrenProvidingTreeItem {
     }
 
     public async getChildren(): Promise<vscode.TreeItem[]> {
-        return this._containerTypes.map(ct => new ContainerTypeTreeItem(ct));
+        const graphProvider = GraphProvider.getInstance();
+
+        // Check registration status for each container type
+        const treeItems = await Promise.all(
+            this._containerTypes.map(async (ct) => {
+                let registration: ContainerTypeRegistration | null = null;
+                try {
+                    registration = await graphProvider.registrations.get(ct.id);
+                } catch (error) {
+                    console.log(`[ContainerTypesTreeItem] Could not get registration for ${ct.id}:`, error);
+                }
+                return new ContainerTypeTreeItem(ct, registration);
+            })
+        );
+
+        return treeItems;
     }
 }

@@ -4,154 +4,151 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { App } from "../../../models/App";
 import { ContainerType as OldContainerType } from "../../../models/ContainerType";
-import { ContainerType as NewContainerType } from "../../../models/schemas";
-import { AppTreeItem } from "../../../views/treeview/development/AppTreeItem";
+import { ContainerType as NewContainerType, Application } from "../../../models/schemas";
 import { Command } from "../../Command";
 import { v4 as uuidv4 } from 'uuid';
+import { GraphProvider } from '../../../services/Graph/GraphProvider';
+import { AuthenticationState } from '../../../services/AuthenticationState';
 import { Account } from '../../../models/Account';
-import { CreateAppCert } from '../Credentials/CreateAppCert';
-import { CreateSecret } from '../Credentials/CreateSecret';
+
+/**
+ * Input parameters for creating a Postman config
+ */
+export interface CreatePostmanConfigParams {
+    appId: string;
+    objectId: string;
+    displayName: string;
+    containerType: OldContainerType | NewContainerType;
+}
 
 // Static class that handles the Postman config creation command
 export class CreatePostmanConfig extends Command {
     // Command name
     public static readonly COMMAND = 'App.Postman.createConfigFile';
+
     // Command handler
-    public static async run(applicationTreeItem?: AppTreeItem, app?: App, containerType?: OldContainerType | NewContainerType): Promise<PostmanEnvironmentConfig | undefined> {
-        if (!applicationTreeItem || !app || !containerType) {
+    public static async run(params?: CreatePostmanConfigParams): Promise<PostmanEnvironmentConfig | undefined> {
+        if (!params) {
             return;
         }
+
+        const { appId, objectId, displayName, containerType } = params;
+        const graphProvider = GraphProvider.getInstance();
 
         // Helper function to get containerTypeId from either model
         const getContainerTypeId = (ct: OldContainerType | NewContainerType): string => {
             return 'containerTypeId' in ct ? ct.containerTypeId : ct.id;
         };
 
-        // Helper function to get display name from either model
-        const getDisplayName = (ct: OldContainerType | NewContainerType): string => {
+        // Helper function to get container type name from either model
+        const getContainerTypeName = (ct: OldContainerType | NewContainerType): string => {
             return 'displayName' in ct ? ct.displayName : ct.name;
         };
 
-        let appSecrets = await app.getSecrets();
+        // Ask user if they want to create a new secret for this export
+        let clientSecret: string | undefined;
+        const createSecretChoice = await vscode.window.showInformationMessage(
+            vscode.l10n.t('Do you want to create a new client secret for this Postman export?'),
+            vscode.l10n.t('Yes, create secret'),
+            vscode.l10n.t('No, skip')
+        );
 
-        if (!appSecrets.clientSecret) {
-            const userChoice = await vscode.window.showInformationMessage(
-                vscode.l10n.t("No client secret was found. Would you like to create one for this app?"),
-                vscode.l10n.t('OK'), vscode.l10n.t('Skip')
-            );
-            if (userChoice === vscode.l10n.t('OK')) {
-                await CreateSecret.run(applicationTreeItem);
-                appSecrets = await app.getSecrets();
-            }
-        }
-
-        if (!appSecrets.privateKey || !appSecrets.thumbprint) {
-            const userChoice = await vscode.window.showInformationMessage(
-                vscode.l10n.t('No certificate was found. Would you like to create one for this app?'),
-                vscode.l10n.t('OK'), vscode.l10n.t('Skip')
-            );
-            if (userChoice === vscode.l10n.t('OK')) {
-                await CreateAppCert.run(applicationTreeItem);
-                appSecrets = await app.getSecrets();
-
-                let retries = 3;
-                while ((!appSecrets.privateKey || !appSecrets.thumbprint) && retries > 0) {
-                    retries--;
-                    appSecrets = await app.getSecrets();
+        if (createSecretChoice === vscode.l10n.t('Yes, create secret')) {
+            try {
+                const credential = await graphProvider.applications.addPassword(objectId, {
+                    displayName: 'Postman Export Secret'
+                });
+                clientSecret = credential.secretText ?? undefined;
+                if (!clientSecret) {
+                    throw new Error('Secret was created but secretText was not returned');
                 }
-            }
-        }
-
-        const account = Account.get()!;
-        const authProvider = await app.getAppOnlyAuthProvider(account.tenantId);
-        const requiredUris = [
-            account.appProvider.WebRedirectUris.postmanBrowserCallbackUri,
-            account.appProvider.WebRedirectUris.postmanCallbackUri
-        ];
-
-        // Check Postman redirect URIs
-        try {
-            if (!await account.appProvider.checkWebRedirectUris(app, requiredUris)) {
-                const message = vscode.l10n.t('This app registration is missing the required Postman redirect URIs: {0}. Would you like to add them to the "Web" redirect URIs of your app configuration?', requiredUris.join('\n'));
-                const userChoice = await vscode.window.showInformationMessage(
-                    message,
-                    vscode.l10n.t('OK'), vscode.l10n.t('Skip')
+                vscode.window.showInformationMessage(
+                    vscode.l10n.t('Client secret created. It will be included in the Postman environment.')
                 );
-                if (userChoice === vscode.l10n.t('OK')) {
-                    await account.appProvider.addWebRedirectUris(app, requiredUris);
-                }
+            } catch (error: any) {
+                console.error('[CreatePostmanConfig] Error creating secret:', error);
+                vscode.window.showErrorMessage(
+                    vscode.l10n.t('Failed to create client secret: {0}', error.message)
+                );
             }
-        } catch (error: any) {
-            const message = vscode.l10n.t('Failed to add redirect URIs: {0}', error.message);
-            vscode.window.showErrorMessage(message);
-            return;
         }
 
-        // Check for or enable App-Only auth
-        try {
-            await account.appProvider.checkOrConsentFileStorageContainerRole(app, authProvider, vscode.l10n.t("This enables the 'Application-only' requests in the Postman collection. "));
-        } catch (error: any) {
-            const message = vscode.l10n.t('Failed to add and consent the FileStorageContainer.Selected required role: {0}', error.message);
-            vscode.window.showErrorMessage(message);
-            return;
-        }
+        // Get tenant info
+        const account = Account.get();
+        const authAccount = AuthenticationState.getCurrentAccountSync();
+        const tenantId = account?.tenantId || authAccount?.tenantId || '';
+        const domain = account?.domain || extractDomainFromUsername(authAccount?.username);
+        const rootSiteUrl = account?.spRootSiteUrl || `https://${domain}.sharepoint.com`;
 
-        const tid = account.tenantId;
-        const values: any[] = [];
-        values.push(
+        // Build Postman environment values
+        const values: PostmanEnvironmentValue[] = [
             {
                 key: "ContainerTypeId",
-                value: getContainerTypeId(containerType!),
+                value: getContainerTypeId(containerType),
                 type: "default",
                 enabled: true
             },
             {
                 key: "ClientID",
-                value: app!.clientId,
+                value: appId,
                 type: "default",
                 enabled: true
             },
             {
                 key: "ConsumingTenantId",
-                value: tid,
+                value: tenantId,
                 type: "default",
                 enabled: true
             },
             {
                 key: "TenantName",
-                value: account.domain,
+                value: domain || '',
                 type: "default",
                 enabled: true
             },
             {
                 key: "RootSiteUrl",
-                value: `${account.spRootSiteUrl}/`,
+                value: `${rootSiteUrl}/`,
                 type: "default",
                 enabled: true
-            },
-            {
+            }
+        ];
+
+        // Add secret if created
+        if (clientSecret) {
+            values.push({
                 key: "ClientSecret",
-                value: appSecrets.clientSecret,
+                value: clientSecret,
                 type: "secret",
                 enabled: true
-            },
+            });
+        } else {
+            values.push({
+                key: "ClientSecret",
+                value: "<add your client secret here>",
+                type: "secret",
+                enabled: true
+            });
+        }
+
+        // Placeholder for certificate (not creating certs on-demand for now)
+        values.push(
             {
                 key: "CertThumbprint",
-                value: appSecrets.thumbprint,
+                value: "<add certificate thumbprint if using cert auth>",
                 type: "default",
                 enabled: true
             },
             {
                 key: "CertPrivateKey",
-                value: appSecrets.privateKey,
+                value: "<add certificate private key if using cert auth>",
                 type: "secret",
                 enabled: true
             }
         );
 
-        const envName = `${getDisplayName(containerType!)} (appId ${app!.clientId})`;
+        const envName = `${getContainerTypeName(containerType)} (appId ${appId})`;
         const pmEnv: PostmanEnvironmentConfig = {
             id: uuidv4(),
             name: envName,
@@ -168,15 +165,32 @@ export class CreatePostmanConfig extends Command {
     }
 }
 
+/**
+ * Extract domain from username email
+ */
+function extractDomainFromUsername(username?: string): string {
+    if (!username) return '';
+    const atIndex = username.indexOf('@');
+    if (atIndex === -1) return '';
+    const fullDomain = username.substring(atIndex + 1);
+    const dotIndex = fullDomain.indexOf('.');
+    if (dotIndex !== -1) {
+        return fullDomain.substring(0, dotIndex);
+    }
+    return fullDomain;
+}
+
+export interface PostmanEnvironmentValue {
+    key: string;
+    value: string;
+    type: string;
+    enabled?: boolean;
+}
+
 export type PostmanEnvironmentConfig = {
     id: string;
     name: string;
-    values: {
-        key: string;
-        value: string;
-        type: string;
-        enabled?: boolean;
-    }[];
+    values: PostmanEnvironmentValue[];
     // eslint-disable-next-line @typescript-eslint/naming-convention
     _postman_variable_scope: string;
     // eslint-disable-next-line @typescript-eslint/naming-convention
