@@ -48,6 +48,12 @@ export class DevelopmentTreeViewProvider implements vscode.TreeDataProvider<IChi
         if (!account) {
             return [];
         }
+
+        if (!account.isAdmin) {
+            await vscode.commands.executeCommand('setContext', 'spe:showGettingStartedView', false);
+            await vscode.commands.executeCommand('setContext', 'spe:showFailedView', false);
+            return [];
+        }
         
         try {
             await vscode.commands.executeCommand('setContext', 'spe:showGettingStartedView', false);

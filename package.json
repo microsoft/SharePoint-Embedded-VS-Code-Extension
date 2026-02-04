@@ -105,6 +105,11 @@
         "view": "spe-development",
         "contents": "Failed to load your SharePoint Embedded data. \n [Retry](command:spe.refresh) \n",
         "when": "spe:isAdmin && spe:showFailedView"
+      },
+      {
+        "view": "spe-development",
+        "contents": "Administrative access required\n\nTo manage Container Types, you need to sign in with a Microsoft 365 tenant administrator account.\n\n[Learn more about SharePoint Embedded](https://learn.microsoft.com/en-us/sharepoint/dev/embedded/overview)\n\n[Sign in with a different account](command:spe.login)",
+        "when": "spe:isLoggedIn && !spe:isAdmin"
       }
     ],
     "views": {
@@ -122,7 +127,7 @@
         {
           "id": "spe-development",
           "name": "Development",
-          "when": "spe:isAdmin"
+          "when": "spe:isLoggedIn"
         }
       ]
     },
