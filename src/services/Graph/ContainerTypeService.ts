@@ -111,6 +111,7 @@ export class ContainerTypeService {
     async create(containerType: ContainerTypeCreate): Promise<ContainerType> {
         // Validate input data
         const validatedData = containerTypeCreateSchema.parse(containerType);
+        console.log('[ContainerTypeService.create] Creating container type (check preceding Bearer token log)');
 
         const response = await this._client
             .api(ContainerTypeService.BASE_PATH)

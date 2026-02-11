@@ -38,6 +38,14 @@ import { AdminConsentHelper } from '../../utils/AdminConsentHelper';
 export class RegisterOnLocalTenant extends Command {
     public static readonly COMMAND = 'ContainerType.registerOnLocalTenant';
 
+    // ========================================================================
+    // TOGGLE: Registration Auth Context
+    // ========================================================================
+    // true  = Use the 1P extension app's auth context (GraphProvider.registrations)
+    // false = Use the owning app's auth context (AppAuthProviderFactory)
+    // ========================================================================
+    private static readonly USE_EXTENSION_APP_AUTH = true;
+
     // Configuration constants
     private static readonly BROKER_REDIRECT_URI_TEMPLATE = 'ms-appx-web://Microsoft.AAD.BrokerPlugin/{appId}';
     private static readonly CONSENT_REDIRECT_URI = 'http://localhost/redirect';
@@ -93,25 +101,35 @@ export class RegisterOnLocalTenant extends Command {
         }
 
         // ============================================================================
-        // SECTION 5: GET OWNING APP TOKEN
+        // SECTION 5 & 6: AUTH CONTEXT + REGISTRATION
+        // ============================================================================
+        // Toggle USE_EXTENSION_APP_AUTH to switch between:
+        //   true  → 1P extension app auth (GraphProvider.registrations)
+        //   false → Owning app auth (AppAuthProviderFactory) [current default]
         // ============================================================================
 
-        const owningAppRegistrationService = await RegisterOnLocalTenant.getOwningAppToken(
-            containerType,
-            account
-        );
-        if (!owningAppRegistrationService) {
-            return undefined;
+        if (RegisterOnLocalTenant.USE_EXTENSION_APP_AUTH) {
+            // Use the 1P extension app's existing auth context
+            console.log('[RegisterOnLocalTenant] Using extension app (1P) auth context for registration');
+            return await RegisterOnLocalTenant.registerContainerType(
+                containerType,
+                graphProvider.registrations
+            );
+        } else {
+            // Use the owning app's auth context (current behavior)
+            console.log('[RegisterOnLocalTenant] Using owning app auth context for registration');
+            const owningAppRegistrationService = await RegisterOnLocalTenant.getOwningAppToken(
+                containerType,
+                account
+            );
+            if (!owningAppRegistrationService) {
+                return undefined;
+            }
+            return await RegisterOnLocalTenant.registerContainerType(
+                containerType,
+                owningAppRegistrationService
+            );
         }
-
-        // ============================================================================
-        // SECTION 6: REGISTER CONTAINER TYPE
-        // ============================================================================
-
-        return await RegisterOnLocalTenant.registerContainerType(
-            containerType,
-            owningAppRegistrationService
-        );
     }
 
     // ============================================================================

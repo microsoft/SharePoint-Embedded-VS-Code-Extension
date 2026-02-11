@@ -9,6 +9,8 @@ import { AuthenticationState } from '../../services/AuthenticationState';
 import { GraphProvider } from '../../services/Graph/GraphProvider';
 import { ProgressWaitNotification, Timer } from '../../views/notifications/ProgressWaitNotification';
 import { AppTreeItem } from '../../views/treeview/development/AppTreeItem';
+import { GuestApplicationTreeItem } from '../../views/treeview/development/GuestAppTreeItem';
+import { OwningAppTreeItem } from '../../views/treeview/development/OwningAppTreeItem';
 import { Application } from '../../models/schemas';
 import { AdminConsentHelper } from '../../utils/AdminConsentHelper';
 
@@ -29,15 +31,23 @@ export class GetLocalAdminConsent extends Command {
         }
 
         const graphProvider = GraphProvider.getInstance();
-        
-        let app: Application | undefined;
-        if (commandProps instanceof AppTreeItem) {
-            // Get app from tree item - need to implement proper property access
-            // For now, this needs to be implemented based on tree item structure
-            app = undefined; // TODO: Extract app from AppTreeItem
-        } else {
+
+        let app: Application | null | undefined;
+        if (commandProps instanceof GuestApplicationTreeItem) {
+            // Guest app - get appId from legacy app and fetch fresh Application
+            const legacyApp = commandProps.appPerms?.app;
+            if (legacyApp?.clientId) {
+                app = await graphProvider.applications.get(legacyApp.clientId, { useAppId: true });
+            }
+        } else if (commandProps instanceof OwningAppTreeItem) {
+            // Owning app - get from container type
+            const appId = commandProps.containerType.owningAppId;
+            app = await graphProvider.applications.get(appId, { useAppId: true });
+        } else if ('appId' in commandProps) {
+            // Already an Application schema
             app = commandProps;
         }
+
         if (!app) {
             vscode.window.showErrorMessage('No application found for admin consent.');
             return false;

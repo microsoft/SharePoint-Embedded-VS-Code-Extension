@@ -99,6 +99,7 @@ export class ContainerTypeRegistrationService {
     ): Promise<ContainerTypeRegistration> {
         // Validate input data
         const validatedData = containerTypeRegistrationCreateSchema.parse(registration);
+        console.log('[ContainerTypeRegistrationService.register] Registering container type (check preceding Bearer token log)');
 
         const response = await this._client
             .api(`${ContainerTypeRegistrationService.BASE_PATH}/${containerTypeId}`)

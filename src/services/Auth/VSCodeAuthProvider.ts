@@ -56,7 +56,10 @@ export class VSCodeAuthProvider {
                     // but this provider doesn't have a session yet
                     return this.getToken(scopes, true);
                 })
-                .then(token => done(null, token))
+                .then(token => {
+                    console.log(`[VSCodeAuthProvider] Bearer token for clientId ${this._config.clientId}:`, token);
+                    done(null, token);
+                })
                 .catch(err => done(err, null));
         };
     }
