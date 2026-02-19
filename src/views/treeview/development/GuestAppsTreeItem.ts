@@ -5,39 +5,24 @@
 
 import * as vscode from "vscode";
 import { GuestApplicationTreeItem } from "./GuestAppTreeItem";
-import { ApplicationPermissions } from "../../../models/ApplicationPermissions";
-import { ContainerTypeRegistration } from "../../../models/ContainerTypeRegistration";
-import _ from "lodash";
-import { ContainerType } from "../../../models/ContainerType";
 import { IChildrenProvidingTreeItem } from "./IDataProvidingTreeItem";
+import { GraphProvider } from "../../../services/Graph/GraphProvider";
 
 export class GuestAppsTreeItem extends IChildrenProvidingTreeItem {
 
-    public get containerType(): ContainerType {
-        return this.containerTypeRegistration.containerType;
-    }
-
-    constructor (public readonly containerTypeRegistration: ContainerTypeRegistration) {
+    constructor(public readonly containerTypeId: string, public readonly owningAppId: string) {
         super(vscode.l10n.t('Guest Apps'), vscode.TreeItemCollapsibleState.Collapsed);
         this.contextValue = "spe:guestAppsTreeItem";
     }
 
     public async getChildren(): Promise<vscode.TreeItem[]> {
         const children: vscode.TreeItem[] = [];
-        
+
         try {
-            const owningApp = this.containerType.owningApp!;
-            const registration = this.containerType.localRegistration!;
-            if (!owningApp || !registration) { 
-                throw new Error(vscode.l10n.t('Owning app or registration not found'));
-            }
-            await registration.loadApplicationPermissions();
-            if (!registration.applicationPermissions) {
-                throw new Error(vscode.l10n.t('No application permissions found'));
-            }
-            registration.applicationPermissions.map((app: ApplicationPermissions) => {
-                if (app.appId !== owningApp.clientId) {
-                    children.push(new GuestApplicationTreeItem(app, this));
+            const grants = await GraphProvider.getInstance().appPermissionGrants.list(this.containerTypeId);
+            grants.map((grant) => {
+                if (grant.appId !== this.owningAppId) {
+                    children.push(new GuestApplicationTreeItem(grant, this.containerTypeId, this));
                 }
             });
         } catch (error) {

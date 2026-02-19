@@ -6,8 +6,7 @@
 import { Command } from '../Command';
 import * as vscode from 'vscode';
 import { ContainerTypeTreeItem } from '../../views/treeview/development/ContainerTypeTreeItem';
-import { ContainerType as NewContainerType } from '../../models/schemas';
-import { ContainerType as OldContainerType } from '../../models/ContainerType';
+import { ContainerType } from '../../models/schemas';
 import { GraphProvider } from '../../services/Graph/GraphProvider';
 import { DevelopmentTreeViewProvider } from '../../views/treeview/development/DevelopmentTreeViewProvider';
 import { ProgressWaitNotification } from '../../views/notifications/ProgressWaitNotification';
@@ -108,23 +107,10 @@ function getContainerTypeInfo(props: DeletionCommandProps): { id: string | undef
         };
     }
 
-    // Handle both old and new ContainerType models
-    // New schema uses 'id' and 'name'
-    // Old model uses 'containerTypeId' and 'displayName'
-    if ('containerTypeId' in props) {
-        // Old model
-        return {
-            id: (props as OldContainerType).containerTypeId,
-            name: (props as OldContainerType).displayName
-        };
-    } else {
-        // New schema
-        return {
-            id: (props as NewContainerType).id,
-            name: (props as NewContainerType).name
-        };
-    }
+    return {
+        id: props.id,
+        name: props.name
+    };
 }
 
-// Temporarily accept both old and new ContainerType models until migration is complete
-export type DeletionCommandProps = ContainerTypeTreeItem | NewContainerType | OldContainerType;
+export type DeletionCommandProps = ContainerTypeTreeItem | ContainerType;

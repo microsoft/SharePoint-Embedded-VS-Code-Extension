@@ -4,12 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import path from "path";
-import { Account } from "../../../models/Account";
 import { AppTreeItem } from "../../../views/treeview/development/AppTreeItem";
 import { Command } from "../../Command";
 import * as vscode from 'vscode';
-import { ContainerType as OldContainerType } from "../../../models/ContainerType";
-import { ContainerType as NewContainerType } from "../../../models/schemas";
+import { ContainerType } from "../../../models/schemas";
 import { GuestApplicationTreeItem } from "../../../views/treeview/development/GuestAppTreeItem";
 import { OwningAppTreeItem } from "../../../views/treeview/development/OwningAppTreeItem";
 import fs from 'fs';
@@ -44,19 +42,21 @@ export class CloneDotNetSampleApp extends Command {
         // Extract app info from tree item
         let appId: string | undefined;
         let objectId: string | undefined;
-        let containerType: OldContainerType | NewContainerType | undefined;
+        let containerType: ContainerType | undefined;
 
         if (applicationTreeItem instanceof GuestApplicationTreeItem) {
-            const legacyApp = applicationTreeItem.appPerms?.app;
-            if (legacyApp) {
-                appId = legacyApp.clientId;
-                objectId = legacyApp.objectId;
+            const app = applicationTreeItem.application;
+            if (app) {
+                appId = app.appId;
+                objectId = app.id;
             }
-            containerType = applicationTreeItem.appPerms?.containerTypeRegistration?.containerType;
+            const ct = await graphProvider.containerTypes.get(applicationTreeItem.containerTypeId);
+            if (ct) {
+                containerType = ct;
+            }
         } else if (applicationTreeItem instanceof OwningAppTreeItem) {
             appId = applicationTreeItem.containerType.owningAppId;
             containerType = applicationTreeItem.containerType;
-            // Fetch app to get object ID
             const app = await graphProvider.applications.get(appId, { useAppId: true });
             if (app) {
                 objectId = app.id;
@@ -111,16 +111,13 @@ export class CloneDotNetSampleApp extends Command {
         const appConfigurationProgress = new ProgressWaitNotification(vscode.l10n.t('Configuring your app...'));
         appConfigurationProgress.show();
 
-        // Get tenant info from Account if available, otherwise from auth state
-        const account = Account.get();
+        // Get tenant info from auth state
         const authAccount = AuthenticationState.getCurrentAccountSync();
-        const tenantId = account?.tenantId || authAccount?.tenantId || '';
-        // Note: App configuration (redirect URIs) requires legacy providers
-        // These are skipped in the new flow - user can configure manually if needed
+        const tenantId = authAccount?.tenantId || '';
         appConfigurationProgress.hide();
 
         try {
-            const containerTypeId = 'containerTypeId' in containerType ? containerType.containerTypeId : containerType.id;
+            const containerTypeId = containerType.id;
             const repoUrl = 'https://github.com/microsoft/SharePoint-Embedded-Samples.git';
             const folders = await vscode.window.showOpenDialog({
                 canSelectFiles: false,

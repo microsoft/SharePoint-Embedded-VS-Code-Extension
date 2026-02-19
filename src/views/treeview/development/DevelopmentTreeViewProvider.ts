@@ -5,7 +5,6 @@
 
 import * as vscode from "vscode";
 import { ContainerTypesTreeItem } from "./ContainerTypesTreeItem";
-import { Account } from "../../../models/Account";
 import { IChildrenProvidingTreeItem } from "./IDataProvidingTreeItem";
 import { AuthenticationState } from "../../../services/AuthenticationState";
 import { GraphAuthProvider } from "../../../services/Auth";

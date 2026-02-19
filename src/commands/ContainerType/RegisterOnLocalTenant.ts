@@ -7,9 +7,7 @@ import { Command } from '../Command';
 import * as vscode from 'vscode';
 import * as Graph from '@microsoft/microsoft-graph-client';
 import { ContainerType as NewContainerType, ContainerTypeRegistration, ContainerTypeRegistrationCreate } from '../../models/schemas';
-import { ContainerType as OldContainerType } from '../../models/ContainerType';
 import { ContainerTypeTreeItem } from '../../views/treeview/development/ContainerTypeTreeItem';
-import { ApplicationPermissions } from '../../models/ApplicationPermissions';
 import { GraphProvider } from '../../services/Graph/GraphProvider';
 import { ContainerTypeRegistrationService } from '../../services/Graph/ContainerTypeRegistrationService';
 import { AppAuthProviderFactory } from '../../services/Auth/AppAuthProviderFactory';
@@ -44,7 +42,7 @@ export class RegisterOnLocalTenant extends Command {
     // true  = Use the 1P extension app's auth context (GraphProvider.registrations)
     // false = Use the owning app's auth context (AppAuthProviderFactory)
     // ========================================================================
-    private static readonly USE_EXTENSION_APP_AUTH = true;
+    private static readonly USE_EXTENSION_APP_AUTH = false;
 
     // Configuration constants
     private static readonly BROKER_REDIRECT_URI_TEMPLATE = 'ms-appx-web://Microsoft.AAD.BrokerPlugin/{appId}';
@@ -54,8 +52,7 @@ export class RegisterOnLocalTenant extends Command {
     private static readonly POLL_INTERVAL_MS = 3000; // 3 seconds
 
     public static async run(
-        commandProps?: RegistrationCommandProps,
-        newApplicationPermissions?: ApplicationPermissions
+        commandProps?: RegistrationCommandProps
     ): Promise<ContainerTypeRegistration | undefined> {
 
         // ============================================================================
@@ -817,4 +814,4 @@ export class RegisterOnLocalTenant extends Command {
 }
 
 // Accept both old and new ContainerType models for backward compatibility
-export type RegistrationCommandProps = ContainerTypeTreeItem | NewContainerType | OldContainerType;
+export type RegistrationCommandProps = ContainerTypeTreeItem | NewContainerType;

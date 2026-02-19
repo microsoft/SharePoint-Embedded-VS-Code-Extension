@@ -4,12 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import path from "path";
-import { Account } from "../../../models/Account";
 import { AppTreeItem } from "../../../views/treeview/development/AppTreeItem";
 import { Command } from "../../Command";
 import * as vscode from 'vscode';
-import { ContainerType as OldContainerType } from "../../../models/ContainerType";
-import { ContainerType as NewContainerType } from "../../../models/schemas";
+import { ContainerType } from "../../../models/schemas";
 import { GuestApplicationTreeItem } from "../../../views/treeview/development/GuestAppTreeItem";
 import { OwningAppTreeItem } from "../../../views/treeview/development/OwningAppTreeItem";
 import fs from 'fs';
@@ -44,19 +42,21 @@ export class CloneReactSampleApp extends Command {
         // Extract app info from tree item
         let appId: string | undefined;
         let objectId: string | undefined;
-        let containerType: OldContainerType | NewContainerType | undefined;
+        let containerType: ContainerType | undefined;
 
         if (applicationTreeItem instanceof GuestApplicationTreeItem) {
-            const legacyApp = applicationTreeItem.appPerms?.app;
-            if (legacyApp) {
-                appId = legacyApp.clientId;
-                objectId = legacyApp.objectId;
+            const app = applicationTreeItem.application;
+            if (app) {
+                appId = app.appId;
+                objectId = app.id;
             }
-            containerType = applicationTreeItem.appPerms?.containerTypeRegistration?.containerType;
+            const ct = await graphProvider.containerTypes.get(applicationTreeItem.containerTypeId);
+            if (ct) {
+                containerType = ct;
+            }
         } else if (applicationTreeItem instanceof OwningAppTreeItem) {
             appId = applicationTreeItem.containerType.owningAppId;
             containerType = applicationTreeItem.containerType;
-            // Fetch app to get object ID
             const app = await graphProvider.applications.get(appId, { useAppId: true });
             if (app) {
                 objectId = app.id;
@@ -111,17 +111,41 @@ export class CloneReactSampleApp extends Command {
         const appConfigurationProgress = new ProgressWaitNotification(vscode.l10n.t('Configuring your app...'));
         appConfigurationProgress.show();
 
-        // Get tenant info from Account if available, otherwise from auth state
-        const account = Account.get();
+        // Get tenant info from auth state
         const authAccount = AuthenticationState.getCurrentAccountSync();
-        const tenantId = account?.tenantId || authAccount?.tenantId || '';
-        const tenantDomain = account?.domain || extractDomainFromUsername(authAccount?.username);
-        // Note: App configuration (redirect URIs, identifier URI, API scopes) requires legacy providers
-        // These are skipped in the new flow - user can configure manually if needed
+        const tenantId = authAccount?.tenantId || '';
+        const tenantDomain = extractDomainFromUsername(authAccount?.username);
+
+        // Configure app for React sample (redirect URIs + identifier URI)
+        try {
+            const app = await graphProvider.applications.get(appId, { useAppId: true });
+            if (app) {
+                const existingSpaUris = app.spa?.redirectUris || [];
+                const existingWebUris = app.web?.redirectUris || [];
+                const updates: any = {};
+
+                if (!existingSpaUris.includes('http://localhost:8080')) {
+                    updates.spa = { redirectUris: [...existingSpaUris, 'http://localhost:8080'] };
+                }
+                if (!existingWebUris.includes('http://localhost/redirect')) {
+                    updates.web = { redirectUris: [...existingWebUris, 'http://localhost/redirect'] };
+                }
+                if (!app.identifierUris?.includes(`api://${appId}`)) {
+                    updates.identifierUris = [`api://${appId}`];
+                }
+
+                if (Object.keys(updates).length > 0) {
+                    await graphProvider.applications.update(app.id!, updates);
+                }
+            }
+        } catch (error: any) {
+            console.error('[CloneReactSampleApp] Error configuring app:', error);
+            // Non-fatal - user can configure manually
+        }
         appConfigurationProgress.hide();
 
         try {
-            const containerTypeId = 'containerTypeId' in containerType ? containerType.containerTypeId : containerType.id;
+            const containerTypeId = containerType.id;
             const repoUrl = 'https://github.com/microsoft/SharePoint-Embedded-Samples.git';
             const folders = await vscode.window.showOpenDialog({
                 canSelectFiles: false,

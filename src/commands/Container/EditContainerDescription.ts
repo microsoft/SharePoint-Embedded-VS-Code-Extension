@@ -5,11 +5,8 @@
 
 import { Command } from '../Command';
 import * as vscode from 'vscode';
-import { ContainerType } from '../../models/ContainerType';
 import { DevelopmentTreeViewProvider } from '../../views/treeview/development/DevelopmentTreeViewProvider';
-import { App } from '../../models/App';
-import { GraphProvider } from '../../services/GraphProvider';
-import { Container } from '../../models/Container';
+import { GraphProvider } from '../../services/Graph/GraphProvider';
 import { ProgressWaitNotification } from '../../views/notifications/ProgressWaitNotification';
 import { ContainerTreeItem } from '../../views/treeview/development/ContainerTreeItem';
 
@@ -19,14 +16,11 @@ export class EditContainerDescription extends Command {
     public static readonly COMMAND = 'Container.editDescription';
 
     // Command handler
-    public static async run(containerViewModel?: ContainerTreeItem): Promise<Container | undefined> {
+    public static async run(containerViewModel?: ContainerTreeItem): Promise<void> {
         if (!containerViewModel) {
             return;
         }
-        const containerType: ContainerType = containerViewModel.container.registration.containerType;
-        const containerTypeRegistration = containerViewModel.container.registration;
-        const container: Container = containerViewModel.container;
-        const owningApp: App = containerType.owningApp!;
+        const container = containerViewModel.container;
         const containerDescription = await vscode.window.showInputBox({
             title: vscode.l10n.t('New description'),
             value: container.description,
@@ -48,23 +42,17 @@ export class EditContainerDescription extends Command {
             return;
         }
 
-        const progressWindow = new ProgressWaitNotification(vscode.l10n.t('Saving new container description...'));  
+        const progressWindow = new ProgressWaitNotification(vscode.l10n.t('Saving new container description...'));
         progressWindow.show();
         try {
-            const authProvider = await owningApp.getAppOnlyAuthProvider(containerTypeRegistration.tenantId);
-            const graphProvider = new GraphProvider(authProvider);
-            const updatedContainer = await graphProvider.updateContainer(containerTypeRegistration, container.id, container.displayName, containerDescription || '');
-            if (!updatedContainer) {
-                throw new Error (vscode.l10n.t("Failed to change container description"));
-            }
+            const graphProvider = GraphProvider.getInstance();
+            await graphProvider.containers.update(container.id, { description: containerDescription || '' });
             DevelopmentTreeViewProvider.getInstance().refresh(containerViewModel.reigstrationViewModel);
             progressWindow.hide();
-            return updatedContainer;
         } catch (error: any) {
             progressWindow.hide();
             const message = vscode.l10n.t('Unable to edit container object: {0}', error.message);
             vscode.window.showErrorMessage(message);
-            return;
         }
     }
 }

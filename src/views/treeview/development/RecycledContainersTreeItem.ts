@@ -4,20 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from "vscode";
-import { ContainerType } from "../../../models/ContainerType";
-import { Container } from "../../../models/Container";
 import { IChildrenProvidingTreeItem } from "./IDataProvidingTreeItem";
-import { ContainerTypeRegistration } from "../../../models/ContainerTypeRegistration";
 import { RecycledContainerTreeItem } from "./RecycledContainerTreeItem";
 import { LocalRegistrationTreeItem } from "./LocalRegistrationTreeItem";
+import { GraphProvider } from "../../../services/Graph/GraphProvider";
 
 export class RecycledContainersTreeItem extends IChildrenProvidingTreeItem {
 
-    public get containerType(): ContainerType {
-        return this.containerTypeRegistration.containerType;
-    }
-
-    constructor(public containerTypeRegistration: ContainerTypeRegistration, public reigstrationViewModel: LocalRegistrationTreeItem) {
+    constructor(public readonly containerTypeId: string, public reigstrationViewModel: LocalRegistrationTreeItem) {
         super(vscode.l10n.t('Recycled Containers'), vscode.TreeItemCollapsibleState.Collapsed);
         this.contextValue = "spe:recycledContainersTreeItem";
     }
@@ -25,8 +19,8 @@ export class RecycledContainersTreeItem extends IChildrenProvidingTreeItem {
     public async getChildren() {
         const children: vscode.TreeItem[] = [];
         try {
-            const containers = await this.containerTypeRegistration.loadRecycledContainers();
-            containers?.map((container: Container) => {
+            const containers = await GraphProvider.getInstance().containers.listRecycled(this.containerTypeId);
+            containers?.map((container) => {
                 children.push(new RecycledContainerTreeItem(container, this.reigstrationViewModel));
             });
         } catch (error) {

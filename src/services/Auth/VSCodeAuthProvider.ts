@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { ext } from '../../utils/extensionVariables';
 
 export interface AuthHandler {
     (done: AuthHandlerCallback): void;
@@ -57,7 +58,7 @@ export class VSCodeAuthProvider {
                     return this.getToken(scopes, true);
                 })
                 .then(token => {
-                    console.log(`[VSCodeAuthProvider] Bearer token for clientId ${this._config.clientId}:`, token);
+                    if (ext.enableDebugLogging) { console.log(`[VSCodeAuthProvider] Bearer token for clientId ${this._config.clientId}:`, token); }
                     done(null, token);
                 })
                 .catch(err => done(err, null));

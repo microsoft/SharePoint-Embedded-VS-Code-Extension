@@ -5,7 +5,6 @@
 
 import * as vscode from 'vscode';
 import { Command } from '../../Command';
-import { App } from '../../../models/App';
 import { DevelopmentTreeViewProvider } from '../../../views/treeview/development/DevelopmentTreeViewProvider';
 import { AppTreeItem } from '../../../views/treeview/development/AppTreeItem';
 import { ProgressWaitNotification } from '../../../views/notifications/ProgressWaitNotification';
@@ -48,29 +47,21 @@ export class CreateSecret extends Command {
 
         if (commandProps instanceof OwningAppTreeItem) {
             appId = commandProps.containerType.owningAppId;
-            // Fetch the full application to get object ID
             const app = await graphProvider.applications.get(appId, { useAppId: true });
             if (app) {
                 objectId = app.id;
                 displayName = app.displayName;
             }
         } else if (commandProps instanceof GuestApplicationTreeItem) {
-            // Guest app - get from appPerms
-            const legacyApp = commandProps.appPerms?.app;
-            if (legacyApp) {
-                objectId = legacyApp.objectId;
-                appId = legacyApp.clientId;
-                displayName = legacyApp.displayName;
+            const app = commandProps.application;
+            if (app) {
+                objectId = app.id;
+                appId = app.appId;
+                displayName = app.displayName;
             }
-        } else if ('objectId' in commandProps) {
-            // Legacy App model
-            objectId = (commandProps as App).objectId;
-            appId = (commandProps as App).clientId;
-            displayName = (commandProps as App).displayName;
-        } else if ('id' in commandProps) {
-            // New Application schema
+        } else if ('id' in commandProps && 'displayName' in commandProps) {
             objectId = (commandProps as Application).id;
-            appId = (commandProps as Application).appId!;
+            appId = (commandProps as Application).appId ?? undefined;
             displayName = (commandProps as Application).displayName;
         }
 
@@ -123,4 +114,4 @@ export class CreateSecret extends Command {
     }
 }
 
-export type CreateSecretProps = AppTreeItem | App | Application;
+export type CreateSecretProps = AppTreeItem | Application;

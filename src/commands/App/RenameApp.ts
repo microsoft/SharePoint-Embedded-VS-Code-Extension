@@ -7,7 +7,6 @@ import * as vscode from 'vscode';
 import { DevelopmentTreeViewProvider } from '../../views/treeview/development/DevelopmentTreeViewProvider';
 import { Command } from '../Command';
 import { ProgressWaitNotification } from '../../views/notifications/ProgressWaitNotification';
-import { App } from '../../models/App';
 import { AppTreeItem } from '../../views/treeview/development/AppTreeItem';
 import { GuestApplicationTreeItem } from '../../views/treeview/development/GuestAppTreeItem';
 import { OwningAppTreeItem } from '../../views/treeview/development/OwningAppTreeItem';
@@ -28,31 +27,23 @@ export class RenameApp extends Command {
         const graphProvider = GraphProvider.getInstance();
 
         // Extract app info from command props
-        let appId: string | undefined;
         let objectId: string | undefined;
         let currentName: string | undefined;
 
         if (commandProps instanceof OwningAppTreeItem) {
-            appId = commandProps.containerType.owningAppId;
-            // Fetch the full application to get object ID and current name
+            const appId = commandProps.containerType.owningAppId;
             const app = await graphProvider.applications.get(appId, { useAppId: true });
             if (app) {
                 objectId = app.id;
                 currentName = app.displayName;
             }
         } else if (commandProps instanceof GuestApplicationTreeItem) {
-            // Guest app - get from appPerms
-            const legacyApp = commandProps.appPerms?.app;
-            if (legacyApp) {
-                objectId = legacyApp.objectId;
-                currentName = legacyApp.displayName;
+            const app = commandProps.application;
+            if (app) {
+                objectId = app.id;
+                currentName = app.displayName;
             }
-        } else if ('objectId' in commandProps) {
-            // Legacy App model
-            objectId = (commandProps as App).objectId;
-            currentName = (commandProps as App).displayName;
-        } else if ('id' in commandProps) {
-            // New Application schema
+        } else if ('id' in commandProps && 'displayName' in commandProps) {
             objectId = (commandProps as Application).id;
             currentName = (commandProps as Application).displayName;
         }
@@ -119,4 +110,4 @@ export class RenameApp extends Command {
     }
 }
 
-export type RenameAppProps = AppTreeItem | App | Application;
+export type RenameAppProps = AppTreeItem | Application;

@@ -9,7 +9,6 @@ import {
     ContainerTypeAppPermissionGrantCreate,
     ContainerTypeAppPermissionGrantUpdate,
     containerTypeAppPermissionGrantSchema,
-    containerTypeAppPermissionGrantCreateSchema,
     containerTypeAppPermissionGrantUpdateSchema,
     PermissionArray,
     permissionArraySchema,
@@ -108,14 +107,19 @@ export class ContainerTypeAppPermissionGrantService {
         appId: string,
         grant: ContainerTypeAppPermissionGrantCreate
     ): Promise<ContainerTypeAppPermissionGrant> {
-        // Validate input data (appId is not included in body per API docs)
-        const validatedData = containerTypeAppPermissionGrantCreateSchema.omit({ appId: true }).parse(grant);
+        // Build PUT body directly — appId is excluded per API docs
+        const body = {
+            applicationPermissions: grant.applicationPermissions ?? [],
+            delegatedPermissions: grant.delegatedPermissions ?? []
+        };
+        console.log(`[AppPermissionGrantService.createOrReplace] PUT body:`, JSON.stringify(body));
 
         const response = await this._client
             .api(`${ContainerTypeAppPermissionGrantService.BASE_PATH}/${registrationId}/applicationPermissionGrants/${appId}`)
             .version(ContainerTypeAppPermissionGrantService.API_VERSION)
-            .put(validatedData);
+            .put(body);
 
+        console.log(`[AppPermissionGrantService.createOrReplace] PUT response:`, JSON.stringify(response));
         return containerTypeAppPermissionGrantSchema.parse(response);
     }
 

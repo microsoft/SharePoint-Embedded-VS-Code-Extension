@@ -4,31 +4,31 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { AppTreeItem } from "./AppTreeItem";
-import { ApplicationPermissions } from "../../../models/ApplicationPermissions";
+import { ContainerTypeAppPermissionGrant, Application } from "../../../models/schemas";
 import { DevelopmentTreeViewProvider } from "./DevelopmentTreeViewProvider";
 import { IChildrenProvidingTreeItem } from "./IDataProvidingTreeItem";
+import { GraphProvider } from "../../../services/Graph/GraphProvider";
 
 export class GuestApplicationTreeItem extends AppTreeItem {
-    constructor(public appPerms: ApplicationPermissions, public readonly parentView: IChildrenProvidingTreeItem) {
-        super(appPerms.app ? appPerms.app : appPerms.appId);
+    public application?: Application;
+
+    constructor(
+        public readonly grant: ContainerTypeAppPermissionGrant,
+        public readonly containerTypeId: string,
+        public readonly parentView: IChildrenProvidingTreeItem
+    ) {
+        super(grant.appId);
         this.contextValue += '-guest';
-        if (!appPerms.app) {
-            appPerms.loadApp().then(app => {
-                if (app) {
-                    this.label = app.name;
-                    this.contextValue += '-local';
-                    app.getSecrets().then(secrets => {
-                        if (secrets.clientSecret) {
-                            this.contextValue += '-hasSecret';
-                        }
-                        if (secrets.thumbprint && secrets.privateKey) {
-                            this.contextValue += '-hasCert';
-                        }
-                        DevelopmentTreeViewProvider.instance.refresh(this);
-                    });
-                }
-            });
-        }     
+
+        // Async-load the application display name
+        GraphProvider.getInstance().applications.get(grant.appId, { useAppId: true }).then(app => {
+            if (app) {
+                this.application = app;
+                this.label = app.displayName;
+                this.contextValue += '-local';
+                DevelopmentTreeViewProvider.instance.refresh(this);
+            }
+        });
     }
-    
+
 }

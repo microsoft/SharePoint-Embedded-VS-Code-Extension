@@ -5,15 +5,13 @@
 
 import { Command } from '../Command';
 import * as vscode from 'vscode';
-import { ContainerType } from '../../models/ContainerType';
 import { ContainersTreeItem } from '../../views/treeview/development/ContainersTreeItem';
 import { DevelopmentTreeViewProvider } from '../../views/treeview/development/DevelopmentTreeViewProvider';
-import { App } from '../../models/App';
-import { GraphProvider } from '../../services/GraphProvider';
-import { Container } from '../../models/Container';
+import { GraphProvider } from '../../services/Graph/GraphProvider';
 import { ProgressWaitNotification } from '../../views/notifications/ProgressWaitNotification';
 import { TelemetryProvider } from '../../services/TelemetryProvider';
 import { CreateContainerEvent, CreateContainerFailure } from '../../models/telemetry/telemetry';
+import { Container as NewContainer } from '../../models/schemas';
 
 // Static class that handles the create container command
 export class CreateContainer extends Command {
@@ -21,13 +19,11 @@ export class CreateContainer extends Command {
     public static readonly COMMAND = 'Containers.create';
 
     // Command handler
-    public static async run(containersViewModel?: ContainersTreeItem): Promise<Container | undefined> {
+    public static async run(containersViewModel?: ContainersTreeItem): Promise<NewContainer | undefined> {
         if (!containersViewModel) {
             return;
         }
-        const containerType: ContainerType = containersViewModel.containerType;
-        const containerTypeRegistration = containersViewModel.containerTypeRegistration;
-        const owningApp: App = containerType.owningApp!;
+        const containerTypeId = containersViewModel.containerTypeId;
         const containerDisplayName = await vscode.window.showInputBox({
             placeHolder: vscode.l10n.t('Enter a display name for your new container'),
             prompt: vscode.l10n.t('Container display name'),
@@ -51,14 +47,16 @@ export class CreateContainer extends Command {
             return;
         }
 
-        const progressWindow = new ProgressWaitNotification(vscode.l10n.t('Creating container...'));  
+        const progressWindow = new ProgressWaitNotification(vscode.l10n.t('Creating container...'));
         progressWindow.show();
         try {
-            const authProvider = await owningApp.getAppOnlyAuthProvider(containerTypeRegistration.tenantId);
-            const graphProvider = new GraphProvider(authProvider);
-            const container = await graphProvider.createContainer(containerTypeRegistration, containerDisplayName);
+            const graphProvider = GraphProvider.getInstance();
+            const container = await graphProvider.containers.create({
+                displayName: containerDisplayName,
+                containerTypeId
+            });
             if (!container) {
-                throw new Error (vscode.l10n.t('Failed to create container'));
+                throw new Error(vscode.l10n.t('Failed to create container'));
             }
             DevelopmentTreeViewProvider.getInstance().refresh(containersViewModel);
             progressWindow.hide();

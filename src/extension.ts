@@ -9,7 +9,6 @@ import { AccountTreeViewProvider } from './views/treeview/account/AccountTreeVie
 import { DevelopmentTreeViewProvider } from './views/treeview/development/DevelopmentTreeViewProvider';
 import { LocalStorageService, StorageProvider } from './services/StorageProvider';
 import { TelemetryProvider } from './services/TelemetryProvider';
-import { Account } from './models/Account';
 import { Commands } from './commands/';
 import { AuthenticationState } from './services/AuthenticationState';
 
@@ -78,6 +77,7 @@ export async function activate(context: vscode.ExtensionContext) {
     Commands.CloneReactSampleApp.register(context);
     Commands.CopyAppId.register(context);
     Commands.EditGuestAppPermissions.register(context);
+    Commands.RemoveGuestApp.register(context);
 
     // Container Commands
     Commands.CreateContainer.register(context);

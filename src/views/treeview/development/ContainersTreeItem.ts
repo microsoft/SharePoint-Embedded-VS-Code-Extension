@@ -5,19 +5,13 @@
 
 import * as vscode from "vscode";
 import { ContainerTreeItem } from "./ContainerTreeItem";
-import { ContainerType } from "../../../models/ContainerType";
-import { Container } from "../../../models/Container";
 import { IChildrenProvidingTreeItem } from "./IDataProvidingTreeItem";
-import { ContainerTypeRegistration } from "../../../models/ContainerTypeRegistration";
 import { LocalRegistrationTreeItem } from "./LocalRegistrationTreeItem";
+import { GraphProvider } from "../../../services/Graph/GraphProvider";
 
 export class ContainersTreeItem extends IChildrenProvidingTreeItem {
 
-    public get containerType(): ContainerType {
-        return this.containerTypeRegistration.containerType;
-    }
-
-    constructor(public containerTypeRegistration: ContainerTypeRegistration, public reigstrationViewModel: LocalRegistrationTreeItem) {
+    constructor(public readonly containerTypeId: string, public reigstrationViewModel: LocalRegistrationTreeItem) {
         super(vscode.l10n.t('Containers'), vscode.TreeItemCollapsibleState.Collapsed);
         this.contextValue = "spe:containersTreeItem";
     }
@@ -25,8 +19,8 @@ export class ContainersTreeItem extends IChildrenProvidingTreeItem {
     public async getChildren() {
         const children: vscode.TreeItem[] = [];
         try {
-            const containers = await this.containerTypeRegistration.loadContainers();
-            containers?.map((container: Container) => {
+            const containers = await GraphProvider.getInstance().containers.list(this.containerTypeId);
+            containers?.map((container) => {
                 children.push(new ContainerTreeItem(container, this.reigstrationViewModel));
             });
         } catch (error) {

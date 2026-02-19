@@ -5,7 +5,6 @@
 
 import { Command } from './../Command';
 import * as vscode from 'vscode';
-import { Account } from '../../models/Account';
 import { SignInEvent, SignInFailure } from '../../models/telemetry/telemetry';
 import { TelemetryProvider } from '../../services/TelemetryProvider';
 import { AuthenticationState } from '../../services/AuthenticationState';

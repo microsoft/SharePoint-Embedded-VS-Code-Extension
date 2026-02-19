@@ -25,15 +25,11 @@ export class ViewInAzure extends Command {
         let appId: string | undefined;
 
         if (commandProps instanceof GuestApplicationTreeItem) {
-            appId = commandProps.appPerms?.app?.clientId;
+            appId = commandProps.grant.appId;
         } else if (commandProps instanceof OwningAppTreeItem) {
             appId = commandProps.containerType.owningAppId;
         } else if ('appId' in commandProps) {
-            // New Application schema
             appId = commandProps.appId ?? undefined;
-        } else if ('clientId' in commandProps) {
-            // Legacy App model
-            appId = (commandProps as any).clientId;
         }
 
         if (!appId) {
@@ -46,4 +42,4 @@ export class ViewInAzure extends Command {
     };
 }
 
-export type ViewInAzureProps = AppTreeItem | Application | { clientId: string };
+export type ViewInAzureProps = AppTreeItem | Application;

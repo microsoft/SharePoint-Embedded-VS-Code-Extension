@@ -44,6 +44,7 @@ import { RestoreContainer as _RestoreContainer } from './RecycledContainer/Resto
 import { GetorCreateGuestApp as _GetOrCreateGuestApp } from './GuestApps/GetorCreateGuestApp';
 import { CopyRecycledContainerId as _CopyRecycledContainerId } from './RecycledContainer/CopyContainerId';
 import { EditGuestAppPermissions as _EditGuestAppPermissions } from './GuestApps/EditGuestAppPermissions';
+import { RemoveGuestApp as _RemoveGuestApp } from './GuestApps/RemoveGuestApp';
 
 export namespace Commands {
   export const SignIn = _SignIn;
@@ -85,6 +86,7 @@ export const GetOrCreateGuestApp = _GetOrCreateGuestApp;
   export const OpenPostmanDocumentation = _OpenPostmanDocumentation;
   export const CopyAppId = _CopyAppId;
   export const EditGuestAppPermissions = _EditGuestAppPermissions;
+  export const RemoveGuestApp = _RemoveGuestApp;
 
   // Container Commands
   export const RenameContainer = _RenameContainer;

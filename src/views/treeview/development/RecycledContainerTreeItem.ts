@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from "vscode";
-import { Container } from "../../../models/Container";
+import { Container } from "../../../models/schemas";
 import { LocalRegistrationTreeItem } from "./LocalRegistrationTreeItem";
 
 export class RecycledContainerTreeItem extends vscode.TreeItem {

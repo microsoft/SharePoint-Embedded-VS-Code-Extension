@@ -9,6 +9,7 @@ import { ApplicationService } from './ApplicationService';
 import { ContainerTypeService } from './ContainerTypeService';
 import { ContainerTypeRegistrationService } from './ContainerTypeRegistrationService';
 import { ContainerTypeAppPermissionGrantService } from './ContainerTypeAppPermissionGrantService';
+import { ContainerService } from './ContainerService';
 
 /**
  * Singleton provider for Microsoft Graph API operations
@@ -22,6 +23,7 @@ export class GraphProvider {
     private _containerTypeService: ContainerTypeService;
     private _registrationService: ContainerTypeRegistrationService;
     private _appPermissionGrantService: ContainerTypeAppPermissionGrantService;
+    private _containerService: ContainerService;
 
     private constructor(private _authProvider: GraphAuthProvider) {
         this._client = Graph.Client.init({
@@ -33,6 +35,7 @@ export class GraphProvider {
         this._containerTypeService = new ContainerTypeService(this._client);
         this._registrationService = new ContainerTypeRegistrationService(this._client);
         this._appPermissionGrantService = new ContainerTypeAppPermissionGrantService(this._client);
+        this._containerService = new ContainerService(this._client);
     }
 
     /**
@@ -81,6 +84,13 @@ export class GraphProvider {
      */
     public get appPermissionGrants(): ContainerTypeAppPermissionGrantService {
         return this._appPermissionGrantService;
+    }
+
+    /**
+     * Container operations
+     */
+    public get containers(): ContainerService {
+        return this._containerService;
     }
 
     /**

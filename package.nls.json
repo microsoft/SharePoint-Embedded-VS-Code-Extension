@@ -29,6 +29,7 @@
     "commands.spe.App.viewInAzure": "View in Azure",
     "commands.spe.GuestApps.add": "Add guest app...",
     "commands.spe.GuestApp.editPermissions": "Edit application permissions...",
+    "commands.spe.GuestApp.remove": "Remove guest app",
     "commands.spe.Containers.create": "Create container...",
     "commands.spe.Container.rename": "Rename...",
     "commands.spe.Container.editDescription": "Edit description...",

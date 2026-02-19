@@ -4,8 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { App } from '../../models/App';
-import { Application } from '../../models/schemas';
 import { AppTreeItem } from '../../views/treeview/development/AppTreeItem';
 import { GuestApplicationTreeItem } from '../../views/treeview/development/GuestAppTreeItem';
 import { OwningAppTreeItem } from '../../views/treeview/development/OwningAppTreeItem';
@@ -25,13 +23,9 @@ export class CopyAppId extends Command {
         let appId: string | undefined;
 
         if (applicationTreeItem instanceof GuestApplicationTreeItem) {
-            // Guest apps still use old App model
-            const app = applicationTreeItem.appPerms.app;
-            appId = app?.clientId;
+            appId = applicationTreeItem.grant.appId;
         } else if (applicationTreeItem instanceof OwningAppTreeItem) {
-            // Owning apps use new Application schema
-            const application = applicationTreeItem.application;
-            appId = application?.appId;
+            appId = applicationTreeItem.containerType.owningAppId;
         }
 
         if (!appId) {

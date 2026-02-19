@@ -24,6 +24,7 @@ export interface AuthenticatedAccount {
     name?: string;
     tenantId: string;
     isAdmin: boolean;
+    domain: string;
 }
 
 /**
@@ -116,7 +117,8 @@ export class AuthenticationState {
                 username: session.account.label,
                 name: decodedToken.name,
                 tenantId: decodedToken.tid || 'unknown',
-                isAdmin
+                isAdmin,
+                domain: AuthenticationState._extractDomain(session.account.label)
             };
 
             AuthenticationState._currentAccount = account;
@@ -155,7 +157,8 @@ export class AuthenticationState {
                 username: session.account.label,
                 name: decodedToken.name,
                 tenantId: decodedToken.tid || 'unknown',
-                isAdmin
+                isAdmin,
+                domain: AuthenticationState._extractDomain(session.account.label)
             };
 
             AuthenticationState._currentAccount = account;
@@ -248,6 +251,20 @@ export class AuthenticationState {
     public static async refreshAccount(): Promise<AuthenticatedAccount | undefined> {
         AuthenticationState._currentAccount = undefined;
         return await AuthenticationState.getCurrentAccount();
+    }
+
+    /**
+     * Extract tenant domain from username email (e.g., user@contoso.onmicrosoft.com -> contoso)
+     */
+    private static _extractDomain(username: string): string {
+        const atIndex = username.indexOf('@');
+        if (atIndex === -1) return '';
+        const fullDomain = username.substring(atIndex + 1);
+        const dotIndex = fullDomain.indexOf('.');
+        if (dotIndex !== -1) {
+            return fullDomain.substring(0, dotIndex);
+        }
+        return fullDomain;
     }
 
     // Notification methods

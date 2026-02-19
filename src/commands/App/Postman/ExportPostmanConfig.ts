@@ -7,8 +7,7 @@ import * as vscode from 'vscode';
 import { Command } from '../../Command';
 import { GuestApplicationTreeItem } from '../../../views/treeview/development/GuestAppTreeItem';
 import { OwningAppTreeItem } from '../../../views/treeview/development/OwningAppTreeItem';
-import { ContainerType as OldContainerType } from '../../../models/ContainerType';
-import { ContainerType as NewContainerType } from '../../../models/schemas';
+import { ContainerType } from '../../../models/schemas';
 import { AppTreeItem } from '../../../views/treeview/development/AppTreeItem';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -33,20 +32,22 @@ export class ExportPostmanConfig extends Command {
         let appId: string | undefined;
         let objectId: string | undefined;
         let displayName: string | undefined;
-        let containerType: OldContainerType | NewContainerType | undefined;
+        let containerType: ContainerType | undefined;
 
         if (applicationTreeItem instanceof GuestApplicationTreeItem) {
-            const legacyApp = applicationTreeItem.appPerms?.app;
-            if (legacyApp) {
-                appId = legacyApp.clientId;
-                objectId = legacyApp.objectId;
-                displayName = legacyApp.displayName;
+            const app = applicationTreeItem.application;
+            if (app) {
+                appId = app.appId;
+                objectId = app.id;
+                displayName = app.displayName;
             }
-            containerType = applicationTreeItem.appPerms?.containerTypeRegistration?.containerType;
+            const ct = await graphProvider.containerTypes.get(applicationTreeItem.containerTypeId);
+            if (ct) {
+                containerType = ct;
+            }
         } else if (applicationTreeItem instanceof OwningAppTreeItem) {
             appId = applicationTreeItem.containerType.owningAppId;
             containerType = applicationTreeItem.containerType;
-            // Fetch app to get object ID
             const app = await graphProvider.applications.get(appId, { useAppId: true });
             if (app) {
                 objectId = app.id;

@@ -4,13 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { ContainerType as OldContainerType } from "../../../models/ContainerType";
-import { ContainerType as NewContainerType, Application } from "../../../models/schemas";
+import { ContainerType } from "../../../models/schemas";
 import { Command } from "../../Command";
 import { v4 as uuidv4 } from 'uuid';
 import { GraphProvider } from '../../../services/Graph/GraphProvider';
 import { AuthenticationState } from '../../../services/AuthenticationState';
-import { Account } from '../../../models/Account';
 
 /**
  * Input parameters for creating a Postman config
@@ -19,7 +17,7 @@ export interface CreatePostmanConfigParams {
     appId: string;
     objectId: string;
     displayName: string;
-    containerType: OldContainerType | NewContainerType;
+    containerType: ContainerType;
 }
 
 // Static class that handles the Postman config creation command
@@ -36,16 +34,6 @@ export class CreatePostmanConfig extends Command {
         const { appId, objectId, displayName, containerType } = params;
         const graphProvider = GraphProvider.getInstance();
 
-        // Helper function to get containerTypeId from either model
-        const getContainerTypeId = (ct: OldContainerType | NewContainerType): string => {
-            return 'containerTypeId' in ct ? ct.containerTypeId : ct.id;
-        };
-
-        // Helper function to get container type name from either model
-        const getContainerTypeName = (ct: OldContainerType | NewContainerType): string => {
-            return 'displayName' in ct ? ct.displayName : ct.name;
-        };
-
         // Ask user if they want to create a new secret for this export
         let clientSecret: string | undefined;
         const createSecretChoice = await vscode.window.showInformationMessage(
@@ -57,7 +45,7 @@ export class CreatePostmanConfig extends Command {
         if (createSecretChoice === vscode.l10n.t('Yes, create secret')) {
             try {
                 const credential = await graphProvider.applications.addPassword(objectId, {
-                    displayName: 'Postman Export Secret'
+                    displayName: 'SPEVSCodeExtension Postman Secret'
                 });
                 clientSecret = credential.secretText ?? undefined;
                 if (!clientSecret) {
@@ -75,17 +63,16 @@ export class CreatePostmanConfig extends Command {
         }
 
         // Get tenant info
-        const account = Account.get();
         const authAccount = AuthenticationState.getCurrentAccountSync();
-        const tenantId = account?.tenantId || authAccount?.tenantId || '';
-        const domain = account?.domain || extractDomainFromUsername(authAccount?.username);
-        const rootSiteUrl = account?.spRootSiteUrl || `https://${domain}.sharepoint.com`;
+        const tenantId = authAccount?.tenantId || '';
+        const domain = extractDomainFromUsername(authAccount?.username);
+        const rootSiteUrl = `https://${domain}.sharepoint.com`;
 
         // Build Postman environment values
         const values: PostmanEnvironmentValue[] = [
             {
                 key: "ContainerTypeId",
-                value: getContainerTypeId(containerType),
+                value: containerType.id,
                 type: "default",
                 enabled: true
             },
@@ -132,23 +119,7 @@ export class CreatePostmanConfig extends Command {
             });
         }
 
-        // Placeholder for certificate (not creating certs on-demand for now)
-        values.push(
-            {
-                key: "CertThumbprint",
-                value: "<add certificate thumbprint if using cert auth>",
-                type: "default",
-                enabled: true
-            },
-            {
-                key: "CertPrivateKey",
-                value: "<add certificate private key if using cert auth>",
-                type: "secret",
-                enabled: true
-            }
-        );
-
-        const envName = `${getContainerTypeName(containerType)} (appId ${appId})`;
+        const envName = `${containerType.name} (appId ${appId})`;
         const pmEnv: PostmanEnvironmentConfig = {
             id: uuidv4(),
             name: envName,
@@ -198,4 +169,3 @@ export type PostmanEnvironmentConfig = {
     // eslint-disable-next-line @typescript-eslint/naming-convention
     _postman_exported_using: string;
 };
-

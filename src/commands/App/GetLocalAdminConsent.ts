@@ -34,17 +34,15 @@ export class GetLocalAdminConsent extends Command {
 
         let app: Application | null | undefined;
         if (commandProps instanceof GuestApplicationTreeItem) {
-            // Guest app - get appId from legacy app and fetch fresh Application
-            const legacyApp = commandProps.appPerms?.app;
-            if (legacyApp?.clientId) {
-                app = await graphProvider.applications.get(legacyApp.clientId, { useAppId: true });
+            app = commandProps.application;
+            if (!app) {
+                // Fallback: fetch by appId from grant
+                app = await graphProvider.applications.get(commandProps.grant.appId, { useAppId: true });
             }
         } else if (commandProps instanceof OwningAppTreeItem) {
-            // Owning app - get from container type
             const appId = commandProps.containerType.owningAppId;
             app = await graphProvider.applications.get(appId, { useAppId: true });
         } else if ('appId' in commandProps) {
-            // Already an Application schema
             app = commandProps;
         }
 
@@ -73,5 +71,3 @@ export class GetLocalAdminConsent extends Command {
 }
 
 export type AdminConsentCommandProps = AppTreeItem | Application;
-
-

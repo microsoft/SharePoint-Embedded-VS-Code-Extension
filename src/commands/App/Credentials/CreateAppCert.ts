@@ -14,7 +14,6 @@ import { GuestApplicationTreeItem } from '../../../views/treeview/development/Gu
 import { OwningAppTreeItem } from '../../../views/treeview/development/OwningAppTreeItem';
 import { GraphProvider } from '../../../services/Graph/GraphProvider';
 import { Application } from '../../../models/schemas';
-import { App } from '../../../models/App';
 import { generateCertificateAndPrivateKey, createCertKeyCredential } from '../../../cert';
 import { AuthenticationState } from '../../../services/AuthenticationState';
 
@@ -53,27 +52,19 @@ export class CreateAppCert extends Command {
 
         if (commandProps instanceof OwningAppTreeItem) {
             appId = commandProps.containerType.owningAppId;
-            // Fetch the full application to get object ID
             const app = await graphProvider.applications.get(appId, { useAppId: true });
             if (app) {
                 objectId = app.id;
                 displayName = app.displayName;
             }
         } else if (commandProps instanceof GuestApplicationTreeItem) {
-            // Guest app - get from appPerms
-            const legacyApp = commandProps.appPerms?.app;
-            if (legacyApp) {
-                objectId = legacyApp.objectId;
-                appId = legacyApp.clientId;
-                displayName = legacyApp.displayName;
+            const app = commandProps.application;
+            if (app) {
+                objectId = app.id;
+                appId = app.appId;
+                displayName = app.displayName;
             }
-        } else if (commandProps instanceof App) {
-            // Legacy App model
-            objectId = commandProps.objectId;
-            appId = commandProps.clientId;
-            displayName = commandProps.displayName;
         } else if ('id' in commandProps && 'appId' in commandProps) {
-            // New Application schema
             objectId = commandProps.id;
             appId = commandProps.appId ?? undefined;
             displayName = commandProps.displayName;
@@ -167,4 +158,4 @@ export class CreateAppCert extends Command {
     };
 }
 
-export type CreateCertProps = AppTreeItem | Application | App;
+export type CreateCertProps = AppTreeItem | Application;
