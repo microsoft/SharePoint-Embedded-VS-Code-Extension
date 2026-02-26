@@ -47,7 +47,7 @@ export class EditContainerDescription extends Command {
         try {
             const graphProvider = GraphProvider.getInstance();
             await graphProvider.containers.update(container.id, { description: containerDescription || '' });
-            DevelopmentTreeViewProvider.getInstance().refresh(containerViewModel.reigstrationViewModel);
+            DevelopmentTreeViewProvider.getInstance().refresh(containerViewModel.registrationViewModel);
             progressWindow.hide();
         } catch (error: any) {
             progressWindow.hide();

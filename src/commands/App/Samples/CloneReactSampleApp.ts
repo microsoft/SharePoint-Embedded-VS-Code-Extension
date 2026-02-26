@@ -26,13 +26,14 @@ export class CloneReactSampleApp extends Command {
 
     // Command handler
     public static async run(applicationTreeItem?: AppTreeItem): Promise<void> {
-        exec('git --version', (err, stdout, stderr) => {
-            if (err) {
-                // Git is not installed
-                vscode.window.showErrorMessage(vscode.l10n.t('Git is not installed. Please install Git before proceeding.'));
-                return;
-            }
-        });
+        try {
+            await new Promise<void>((resolve, reject) => {
+                exec('git --version', (err) => err ? reject(err) : resolve());
+            });
+        } catch {
+            vscode.window.showErrorMessage(vscode.l10n.t('Git is not installed. Please install Git before proceeding.'));
+            return;
+        }
 
         if (!applicationTreeItem) {
             return;

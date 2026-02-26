@@ -11,7 +11,7 @@ import { GraphProvider } from "../../../services/Graph/GraphProvider";
 
 export class RecycledContainersTreeItem extends IChildrenProvidingTreeItem {
 
-    constructor(public readonly containerTypeId: string, public reigstrationViewModel: LocalRegistrationTreeItem) {
+    constructor(public readonly containerTypeId: string, public registrationViewModel: LocalRegistrationTreeItem) {
         super(vscode.l10n.t('Recycled Containers'), vscode.TreeItemCollapsibleState.Collapsed);
         this.contextValue = "spe:recycledContainersTreeItem";
     }
@@ -21,9 +21,10 @@ export class RecycledContainersTreeItem extends IChildrenProvidingTreeItem {
         try {
             const containers = await GraphProvider.getInstance().containers.listRecycled(this.containerTypeId);
             containers?.map((container) => {
-                children.push(new RecycledContainerTreeItem(container, this.reigstrationViewModel));
+                children.push(new RecycledContainerTreeItem(container, this.registrationViewModel));
             });
         } catch (error) {
+            console.error('[RecycledContainersTreeItem.getChildren]', error);
         }
         return children;
     }

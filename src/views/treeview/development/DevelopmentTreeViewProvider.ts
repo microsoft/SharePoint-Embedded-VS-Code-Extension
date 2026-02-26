@@ -7,7 +7,6 @@ import * as vscode from "vscode";
 import { ContainerTypesTreeItem } from "./ContainerTypesTreeItem";
 import { IChildrenProvidingTreeItem } from "./IDataProvidingTreeItem";
 import { AuthenticationState } from "../../../services/AuthenticationState";
-import { GraphAuthProvider } from "../../../services/Auth";
 import { GraphProvider } from "../../../services/Graph/GraphProvider";
 
 export class DevelopmentTreeViewProvider implements vscode.TreeDataProvider<IChildrenProvidingTreeItem | vscode.TreeItem> {
@@ -53,8 +52,6 @@ export class DevelopmentTreeViewProvider implements vscode.TreeDataProvider<IChi
         }
         
         try {
-            // Use GraphAuthProvider to get container types
-            const graphAuth = GraphAuthProvider.getInstance();
             const graphProvider = GraphProvider.getInstance();
             const containerTypes = await graphProvider.containerTypes.list();
             if (containerTypes && containerTypes.length > 0) {

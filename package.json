@@ -227,11 +227,6 @@
       ],
       "view/item/context": [
         {
-          "when": "view == spe-developmentasdfasdf",
-          "command": "spe.refresh",
-          "group": "last"
-        },
-        {
           "command": "spe.signOut",
           "when": "view == spe-accounts && viewItem == signedinM365",
           "group": "inline@1"

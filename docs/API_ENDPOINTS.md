@@ -37,7 +37,7 @@ All endpoints under `/storage/fileStorage/` are SharePoint Embedded APIs routed 
 
 **Controller**: `FileStorageContainerTypesController`
 **Graph Path**: `/storage/fileStorage/containerTypes`
-**API Version**: `beta`
+**API Version**: `v1.0`
 **Code**: `src/services/Graph/ContainerTypeService.ts`
 
 | # | Method | Endpoint | Operation | LP | Used in Code | Code Reference |
@@ -84,7 +84,7 @@ All endpoints under `/storage/fileStorage/` are SharePoint Embedded APIs routed 
 
 **Controller**: `FileStorageContainerTypeAppPermissionGrantController`
 **Graph Path**: `/storage/fileStorage/containerTypeRegistrations/{containerTypeId}/applicationPermissionGrants`
-**API Version**: `beta`
+**API Version**: `v1.0`
 **Code**: `src/services/Graph/ContainerTypeAppPermissionGrantService.ts`
 
 | # | Method | Endpoint | Operation | LP | Used in Code | Code Reference |
@@ -101,8 +101,8 @@ All endpoints under `/storage/fileStorage/` are SharePoint Embedded APIs routed 
 
 **Controller**: `FileStorageContainersController` (or equivalent)
 **Graph Path**: `/storage/fileStorage/containers`
-**API Version**: `beta`
-**Code**: `src/services/GraphProvider.ts` (legacy — no dedicated ContainerService yet)
+**API Version**: `v1.0`
+**Code**: `src/services/Graph/ContainerService.ts`
 
 | # | Method | Endpoint | Operation | LP | Used in Code | Code Reference |
 |---|--------|----------|-----------|-----|-------------|----------------|
@@ -130,8 +130,8 @@ All endpoints under `/storage/fileStorage/` are SharePoint Embedded APIs routed 
 
 **Controller**: `DeletedFileStorageContainersController` (or equivalent)
 **Graph Path**: `/storage/fileStorage/deletedContainers`
-**API Version**: `beta`
-**Code**: `src/services/GraphProvider.ts` (legacy)
+**API Version**: `v1.0`
+**Code**: `src/services/Graph/ContainerService.ts`
 
 | # | Method | Endpoint | Operation | LP | Used in Code | Code Reference |
 |---|--------|----------|-----------|-----|-------------|----------------|
@@ -411,7 +411,7 @@ All SPE endpoints (Section 1) require Logical Permissions. None are currently im
 ### All SPE Endpoints — Flat List
 
 ```
-# Container Types (beta) — 5 endpoints
+# Container Types (v1.0) — 5 endpoints
 POST   /storage/fileStorage/containerTypes                          Needs LP
 GET    /storage/fileStorage/containerTypes                          Needs LP
 GET    /storage/fileStorage/containerTypes/{id}                     Needs LP
@@ -425,14 +425,14 @@ GET    /storage/fileStorage/containerTypeRegistrations/{id}         Needs LP
 PATCH  /storage/fileStorage/containerTypeRegistrations/{id}         Needs LP
 DELETE /storage/fileStorage/containerTypeRegistrations/{id}         Needs LP
 
-# App Permission Grants (beta) — 5 endpoints
+# App Permission Grants (v1.0) — 5 endpoints
 PUT    .../applicationPermissionGrants/{appId}                      Needs LP
 GET    .../applicationPermissionGrants                              Needs LP
 GET    .../applicationPermissionGrants/{appId}                      Needs LP
 PATCH  .../applicationPermissionGrants/{appId}                      Needs LP
 DELETE .../applicationPermissionGrants/{appId}                      Needs LP
 
-# Containers (beta) — 9 endpoints
+# Containers (v1.0) — 9 endpoints
 POST   /storage/fileStorage/containers                              Needs LP
 GET    /storage/fileStorage/containers                              Needs LP
 GET    /storage/fileStorage/containers/{id}                         Needs LP
@@ -443,7 +443,7 @@ POST   /storage/fileStorage/containers/{id}/lock                    Needs LP (no
 POST   /storage/fileStorage/containers/{id}/unlock                  Needs LP (not yet used)
 POST   /storage/fileStorage/containers/{id}/permanentDelete         Needs LP (not yet used)
 
-# Deleted Containers (beta) — 3 endpoints
+# Deleted Containers (v1.0) — 3 endpoints
 GET    /storage/fileStorage/deletedContainers                       Needs LP
 POST   /storage/fileStorage/deletedContainers/{id}/restore          Needs LP
 DELETE /storage/fileStorage/deletedContainers/{id}                  Needs LP

@@ -50,7 +50,7 @@ export class RenameContainer extends Command {
         try {
             const graphProvider = GraphProvider.getInstance();
             await graphProvider.containers.update(container.id, { displayName: containerDisplayName });
-            DevelopmentTreeViewProvider.getInstance().refresh(containerViewModel.reigstrationViewModel);
+            DevelopmentTreeViewProvider.getInstance().refresh(containerViewModel.registrationViewModel);
             progressWindow.hide();
         } catch (error: any) {
             progressWindow.hide();

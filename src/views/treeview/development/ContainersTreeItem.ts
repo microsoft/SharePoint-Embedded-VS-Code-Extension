@@ -12,7 +12,7 @@ import { ensureExtensionAppPermissions } from "../../../utils/ExtensionAppPermis
 
 export class ContainersTreeItem extends IChildrenProvidingTreeItem {
 
-    constructor(public readonly containerTypeId: string, public reigstrationViewModel: LocalRegistrationTreeItem) {
+    constructor(public readonly containerTypeId: string, public registrationViewModel: LocalRegistrationTreeItem) {
         super(vscode.l10n.t('Containers'), vscode.TreeItemCollapsibleState.Collapsed);
         this.contextValue = "spe:containersTreeItem";
     }
@@ -28,9 +28,10 @@ export class ContainersTreeItem extends IChildrenProvidingTreeItem {
         try {
             const containers = await GraphProvider.getInstance().containers.list(this.containerTypeId);
             containers?.map((container) => {
-                children.push(new ContainerTreeItem(container, this.reigstrationViewModel));
+                children.push(new ContainerTreeItem(container, this.registrationViewModel));
             });
         } catch (error) {
+            console.error('[ContainersTreeItem.getChildren]', error);
         }
         return children;
     }

@@ -26,6 +26,7 @@ export class GuestAppsTreeItem extends IChildrenProvidingTreeItem {
                 }
             });
         } catch (error) {
+            console.error('[GuestAppsTreeItem.getChildren]', error);
         }
 
         return children;

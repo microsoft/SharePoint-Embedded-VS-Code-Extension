@@ -27,7 +27,7 @@ export class RestoreContainer extends Command {
         try {
             const graphProvider = GraphProvider.getInstance();
             await graphProvider.containers.restore(container.id);
-            DevelopmentTreeViewProvider.getInstance().refresh(containerViewModel.reigstrationViewModel);
+            DevelopmentTreeViewProvider.getInstance().refresh(containerViewModel.registrationViewModel);
             progressWindow.hide();
         } catch (error: any) {
             progressWindow.hide();
