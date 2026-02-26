@@ -18,7 +18,7 @@ import {
  * Based on: https://learn.microsoft.com/en-us/graph/api/resources/filestoragecontainertype?view=graph-rest-beta
  */
 export class ContainerTypeService {
-    private static readonly API_VERSION = 'beta';
+    private static readonly API_VERSION = 'v1.0';
     private static readonly BASE_PATH = '/storage/fileStorage/containerTypes';
 
     constructor(private _client: Graph.Client) {}

@@ -19,16 +19,32 @@ export class GuestApplicationTreeItem extends AppTreeItem {
     ) {
         super(grant.appId);
         this.contextValue += '-guest';
+        this._resolveDisplayName();
+    }
 
-        // Async-load the application display name
-        GraphProvider.getInstance().applications.get(grant.appId, { useAppId: true }).then(app => {
-            if (app) {
-                this.application = app;
-                this.label = app.displayName;
-                this.contextValue += '-local';
+    private async _resolveDisplayName(): Promise<void> {
+        const graphProvider = GraphProvider.getInstance();
+
+        // Step 1: Try local app registry
+        const app = await graphProvider.applications.get(this.grant.appId, { useAppId: true });
+        if (app) {
+            this.application = app;
+            this.label = app.displayName;
+            this.contextValue += '-local';
+            DevelopmentTreeViewProvider.instance.refresh(this);
+            return;
+        }
+
+        // Step 2: Try service principal (finds multi-tenant apps)
+        try {
+            const sp = await graphProvider.applications.getServicePrincipal(this.grant.appId);
+            if (sp?.displayName) {
+                this.label = sp.displayName;
                 DevelopmentTreeViewProvider.instance.refresh(this);
             }
-        });
+        } catch {
+            // Not found — keep appId as label
+        }
     }
 
 }

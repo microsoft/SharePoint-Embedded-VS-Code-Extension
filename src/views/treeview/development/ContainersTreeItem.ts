@@ -8,6 +8,7 @@ import { ContainerTreeItem } from "./ContainerTreeItem";
 import { IChildrenProvidingTreeItem } from "./IDataProvidingTreeItem";
 import { LocalRegistrationTreeItem } from "./LocalRegistrationTreeItem";
 import { GraphProvider } from "../../../services/Graph/GraphProvider";
+import { ensureExtensionAppPermissions } from "../../../utils/ExtensionAppPermissions";
 
 export class ContainersTreeItem extends IChildrenProvidingTreeItem {
 
@@ -18,6 +19,12 @@ export class ContainersTreeItem extends IChildrenProvidingTreeItem {
 
     public async getChildren() {
         const children: vscode.TreeItem[] = [];
+
+        const hasPermissions = await ensureExtensionAppPermissions(this.containerTypeId);
+        if (!hasPermissions) {
+            return children;
+        }
+
         try {
             const containers = await GraphProvider.getInstance().containers.list(this.containerTypeId);
             containers?.map((container) => {

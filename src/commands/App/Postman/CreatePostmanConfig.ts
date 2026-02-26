@@ -62,6 +62,9 @@ export class CreatePostmanConfig extends Command {
             }
         }
 
+        // Ensure Postman redirect URIs are on the app registration
+        await ensurePostmanRedirectUris(graphProvider, objectId, appId);
+
         // Get tenant info
         const authAccount = AuthenticationState.getCurrentAccountSync();
         const tenantId = authAccount?.tenantId || '';
@@ -149,6 +152,64 @@ function extractDomainFromUsername(username?: string): string {
         return fullDomain.substring(0, dotIndex);
     }
     return fullDomain;
+}
+
+const POSTMAN_REDIRECT_URIS = [
+    'https://oauth.pstmn.io/v1/browser-callback',
+    'https://oauth.pstmn.io/v1/callback'
+];
+
+/**
+ * Ensure the app registration has the Postman redirect URIs configured.
+ * Adds any missing URIs to web.redirectUris without removing existing ones.
+ */
+async function ensurePostmanRedirectUris(
+    graphProvider: GraphProvider,
+    objectId: string,
+    appId: string
+): Promise<void> {
+    try {
+        const app = await graphProvider.applications.get(appId, { useAppId: true });
+        if (!app) {
+            return;
+        }
+
+        const existingUris = app.web?.redirectUris ?? [];
+        const missingUris = POSTMAN_REDIRECT_URIS.filter(uri => !existingUris.includes(uri));
+
+        if (missingUris.length === 0) {
+            return;
+        }
+
+        const addUris = vscode.l10n.t('Add redirect URIs');
+        const choice = await vscode.window.showInformationMessage(
+            vscode.l10n.t(
+                'This app registration is missing the required Postman redirect URIs: {0}. Would you like to add them to the "Web" redirect URIs of your app configuration?',
+                missingUris.join(', ')
+            ),
+            addUris,
+            vscode.l10n.t('Skip')
+        );
+
+        if (choice !== addUris) {
+            return;
+        }
+
+        await graphProvider.applications.update(app.id!, {
+            web: {
+                redirectUris: [...existingUris, ...missingUris]
+            }
+        });
+
+        vscode.window.showInformationMessage(
+            vscode.l10n.t('Postman redirect URIs added successfully.')
+        );
+    } catch (error: any) {
+        console.warn('[CreatePostmanConfig] Failed to add Postman redirect URIs:', error.message || error);
+        vscode.window.showWarningMessage(
+            vscode.l10n.t('Failed to add Postman redirect URIs: {0}', error.message)
+        );
+    }
 }
 
 export interface PostmanEnvironmentValue {

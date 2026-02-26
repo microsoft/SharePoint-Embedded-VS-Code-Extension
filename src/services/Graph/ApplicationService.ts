@@ -673,6 +673,183 @@ export class ApplicationService {
         }
     }
 
+    /**
+     * Ensure an owning application has all required Graph permissions:
+     *   - FileStorageContainer.Selected Role  (app-only containers access)
+     *   - FileStorageContainer.Selected Scope (delegated containers access)
+     *
+     * These complement the scopes that ensureContainerTypePermissions adds at
+     * registration time (User.Read, FSC.Manage.All, etc.).
+     *
+     * @returns true if any permissions were added, false if all already existed
+     */
+    async ensureOwningAppPermissions(
+        idOrAppId: string,
+        options?: { useAppId?: boolean }
+    ): Promise<boolean> {
+        try {
+            console.log(`[ApplicationService.ensureOwningAppPermissions] Checking for ${idOrAppId}`);
+
+            const app = await this.get(idOrAppId, options);
+            if (!app) {
+                throw new Error(`Application ${idOrAppId} not found`);
+            }
+
+            const GRAPH_RESOURCE_APP_ID = '00000003-0000-0000-c000-000000000000';
+
+            const REQUIRED_PERMISSIONS = [
+                { id: '40dc41bc-0f7e-42ff-89bd-d9516947e474', type: 'Role' },  // FSC.Selected Role
+                { id: '085ca537-6565-41c2-aca7-db852babc212', type: 'Scope' }, // FSC.Selected Scope
+            ];
+
+            const existingRRA = [...(app.requiredResourceAccess ?? [])];
+            let graphResource = existingRRA.find((r: any) => r.resourceAppId === GRAPH_RESOURCE_APP_ID);
+            if (!graphResource) {
+                graphResource = { resourceAppId: GRAPH_RESOURCE_APP_ID, resourceAccess: [] };
+                existingRRA.push(graphResource);
+            }
+
+            const existingAccess = graphResource.resourceAccess ?? [];
+            const missing = REQUIRED_PERMISSIONS.filter(
+                perm => !existingAccess.some((ra: any) => ra.id === perm.id && ra.type === perm.type)
+            );
+
+            if (missing.length === 0) {
+                console.log(`[ApplicationService.ensureOwningAppPermissions] All permissions already present`);
+                return false;
+            }
+
+            graphResource.resourceAccess = [...existingAccess, ...missing];
+            await this.update(app.id!, { requiredResourceAccess: existingRRA });
+            console.log(`[ApplicationService.ensureOwningAppPermissions] Added ${missing.length} permission(s) to ${idOrAppId}`);
+            return true;
+
+        } catch (error: any) {
+            console.error(`[ApplicationService.ensureOwningAppPermissions] Error:`, error);
+            throw new Error(`Failed to add owning app permissions: ${error.message || error}`);
+        }
+    }
+
+    /**
+     * Ensure an application has the FileStorageContainer.Selected application permission (Role).
+     * This is required for sample apps that use client credentials flow to call Graph.
+     *
+     * @returns true if the permission was added, false if it already existed
+     */
+    async ensureFileStorageContainerSelectedRole(
+        idOrAppId: string,
+        options?: { useAppId?: boolean }
+    ): Promise<boolean> {
+        try {
+            console.log(`[ApplicationService.ensureFileStorageContainerSelectedRole] Checking for ${idOrAppId}`);
+
+            const app = await this.get(idOrAppId, options);
+            if (!app) {
+                throw new Error(`Application ${idOrAppId} not found`);
+            }
+
+            const GRAPH_RESOURCE_APP_ID = '00000003-0000-0000-c000-000000000000';
+            const FSC_SELECTED_ROLE_ID = '40dc41bc-0f7e-42ff-89bd-d9516947e474';
+
+            const existingRRA = app.requiredResourceAccess ?? [];
+            const graphResource = existingRRA.find((r: any) => r.resourceAppId === GRAPH_RESOURCE_APP_ID);
+            const existingAccess = graphResource?.resourceAccess ?? [];
+
+            const hasRole = existingAccess.some(
+                (ra: any) => ra.id === FSC_SELECTED_ROLE_ID && ra.type === 'Role'
+            );
+
+            if (hasRole) {
+                console.log(`[ApplicationService.ensureFileStorageContainerSelectedRole] Already present`);
+                return false;
+            }
+
+            const newAccess = [...existingAccess, { id: FSC_SELECTED_ROLE_ID, type: 'Role' }];
+
+            let updatedRRA;
+            if (graphResource) {
+                graphResource.resourceAccess = newAccess;
+                updatedRRA = existingRRA;
+            } else {
+                updatedRRA = [
+                    ...existingRRA,
+                    { resourceAppId: GRAPH_RESOURCE_APP_ID, resourceAccess: newAccess }
+                ];
+            }
+
+            await this.update(app.id!, { requiredResourceAccess: updatedRRA });
+            console.log(`[ApplicationService.ensureFileStorageContainerSelectedRole] Added to ${idOrAppId}`);
+            return true;
+
+        } catch (error: any) {
+            console.error(`[ApplicationService.ensureFileStorageContainerSelectedRole] Error:`, error);
+            throw new Error(`Failed to add FileStorageContainer.Selected role: ${error.message || error}`);
+        }
+    }
+
+    /**
+     * Ensure an application exposes the Container.Manage API scope.
+     * Also sets the identifier URI (api://{appId}) and requestedAccessTokenVersion=2 if needed.
+     *
+     * @returns true if the scope was added, false if it already existed
+     */
+    async ensureContainerManageScope(
+        idOrAppId: string,
+        options?: { useAppId?: boolean }
+    ): Promise<boolean> {
+        try {
+            console.log(`[ApplicationService.ensureContainerManageScope] Checking API scope for ${idOrAppId}`);
+
+            const app = await this.get(idOrAppId, options);
+            if (!app) {
+                throw new Error(`Application ${idOrAppId} not found`);
+            }
+
+            const existingScopes = app.api?.oauth2PermissionScopes ?? [];
+            const hasScope = existingScopes.some((s: any) => s.value === 'Container.Manage');
+
+            if (hasScope) {
+                console.log(`[ApplicationService.ensureContainerManageScope] Container.Manage scope already exists`);
+                return false;
+            }
+
+            // Build the new scope
+            const { v4: uuidv4 } = await import('uuid');
+            const newScope = {
+                id: uuidv4(),
+                isEnabled: true,
+                type: 'User',
+                value: 'Container.Manage',
+                userConsentDisplayName: 'Create and manage storage containers',
+                userConsentDescription: 'Create and manage storage containers',
+                adminConsentDisplayName: 'Create and manage storage containers',
+                adminConsentDescription: 'Create and manage storage containers'
+            };
+
+            const updates: any = {
+                api: {
+                    oauth2PermissionScopes: [...existingScopes, newScope],
+                    requestedAccessTokenVersion: 2
+                }
+            };
+
+            // Ensure identifier URI is set
+            const appId = app.appId!;
+            const expectedUri = `api://${appId}`;
+            if (!app.identifierUris?.includes(expectedUri)) {
+                updates.identifierUris = [...(app.identifierUris ?? []), expectedUri];
+            }
+
+            await this.update(app.id!, updates);
+            console.log(`[ApplicationService.ensureContainerManageScope] Container.Manage scope added to ${idOrAppId}`);
+            return true;
+
+        } catch (error: any) {
+            console.error(`[ApplicationService.ensureContainerManageScope] Error:`, error);
+            throw new Error(`Failed to add Container.Manage scope: ${error.message || error}`);
+        }
+    }
+
     // === Service Principal Management ===
 
     /**

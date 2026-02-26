@@ -39,7 +39,7 @@ export class GetorCreateGuestApp extends Command {
             return;
         }
 
-        const progressWindow = new ProgressWaitNotification(vscode.l10n.t('Adding guest app permissions...'));
+        const progressWindow = new ProgressWaitNotification(vscode.l10n.t('Adding app registration permissions...'));
         progressWindow.show();
         try {
             const graphProvider = GraphProvider.getInstance();
@@ -50,11 +50,11 @@ export class GetorCreateGuestApp extends Command {
             });
             DevelopmentTreeViewProvider.getInstance().refresh(guestAppsTreeItem);
             progressWindow.hide();
-            vscode.window.showInformationMessage(vscode.l10n.t('Guest app added successfully'));
+            vscode.window.showInformationMessage(vscode.l10n.t('App registration added successfully'));
             return app;
         } catch (error: any) {
             progressWindow.hide();
-            const message = vscode.l10n.t('Error adding guest app: {0}', error.message);
+            const message = vscode.l10n.t('Error adding app registration: {0}', error.message);
             vscode.window.showErrorMessage(message);
             return;
         }

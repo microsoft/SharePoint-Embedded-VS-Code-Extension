@@ -2,7 +2,7 @@
   "Recycled Containers": "Recycled Containers",
   "(owning app)": "(owning app)",
   "Local tenant registration": "Local tenant registration",
-  "Guest Apps": "Guest Apps",
+  "App Registrations": "App Registrations",
   "Owning app or registration not found": "Owning app or registration not found",
   "No application permissions found": "No application permissions found",
   "Owning app not found": "Owning app not found",
@@ -124,7 +124,7 @@
   "Container Id copied to clipboard.": "Container Id copied to clipboard.",
   "Failed to copy Container Id to clipboard: {0}": "Failed to copy Container Id to clipboard: {0}",
   "Select or create an Owning Application for your Container Type": "Select or create an Owning Application for your Container Type",
-  "Select or Create a Guest Application for your Container Type": "Select or Create a Guest Application for your Container Type",
+  "Select or create an App Registration for your Container Type": "Select or create an App Registration for your Container Type",
   "Enter a new app name or search for an existing app by name or Id": "Enter a new app name or search for an existing app by name or Id",
   "Create Azure app: {0}": "Create Azure app: {0}",
   "Creates a new Azure Entra app registration": "Creates a new Azure Entra app registration",
@@ -178,5 +178,10 @@
   "Failed to obtain access token.": "Failed to obtain access token.",
   "{0} Failed to sign in, please try again.": "{0} Failed to sign in, please try again.",
   "Please sign in first.": "Please sign in first.",
-  "Failed to cancel sign in flow.": "Failed to cancel sign in flow."
+  "Failed to cancel sign in flow.": "Failed to cancel sign in flow.",
+  "Container operations require the SharePoint Embedded extension to have delegated permissions on this container type. Grant permissions now?": "Container operations require the SharePoint Embedded extension to have delegated permissions on this container type. Grant permissions now?",
+  "Grant permissions": "Grant permissions",
+  "No permissions": "No permissions",
+  "Manage Accounts": "Manage Accounts",
+  "Signed out of SharePoint Embedded. To fully sign out, remove the account from VS Code's account menu (person icon in the bottom-left).": "Signed out of SharePoint Embedded. To fully sign out, remove the account from VS Code's account menu (person icon in the bottom-left)."
 }

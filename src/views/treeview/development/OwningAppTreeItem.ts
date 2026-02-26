@@ -7,7 +7,6 @@ import { ContainerType, Application } from "../../../models/schemas";
 import { AppTreeItem } from "./AppTreeItem";
 import { DevelopmentTreeViewProvider } from "./DevelopmentTreeViewProvider";
 import { IChildrenProvidingTreeItem } from "./IDataProvidingTreeItem";
-import { GraphAuthProvider } from "../../../services/Auth/GraphAuthProvider";
 import { GraphProvider } from "../../../services/Graph/GraphProvider";
 
 export class OwningAppTreeItem extends AppTreeItem {
@@ -28,26 +27,31 @@ export class OwningAppTreeItem extends AppTreeItem {
     }
 
     private async _loadApplicationDetails(): Promise<void> {
-        try {
-            const graphAuth = GraphAuthProvider.getInstance();
-            const graphProvider = GraphProvider.getInstance();
-            // owningAppId is the appId (client ID), not the object ID, so we need to specify useAppId: true
-            const application = await graphProvider.applications.get(this.containerType.owningAppId, { useAppId: true });
+        const graphProvider = GraphProvider.getInstance();
 
+        // Step 1: Try local app registry
+        try {
+            const application = await graphProvider.applications.get(this.containerType.owningAppId, { useAppId: true });
             if (application) {
-                // Store the full application
                 this._application = application;
                 this.label = application.displayName || application.appId || 'Unknown App';
-
-                // TODO: Add logic to check for secrets and certificates
-                // This would require additional API calls or storage checking
-                // For now, we'll skip the secret/cert status
-
                 DevelopmentTreeViewProvider.instance.refresh(this);
+                return;
             }
         } catch (error) {
             console.error('Error loading application details:', error);
-            // Keep the app ID as the label if loading fails
+        }
+
+        // Step 2: Try service principal (finds multi-tenant apps)
+        try {
+            const sp = await graphProvider.applications.getServicePrincipal(this.containerType.owningAppId);
+            if (sp?.displayName) {
+                this.label = sp.displayName;
+                this.contextValue = this.contextValue?.replace('-local', '');
+                DevelopmentTreeViewProvider.instance.refresh(this);
+            }
+        } catch {
+            // Not found — keep appId as label
         }
     }
 }

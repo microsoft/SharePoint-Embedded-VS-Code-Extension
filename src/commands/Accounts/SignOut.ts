@@ -31,6 +31,16 @@ export class SignOut extends Command {
             await AuthenticationState.signOut();
             DevelopmentTreeViewProvider.instance.refresh();
             TelemetryProvider.instance.send(new SignOutEvent());
+
+            // Prompt user to also sign out from VS Code's account picker
+            const manageAccounts = vscode.l10n.t('Manage Accounts');
+            const choice = await vscode.window.showInformationMessage(
+                vscode.l10n.t('Signed out of SharePoint Embedded. To fully sign out, remove the account from VS Code\'s account menu (person icon in the bottom-left).'),
+                manageAccounts
+            );
+            if (choice === manageAccounts) {
+                vscode.commands.executeCommand('workbench.action.manageAccounts');
+            }
         } catch (error: any) {
             vscode.window.showErrorMessage(vscode.l10n.t('Failed to obtain access token.'));
             TelemetryProvider.instance.send(new SignOutFailure(error.message));

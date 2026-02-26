@@ -6,7 +6,7 @@
 import { Command } from '../Command';
 import * as vscode from 'vscode';
 import * as Graph from '@microsoft/microsoft-graph-client';
-import { ContainerType as NewContainerType, ContainerTypeRegistration, ContainerTypeRegistrationCreate } from '../../models/schemas';
+import { ContainerType, ContainerTypeRegistration, ContainerTypeRegistrationCreate } from '../../models/schemas';
 import { ContainerTypeTreeItem } from '../../views/treeview/development/ContainerTypeTreeItem';
 import { GraphProvider } from '../../services/Graph/GraphProvider';
 import { ContainerTypeRegistrationService } from '../../services/Graph/ContainerTypeRegistrationService';
@@ -42,7 +42,7 @@ export class RegisterOnLocalTenant extends Command {
     // true  = Use the 1P extension app's auth context (GraphProvider.registrations)
     // false = Use the owning app's auth context (AppAuthProviderFactory)
     // ========================================================================
-    private static readonly USE_EXTENSION_APP_AUTH = false;
+    private static readonly USE_EXTENSION_APP_AUTH = true;
 
     // Configuration constants
     private static readonly BROKER_REDIRECT_URI_TEMPLATE = 'ms-appx-web://Microsoft.AAD.BrokerPlugin/{appId}';
@@ -138,7 +138,7 @@ export class RegisterOnLocalTenant extends Command {
      */
     private static async validateAndGetContainerType(
         commandProps?: RegistrationCommandProps
-    ): Promise<{ account: any; graphProvider: GraphProvider; containerType: NewContainerType } | undefined> {
+    ): Promise<{ account: any; graphProvider: GraphProvider; containerType: ContainerType } | undefined> {
 
         // Check authentication
         if (!AuthenticationState.isSignedIn()) {
@@ -155,11 +155,11 @@ export class RegisterOnLocalTenant extends Command {
         const graphProvider = GraphProvider.getInstance();
 
         // Extract container type
-        let containerType: NewContainerType;
+        let containerType: ContainerType;
         if (commandProps instanceof ContainerTypeTreeItem) {
             containerType = commandProps.containerType;
         } else if (commandProps) {
-            containerType = commandProps as NewContainerType;
+            containerType = commandProps as ContainerType;
         } else {
             vscode.window.showErrorMessage('No container type provided.');
             return undefined;
@@ -178,7 +178,7 @@ export class RegisterOnLocalTenant extends Command {
      */
     private static async checkExistingRegistration(
         graphProvider: GraphProvider,
-        containerType: NewContainerType
+        containerType: ContainerType
     ): Promise<boolean> {
 
         try {
@@ -205,7 +205,7 @@ export class RegisterOnLocalTenant extends Command {
      */
     private static async getOwningApplication(
         graphProvider: GraphProvider,
-        containerType: NewContainerType
+        containerType: ContainerType
     ): Promise<any> {
 
         try {
@@ -234,7 +234,7 @@ export class RegisterOnLocalTenant extends Command {
      */
     private static async configureApplication(
         graphProvider: GraphProvider,
-        containerType: NewContainerType,
+        containerType: ContainerType,
         owningApp: any,
         tenantId: string
     ): Promise<boolean> {
@@ -305,7 +305,7 @@ export class RegisterOnLocalTenant extends Command {
      */
     private static async ensurePublicClientFlow(
         graphProvider: GraphProvider,
-        containerType: NewContainerType,
+        containerType: ContainerType,
         owningApp: any
     ): Promise<void> {
 
@@ -333,7 +333,7 @@ export class RegisterOnLocalTenant extends Command {
      */
     private static async ensureIdentifierUri(
         graphProvider: GraphProvider,
-        containerType: NewContainerType,
+        containerType: ContainerType,
         owningApp: any
     ): Promise<void> {
 
@@ -363,7 +363,7 @@ export class RegisterOnLocalTenant extends Command {
      */
     private static async ensureRedirectUris(
         graphProvider: GraphProvider,
-        containerType: NewContainerType,
+        containerType: ContainerType,
         owningApp: any
     ): Promise<void> {
 
@@ -421,7 +421,7 @@ export class RegisterOnLocalTenant extends Command {
      */
     private static async ensurePermissions(
         graphProvider: GraphProvider,
-        containerType: NewContainerType,
+        containerType: ContainerType,
         owningApp: any
     ): Promise<boolean> {
 
@@ -505,7 +505,7 @@ export class RegisterOnLocalTenant extends Command {
      * See configureApplication() for toggle instructions.
      */
     private static async requestAdminConsent(
-        containerType: NewContainerType,
+        containerType: ContainerType,
         tenantId: string,
         permissionsWereAdded: boolean
     ): Promise<boolean> {
@@ -566,7 +566,7 @@ export class RegisterOnLocalTenant extends Command {
      * Get authentication token for owning app and create registration service
      */
     private static async getOwningAppToken(
-        containerType: NewContainerType,
+        containerType: ContainerType,
         account: any
     ): Promise<ContainerTypeRegistrationService | undefined> {
 
@@ -667,7 +667,7 @@ export class RegisterOnLocalTenant extends Command {
      * Register container type with full permissions and verify completion
      */
     private static async registerContainerType(
-        containerType: NewContainerType,
+        containerType: ContainerType,
         registrationService: ContainerTypeRegistrationService
     ): Promise<ContainerTypeRegistration | undefined> {
 
@@ -814,4 +814,4 @@ export class RegisterOnLocalTenant extends Command {
 }
 
 // Accept both old and new ContainerType models for backward compatibility
-export type RegistrationCommandProps = ContainerTypeTreeItem | NewContainerType;
+export type RegistrationCommandProps = ContainerTypeTreeItem | ContainerType;

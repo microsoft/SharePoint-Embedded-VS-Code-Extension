@@ -56,7 +56,7 @@ export class EditGuestAppPermissions extends Command {
         console.log(`[EditGuestAppPermissions] Selected delegated:`, selectedPerms.delegatedPerms);
         console.log(`[EditGuestAppPermissions] Selected application:`, selectedPerms.applicationPerms);
 
-        const progressWindow = new ProgressWaitNotification(vscode.l10n.t('Updating guest app permissions...'));
+        const progressWindow = new ProgressWaitNotification(vscode.l10n.t('Updating app registration permissions...'));
         progressWindow.show();
         try {
             await graphProvider.appPermissionGrants.createOrReplace(containerTypeId, appId, {
@@ -66,10 +66,10 @@ export class EditGuestAppPermissions extends Command {
             });
             DevelopmentTreeViewProvider.getInstance().refresh(guestAppTreeItem.parentView);
             progressWindow.hide();
-            vscode.window.showInformationMessage(vscode.l10n.t('Guest app permissions updated successfully'));
+            vscode.window.showInformationMessage(vscode.l10n.t('App registration permissions updated successfully'));
         } catch (error: any) {
             progressWindow.hide();
-            const message = vscode.l10n.t('Error updating guest app permissions: {0}', error.message);
+            const message = vscode.l10n.t('Error updating app registration permissions: {0}', error.message);
             vscode.window.showErrorMessage(message);
         }
     }

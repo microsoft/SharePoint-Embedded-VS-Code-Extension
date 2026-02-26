@@ -29,7 +29,7 @@ export class RemoveGuestApp extends Command {
             return;
         }
 
-        const message = vscode.l10n.t('Are you sure you want to remove guest app "{0}"?', appName);
+        const message = vscode.l10n.t('Are you sure you want to remove app registration "{0}"?', appName);
         const userChoice = await vscode.window.showInformationMessage(
             message,
             vscode.l10n.t('OK'), vscode.l10n.t('Cancel')
@@ -39,17 +39,17 @@ export class RemoveGuestApp extends Command {
             return;
         }
 
-        const progressWindow = new ProgressWaitNotification(vscode.l10n.t('Removing guest app...'));
+        const progressWindow = new ProgressWaitNotification(vscode.l10n.t('Removing app registration...'));
         progressWindow.show();
         try {
             const graphProvider = GraphProvider.getInstance();
             await graphProvider.appPermissionGrants.delete(containerTypeId, appId);
             DevelopmentTreeViewProvider.getInstance().refresh(guestAppTreeItem.parentView);
             progressWindow.hide();
-            vscode.window.showInformationMessage(vscode.l10n.t('Guest app removed successfully'));
+            vscode.window.showInformationMessage(vscode.l10n.t('App registration removed successfully'));
         } catch (error: any) {
             progressWindow.hide();
-            const message = vscode.l10n.t('Error removing guest app: {0}', error.message);
+            const message = vscode.l10n.t('Error removing app registration: {0}', error.message);
             vscode.window.showErrorMessage(message);
         }
     }

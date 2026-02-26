@@ -11,6 +11,7 @@ import { LocalStorageService, StorageProvider } from './services/StorageProvider
 import { TelemetryProvider } from './services/TelemetryProvider';
 import { Commands } from './commands/';
 import { AuthenticationState } from './services/AuthenticationState';
+import { GraphAuthProvider } from './services/Auth';
 
 export async function activate(context: vscode.ExtensionContext) {
     ext.context = context;
@@ -40,6 +41,31 @@ export async function activate(context: vscode.ExtensionContext) {
 
     // Initialize authentication state and check if already signed in
     await AuthenticationState.initialize();
+
+    // Sync: when user signs out via VS Code's account picker, sign out of extension too
+    context.subscriptions.push(
+        vscode.authentication.onDidChangeSessions(async (e) => {
+            if (e.provider.id === 'microsoft') {
+                const graphAuth = GraphAuthProvider.getInstance();
+                if (graphAuth.getCurrentSession()) {
+                    try {
+                        await graphAuth.getToken([], false);
+                    } catch {
+                        // Session no longer valid — trigger extension sign-out
+                        await AuthenticationState.signOut();
+                        DevelopmentTreeViewProvider.getInstance().refresh();
+                    }
+                }
+            }
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('spe.showContextMenu', () => {
+            // Inline ellipsis button: focuses the tree item so the user can
+            // right-click or press Shift+F10 to open the context menu.
+        })
+    );
 
     Commands.SignIn.register(context);
     Commands.SignOut.register(context);

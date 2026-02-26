@@ -11,7 +11,8 @@ import { GraphProvider } from '../../services/Graph/GraphProvider';
 import { ProgressWaitNotification } from '../../views/notifications/ProgressWaitNotification';
 import { TelemetryProvider } from '../../services/TelemetryProvider';
 import { CreateContainerEvent, CreateContainerFailure } from '../../models/telemetry/telemetry';
-import { Container as NewContainer } from '../../models/schemas';
+import { Container } from '../../models/schemas';
+import { ensureExtensionAppPermissions } from '../../utils/ExtensionAppPermissions';
 
 // Static class that handles the create container command
 export class CreateContainer extends Command {
@@ -19,11 +20,17 @@ export class CreateContainer extends Command {
     public static readonly COMMAND = 'Containers.create';
 
     // Command handler
-    public static async run(containersViewModel?: ContainersTreeItem): Promise<NewContainer | undefined> {
+    public static async run(containersViewModel?: ContainersTreeItem): Promise<Container | undefined> {
         if (!containersViewModel) {
             return;
         }
         const containerTypeId = containersViewModel.containerTypeId;
+
+        const hasPermissions = await ensureExtensionAppPermissions(containerTypeId);
+        if (!hasPermissions) {
+            return;
+        }
+
         const containerDisplayName = await vscode.window.showInputBox({
             placeHolder: vscode.l10n.t('Enter a display name for your new container'),
             prompt: vscode.l10n.t('Container display name'),

@@ -45,6 +45,7 @@ export class ChooseAppPermissions extends Command {
 class ChooseAppPermission extends Command {
 
     private static readonly _permOptions: ApplicationPermissionOption[] = [
+        { label: "None", value: "none", detail: vscode.l10n.t("No permissions") },
         { label: "ReadContent", value: "readContent", detail: vscode.l10n.t("Read content within all storage containers") },
         { label: "WriteContent", value: "writeContent", detail: vscode.l10n.t("Write content within all storage containers")  },
         { label: "Create", value: "create", detail: vscode.l10n.t("Create storage containers")  },
@@ -58,6 +59,7 @@ class ChooseAppPermission extends Command {
         { label: "DeleteOwnPermission", value: "deleteOwnPermission", detail: vscode.l10n.t("Delete own app permission from all storage containers")  },
         { label: "ManagePermissions", value: "managePermissions", detail: vscode.l10n.t("Manage permissions on all storage containers")  }
     ];
+    private static readonly _noneOption = 'none';
     private static readonly _fullPermOption = 'full';
 
     // Graph API normalizes permissions by removing children when a parent is present.
@@ -99,16 +101,22 @@ class ChooseAppPermission extends Command {
             qp.canSelectMany = true;
             qp.ignoreFocusOut = true;
             qp.placeholder = placeholder;
-            qp.items = this._permOptions;
-            qp.selectedItems = existingPerms ? existingPermsChoices : this._permOptions;
+            // Exclude "None" from the selectable permission options
+            const selectableOptions = this._permOptions.filter(o => o.value !== this._noneOption);
+            qp.items = selectableOptions;
+            qp.selectedItems = existingPerms && !existingPerms.includes(this._noneOption)
+                ? existingPermsChoices.filter(o => o.value !== this._noneOption)
+                : existingPerms ? [] : selectableOptions;
             let selectedPerms: string[] = [];
             qp.onDidAccept(() => {
-                selectedPerms = [this._fullPermOption];
-                if (qp.selectedItems.length !== this._permOptions.length) {
+                if (qp.selectedItems.length === 0) {
+                    // No permissions selected → "none"
+                    selectedPerms = [this._noneOption];
+                } else if (qp.selectedItems.length === selectableOptions.length) {
+                    // All permissions selected → "full"
+                    selectedPerms = [this._fullPermOption];
+                } else {
                     selectedPerms = qp.selectedItems.map(item => item.value);
-                }
-                if (selectedPerms.length === 0) {
-                    return;
                 }
                 qp.hide();
                 resolve(selectedPerms);

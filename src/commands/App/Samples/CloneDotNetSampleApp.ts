@@ -17,6 +17,7 @@ import { TelemetryProvider } from "../../../services/TelemetryProvider";
 import { ProgressWaitNotification } from "../../../views/notifications/ProgressWaitNotification";
 import { GraphProvider } from "../../../services/Graph/GraphProvider";
 import { AuthenticationState } from "../../../services/AuthenticationState";
+import { AdminConsentHelper } from "../../../utils/AdminConsentHelper";
 
 // Static class that handles the clone .NET sample app command
 export class CloneDotNetSampleApp extends Command {
@@ -114,7 +115,38 @@ export class CloneDotNetSampleApp extends Command {
         // Get tenant info from auth state
         const authAccount = AuthenticationState.getCurrentAccountSync();
         const tenantId = authAccount?.tenantId || '';
-        appConfigurationProgress.hide();
+
+        // Configure app: ensure Container.Manage API scope + FSC.Selected role
+        try {
+            await graphProvider.applications.ensureContainerManageScope(appId, { useAppId: true });
+
+            const roleAdded = await graphProvider.applications.ensureFileStorageContainerSelectedRole(appId, { useAppId: true });
+            if (roleAdded) {
+                appConfigurationProgress.hide();
+                const grantConsent = vscode.l10n.t('Grant consent');
+                const choice = await vscode.window.showInformationMessage(
+                    vscode.l10n.t('Your app {0} requires Graph FileStorageContainer.Selected API permission role to perform this action. Grant admin consent now?', appId),
+                    grantConsent,
+                    vscode.l10n.t('Skip')
+                );
+                if (choice === grantConsent) {
+                    const consentProgress = new ProgressWaitNotification(vscode.l10n.t('Waiting for admin consent...'));
+                    consentProgress.show();
+                    try {
+                        await AdminConsentHelper.listenForAdminConsent(appId, tenantId);
+                    } catch (e) {
+                        console.warn('[CloneDotNetSampleApp] Admin consent flow error:', e);
+                    }
+                    consentProgress.hide();
+                }
+            } else {
+                appConfigurationProgress.hide();
+            }
+        } catch (error: any) {
+            console.error('[CloneDotNetSampleApp] Error configuring app:', error);
+            appConfigurationProgress.hide();
+            // Non-fatal - user can configure manually
+        }
 
         try {
             const containerTypeId = containerType.id;

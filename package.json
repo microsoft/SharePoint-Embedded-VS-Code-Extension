@@ -437,6 +437,46 @@
           "group": "inline@1"
         },
         {
+          "when": "viewItem == spe:containerTypesTreeItem",
+          "command": "spe.showContextMenu",
+          "group": "inline@2"
+        },
+        {
+          "when": "viewItem =~ /spe:containerTypeTreeItem.*/",
+          "command": "spe.showContextMenu",
+          "group": "inline@2"
+        },
+        {
+          "when": "viewItem == spe:guestAppsTreeItem",
+          "command": "spe.showContextMenu",
+          "group": "inline@2"
+        },
+        {
+          "when": "viewItem == spe:containersTreeItem",
+          "command": "spe.showContextMenu",
+          "group": "inline@2"
+        },
+        {
+          "when": "viewItem == spe:recycledContainersTreeItem",
+          "command": "spe.showContextMenu",
+          "group": "inline@2"
+        },
+        {
+          "when": "viewItem =~ /spe:appTreeItem.*/",
+          "command": "spe.showContextMenu",
+          "group": "inline@1"
+        },
+        {
+          "when": "viewItem =~ /spe:containerTreeItem.*/",
+          "command": "spe.showContextMenu",
+          "group": "inline@1"
+        },
+        {
+          "when": "viewItem =~ /spe:recycledContainerTreeItem.*/",
+          "command": "spe.showContextMenu",
+          "group": "inline@1"
+        },
+        {
           "when": "view == false",
           "command": "spe.refresh",
           "group": "blah"
@@ -612,6 +652,11 @@
         "command": "spe.refresh",
         "title": "%commands.spe.refresh%",
         "icon": "$(refresh)"
+      },
+      {
+        "command": "spe.showContextMenu",
+        "title": "Show actions",
+        "icon": "$(ellipsis)"
       }
     ]
   },

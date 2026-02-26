@@ -11,7 +11,7 @@ import { GraphProvider } from "../../../services/Graph/GraphProvider";
 export class GuestAppsTreeItem extends IChildrenProvidingTreeItem {
 
     constructor(public readonly containerTypeId: string, public readonly owningAppId: string) {
-        super(vscode.l10n.t('Guest Apps'), vscode.TreeItemCollapsibleState.Collapsed);
+        super(vscode.l10n.t('App Registrations'), vscode.TreeItemCollapsibleState.Collapsed);
         this.contextValue = "spe:guestAppsTreeItem";
     }
 

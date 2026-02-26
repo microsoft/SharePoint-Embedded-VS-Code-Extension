@@ -20,7 +20,7 @@ import {
  * Based on: https://learn.microsoft.com/en-us/graph/api/resources/filestoragecontainer?view=graph-rest-beta
  */
 export class ContainerService {
-    private static readonly API_VERSION = 'beta';
+    private static readonly API_VERSION = 'v1.0';
     private static readonly BASE_PATH = '/storage/fileStorage/containers';
     private static readonly DELETED_PATH = '/storage/fileStorage/deletedContainers';
 

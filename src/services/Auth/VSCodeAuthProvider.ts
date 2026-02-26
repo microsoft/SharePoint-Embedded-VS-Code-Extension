@@ -116,7 +116,7 @@ export class VSCodeAuthProvider {
             const session = await vscode.authentication.getSession(
                 VSCodeAuthProvider.PROVIDER_ID,
                 scopes,
-                { createIfNone: true, account }
+                { createIfNone: true, clearSessionPreference: true, account }
             );
             
             if (!session) {
@@ -136,14 +136,10 @@ export class VSCodeAuthProvider {
      */
     public async signOut(): Promise<void> {
         try {
-            if (this._currentSession) {
-                // VS Code's authentication API doesn't have a direct signOut method
-                // but we can clear our cached session
-                this._currentSession = undefined;
-                
-                // Note: VS Code handles session cleanup automatically when extensions
-                // are disposed or when users sign out through the UI
-            }
+            this._currentSession = undefined;
+            // Note: VS Code's authentication API doesn't expose removeSession()
+            // for consumer extensions. The session remains in VS Code's account
+            // picker until the user manually signs out there.
         } catch (error) {
             console.error('Sign out failed:', error);
             throw error;

@@ -20,7 +20,7 @@ import {
  * Based on: https://learn.microsoft.com/en-us/graph/api/resources/filestoragecontainertypeapppermissiongrant?view=graph-rest-beta
  */
 export class ContainerTypeAppPermissionGrantService {
-    private static readonly API_VERSION = 'beta';
+    private static readonly API_VERSION = 'v1.0';
     private static readonly BASE_PATH = '/storage/fileStorage/containerTypeRegistrations';
 
     constructor(private _client: Graph.Client) {}

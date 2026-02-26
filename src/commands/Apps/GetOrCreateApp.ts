@@ -31,7 +31,7 @@ export class GetOrCreateApp extends Command {
         const graphProvider = GraphProvider.getInstance();
 
         const qp = vscode.window.createQuickPick<AppQuickPickItem>();
-        qp.title = isOwningApp ? vscode.l10n.t('Select or create an Owning Application for your Container Type') : vscode.l10n.t('Select or Create a Guest Application for your Container Type');
+        qp.title = isOwningApp ? vscode.l10n.t('Select or create an Owning Application for your Container Type') : vscode.l10n.t('Select or create an App Registration for your Container Type');
         qp.placeholder = vscode.l10n.t('Enter a new app name or search for an existing app by name or Id');
 
         // Disable default filtering and sorting behavior on the quick pick
@@ -53,6 +53,18 @@ export class GetOrCreateApp extends Command {
             alwaysShow: true,
             iconPath: new vscode.ThemeIcon('new-app-icon')
         };
+        // GUID regex for detecting client IDs typed into the search box
+        const guidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+        // External app item — only shown in guest app mode when input matches a GUID
+        const externalAppItem: AppQuickPickItem = {
+            id: 'external',
+            label: '',
+            detail: vscode.l10n.t('Add an app by its Client ID (for apps outside your tenant)'),
+            alwaysShow: false,
+            iconPath: new vscode.ThemeIcon('link-external')
+        };
+
         const azureAppsSeparator: AppQuickPickItem = {
             kind: vscode.QuickPickItemKind.Separator,
             label: vscode.l10n.t('Your Azure Apps'),
@@ -93,7 +105,10 @@ export class GetOrCreateApp extends Command {
                     iconPath: new vscode.ThemeIcon('app-icon'),
                 } as AppQuickPickItem
             ));
-            qp.items = [newAppItem, azureAppsSeparator, ...appItems];
+            const baseItems = externalAppVisible
+                ? [externalAppItem, newAppItem, azureAppsSeparator, ...appItems]
+                : [newAppItem, azureAppsSeparator, ...appItems];
+            qp.items = baseItems;
             qp.busy = false;
             
             if (!validateAppName(query)) {
@@ -101,9 +116,12 @@ export class GetOrCreateApp extends Command {
                 qp.items = [];
                 return;
             } else {
-                qp.title = isOwningApp ? vscode.l10n.t('Select or create an Owning Application for your Container Type') : vscode.l10n.t('Select or Create a Guest Application for your Container Type');
+                qp.title = isOwningApp ? vscode.l10n.t('Select or create an Owning Application for your Container Type') : vscode.l10n.t('Select or create an App Registration for your Container Type');
             }
         };
+
+        // Track whether the external app item is currently visible
+        let externalAppVisible = false;
 
         let timeout: NodeJS.Timeout | undefined;
         qp.onDidChangeValue(value => {
@@ -111,6 +129,20 @@ export class GetOrCreateApp extends Command {
                 newAppItem.name = value || defaultAppName;
                 const label = vscode.l10n.t('New Azure AD Application: {0}', newAppItem.name);
                 newAppItem.label = label;
+            }
+
+            // Show/hide external app item when input matches a GUID (guest app mode only)
+            if (!isOwningApp && guidRegex.test(value.trim())) {
+                externalAppItem.label = vscode.l10n.t('Add by Client ID: {0}', value.trim());
+                externalAppItem.name = value.trim();
+                if (!externalAppVisible) {
+                    externalAppVisible = true;
+                    // Prepend external item to current items
+                    qp.items = [externalAppItem, ...qp.items.filter(item => item.id !== 'external')];
+                }
+            } else if (externalAppVisible) {
+                externalAppVisible = false;
+                qp.items = qp.items.filter(item => item.id !== 'external');
             }
 
             if (timeout) {
@@ -169,15 +201,54 @@ export class GetOrCreateApp extends Command {
                         console.warn('[GetOrCreateApp] Failed to create service principal (may already exist):', error);
                     }
 
-                    // Add identifier URI - need to implement this method if not available
+                    // Add identifier URI
                     try {
                         await addIdentifierUriToApp(graphProvider, app);
                     } catch (error) {
                         console.warn('Failed to add identifier URI:', error);
                     }
-                    
+
+                    // Configure owning app: API scope + required permissions
+                    if (isOwningApp) {
+                        try {
+                            await graphProvider.applications.ensureContainerManageScope(app.appId!, { useAppId: true });
+                        } catch (error) {
+                            console.warn('[GetOrCreateApp] Failed to add Container.Manage scope:', error);
+                        }
+                        try {
+                            await graphProvider.applications.ensureOwningAppPermissions(app.appId!, { useAppId: true });
+                        } catch (error) {
+                            console.warn('[GetOrCreateApp] Failed to add owning app permissions:', error);
+                        }
+                    }
+
                     createAppProgressWindow.hide();
                     return resolve(app);
+                } else if (appId === 'external' && appName) {
+                    // External app by Client ID — the GUID is stored in appName
+                    const externalClientId = appName;
+                    const lookupProgress = new ProgressWaitNotification(vscode.l10n.t('Looking up app...'));
+                    lookupProgress.show();
+                    try {
+                        // Try to resolve display name via service principal lookup
+                        const sp = await graphProvider.applications.getServicePrincipal(externalClientId);
+                        lookupProgress.hide();
+                        return resolve({
+                            id: sp.id!,
+                            appId: externalClientId,
+                            displayName: sp.displayName ?? externalClientId
+                        } as Application);
+                    } catch {
+                        // Service principal not found in tenant — use the GUID as a fallback.
+                        // The permissions API only needs appId, display name is cosmetic.
+                        lookupProgress.hide();
+                        console.log(`[GetOrCreateApp] Service principal not found for ${externalClientId}, using client ID as display name`);
+                        return resolve({
+                            id: externalClientId,
+                            appId: externalClientId,
+                            displayName: externalClientId
+                        } as Application);
+                    }
                 } else if (appId) {
                     const configureAppProgressWindow = new ProgressWaitNotification(vscode.l10n.t('Configuring Entra app...'));
                     configureAppProgressWindow.show();
