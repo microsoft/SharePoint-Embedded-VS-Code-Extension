@@ -6,7 +6,7 @@
     "type": "git",
     "url": "https://github.com/microsoft/SharePoint-Embedded-VS-Code-Extension"
   },
-  "version": "1.0.2",
+  "version": "1.0.3",
   "author": "Microsoft Corporation",
   "publisher": "SharepointEmbedded",
   "preview": false,
@@ -191,10 +191,6 @@
         {
           "command": "spe.App.Credentials.createSecret",
           "group": "1@1"
-        },
-        {
-          "command": "spe.App.Credentials.createCert",
-          "group": "2@1"
         }
       ],
       "spe.App.Permissions": [
@@ -576,10 +572,6 @@
       {
         "command": "spe.App.Credentials.createSecret",
         "title": "%commands.spe.App.Credentials.createSecret%"
-      },
-      {
-        "command": "spe.App.Credentials.createCert",
-        "title": "%commands.spe.App.Credentials.createCert%"
       },
       {
         "command": "spe.App.Permissions.LocalAdminConsent.openLink",

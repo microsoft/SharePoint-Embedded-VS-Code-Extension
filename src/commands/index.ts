@@ -9,7 +9,6 @@ import { CopyContainerTypeId as _CopyContainerTypeId } from './ContainerType/Cop
 import { CopyOwningTenantId as _CopyOwningTenantId} from './ContainerType/CopyOwningTenantId';
 import { CopyPostmanConfig as _CopyPostmanConfig } from './App/Postman/CopyPostmanConfig';
 import { CopySubscriptionId as _CopySubscriptionId } from './ContainerType/CopySubscriptionId';
-import { CreateAppCert as _CreateAppCert } from './App/Credentials/CreateAppCert';
 import { CreateContainer as _CreateContainer } from './Containers/CreateContainer';
 import { CreatePostmanConfig as _CreatePostmanConfig } from './App/Postman/CreatePostmanConfig';
 import { CreateSecret as _CreateSecret } from './App/Credentials/CreateSecret';
@@ -76,7 +75,6 @@ export const GetOrCreateGuestApp = _GetOrCreateGuestApp;
   export const CreatePostmanConfig = _CreatePostmanConfig;
   export const CopyPostmanConfig = _CopyPostmanConfig;
   export const ExportPostmanConfig = _ExportPostmanConfig;
-  export const CreateAppCert = _CreateAppCert;
   export const CreateSecret = _CreateSecret;
   export const GetLocalAdminConsent = _GetLocalAdminConsent;
   export const ViewInAzure = _ViewInAzure;

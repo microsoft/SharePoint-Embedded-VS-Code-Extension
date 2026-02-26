@@ -23,7 +23,6 @@
     "commands.spe.App.SampleApps.ASPNET+C#.clone": "ASP.NET + C#",
     "commands.spe.App.rename": "Rename...",
     "commands.spe.App.Credentials.createSecret": "Generate new client secret",
-    "commands.spe.App.Credentials.createCert": "Generate new self-signed cert",
     "commands.spe.App.Permissions.LocalAdminConsent.openLink": "Open link",
     "commands.spe.App.copyAppId": "Copy app (client) Id",
     "commands.spe.App.viewInAzure": "View in Azure",
