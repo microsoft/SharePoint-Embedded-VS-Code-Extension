@@ -23,13 +23,25 @@ export class M365AccountNode extends DynamicNode implements AuthStateChangeListe
   }
 
   private async _initializeState(): Promise<void> {
-    const isSignedIn = await AuthenticationState.isSignedIn();
-    if (isSignedIn) {
-      const account = await AuthenticationState.getCurrentAccount();
-      if (account) {
-        this.onSignIn(account);
+    try {
+      const result = await Promise.race([
+        AuthenticationState.isSignedIn(),
+        new Promise<boolean>((_, reject) =>
+          setTimeout(() => reject(new Error('Init check timed out')), 10_000)
+        )
+      ]);
+      if (result) {
+        const account = await AuthenticationState.getCurrentAccount();
+        if (account) {
+          this.onSignIn(account);
+          return;
+        }
       }
+    } catch (error) {
+      console.error('[M365AccountNode] _initializeState failed:', error);
     }
+    // Not signed in or timed out — notify failure to reset UI
+    this.onSignInFailed();
   }
 
   public onBeforeSignIn(): void {
@@ -56,6 +68,7 @@ export class M365AccountNode extends DynamicNode implements AuthStateChangeListe
     this.iconPath = new vscode.ThemeIcon("loading~spin");
     this.contextValue = "signingInM365";
     vscode.commands.executeCommand('setContext', 'spe:isLoggingIn', false);
+    vscode.commands.executeCommand('setContext', 'spe:isLoggedIn', false);
     DevelopmentTreeViewProvider.getInstance().refresh();
     AccountTreeViewProvider.getInstance().refresh();
   }

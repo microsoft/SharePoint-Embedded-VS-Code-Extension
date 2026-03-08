@@ -17,9 +17,15 @@ export class DevelopmentTreeViewProvider implements vscode.TreeDataProvider<IChi
     readonly onDidChangeTreeData: vscode.Event<vscode.TreeItem | undefined> = this._onDidChangeTreeData.event;
 
     private constructor() { }
-    public static readonly instance: DevelopmentTreeViewProvider = new DevelopmentTreeViewProvider();
+    private static _instance: DevelopmentTreeViewProvider = new DevelopmentTreeViewProvider();
+    public static get instance(): DevelopmentTreeViewProvider {
+        return DevelopmentTreeViewProvider._instance;
+    }
     public static getInstance() {
-        return DevelopmentTreeViewProvider.instance;
+        return DevelopmentTreeViewProvider._instance;
+    }
+    public static resetInstance(): void {
+        DevelopmentTreeViewProvider._instance = new DevelopmentTreeViewProvider();
     }
 
     public refresh(element?: vscode.TreeItem): void {

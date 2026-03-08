@@ -5,8 +5,9 @@
 
 import { Command } from './../Command';
 import * as vscode from 'vscode';
+import { AuthenticationState } from '../../services/AuthenticationState';
 
-// Static class that handles the sign in command
+// Static class that handles the cancel sign in command
 export class CancelSignIn extends Command {
     // Command name
     public static readonly COMMAND = 'cancelSignIn';
@@ -14,7 +15,7 @@ export class CancelSignIn extends Command {
     // Command handler
     public static async run(): Promise<void> {
         try {
-            vscode.commands.executeCommand('setContext', 'spe:isLoggingIn', false);
+            AuthenticationState.cancelSignIn();
         } catch (error) {
             vscode.window.showErrorMessage(vscode.l10n.t('Failed to cancel sign in flow.'));
         }

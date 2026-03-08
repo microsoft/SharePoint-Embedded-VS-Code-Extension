@@ -37,6 +37,8 @@ export class StorageProvider {
 
     public static async purgeOldCache() {
         const storage = StorageProvider.get();
+
+        // Clear old account global state and per-app secrets
         try {
             const account: {appIds?: string[], containerTypeIds?: string[]} = JSON.parse(storage.global.getValue('account'));
 
@@ -47,11 +49,29 @@ export class StorageProvider {
             }
             await storage.global.setValue('account', undefined);
         } catch (error) {
+            // No old account data — ignore
         }
 
         try {
             await storage.secrets.delete('account');
         } catch (error) {
+            // Ignore
+        }
+
+        // Clear old MSAL token cache stored under the clientId keys.
+        // The old extension used CacheFactory to persist MSAL token caches
+        // in SecretStorage keyed by the clientId — these are not tracked in
+        // spe:secretKeys, so we must delete them directly.
+        const oldClientIds = [
+            'f3dc316d-b1e5-4f9a-8cfa-ea5a6b874a48',  // old 1P client ID
+            '63c00075-8c18-4247-b85d-0296f2b0f339',  // current client ID (old MSAL cache)
+        ];
+        for (const id of oldClientIds) {
+            try {
+                await storage.secrets.delete(id);
+            } catch (error) {
+                // Ignore
+            }
         }
     }
 }

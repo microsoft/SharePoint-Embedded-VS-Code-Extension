@@ -26,8 +26,12 @@ export async function activate(context: vscode.ExtensionContext) {
     );
     await StorageProvider.purgeOldCache();
 
-    vscode.window.registerTreeDataProvider(AccountTreeViewProvider.viewId, AccountTreeViewProvider.getInstance());
-    vscode.window.registerTreeDataProvider(DevelopmentTreeViewProvider.viewId, DevelopmentTreeViewProvider.getInstance());
+    // Push tree view registrations to subscriptions so they are disposed
+    // when the extension deactivates (prevents duplicate nodes on VSIX reinstall).
+    context.subscriptions.push(
+        vscode.window.registerTreeDataProvider(AccountTreeViewProvider.viewId, AccountTreeViewProvider.getInstance()),
+        vscode.window.registerTreeDataProvider(DevelopmentTreeViewProvider.viewId, DevelopmentTreeViewProvider.getInstance())
+    );
 
     // Subscribe to authentication state changes for development tree view
     AuthenticationState.subscribe({
@@ -39,27 +43,6 @@ export async function activate(context: vscode.ExtensionContext) {
         }
     });
 
-    // Initialize authentication state and check if already signed in
-    await AuthenticationState.initialize();
-
-    // Sync: when user signs out via VS Code's account picker, sign out of extension too
-    context.subscriptions.push(
-        vscode.authentication.onDidChangeSessions(async (e) => {
-            if (e.provider.id === 'microsoft') {
-                const graphAuth = GraphAuthProvider.getInstance();
-                if (graphAuth.getCurrentSession()) {
-                    try {
-                        await graphAuth.getToken([], false);
-                    } catch {
-                        // Session no longer valid — trigger extension sign-out
-                        await AuthenticationState.signOut();
-                        DevelopmentTreeViewProvider.getInstance().refresh();
-                    }
-                }
-            }
-        })
-    );
-
     context.subscriptions.push(
         vscode.commands.registerCommand('spe.showContextMenu', () => {
             // Inline ellipsis button: focuses the tree item so the user can
@@ -67,6 +50,8 @@ export async function activate(context: vscode.ExtensionContext) {
         })
     );
 
+    // Register ALL commands before initialize() so they work even if
+    // initialize() hangs due to stale auth sessions from the old extension.
     Commands.SignIn.register(context);
     Commands.SignOut.register(context);
     Commands.CreateTrialContainerType.register(context);
@@ -111,15 +96,59 @@ export async function activate(context: vscode.ExtensionContext) {
     Commands.RecycleContainer.register(context);
     Commands.CopyContainerId.register(context);
     Commands.ViewContainerProperties.register(context);
-    
+
     // Recycled Container Commands
     Commands.CopyRecycledContainerId.register(context);
     Commands.DeleteContainer.register(context);
     Commands.RestoreContainer.register(context);
+
+    // Initialize authentication state AFTER commands are registered.
+    // Uses a timeout to prevent hanging if stale sessions from the old
+    // extension cause vscode.authentication.getSession() to block.
+    try {
+        await Promise.race([
+            AuthenticationState.initialize(),
+            new Promise<void>((_, reject) =>
+                setTimeout(() => reject(new Error('Auth initialization timed out')), 15_000)
+            )
+        ]);
+    } catch (error) {
+        console.error('[extension] Auth initialization failed or timed out:', error);
+        // Ensure the welcome view shows so the user can sign in manually
+        vscode.commands.executeCommand('setContext', 'spe:isLoggedIn', false);
+        vscode.commands.executeCommand('setContext', 'spe:isLoggingIn', false);
+    }
+
+    // Sync: when user signs out via VS Code's account picker, sign out of extension too.
+    // Guarded to prevent re-entrant calls during session migration (old→new extension).
+    let isProcessingSessionChange = false;
+    context.subscriptions.push(
+        vscode.authentication.onDidChangeSessions(async (e) => {
+            if (e.provider.id === 'microsoft') {
+                if (isProcessingSessionChange) { return; }
+                isProcessingSessionChange = true;
+                try {
+                    const graphAuth = GraphAuthProvider.getInstance();
+                    if (graphAuth.getCurrentSession()) {
+                        try {
+                            await graphAuth.getToken([], false);
+                        } catch {
+                            // Session no longer valid — trigger extension sign-out
+                            await AuthenticationState.signOut();
+                            DevelopmentTreeViewProvider.getInstance().refresh();
+                        }
+                    }
+                } finally {
+                    isProcessingSessionChange = false;
+                }
+            }
+        })
+    );
 }
 
 
 // Cleanup when extension is deactivated
 export function deactivate() {
-    AccountTreeViewProvider.getInstance().dispose();
+    AccountTreeViewProvider.resetInstance();
+    DevelopmentTreeViewProvider.resetInstance();
 }

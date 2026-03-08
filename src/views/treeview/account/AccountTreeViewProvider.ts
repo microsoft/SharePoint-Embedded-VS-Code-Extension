@@ -25,6 +25,13 @@ export class AccountTreeViewProvider implements vscode.TreeDataProvider<DynamicN
         return AccountTreeViewProvider.instance;
     }
 
+    public static resetInstance(): void {
+        if (AccountTreeViewProvider.instance) {
+            AccountTreeViewProvider.instance.dispose();
+        }
+        AccountTreeViewProvider.instance = undefined!;
+    }
+
     public refresh(): void {
         this._onDidChangeTreeData.fire();
     }

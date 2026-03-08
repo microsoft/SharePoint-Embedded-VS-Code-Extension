@@ -45,6 +45,8 @@ export class AuthenticationState {
     private static readonly _listeners: AuthStateChangeListener[] = [];
     private static _currentAccount: AuthenticatedAccount | undefined;
     private static _isSigningIn: boolean = false;
+    private static _signInAbortController: AbortController | undefined;
+    private static readonly _SIGN_IN_TIMEOUT_MS = 60_000;
 
     private constructor() {}
 
@@ -130,7 +132,9 @@ export class AuthenticationState {
     }
 
     /**
-     * Sign in with the GraphAuthProvider
+     * Sign in with the GraphAuthProvider.
+     * The sign-in can be cancelled via `cancelSignIn()` and will auto-timeout
+     * after `_SIGN_IN_TIMEOUT_MS` milliseconds.
      */
     public static async signIn(): Promise<AuthenticatedAccount | undefined> {
         if (AuthenticationState._isSigningIn) {
@@ -139,10 +143,17 @@ export class AuthenticationState {
 
         try {
             AuthenticationState._isSigningIn = true;
+            AuthenticationState._signInAbortController = new AbortController();
             AuthenticationState._notifyBeforeSignIn();
 
             const graphAuth = GraphAuthProvider.getInstance();
-            const session = await graphAuth.signIn();
+
+            // Race the sign-in against cancellation and timeout
+            const session = await AuthenticationState._raceWithAbort(
+                graphAuth.signIn(),
+                AuthenticationState._signInAbortController.signal,
+                AuthenticationState._SIGN_IN_TIMEOUT_MS
+            );
 
             if (!session) {
                 throw new Error('Failed to create authentication session');
@@ -163,7 +174,7 @@ export class AuthenticationState {
 
             AuthenticationState._currentAccount = account;
             AuthenticationState._notifySignIn(account);
-            
+
             // Set VS Code context variables
             vscode.commands.executeCommand('setContext', 'spe:isLoggedIn', true);
             vscode.commands.executeCommand('setContext', 'spe:isAdmin', account.isAdmin);
@@ -177,7 +188,72 @@ export class AuthenticationState {
             throw error;
         } finally {
             AuthenticationState._isSigningIn = false;
+            AuthenticationState._signInAbortController = undefined;
         }
+    }
+
+    /**
+     * Cancel an in-flight sign-in operation.
+     * Aborts the pending promise, resets internal state, and notifies listeners.
+     */
+    public static cancelSignIn(): void {
+        if (AuthenticationState._signInAbortController) {
+            AuthenticationState._signInAbortController.abort();
+            AuthenticationState._signInAbortController = undefined;
+        }
+        AuthenticationState._isSigningIn = false;
+        AuthenticationState._currentAccount = undefined;
+        AuthenticationState._notifySignInFailed();
+        vscode.commands.executeCommand('setContext', 'spe:isLoggingIn', false);
+        vscode.commands.executeCommand('setContext', 'spe:isLoggedIn', false);
+    }
+
+    /**
+     * Race a promise against an AbortSignal and an optional timeout.
+     * Rejects with an appropriate error if cancelled or timed out.
+     */
+    private static _raceWithAbort<T>(
+        promise: Promise<T>,
+        signal: AbortSignal,
+        timeoutMs?: number
+    ): Promise<T> {
+        return new Promise<T>((resolve, reject) => {
+            // Already aborted
+            if (signal.aborted) {
+                reject(new Error('Sign-in was cancelled'));
+                return;
+            }
+
+            let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+            const onAbort = () => {
+                if (timeoutId) { clearTimeout(timeoutId); }
+                reject(new Error('Sign-in was cancelled'));
+            };
+            signal.addEventListener('abort', onAbort, { once: true });
+
+            if (timeoutMs) {
+                timeoutId = setTimeout(() => {
+                    signal.removeEventListener('abort', onAbort);
+                    AuthenticationState.cancelSignIn();
+                    vscode.window.showErrorMessage('Sign-in timed out. Please try again.');
+                    reject(new Error('Sign-in timed out'));
+                }, timeoutMs);
+            }
+
+            promise.then(
+                (value) => {
+                    if (timeoutId) { clearTimeout(timeoutId); }
+                    signal.removeEventListener('abort', onAbort);
+                    resolve(value);
+                },
+                (err) => {
+                    if (timeoutId) { clearTimeout(timeoutId); }
+                    signal.removeEventListener('abort', onAbort);
+                    reject(err);
+                }
+            );
+        });
     }
 
     /**
