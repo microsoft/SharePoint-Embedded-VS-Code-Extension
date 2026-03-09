@@ -1,6 +1,7 @@
 {
     "commands.spe.login": "SharePoint Embedded: Login to AAD",
     "commands.spe.signOut": "SharePoint Embedded: Sign out account",
+    "commands.spe.switchAccount": "Switch Account",
     "commands.spe.cancelSignIn": "SharePoint Embedded: Cancel Sign In",
     "commands.spe.ContainerTypes.createTrial": "Create trial container type",
     "commands.spe.ContainerType.registerOnLocalTenant": "Register on local tenant",

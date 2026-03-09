@@ -257,6 +257,17 @@ export class AuthenticationState {
     }
 
     /**
+     * Sign in targeting a specific tenant.
+     * Resets the auth provider to force tenant-scoped authentication,
+     * then performs a normal sign-in flow.
+     */
+    public static async signInToTenant(tenantId: string): Promise<AuthenticatedAccount | undefined> {
+        GraphAuthProvider.resetInstance();
+        GraphAuthProvider.getInstance(tenantId);
+        return await AuthenticationState.signIn();
+    }
+
+    /**
      * Sign out
      */
     public static async signOut(): Promise<void> {

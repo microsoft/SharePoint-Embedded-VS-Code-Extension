@@ -11,13 +11,35 @@ import { GraphProvider } from "../../../services/Graph/GraphProvider";
 
 export class ContainerTypesTreeItem extends IChildrenProvidingTreeItem {
     private static readonly label = vscode.l10n.t("Container Types");
+    private _cachedChildren: ContainerTypeTreeItem[] | undefined;
+
     public constructor(private _containerTypes: ContainerType[]) {
         super(ContainerTypesTreeItem.label, vscode.TreeItemCollapsibleState.Expanded);
+        this.id = "spe-container-types";
         this.iconPath = new vscode.ThemeIcon("containertype-icon");
         this.contextValue = "spe:containerTypesTreeItem";
     }
 
+    public getCachedChildren(): ContainerTypeTreeItem[] | undefined {
+        return this._cachedChildren;
+    }
+
+    public clearChildrenCache(): void {
+        this._cachedChildren = undefined;
+    }
+
+    public async findContainerTypeById(containerTypeId: string): Promise<ContainerTypeTreeItem | undefined> {
+        const children = await this.getChildren();
+        return (children as ContainerTypeTreeItem[]).find(
+            (item) => item.containerType.id === containerTypeId
+        );
+    }
+
     public async getChildren(): Promise<vscode.TreeItem[]> {
+        if (this._cachedChildren) {
+            return this._cachedChildren;
+        }
+
         const graphProvider = GraphProvider.getInstance();
 
         // Check registration status for each container type
@@ -33,6 +55,7 @@ export class ContainerTypesTreeItem extends IChildrenProvidingTreeItem {
             })
         );
 
+        this._cachedChildren = treeItems;
         return treeItems;
     }
 }

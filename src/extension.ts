@@ -12,6 +12,7 @@ import { TelemetryProvider } from './services/TelemetryProvider';
 import { Commands } from './commands/';
 import { AuthenticationState } from './services/AuthenticationState';
 import { GraphAuthProvider } from './services/Auth';
+import { SpeUriHandler } from './services/UriHandler';
 
 export async function activate(context: vscode.ExtensionContext) {
     ext.context = context;
@@ -29,9 +30,18 @@ export async function activate(context: vscode.ExtensionContext) {
     // Push tree view registrations to subscriptions so they are disposed
     // when the extension deactivates (prevents duplicate nodes on VSIX reinstall).
     context.subscriptions.push(
-        vscode.window.registerTreeDataProvider(AccountTreeViewProvider.viewId, AccountTreeViewProvider.getInstance()),
-        vscode.window.registerTreeDataProvider(DevelopmentTreeViewProvider.viewId, DevelopmentTreeViewProvider.getInstance())
+        vscode.window.registerTreeDataProvider(AccountTreeViewProvider.viewId, AccountTreeViewProvider.getInstance())
     );
+
+    // Use createTreeView for the development view so we can call reveal() on it
+    const devTreeView = vscode.window.createTreeView(DevelopmentTreeViewProvider.viewId, {
+        treeDataProvider: DevelopmentTreeViewProvider.getInstance()
+    });
+    DevelopmentTreeViewProvider.getInstance().setTreeView(devTreeView);
+    context.subscriptions.push(devTreeView);
+
+    // Register URI handler for deep links
+    context.subscriptions.push(vscode.window.registerUriHandler(new SpeUriHandler()));
 
     // Subscribe to authentication state changes for development tree view
     AuthenticationState.subscribe({
@@ -54,6 +64,7 @@ export async function activate(context: vscode.ExtensionContext) {
     // initialize() hangs due to stale auth sessions from the old extension.
     Commands.SignIn.register(context);
     Commands.SignOut.register(context);
+    Commands.SwitchAccount.register(context);
     Commands.CreateTrialContainerType.register(context);
     Commands.CreatePaidContainerType.register(context);
     Commands.DeleteContainerType.register(context);

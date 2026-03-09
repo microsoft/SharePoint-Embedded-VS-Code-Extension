@@ -183,5 +183,12 @@
   "Grant permissions": "Grant permissions",
   "No permissions": "No permissions",
   "Manage Accounts": "Manage Accounts",
-  "Signed out of SharePoint Embedded. To fully sign out, remove the account from VS Code's account menu (person icon in the bottom-left).": "Signed out of SharePoint Embedded. To fully sign out, remove the account from VS Code's account menu (person icon in the bottom-left)."
+  "Signed out of SharePoint Embedded. To fully sign out, remove the account from VS Code's account menu (person icon in the bottom-left).": "Signed out of SharePoint Embedded. To fully sign out, remove the account from VS Code's account menu (person icon in the bottom-left).",
+  "Invalid SharePoint Embedded link format.": "Invalid SharePoint Embedded link format.",
+  "Unknown action: {0}": "Unknown action: {0}",
+  "Switch": "Switch",
+  "This link targets a different tenant. Switch accounts to continue?": "This link targets a different tenant. Switch accounts to continue?",
+  "Container type not found or you do not have access.": "Container type not found or you do not have access.",
+  "Failed to open shared link: {0}": "Failed to open shared link: {0}",
+  "Failed to switch account: {0}": "Failed to switch account: {0}"
 }

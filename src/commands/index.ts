@@ -5,6 +5,7 @@
 
 /* eslint-disable @typescript-eslint/naming-convention */
 import { CancelSignIn as _CancelSignIn } from './Accounts/CancelSignIn';
+import { SwitchAccount as _SwitchAccount } from './Accounts/SwitchAccount';
 import { CopyContainerTypeId as _CopyContainerTypeId } from './ContainerType/CopyContainerTypeId';
 import { CopyOwningTenantId as _CopyOwningTenantId} from './ContainerType/CopyOwningTenantId';
 import { CopyPostmanConfig as _CopyPostmanConfig } from './App/Postman/CopyPostmanConfig';
@@ -48,6 +49,7 @@ import { RemoveGuestApp as _RemoveGuestApp } from './GuestApps/RemoveGuestApp';
 export namespace Commands {
   export const SignIn = _SignIn;
   export const SignOut = _SignOut;
+  export const SwitchAccount = _SwitchAccount;
   export const CancelSignIn = _CancelSignIn;
   export const CreateTrialContainerType = _CreateTrialContainerType;
   export const CreatePaidContainerType = _CreatePaidContainerType;

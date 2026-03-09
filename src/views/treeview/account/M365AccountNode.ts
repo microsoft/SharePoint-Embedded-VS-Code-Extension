@@ -5,7 +5,6 @@
 
 import * as vscode from "vscode";
 import { DynamicNode } from "../DynamicNode";
-import { m365Icon } from "./common";
 import { AuthenticationState, AuthStateChangeListener, AuthenticatedAccount } from "../../../services/AuthenticationState";
 import { AccountTreeViewProvider } from "./AccountTreeViewProvider";
 import { DevelopmentTreeViewProvider } from "../development/DevelopmentTreeViewProvider";
@@ -54,7 +53,7 @@ export class M365AccountNode extends DynamicNode implements AuthStateChangeListe
 
   public onSignIn(account: AuthenticatedAccount): void {
     this.label = account.username;
-    this.iconPath = m365Icon;
+    this.iconPath = new vscode.ThemeIcon('accounts-view-bar-icon');
     this.contextValue = "signedinM365";
     vscode.commands.executeCommand('setContext', 'spe:isLoggingIn', false);
     vscode.commands.executeCommand('setContext', 'spe:isLoggedIn', true);
