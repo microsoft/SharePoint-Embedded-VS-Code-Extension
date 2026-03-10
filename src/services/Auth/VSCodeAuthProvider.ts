@@ -37,7 +37,7 @@ export class VSCodeAuthProvider {
         // Build full scopes including VS Code specific prefixes
         this._fullScopes = [
             `VSCODE_CLIENT_ID:${config.clientId}`,
-            config.tenantId ? `VSCODE_TENANT:${config.tenantId}` : 'VSCODE_TENANT:common',
+            config.tenantId ? `VSCODE_TENANT:${config.tenantId}` : 'VSCODE_TENANT:organizations',
             'offline_access',
             ...config.scopes
         ];
@@ -73,7 +73,7 @@ export class VSCodeAuthProvider {
             const scopes = additionalScopes ? 
                 [
                     `VSCODE_CLIENT_ID:${this._config.clientId}`,
-                    this._config.tenantId ? `VSCODE_TENANT:${this._config.tenantId}` : 'VSCODE_TENANT:common',
+                    this._config.tenantId ? `VSCODE_TENANT:${this._config.tenantId}` : 'VSCODE_TENANT:organizations',
                     'offline_access',
                     ...this._config.scopes,
                     ...additionalScopes
@@ -106,7 +106,7 @@ export class VSCodeAuthProvider {
             const scopes = additionalScopes ? 
                 [
                     `VSCODE_CLIENT_ID:${this._config.clientId}`,
-                    this._config.tenantId ? `VSCODE_TENANT:${this._config.tenantId}` : 'VSCODE_TENANT:common',
+                    this._config.tenantId ? `VSCODE_TENANT:${this._config.tenantId}` : 'VSCODE_TENANT:organizations',
                     'offline_access',
                     ...this._config.scopes,
                     ...additionalScopes
@@ -181,7 +181,7 @@ export class VSCodeAuthProvider {
             const scopes = additionalScopes ? 
                 [
                     `VSCODE_CLIENT_ID:${this._config.clientId}`,
-                    this._config.tenantId ? `VSCODE_TENANT:${this._config.tenantId}` : 'VSCODE_TENANT:common',
+                    this._config.tenantId ? `VSCODE_TENANT:${this._config.tenantId}` : 'VSCODE_TENANT:organizations',
                     'offline_access',
                     ...this._config.scopes,
                     ...additionalScopes
