@@ -73,22 +73,6 @@ export class ExportPostmanConfig extends Command {
             return;
         }
 
-        // Warn about plaintext secrets if one was created
-        const hasSecret = pmEnv.values.some(v =>
-            v.key === 'ClientSecret' && v.value && !v.value.startsWith('<')
-        );
-        if (hasSecret) {
-            const message = vscode.l10n.t("This will put your app's secret in a plain text Postman environment file. Are you sure you want to continue?");
-            const userChoice = await vscode.window.showInformationMessage(
-                message,
-                vscode.l10n.t('OK'), vscode.l10n.t('Cancel')
-            );
-
-            if (userChoice === vscode.l10n.t('Cancel')) {
-                return;
-            }
-        }
-
         try {
             const folders = await vscode.window.showOpenDialog({
                 canSelectFiles: false,

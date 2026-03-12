@@ -34,34 +34,6 @@ export class CreatePostmanConfig extends Command {
         const { appId, objectId, displayName, containerType } = params;
         const graphProvider = GraphProvider.getInstance();
 
-        // Ask user if they want to create a new secret for this export
-        let clientSecret: string | undefined;
-        const createSecretChoice = await vscode.window.showInformationMessage(
-            vscode.l10n.t('Do you want to create a new client secret for this Postman export?'),
-            vscode.l10n.t('Yes, create secret'),
-            vscode.l10n.t('No, skip')
-        );
-
-        if (createSecretChoice === vscode.l10n.t('Yes, create secret')) {
-            try {
-                const credential = await graphProvider.applications.addPassword(objectId, {
-                    displayName: 'SPEVSCodeExtension Postman Secret'
-                });
-                clientSecret = credential.secretText ?? undefined;
-                if (!clientSecret) {
-                    throw new Error('Secret was created but secretText was not returned');
-                }
-                vscode.window.showInformationMessage(
-                    vscode.l10n.t('Client secret created. It will be included in the Postman environment.')
-                );
-            } catch (error: any) {
-                console.error('[CreatePostmanConfig] Error creating secret:', error);
-                vscode.window.showErrorMessage(
-                    vscode.l10n.t('Failed to create client secret: {0}', error.message)
-                );
-            }
-        }
-
         // Ensure Postman redirect URIs are on the app registration
         await ensurePostmanRedirectUris(graphProvider, objectId, appId);
 
@@ -104,23 +76,6 @@ export class CreatePostmanConfig extends Command {
                 enabled: true
             }
         ];
-
-        // Add secret if created
-        if (clientSecret) {
-            values.push({
-                key: "ClientSecret",
-                value: clientSecret,
-                type: "secret",
-                enabled: true
-            });
-        } else {
-            values.push({
-                key: "ClientSecret",
-                value: "<add your client secret here>",
-                type: "secret",
-                enabled: true
-            });
-        }
 
         const envName = `${containerType.name} (appId ${appId})`;
         const pmEnv: PostmanEnvironmentConfig = {

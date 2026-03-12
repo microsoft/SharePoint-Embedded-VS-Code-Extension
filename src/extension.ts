@@ -85,7 +85,6 @@ export async function activate(context: vscode.ExtensionContext) {
 
     // App Context Menu Commands
     Commands.CopyPostmanConfig.register(context);
-    Commands.CreateSecret.register(context);
     Commands.GetLocalAdminConsent.register(context);
     Commands.OpenPostmanDocumentation.register(context);
 

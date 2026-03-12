@@ -70,46 +70,6 @@ export class CloneDotNetSampleApp extends Command {
             return;
         }
 
-        // Ask if user wants to create a secret for this clone
-        let clientSecret: string | undefined;
-        const createSecretChoice = await vscode.window.showInformationMessage(
-            vscode.l10n.t('Do you want to create a new client secret for this sample app?'),
-            vscode.l10n.t('Yes, create secret'),
-            vscode.l10n.t('No, skip')
-        );
-
-        if (createSecretChoice === vscode.l10n.t('Yes, create secret')) {
-            try {
-                const credential = await graphProvider.applications.addPassword(objectId, {
-                    displayName: '.NET Sample App Secret'
-                });
-                clientSecret = credential.secretText ?? undefined;
-                if (clientSecret) {
-                    vscode.window.showInformationMessage(
-                        vscode.l10n.t('Client secret created. It will be included in the sample app configuration.')
-                    );
-                }
-            } catch (error: any) {
-                console.error('[CloneDotNetSampleApp] Error creating secret:', error);
-                vscode.window.showWarningMessage(
-                    vscode.l10n.t('Failed to create client secret: {0}. You can add it manually later.', error.message)
-                );
-            }
-        }
-
-        // Warn about plaintext if secret was created
-        if (clientSecret) {
-            const message = vscode.l10n.t("This will put your app's secret in plain text in configuration files. Are you sure you want to continue?");
-            const userChoice = await vscode.window.showInformationMessage(
-                message,
-                vscode.l10n.t('OK'), vscode.l10n.t('Cancel')
-            );
-
-            if (userChoice === vscode.l10n.t('Cancel')) {
-                return;
-            }
-        }
-
         const appConfigurationProgress = new ProgressWaitNotification(vscode.l10n.t('Configuring your app...'));
         appConfigurationProgress.show();
 
@@ -149,6 +109,29 @@ export class CloneDotNetSampleApp extends Command {
             // Non-fatal - user can configure manually
         }
 
+        // Prompt to add http://localhost as SPA redirect URI for local development
+        try {
+            const currentApp = await graphProvider.applications.get(appId, { useAppId: true });
+            if (currentApp) {
+                const existingSpaUris = currentApp.spa?.redirectUris || [];
+                if (!existingSpaUris.includes('http://localhost')) {
+                    const addRedirect = vscode.l10n.t('Add redirect URI');
+                    const choice = await vscode.window.showInformationMessage(
+                        vscode.l10n.t('Would you like to add http://localhost as a SPA redirect URI? This is needed for local development.'),
+                        addRedirect,
+                        vscode.l10n.t('Skip')
+                    );
+                    if (choice === addRedirect) {
+                        await graphProvider.applications.update(currentApp.id!, {
+                            spa: { redirectUris: [...existingSpaUris, 'http://localhost'] }
+                        });
+                    }
+                }
+            }
+        } catch (error: any) {
+            console.error('[CloneDotNetSampleApp] Error adding SPA redirect URI:', error);
+        }
+
         try {
             const containerTypeId = containerType.id;
             const repoUrl = 'https://github.com/microsoft/SharePoint-Embedded-Samples.git';
@@ -167,7 +150,7 @@ export class CloneDotNetSampleApp extends Command {
                 await vscode.commands.executeCommand('git.clone', repoUrl, destinationPath);
                 await vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(folderPathInRepository));
 
-                writeAppSettingsJsonFile(destinationPath, appId, containerTypeId, clientSecret || '', tenantId);
+                writeAppSettingsJsonFile(destinationPath, appId, containerTypeId, tenantId);
             }
         } catch (error: any) {
             vscode.window.showErrorMessage(vscode.l10n.t('Failed to clone Git Repo'));
@@ -176,7 +159,7 @@ export class CloneDotNetSampleApp extends Command {
     }
 }
 
-const writeAppSettingsJsonFile = (destinationPath: string, appId: string, containerTypeId: string, secretText: string, tenantId: string) => {
+const writeAppSettingsJsonFile = (destinationPath: string, appId: string, containerTypeId: string, tenantId: string) => {
     const appSettings = {
         AzureAd: {
             Instance: "https://login.microsoftonline.com/",
@@ -184,8 +167,7 @@ const writeAppSettingsJsonFile = (destinationPath: string, appId: string, contai
             TenantId: `${tenantId}`,
             ClientId: `${appId}`,
             CallbackPath: "/signin-oidc",
-            SignedOutCallbackPath: "/signout-callback-oidc",
-            ClientSecret: `${secretText}`
+            SignedOutCallbackPath: "/signout-callback-oidc"
         },
         GraphAPI: {
             Endpoint: "https://graph.microsoft.com/v1.0",

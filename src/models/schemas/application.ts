@@ -255,45 +255,6 @@ export const webApplicationSchema = z.object({
 });
 
 /**
- * Add password credential request schema
- */
-export const addPasswordCredentialRequestSchema = z.object({
-    displayName: z.string().optional(),
-    endDateTime: z.string().optional(),
-    startDateTime: z.string().optional()
-});
-
-/**
- * Remove password credential request schema
- */
-export const removePasswordCredentialRequestSchema = z.object({
-    keyId: z.string()
-});
-
-/**
- * Add key credential request schema
- */
-export const addKeyCredentialRequestSchema = z.object({
-    keyCredential: z.object({
-        type: z.enum(['AsymmetricX509Cert', 'X509CertAndPassword']),
-        usage: z.enum(['Verify', 'Sign']),
-        key: z.string()
-    }),
-    passwordCredential: z.object({
-        secretText: z.string()
-    }).optional().nullable(),
-    proof: z.string()
-});
-
-/**
- * Remove key credential request schema
- */
-export const removeKeyCredentialRequestSchema = z.object({
-    keyId: z.string(),
-    proof: z.string()
-});
-
-/**
  * Main application schema representing the full Microsoft Graph application resource
  */
 export const applicationSchema = z.object({
@@ -435,11 +396,6 @@ export type ServicePrincipalLockConfiguration = z.infer<typeof servicePrincipalL
 export type SpaApplication = z.infer<typeof spaApplicationSchema>;
 export type VerifiedPublisher = z.infer<typeof verifiedPublisherSchema>;
 export type WebApplication = z.infer<typeof webApplicationSchema>;
-export type AddPasswordCredentialRequest = z.infer<typeof addPasswordCredentialRequestSchema>;
-export type RemovePasswordCredentialRequest = z.infer<typeof removePasswordCredentialRequestSchema>;
-export type AddKeyCredentialRequest = z.infer<typeof addKeyCredentialRequestSchema>;
-export type RemoveKeyCredentialRequest = z.infer<typeof removeKeyCredentialRequestSchema>;
-
 /**
  * Service Principal schema (minimal version for creation response)
  * A service principal is the local representation of an application in a specific tenant

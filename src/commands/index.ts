@@ -12,7 +12,6 @@ import { CopyPostmanConfig as _CopyPostmanConfig } from './App/Postman/CopyPostm
 import { CopySubscriptionId as _CopySubscriptionId } from './ContainerType/CopySubscriptionId';
 import { CreateContainer as _CreateContainer } from './Containers/CreateContainer';
 import { CreatePostmanConfig as _CreatePostmanConfig } from './App/Postman/CreatePostmanConfig';
-import { CreateSecret as _CreateSecret } from './App/Credentials/CreateSecret';
 import { CreateTrialContainerType as _CreateTrialContainerType } from './ContainerTypes/CreateTrialContainerType';
 import { CreatePaidContainerType as _CreatePaidContainerType } from './ContainerTypes/CreateStandardContainerType';
 import { DeleteContainerType as _DeleteContainerType } from './ContainerType/DeleteContainerType';
@@ -77,7 +76,6 @@ export const GetOrCreateGuestApp = _GetOrCreateGuestApp;
   export const CreatePostmanConfig = _CreatePostmanConfig;
   export const CopyPostmanConfig = _CopyPostmanConfig;
   export const ExportPostmanConfig = _ExportPostmanConfig;
-  export const CreateSecret = _CreateSecret;
   export const GetLocalAdminConsent = _GetLocalAdminConsent;
   export const ViewInAzure = _ViewInAzure;
   export const RenameApp = _RenameApp;
