@@ -96,18 +96,18 @@
     "viewsWelcome": [
       {
         "view": "spe-welcome",
-        "contents": "Sign into your Microsoft 365 tenant with an administrator account to get started.\n[Sign into Microsoft 365](command:spe.login) \n\n\n If you don't have administrator access to a Microsoft 365 tenant, [get your own tenant with the Microsoft 365 Developer Program](https://developer.microsoft.com/en-us/microsoft-365/dev-program).",
+        "contents": "Sign into your Microsoft 365 tenant to get started.\n[Sign into Microsoft 365](command:spe.login) \n\n\n If you don't have a Microsoft 365 tenant, [get your own tenant with the Microsoft 365 Developer Program](https://developer.microsoft.com/en-us/microsoft-365/dev-program).",
         "when": "!spe:isLoggedIn && !spe:isLoggingIn"
       },
       {
         "view": "spe-development",
         "contents": "Get started with SharePoint Embedded\n [Create Trial Container Type](command:spe.ContainerTypes.createTrial) \n",
-        "when": "spe:isAdmin && spe:showGettingStartedView"
+        "when": "spe:isLoggedIn && spe:showGettingStartedView"
       },
       {
         "view": "spe-development",
         "contents": "Failed to load your SharePoint Embedded data. \n [Retry](command:spe.refresh) \n",
-        "when": "spe:isAdmin && spe:showFailedView"
+        "when": "spe:isLoggedIn && spe:showFailedView"
       }
     ],
     "views": {
@@ -125,7 +125,7 @@
         {
           "id": "spe-development",
           "name": "Development",
-          "when": "spe:isAdmin"
+          "when": "spe:isLoggedIn"
         }
       ]
     },
@@ -145,10 +145,6 @@
       {
         "id": "spe.App.SampleApps.ASPNET+C#",
         "label": "ASP.NET + C#"
-      },
-      {
-        "id": "spe.App.Credentials",
-        "label": "Credentials"
       },
       {
         "id": "spe.App.Permissions",
@@ -188,12 +184,6 @@
           "submenu": "spe.App.SampleApps.ASPNET+C#",
           "command": "spe.App.SampleApps.ASPNET+C#.clone",
           "group": "1@2"
-        }
-      ],
-      "spe.App.Credentials": [
-        {
-          "command": "spe.App.Credentials.createSecret",
-          "group": "1@1"
         }
       ],
       "spe.App.Permissions": [
@@ -337,11 +327,6 @@
         },
         {
           "when": "viewItem =~ /spe:appTreeItem.*/ && viewItem =~ /.*-local.*/",
-          "submenu": "spe.App.Credentials",
-          "group": "3@2"
-        },
-        {
-          "when": "viewItem =~ /spe:appTreeItem.*/ && viewItem =~ /.*-local.*/",
           "submenu": "spe.App.Permissions",
           "group": "3@3"
         },
@@ -433,46 +418,6 @@
         {
           "when": "viewItem == spe:recycledContainersTreeItem",
           "command": "spe.refresh",
-          "group": "inline@1"
-        },
-        {
-          "when": "viewItem == spe:containerTypesTreeItem",
-          "command": "spe.showContextMenu",
-          "group": "inline@2"
-        },
-        {
-          "when": "viewItem =~ /spe:containerTypeTreeItem.*/",
-          "command": "spe.showContextMenu",
-          "group": "inline@2"
-        },
-        {
-          "when": "viewItem == spe:guestAppsTreeItem",
-          "command": "spe.showContextMenu",
-          "group": "inline@2"
-        },
-        {
-          "when": "viewItem == spe:containersTreeItem",
-          "command": "spe.showContextMenu",
-          "group": "inline@2"
-        },
-        {
-          "when": "viewItem == spe:recycledContainersTreeItem",
-          "command": "spe.showContextMenu",
-          "group": "inline@2"
-        },
-        {
-          "when": "viewItem =~ /spe:appTreeItem.*/",
-          "command": "spe.showContextMenu",
-          "group": "inline@1"
-        },
-        {
-          "when": "viewItem =~ /spe:containerTreeItem.*/",
-          "command": "spe.showContextMenu",
-          "group": "inline@1"
-        },
-        {
-          "when": "viewItem =~ /spe:recycledContainerTreeItem.*/",
-          "command": "spe.showContextMenu",
           "group": "inline@1"
         },
         {
@@ -583,10 +528,6 @@
         "title": "%commands.spe.App.rename%"
       },
       {
-        "command": "spe.App.Credentials.createSecret",
-        "title": "%commands.spe.App.Credentials.createSecret%"
-      },
-      {
         "command": "spe.App.Permissions.LocalAdminConsent.openLink",
         "title": "%commands.spe.App.Permissions.LocalAdminConsent.openLink%"
       },
@@ -652,11 +593,6 @@
         "command": "spe.refresh",
         "title": "%commands.spe.refresh%",
         "icon": "$(refresh)"
-      },
-      {
-        "command": "spe.showContextMenu",
-        "title": "Show actions",
-        "icon": "$(ellipsis)"
       }
     ]
   },

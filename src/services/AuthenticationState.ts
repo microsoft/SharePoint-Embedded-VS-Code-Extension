@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { checkJwtForAdminClaim, decodeJwt } from '../utils/token';
+import { decodeJwt } from '../utils/token';
 import { GraphAuthProvider } from './Auth';
 
 /**
@@ -23,7 +23,6 @@ export interface AuthenticatedAccount {
     username: string;
     name?: string;
     tenantId: string;
-    isAdmin: boolean;
     domain: string;
 }
 
@@ -112,14 +111,12 @@ export class AuthenticationState {
 
             // Get additional account info from token
             const decodedToken = decodeJwt(session.accessToken);
-            const isAdmin = checkJwtForAdminClaim(decodedToken);
 
             const account: AuthenticatedAccount = {
                 id: session.account.id,
                 username: session.account.label,
                 name: decodedToken.name,
                 tenantId: decodedToken.tid || 'unknown',
-                isAdmin,
                 domain: AuthenticationState._extractDomain(session.account.label)
             };
 
@@ -161,14 +158,12 @@ export class AuthenticationState {
 
             // Get additional account info from token
             const decodedToken = decodeJwt(session.accessToken);
-            const isAdmin = checkJwtForAdminClaim(decodedToken);
 
             const account: AuthenticatedAccount = {
                 id: session.account.id,
                 username: session.account.label,
                 name: decodedToken.name,
                 tenantId: decodedToken.tid || 'unknown',
-                isAdmin,
                 domain: AuthenticationState._extractDomain(session.account.label)
             };
 
@@ -177,7 +172,6 @@ export class AuthenticationState {
 
             // Set VS Code context variables
             vscode.commands.executeCommand('setContext', 'spe:isLoggedIn', true);
-            vscode.commands.executeCommand('setContext', 'spe:isAdmin', account.isAdmin);
             vscode.commands.executeCommand('setContext', 'spe:isLoggingIn', false);
 
             return account;
@@ -280,7 +274,6 @@ export class AuthenticationState {
 
             // Clear VS Code context variables
             vscode.commands.executeCommand('setContext', 'spe:isLoggedIn', false);
-            vscode.commands.executeCommand('setContext', 'spe:isAdmin', false);
             vscode.commands.executeCommand('setContext', 'spe:isLoggingIn', false);
 
         } catch (error) {
@@ -324,7 +317,6 @@ export class AuthenticationState {
                 if (account) {
                     AuthenticationState._currentAccount = account;
                     vscode.commands.executeCommand('setContext', 'spe:isLoggedIn', true);
-                    vscode.commands.executeCommand('setContext', 'spe:isAdmin', account.isAdmin);
                 }
             }
         } catch (error) {

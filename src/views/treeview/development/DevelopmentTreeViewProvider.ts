@@ -171,8 +171,8 @@ export class DevelopmentTreeViewProvider implements vscode.TreeDataProvider<IChi
                 return this._rootItems;
             }
             await vscode.commands.executeCommand('setContext', 'spe:showGettingStartedView', true);
-        } catch {
-            await vscode.commands.executeCommand('setContext', 'spe:showFailedView', true);
+        } catch (err: any) {
+            console.error('[DevelopmentTreeViewProvider] Failed to load container types:', err);
         }
         this._rootItems = [];
         this._signalChildrenLoaded();

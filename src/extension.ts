@@ -53,13 +53,6 @@ export async function activate(context: vscode.ExtensionContext) {
         }
     });
 
-    context.subscriptions.push(
-        vscode.commands.registerCommand('spe.showContextMenu', () => {
-            // Inline ellipsis button: focuses the tree item so the user can
-            // right-click or press Shift+F10 to open the context menu.
-        })
-    );
-
     // Register ALL commands before initialize() so they work even if
     // initialize() hangs due to stale auth sessions from the old extension.
     Commands.SignIn.register(context);

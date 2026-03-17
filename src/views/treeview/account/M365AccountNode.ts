@@ -57,7 +57,6 @@ export class M365AccountNode extends DynamicNode implements AuthStateChangeListe
     this.contextValue = "signedinM365";
     vscode.commands.executeCommand('setContext', 'spe:isLoggingIn', false);
     vscode.commands.executeCommand('setContext', 'spe:isLoggedIn', true);
-    vscode.commands.executeCommand('setContext', 'spe:isAdmin', account.isAdmin);
     AccountTreeViewProvider.getInstance().refresh();
     DevelopmentTreeViewProvider.getInstance().refresh();
   }
@@ -78,7 +77,6 @@ export class M365AccountNode extends DynamicNode implements AuthStateChangeListe
     this.iconPath = new vscode.ThemeIcon("loading~spin");
     this.contextValue = "signingInM365";
     vscode.commands.executeCommand('setContext', 'spe:isLoggedIn', false);
-    vscode.commands.executeCommand('setContext', 'spe:isAdmin', false);
     AccountTreeViewProvider.getInstance().refresh();
   }
 
