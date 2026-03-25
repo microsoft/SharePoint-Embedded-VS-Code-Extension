@@ -95,7 +95,7 @@ export class LocalStorageService {
 
 export interface IEnumerableSecretStorage extends SecretStorage {
     keys(): string[];
-    clear(): void;
+    clear(): Promise<void>;
 }
 
 class EnumerableSecretStorage implements IEnumerableSecretStorage {
@@ -150,12 +150,12 @@ class EnumerableSecretStorage implements IEnumerableSecretStorage {
         return Array.from(globalSet);
     }
 
-    public clear(): void {
-        let keys = this.keys();
+    public async clear(): Promise<void> {
+        const keys = this.keys();
         for (const key of keys) {
-            this._secrets.delete(key);
+            await this._secrets.delete(key);
         }
-        this._global.setValue(this.globalSetKey, undefined);
+        await this._global.setValue(this.globalSetKey, undefined);
     }
 
     public get(key: string): Thenable<string | undefined> {

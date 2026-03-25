@@ -7,6 +7,7 @@ import * as vscode from 'vscode';
 import { clientId } from '../client';
 import { GraphProvider } from '../services/Graph/GraphProvider';
 import { ContainerTypeAppPermission } from '../models/schemas';
+import { DevelopmentTreeViewProvider } from '../views/treeview/development/DevelopmentTreeViewProvider';
 
 /**
  * Required delegated permissions for the 1P extension app to perform
@@ -88,5 +89,9 @@ export async function ensureExtensionAppPermissions(containerTypeId: string): Pr
         return false;
     }
 
-    return grantExtensionAppPermissions(containerTypeId);
+    const granted = await grantExtensionAppPermissions(containerTypeId);
+    if (granted) {
+        DevelopmentTreeViewProvider.getInstance().refresh();
+    }
+    return granted;
 }

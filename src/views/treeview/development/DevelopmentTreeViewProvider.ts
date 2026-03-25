@@ -46,6 +46,22 @@ export class DevelopmentTreeViewProvider implements vscode.TreeDataProvider<IChi
         this._treeView = treeView;
     }
 
+    public clearRootItems(): void {
+        this._rootItems = [];
+        this._rootFetchPromise = undefined;
+    }
+
+    /**
+     * Empties the tree and locks it so getChildren() returns [] without
+     * re-fetching. Call this while the tree is still visible so VS Code
+     * updates its internal render cache to empty. Unlocked by clearRootItems().
+     */
+    public emptyTree(): void {
+        this._rootItems = [];
+        this._rootFetchPromise = Promise.resolve([]);
+        this._onDidChangeTreeData.fire(undefined);
+    }
+
     public refresh(element?: vscode.TreeItem): void {
         if (element && element instanceof ContainerTypesTreeItem) {
             element = undefined;
@@ -173,6 +189,7 @@ export class DevelopmentTreeViewProvider implements vscode.TreeDataProvider<IChi
             await vscode.commands.executeCommand('setContext', 'spe:showGettingStartedView', true);
         } catch (err: any) {
             console.error('[DevelopmentTreeViewProvider] Failed to load container types:', err);
+            await vscode.commands.executeCommand('setContext', 'spe:showFailedView', true);
         }
         this._rootItems = [];
         this._signalChildrenLoaded();

@@ -14,7 +14,8 @@ export class ContainerTypeTreeItem extends IChildrenProvidingTreeItem {
 
     constructor(
         public readonly containerType: ContainerType,
-        registration: ContainerTypeRegistration | null = null
+        registration: ContainerTypeRegistration | null = null,
+        hasExtensionPermissions: boolean = false
     ) {
         super(containerType.name, vscode.TreeItemCollapsibleState.Collapsed);
         this.id = `spe-ct-${containerType.id}`;
@@ -53,6 +54,11 @@ export class ContainerTypeTreeItem extends IChildrenProvidingTreeItem {
 
         // Set registration status based on passed registration
         this.contextValue += registration ? "-registered" : "-unregistered";
+
+        // Set extension app permissions status (only relevant for registered types)
+        if (registration && hasExtensionPermissions) {
+            this.contextValue += "-extensionPermissionsGranted";
+        }
     }
 
     public async getChildren(): Promise<vscode.TreeItem[]> {

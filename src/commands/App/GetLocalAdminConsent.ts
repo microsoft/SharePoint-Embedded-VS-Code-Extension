@@ -25,7 +25,7 @@ export class GetLocalAdminConsent extends Command {
             return false;
         }
 
-        if (!AuthenticationState.isSignedIn()) {
+        if (!(await AuthenticationState.isSignedIn())) {
             vscode.window.showErrorMessage('Please sign in to get admin consent.');
             return false;
         }

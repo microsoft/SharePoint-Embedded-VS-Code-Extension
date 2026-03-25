@@ -45,11 +45,23 @@ export async function activate(context: vscode.ExtensionContext) {
 
     // Subscribe to authentication state changes for development tree view
     AuthenticationState.subscribe({
-        onSignIn: () => {
-            DevelopmentTreeViewProvider.getInstance().refresh();
+        onBeforeSignIn: () => {
+            // Lock tree to return [] before isLoggingIn makes it visible
+            DevelopmentTreeViewProvider.getInstance().emptyTree();
+        },
+        onSignIn: async () => {
+            const devTree = DevelopmentTreeViewProvider.getInstance();
+            devTree.clearRootItems();
+            devTree.refresh();
+            // Wait for tree to load new data before making view visible
+            await devTree.getChildren();
+            await vscode.commands.executeCommand('setContext', 'spe:isLoggedIn', true);
+            // Now that the dev tree is ready, flip account node from spinner to username
+            AccountTreeViewProvider.getInstance().m365AccountNode.showReady();
         },
         onSignOut: () => {
-            DevelopmentTreeViewProvider.getInstance().refresh();
+            // Empty tree while still visible so VS Code's cache clears
+            DevelopmentTreeViewProvider.getInstance().emptyTree();
         }
     });
 
@@ -75,6 +87,7 @@ export async function activate(context: vscode.ExtensionContext) {
     Commands.LearnMoreDiscoverability.register(context);
     Commands.EnableContainerTypeDiscoverability.register(context);
     Commands.DisableContainerTypeDiscoverability.register(context);
+    Commands.GrantExtensionAppPermissions.register(context);
 
     // App Context Menu Commands
     Commands.CopyPostmanConfig.register(context);

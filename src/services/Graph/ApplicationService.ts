@@ -14,6 +14,7 @@ import {
     ServicePrincipal,
     servicePrincipalSchema
 } from '../../models/schemas';
+import { Logger } from '../../utils/Logger';
 
 /**
  * Service for managing Applications via Microsoft Graph API
@@ -115,7 +116,7 @@ export class ApplicationService {
             return applicationSchema.parse(response);
         } catch (error: any) {
             if (error.code === 'Request_ResourceNotFound' || error.code === 'NotFound' || error.statusCode === 404) {
-                console.log(`[ApplicationService.get] Application not found: ${idOrAppId} (useAppId: ${options?.useAppId})`);
+                Logger.log(`[ApplicationService.get] Application not found: ${idOrAppId} (useAppId: ${options?.useAppId})`);
                 return null;
             }
             console.error(`[ApplicationService.get] Error getting application ${idOrAppId}:`, error);
@@ -132,14 +133,14 @@ export class ApplicationService {
             // Validate input data
             const validatedData = applicationCreateSchema.parse(application);
 
-            console.log('[ApplicationService.create] Creating application:', validatedData.displayName);
+            Logger.log('[ApplicationService.create] Creating application:', validatedData.displayName);
 
             const response = await this._client
                 .api(ApplicationService.BASE_PATH)
                 .version(ApplicationService.API_VERSION)
                 .post(validatedData);
 
-            console.log('[ApplicationService.create] Application created successfully:', response.appId);
+            Logger.log('[ApplicationService.create] Application created successfully:', response.appId);
             return applicationSchema.parse(response);
         } catch (error: any) {
             console.error('[ApplicationService.create] Error creating application:', error);
@@ -165,14 +166,14 @@ export class ApplicationService {
                 ? `${ApplicationService.BASE_PATH}(appId='${idOrAppId}')`
                 : `${ApplicationService.BASE_PATH}/${idOrAppId}`;
 
-            console.log(`[ApplicationService.update] Updating application ${idOrAppId}:`, Object.keys(validatedUpdates));
+            Logger.log(`[ApplicationService.update] Updating application ${idOrAppId}:`, Object.keys(validatedUpdates));
 
             await this._client
                 .api(path)
                 .version(ApplicationService.API_VERSION)
                 .patch(validatedUpdates);
 
-            console.log(`[ApplicationService.update] Application ${idOrAppId} updated successfully`);
+            Logger.log(`[ApplicationService.update] Application ${idOrAppId} updated successfully`);
         } catch (error: any) {
             console.error(`[ApplicationService.update] Error updating application ${idOrAppId}:`, error);
             throw new Error(`Failed to update application ${idOrAppId}: ${error.message || error}`);
@@ -217,14 +218,14 @@ export class ApplicationService {
                 ? `${ApplicationService.BASE_PATH}(appId='${idOrAppId}')`
                 : `${ApplicationService.BASE_PATH}/${idOrAppId}`;
 
-            console.log(`[ApplicationService.delete] Deleting application ${idOrAppId}`);
+            Logger.log(`[ApplicationService.delete] Deleting application ${idOrAppId}`);
 
             await this._client
                 .api(path)
                 .version(ApplicationService.API_VERSION)
                 .delete();
 
-            console.log(`[ApplicationService.delete] Application ${idOrAppId} deleted successfully`);
+            Logger.log(`[ApplicationService.delete] Application ${idOrAppId} deleted successfully`);
         } catch (error: any) {
             console.error(`[ApplicationService.delete] Error deleting application ${idOrAppId}:`, error);
             throw new Error(`Failed to delete application ${idOrAppId}: ${error.message || error}`);
@@ -247,7 +248,7 @@ export class ApplicationService {
                 throw new Error('Search term cannot be empty');
             }
 
-            console.log(`[ApplicationService.search] Searching for applications: "${searchTerm}"`);
+            Logger.log(`[ApplicationService.search] Searching for applications: "${searchTerm}"`);
 
             let request = this._client
                 .api(ApplicationService.BASE_PATH)
@@ -275,7 +276,7 @@ export class ApplicationService {
                 return applicationSchema.parse(app);
             });
 
-            console.log(`[ApplicationService.search] Found ${applications.length} applications`);
+            Logger.log(`[ApplicationService.search] Found ${applications.length} applications`);
 
             const result: { applications: Application[]; count?: number } = { applications };
             if (options?.count && response['@odata.count'] !== undefined) {
@@ -445,7 +446,7 @@ export class ApplicationService {
         options?: { useAppId?: boolean }
     ): Promise<{ permissionsAdded: boolean; requiresConsent: boolean }> {
         try {
-            console.log(`[ApplicationService.ensureContainerTypePermissions] Checking permissions for ${idOrAppId}`);
+            Logger.log(`[ApplicationService.ensureContainerTypePermissions] Checking permissions for ${idOrAppId}`);
 
             // Get current application configuration
             const app = await this.get(idOrAppId, options);
@@ -483,11 +484,11 @@ export class ApplicationService {
             );
 
             if (missingScopes.length === 0) {
-                console.log(`[ApplicationService.ensureContainerTypePermissions] App ${idOrAppId} already has all required permissions`);
+                Logger.log(`[ApplicationService.ensureContainerTypePermissions] App ${idOrAppId} already has all required permissions`);
                 return { permissionsAdded: false, requiresConsent: false };
             }
 
-            console.log(`[ApplicationService.ensureContainerTypePermissions] Adding missing scopes:`, missingScopes.map(s => s.name));
+            Logger.log(`[ApplicationService.ensureContainerTypePermissions] Adding missing scopes:`, missingScopes.map(s => s.name));
 
             // Add the missing scopes
             const newResourceAccess = [
@@ -516,7 +517,7 @@ export class ApplicationService {
                 requiredResourceAccess: updatedRequiredResourceAccess
             });
 
-            console.log(`[ApplicationService.ensureContainerTypePermissions] Added ${missingScopes.length} missing scope(s) to ${idOrAppId}`);
+            Logger.log(`[ApplicationService.ensureContainerTypePermissions] Added ${missingScopes.length} missing scope(s) to ${idOrAppId}`);
 
             return { permissionsAdded: true, requiresConsent: true };
 
@@ -541,7 +542,7 @@ export class ApplicationService {
         options?: { useAppId?: boolean }
     ): Promise<boolean> {
         try {
-            console.log(`[ApplicationService.ensureOwningAppPermissions] Checking for ${idOrAppId}`);
+            Logger.log(`[ApplicationService.ensureOwningAppPermissions] Checking for ${idOrAppId}`);
 
             const app = await this.get(idOrAppId, options);
             if (!app) {
@@ -568,13 +569,13 @@ export class ApplicationService {
             );
 
             if (missing.length === 0) {
-                console.log(`[ApplicationService.ensureOwningAppPermissions] All permissions already present`);
+                Logger.log(`[ApplicationService.ensureOwningAppPermissions] All permissions already present`);
                 return false;
             }
 
             graphResource.resourceAccess = [...existingAccess, ...missing];
             await this.update(app.id!, { requiredResourceAccess: existingRRA });
-            console.log(`[ApplicationService.ensureOwningAppPermissions] Added ${missing.length} permission(s) to ${idOrAppId}`);
+            Logger.log(`[ApplicationService.ensureOwningAppPermissions] Added ${missing.length} permission(s) to ${idOrAppId}`);
             return true;
 
         } catch (error: any) {
@@ -594,7 +595,7 @@ export class ApplicationService {
         options?: { useAppId?: boolean }
     ): Promise<boolean> {
         try {
-            console.log(`[ApplicationService.ensureFileStorageContainerSelectedRole] Checking for ${idOrAppId}`);
+            Logger.log(`[ApplicationService.ensureFileStorageContainerSelectedRole] Checking for ${idOrAppId}`);
 
             const app = await this.get(idOrAppId, options);
             if (!app) {
@@ -613,7 +614,7 @@ export class ApplicationService {
             );
 
             if (hasRole) {
-                console.log(`[ApplicationService.ensureFileStorageContainerSelectedRole] Already present`);
+                Logger.log(`[ApplicationService.ensureFileStorageContainerSelectedRole] Already present`);
                 return false;
             }
 
@@ -631,7 +632,7 @@ export class ApplicationService {
             }
 
             await this.update(app.id!, { requiredResourceAccess: updatedRRA });
-            console.log(`[ApplicationService.ensureFileStorageContainerSelectedRole] Added to ${idOrAppId}`);
+            Logger.log(`[ApplicationService.ensureFileStorageContainerSelectedRole] Added to ${idOrAppId}`);
             return true;
 
         } catch (error: any) {
@@ -651,7 +652,7 @@ export class ApplicationService {
         options?: { useAppId?: boolean }
     ): Promise<boolean> {
         try {
-            console.log(`[ApplicationService.ensureContainerManageScope] Checking API scope for ${idOrAppId}`);
+            Logger.log(`[ApplicationService.ensureContainerManageScope] Checking API scope for ${idOrAppId}`);
 
             const app = await this.get(idOrAppId, options);
             if (!app) {
@@ -662,7 +663,7 @@ export class ApplicationService {
             const hasScope = existingScopes.some((s: any) => s.value === 'Container.Manage');
 
             if (hasScope) {
-                console.log(`[ApplicationService.ensureContainerManageScope] Container.Manage scope already exists`);
+                Logger.log(`[ApplicationService.ensureContainerManageScope] Container.Manage scope already exists`);
                 return false;
             }
 
@@ -694,7 +695,7 @@ export class ApplicationService {
             }
 
             await this.update(app.id!, updates);
-            console.log(`[ApplicationService.ensureContainerManageScope] Container.Manage scope added to ${idOrAppId}`);
+            Logger.log(`[ApplicationService.ensureContainerManageScope] Container.Manage scope added to ${idOrAppId}`);
             return true;
 
         } catch (error: any) {
@@ -714,18 +715,18 @@ export class ApplicationService {
      */
     async getServicePrincipal(appId: string): Promise<ServicePrincipal> {
         try {
-            console.log(`[ApplicationService.getServicePrincipal] Getting service principal for appId: ${appId}`);
+            Logger.log(`[ApplicationService.getServicePrincipal] Getting service principal for appId: ${appId}`);
 
             const response = await this._client
                 .api(`/servicePrincipals(appId='${appId}')`)
                 .version(ApplicationService.API_VERSION)
                 .get();
 
-            console.log(`[ApplicationService.getServicePrincipal] Found service principal: ${response.id}`);
+            Logger.log(`[ApplicationService.getServicePrincipal] Found service principal: ${response.id}`);
             return servicePrincipalSchema.parse(response);
         } catch (error: any) {
             if (error.code === 'Request_ResourceNotFound' || error.statusCode === 404) {
-                console.log(`[ApplicationService.getServicePrincipal] Service principal not found for appId: ${appId}`);
+                Logger.log(`[ApplicationService.getServicePrincipal] Service principal not found for appId: ${appId}`);
                 throw new Error(`Service principal not found for application ${appId}`);
             }
             console.error(`[ApplicationService.getServicePrincipal] Error getting service principal for ${appId}:`, error);

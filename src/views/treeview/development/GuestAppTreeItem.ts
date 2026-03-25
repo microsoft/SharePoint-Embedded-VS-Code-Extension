@@ -19,7 +19,9 @@ export class GuestApplicationTreeItem extends AppTreeItem {
     ) {
         super(grant.appId);
         this.contextValue += '-guest';
-        this._resolveDisplayName();
+        this._resolveDisplayName().catch((error) => {
+            console.error('[GuestApplicationTreeItem] Failed to resolve display name:', error);
+        });
     }
 
     private async _resolveDisplayName(): Promise<void> {

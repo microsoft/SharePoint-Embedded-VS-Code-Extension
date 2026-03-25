@@ -15,6 +15,7 @@ import { AuthenticationState } from '../../services/AuthenticationState';
 import { ProgressWaitNotification, Timer } from '../../views/notifications/ProgressWaitNotification';
 import { DevelopmentTreeViewProvider } from '../../views/treeview/development/DevelopmentTreeViewProvider';
 import { AdminConsentHelper } from '../../utils/AdminConsentHelper';
+import { GrantExtensionAppPermissions } from './GrantExtensionAppPermissions';
 
 /**
  * Command to register a container type on the local tenant
@@ -141,7 +142,7 @@ export class RegisterOnLocalTenant extends Command {
     ): Promise<{ account: any; graphProvider: GraphProvider; containerType: ContainerType } | undefined> {
 
         // Check authentication
-        if (!AuthenticationState.isSignedIn()) {
+        if (!(await AuthenticationState.isSignedIn())) {
             vscode.window.showErrorMessage('Please sign in to register container types.');
             return undefined;
         }
@@ -715,6 +716,16 @@ export class RegisterOnLocalTenant extends Command {
                 vscode.window.showInformationMessage(
                     vscode.l10n.t('Container type "{0}" registered successfully!', containerType.name)
                 );
+
+                // Prompt user to grant extension app permissions for container operations
+                const grantButton = vscode.l10n.t('Grant extension permissions');
+                const choice = await vscode.window.showInformationMessage(
+                    vscode.l10n.t('Grant the SharePoint Embedded extension permissions to perform container operations on this container type?'),
+                    grantButton
+                );
+                if (choice === grantButton) {
+                    await GrantExtensionAppPermissions.run(containerType.id);
+                }
             } else {
                 vscode.window.showWarningMessage(
                     vscode.l10n.t('Registration initiated but verification timed out. Check status in a few minutes.')

@@ -12,6 +12,7 @@ import {
     containerTypeCreateSchema,
     containerTypeUpdateSchema
 } from '../../models/schemas';
+import { Logger } from '../../utils/Logger';
 
 /**
  * Service for managing File Storage Container Types via Microsoft Graph API
@@ -34,39 +35,44 @@ export class ContainerTypeService {
         top?: number;
         skip?: number;
     }): Promise<ContainerType[]> {
-        let request = this._client
-            .api(ContainerTypeService.BASE_PATH)
-            .version(ContainerTypeService.API_VERSION);
+        try {
+            let request = this._client
+                .api(ContainerTypeService.BASE_PATH)
+                .version(ContainerTypeService.API_VERSION);
 
-        // Add ConsistencyLevel header for advanced queries
-        if (options?.orderBy) {
-            request = request.header('ConsistencyLevel', 'eventual');
-        }
+            // Add ConsistencyLevel header for advanced queries
+            if (options?.orderBy) {
+                request = request.header('ConsistencyLevel', 'eventual');
+            }
 
-        if (options?.filter) {
-            request = request.filter(options.filter);
-        }
-        if (options?.select) {
-            request = request.select(options.select.join(','));
-        }
-        if (options?.orderBy) {
-            request = request.orderby(options.orderBy);
-        }
-        if (options?.top) {
-            request = request.top(options.top);
-        }
-        if (options?.skip) {
-            request = request.skip(options.skip);
-        }
+            if (options?.filter) {
+                request = request.filter(options.filter);
+            }
+            if (options?.select) {
+                request = request.select(options.select.join(','));
+            }
+            if (options?.orderBy) {
+                request = request.orderby(options.orderBy);
+            }
+            if (options?.top) {
+                request = request.top(options.top);
+            }
+            if (options?.skip) {
+                request = request.skip(options.skip);
+            }
 
-        const response = await request.get();
-        
-        // Validate and parse each container type
-        const containerTypes = response.value.map((ct: any) => {
-            return containerTypeSchema.parse(ct);
-        });
+            const response = await request.get();
 
-        return containerTypes;
+            // Validate and parse each container type
+            const containerTypes = (response?.value || []).map((ct: any) => {
+                return containerTypeSchema.parse(ct);
+            });
+
+            return containerTypes;
+        } catch (error: any) {
+            console.error('[ContainerTypeService.list] Error listing container types:', error);
+            throw new Error(`Failed to list container types: ${error.message || error}`);
+        }
     }
 
     /**
@@ -91,9 +97,9 @@ export class ContainerTypeService {
                 request = request.select(options.select.join(','));
             }
 
-            console.log(`[ContainerTypeService.get] Fetching container type ${id}`);
+            Logger.log(`[ContainerTypeService.get] Fetching container type ${id}`);
             const response = await request.get();
-            console.log(`[ContainerTypeService.get] Response:`, JSON.stringify(response, null, 2));
+            Logger.log(`[ContainerTypeService.get] Response:`, JSON.stringify(response, null, 2));
             return containerTypeSchema.parse(response);
         } catch (error: any) {
             console.error(`[ContainerTypeService.get] Error fetching ${id}:`, error);
@@ -109,16 +115,22 @@ export class ContainerTypeService {
      * POST /storage/fileStorage/containerTypes
      */
     async create(containerType: ContainerTypeCreate): Promise<ContainerType> {
-        // Validate input data
-        const validatedData = containerTypeCreateSchema.parse(containerType);
-        console.log('[ContainerTypeService.create] Creating container type (check preceding Bearer token log)');
+        try {
+            // Validate input data
+            const validatedData = containerTypeCreateSchema.parse(containerType);
+            Logger.log('[ContainerTypeService.create] Creating container type:', validatedData.name);
 
-        const response = await this._client
-            .api(ContainerTypeService.BASE_PATH)
-            .version(ContainerTypeService.API_VERSION)
-            .post(validatedData);
+            const response = await this._client
+                .api(ContainerTypeService.BASE_PATH)
+                .version(ContainerTypeService.API_VERSION)
+                .post(validatedData);
 
-        return containerTypeSchema.parse(response);
+            Logger.log('[ContainerTypeService.create] Container type created successfully');
+            return containerTypeSchema.parse(response);
+        } catch (error: any) {
+            console.error('[ContainerTypeService.create] Error creating container type:', error);
+            throw new Error(`Failed to create container type: ${error.message || error}`);
+        }
     }
 
     /**
@@ -127,21 +139,29 @@ export class ContainerTypeService {
      * Note: ETag is required for optimistic concurrency control
      */
     async update(id: string, updates: ContainerTypeUpdate, etag: string): Promise<ContainerType> {
-        // Validate input data
-        const validatedUpdates = containerTypeUpdateSchema.parse(updates);
+        try {
+            // Validate input data
+            const validatedUpdates = containerTypeUpdateSchema.parse(updates);
 
-        // Include etag in the request body as required by the API
-        const requestBody = {
-            ...validatedUpdates,
-            etag
-        };
+            // Include etag in the request body as required by the API
+            const requestBody = {
+                ...validatedUpdates,
+                etag
+            };
 
-        const response = await this._client
-            .api(`${ContainerTypeService.BASE_PATH}/${id}`)
-            .version(ContainerTypeService.API_VERSION)
-            .patch(requestBody);
+            Logger.log(`[ContainerTypeService.update] Updating container type ${id}:`, Object.keys(validatedUpdates));
 
-        return containerTypeSchema.parse(response);
+            const response = await this._client
+                .api(`${ContainerTypeService.BASE_PATH}/${id}`)
+                .version(ContainerTypeService.API_VERSION)
+                .patch(requestBody);
+
+            Logger.log(`[ContainerTypeService.update] Container type ${id} updated successfully`);
+            return containerTypeSchema.parse(response);
+        } catch (error: any) {
+            console.error(`[ContainerTypeService.update] Error updating container type ${id}:`, error);
+            throw new Error(`Failed to update container type ${id}: ${error.message || error}`);
+        }
     }
 
     /**
@@ -149,10 +169,17 @@ export class ContainerTypeService {
      * DELETE /storage/fileStorage/containerTypes/{id}
      */
     async delete(id: string): Promise<void> {
-        await this._client
-            .api(`${ContainerTypeService.BASE_PATH}/${id}`)
-            .version(ContainerTypeService.API_VERSION)
-            .delete();
+        try {
+            Logger.log(`[ContainerTypeService.delete] Deleting container type ${id}`);
+            await this._client
+                .api(`${ContainerTypeService.BASE_PATH}/${id}`)
+                .version(ContainerTypeService.API_VERSION)
+                .delete();
+            Logger.log(`[ContainerTypeService.delete] Container type ${id} deleted successfully`);
+        } catch (error: any) {
+            console.error(`[ContainerTypeService.delete] Error deleting container type ${id}:`, error);
+            throw new Error(`Failed to delete container type ${id}: ${error.message || error}`);
+        }
     }
 
     /**
@@ -164,30 +191,35 @@ export class ContainerTypeService {
         top?: number;
         skip?: number;
     }): Promise<ContainerType[]> {
-        let request = this._client
-            .api(ContainerTypeService.BASE_PATH)
-            .version(ContainerTypeService.API_VERSION)
-            .header('ConsistencyLevel', 'eventual')
-            .search(`"displayName:${searchTerm}"`);
+        try {
+            let request = this._client
+                .api(ContainerTypeService.BASE_PATH)
+                .version(ContainerTypeService.API_VERSION)
+                .header('ConsistencyLevel', 'eventual')
+                .search(`"displayName:${searchTerm}"`);
 
-        if (options?.select) {
-            request = request.select(options.select.join(','));
-        }
-        if (options?.top) {
-            request = request.top(options.top);
-        }
-        if (options?.skip) {
-            request = request.skip(options.skip);
-        }
+            if (options?.select) {
+                request = request.select(options.select.join(','));
+            }
+            if (options?.top) {
+                request = request.top(options.top);
+            }
+            if (options?.skip) {
+                request = request.skip(options.skip);
+            }
 
-        const response = await request.get();
-        
-        // Validate and parse each container type
-        const containerTypes = response.value.map((ct: any) => {
-            return containerTypeSchema.parse(ct);
-        });
+            const response = await request.get();
 
-        return containerTypes;
+            // Validate and parse each container type
+            const containerTypes = (response?.value || []).map((ct: any) => {
+                return containerTypeSchema.parse(ct);
+            });
+
+            return containerTypes;
+        } catch (error: any) {
+            console.error(`[ContainerTypeService.search] Error searching container types for "${searchTerm}":`, error);
+            throw new Error(`Failed to search container types: ${error.message || error}`);
+        }
     }
 
     /**

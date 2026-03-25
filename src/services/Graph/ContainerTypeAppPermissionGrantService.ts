@@ -14,6 +14,7 @@ import {
     permissionArraySchema,
     ContainerTypeAppPermission
 } from '../../models/schemas';
+import { Logger } from '../../utils/Logger';
 
 /**
  * Service for managing File Storage Container Type App Permission Grants via Microsoft Graph API
@@ -39,34 +40,39 @@ export class ContainerTypeAppPermissionGrantService {
             skip?: number;
         }
     ): Promise<ContainerTypeAppPermissionGrant[]> {
-        let request = this._client
-            .api(`${ContainerTypeAppPermissionGrantService.BASE_PATH}/${registrationId}/applicationPermissionGrants`)
-            .version(ContainerTypeAppPermissionGrantService.API_VERSION);
+        try {
+            let request = this._client
+                .api(`${ContainerTypeAppPermissionGrantService.BASE_PATH}/${registrationId}/applicationPermissionGrants`)
+                .version(ContainerTypeAppPermissionGrantService.API_VERSION);
 
-        if (options?.filter) {
-            request = request.filter(options.filter);
-        }
-        if (options?.select) {
-            request = request.select(options.select.join(','));
-        }
-        if (options?.orderBy) {
-            request = request.orderby(options.orderBy);
-        }
-        if (options?.top) {
-            request = request.top(options.top);
-        }
-        if (options?.skip) {
-            request = request.skip(options.skip);
-        }
+            if (options?.filter) {
+                request = request.filter(options.filter);
+            }
+            if (options?.select) {
+                request = request.select(options.select.join(','));
+            }
+            if (options?.orderBy) {
+                request = request.orderby(options.orderBy);
+            }
+            if (options?.top) {
+                request = request.top(options.top);
+            }
+            if (options?.skip) {
+                request = request.skip(options.skip);
+            }
 
-        const response = await request.get();
-        
-        // Validate and parse each permission grant
-        const grants = response.value.map((grant: any) => {
-            return containerTypeAppPermissionGrantSchema.parse(grant);
-        });
+            const response = await request.get();
 
-        return grants;
+            // Validate and parse each permission grant
+            const grants = (response?.value || []).map((grant: any) => {
+                return containerTypeAppPermissionGrantSchema.parse(grant);
+            });
+
+            return grants;
+        } catch (error: any) {
+            console.error(`[AppPermissionGrantService.list] Error listing grants for ${registrationId}:`, error);
+            throw new Error(`Failed to list app permission grants: ${error.message || error}`);
+        }
     }
 
     /**
@@ -107,20 +113,25 @@ export class ContainerTypeAppPermissionGrantService {
         appId: string,
         grant: ContainerTypeAppPermissionGrantCreate
     ): Promise<ContainerTypeAppPermissionGrant> {
-        // Build PUT body directly — appId is excluded per API docs
-        const body = {
-            applicationPermissions: grant.applicationPermissions ?? [],
-            delegatedPermissions: grant.delegatedPermissions ?? []
-        };
-        console.log(`[AppPermissionGrantService.createOrReplace] PUT body:`, JSON.stringify(body));
+        try {
+            // Build PUT body directly — appId is excluded per API docs
+            const body = {
+                applicationPermissions: grant.applicationPermissions ?? [],
+                delegatedPermissions: grant.delegatedPermissions ?? []
+            };
+            Logger.log(`[AppPermissionGrantService.createOrReplace] Creating/replacing grant for app ${appId}`);
 
-        const response = await this._client
-            .api(`${ContainerTypeAppPermissionGrantService.BASE_PATH}/${registrationId}/applicationPermissionGrants/${appId}`)
-            .version(ContainerTypeAppPermissionGrantService.API_VERSION)
-            .put(body);
+            const response = await this._client
+                .api(`${ContainerTypeAppPermissionGrantService.BASE_PATH}/${registrationId}/applicationPermissionGrants/${appId}`)
+                .version(ContainerTypeAppPermissionGrantService.API_VERSION)
+                .put(body);
 
-        console.log(`[AppPermissionGrantService.createOrReplace] PUT response:`, JSON.stringify(response));
-        return containerTypeAppPermissionGrantSchema.parse(response);
+            Logger.log(`[AppPermissionGrantService.createOrReplace] Grant for app ${appId} created/replaced successfully`);
+            return containerTypeAppPermissionGrantSchema.parse(response);
+        } catch (error: any) {
+            console.error(`[AppPermissionGrantService.createOrReplace] Error creating/replacing grant for app ${appId}:`, error);
+            throw new Error(`Failed to create/replace app permission grant for ${appId}: ${error.message || error}`);
+        }
     }
 
     /**
@@ -132,15 +143,23 @@ export class ContainerTypeAppPermissionGrantService {
         appId: string,
         updates: ContainerTypeAppPermissionGrantUpdate
     ): Promise<ContainerTypeAppPermissionGrant> {
-        // Validate input data (exclude appId from updates)
-        const validatedUpdates = containerTypeAppPermissionGrantUpdateSchema.omit({ appId: true }).parse(updates);
+        try {
+            // Validate input data (exclude appId from updates)
+            const validatedUpdates = containerTypeAppPermissionGrantUpdateSchema.omit({ appId: true }).parse(updates);
 
-        const response = await this._client
-            .api(`${ContainerTypeAppPermissionGrantService.BASE_PATH}/${registrationId}/applicationPermissionGrants/${appId}`)
-            .version(ContainerTypeAppPermissionGrantService.API_VERSION)
-            .patch(validatedUpdates);
+            Logger.log(`[AppPermissionGrantService.update] Updating grant for app ${appId}:`, Object.keys(validatedUpdates));
 
-        return containerTypeAppPermissionGrantSchema.parse(response);
+            const response = await this._client
+                .api(`${ContainerTypeAppPermissionGrantService.BASE_PATH}/${registrationId}/applicationPermissionGrants/${appId}`)
+                .version(ContainerTypeAppPermissionGrantService.API_VERSION)
+                .patch(validatedUpdates);
+
+            Logger.log(`[AppPermissionGrantService.update] Grant for app ${appId} updated successfully`);
+            return containerTypeAppPermissionGrantSchema.parse(response);
+        } catch (error: any) {
+            console.error(`[AppPermissionGrantService.update] Error updating grant for app ${appId}:`, error);
+            throw new Error(`Failed to update app permission grant for ${appId}: ${error.message || error}`);
+        }
     }
 
     /**
@@ -148,10 +167,17 @@ export class ContainerTypeAppPermissionGrantService {
      * DELETE /storage/fileStorage/containerTypeRegistrations/{registrationId}/applicationPermissionGrants/{appId}
      */
     async delete(registrationId: string, appId: string): Promise<void> {
-        await this._client
-            .api(`${ContainerTypeAppPermissionGrantService.BASE_PATH}/${registrationId}/applicationPermissionGrants/${appId}`)
-            .version(ContainerTypeAppPermissionGrantService.API_VERSION)
-            .delete();
+        try {
+            Logger.log(`[AppPermissionGrantService.delete] Deleting grant for app ${appId}`);
+            await this._client
+                .api(`${ContainerTypeAppPermissionGrantService.BASE_PATH}/${registrationId}/applicationPermissionGrants/${appId}`)
+                .version(ContainerTypeAppPermissionGrantService.API_VERSION)
+                .delete();
+            Logger.log(`[AppPermissionGrantService.delete] Grant for app ${appId} deleted successfully`);
+        } catch (error: any) {
+            console.error(`[AppPermissionGrantService.delete] Error deleting grant for app ${appId}:`, error);
+            throw new Error(`Failed to delete app permission grant for ${appId}: ${error.message || error}`);
+        }
     }
 
     /**

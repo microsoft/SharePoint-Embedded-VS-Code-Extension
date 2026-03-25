@@ -14,6 +14,7 @@ import {
     containerUpdateSchema,
     deletedContainerSchema
 } from '../../models/schemas';
+import { Logger } from '../../utils/Logger';
 
 /**
  * Service for managing File Storage Containers via Microsoft Graph API
@@ -89,7 +90,7 @@ export class ContainerService {
             return containerSchema.parse(response);
         } catch (error: any) {
             if (error.code === 'itemNotFound' || error.statusCode === 404) {
-                console.log(`[ContainerService.get] Container not found: ${id}`);
+                Logger.log(`[ContainerService.get] Container not found: ${id}`);
                 return null;
             }
             console.error(`[ContainerService.get] Error getting container ${id}:`, error);
@@ -105,14 +106,14 @@ export class ContainerService {
         try {
             const validatedData = containerCreateSchema.parse(container);
 
-            console.log('[ContainerService.create] Creating container:', validatedData.displayName);
+            Logger.log('[ContainerService.create] Creating container:', validatedData.displayName);
 
             const response = await this._client
                 .api(ContainerService.BASE_PATH)
                 .version(ContainerService.API_VERSION)
                 .post(validatedData);
 
-            console.log('[ContainerService.create] Container created successfully:', response.id);
+            Logger.log('[ContainerService.create] Container created successfully:', response.id);
             return containerSchema.parse(response);
         } catch (error: any) {
             console.error('[ContainerService.create] Error creating container:', error);
@@ -128,14 +129,14 @@ export class ContainerService {
         try {
             const validatedUpdates = containerUpdateSchema.parse(updates);
 
-            console.log(`[ContainerService.update] Updating container ${id}:`, Object.keys(validatedUpdates));
+            Logger.log(`[ContainerService.update] Updating container ${id}:`, Object.keys(validatedUpdates));
 
             const response = await this._client
                 .api(`${ContainerService.BASE_PATH}/${id}`)
                 .version(ContainerService.API_VERSION)
                 .patch(validatedUpdates);
 
-            console.log(`[ContainerService.update] Container ${id} updated successfully`);
+            Logger.log(`[ContainerService.update] Container ${id} updated successfully`);
             return containerSchema.parse(response);
         } catch (error: any) {
             console.error(`[ContainerService.update] Error updating container ${id}:`, error);
@@ -149,14 +150,14 @@ export class ContainerService {
      */
     async recycle(id: string): Promise<void> {
         try {
-            console.log(`[ContainerService.recycle] Recycling container ${id}`);
+            Logger.log(`[ContainerService.recycle] Recycling container ${id}`);
 
             await this._client
                 .api(`${ContainerService.BASE_PATH}/${id}`)
                 .version(ContainerService.API_VERSION)
                 .delete();
 
-            console.log(`[ContainerService.recycle] Container ${id} recycled successfully`);
+            Logger.log(`[ContainerService.recycle] Container ${id} recycled successfully`);
         } catch (error: any) {
             console.error(`[ContainerService.recycle] Error recycling container ${id}:`, error);
             throw new Error(`Failed to recycle container ${id}: ${error.message || error}`);
@@ -189,14 +190,14 @@ export class ContainerService {
      */
     async restore(id: string): Promise<Container> {
         try {
-            console.log(`[ContainerService.restore] Restoring container ${id}`);
+            Logger.log(`[ContainerService.restore] Restoring container ${id}`);
 
             const response = await this._client
                 .api(`${ContainerService.DELETED_PATH}/${id}/restore`)
                 .version(ContainerService.API_VERSION)
                 .post({});
 
-            console.log(`[ContainerService.restore] Container ${id} restored successfully`);
+            Logger.log(`[ContainerService.restore] Container ${id} restored successfully`);
             return containerSchema.parse(response);
         } catch (error: any) {
             console.error(`[ContainerService.restore] Error restoring container ${id}:`, error);
@@ -210,14 +211,14 @@ export class ContainerService {
      */
     async delete(id: string): Promise<void> {
         try {
-            console.log(`[ContainerService.delete] Permanently deleting container ${id}`);
+            Logger.log(`[ContainerService.delete] Permanently deleting container ${id}`);
 
             await this._client
                 .api(`${ContainerService.DELETED_PATH}/${id}`)
                 .version(ContainerService.API_VERSION)
                 .delete();
 
-            console.log(`[ContainerService.delete] Container ${id} permanently deleted`);
+            Logger.log(`[ContainerService.delete] Container ${id} permanently deleted`);
         } catch (error: any) {
             console.error(`[ContainerService.delete] Error deleting container ${id}:`, error);
             throw new Error(`Failed to delete container ${id}: ${error.message || error}`);

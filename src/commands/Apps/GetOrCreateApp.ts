@@ -194,21 +194,24 @@ export class GetOrCreateApp extends Command {
                     // Add identifier URI
                     try {
                         await addIdentifierUriToApp(graphProvider, app);
-                    } catch (error) {
+                    } catch (error: any) {
                         console.warn('Failed to add identifier URI:', error);
+                        vscode.window.showWarningMessage(vscode.l10n.t('Failed to add identifier URI to app: {0}. You may need to configure it manually in Azure Portal.', error.message || error));
                     }
 
                     // Configure owning app: API scope + required permissions
                     if (isOwningApp) {
                         try {
                             await graphProvider.applications.ensureContainerManageScope(app.appId!, { useAppId: true });
-                        } catch (error) {
+                        } catch (error: any) {
                             console.warn('[GetOrCreateApp] Failed to add Container.Manage scope:', error);
+                            vscode.window.showWarningMessage(vscode.l10n.t('Failed to add Container.Manage scope to app: {0}. You may need to configure it manually in Azure Portal.', error.message || error));
                         }
                         try {
                             await graphProvider.applications.ensureOwningAppPermissions(app.appId!, { useAppId: true });
-                        } catch (error) {
+                        } catch (error: any) {
                             console.warn('[GetOrCreateApp] Failed to add owning app permissions:', error);
+                            vscode.window.showWarningMessage(vscode.l10n.t('Failed to add required permissions to app: {0}. You may need to configure them manually in Azure Portal.', error.message || error));
                         }
                     }
 

@@ -22,6 +22,7 @@ import { ExportPostmanConfig as _ExportPostmanConfig } from './App/Postman/Expor
 import { GetOrCreateApp as _GetOrCreateApp } from './Apps/GetOrCreateApp';
 import { Refresh as _Refresh } from './Refresh';
 import { RegisterOnLocalTenant as _RegisterOnLocalTenant } from './ContainerType/RegisterOnLocalTenant';
+import { GrantExtensionAppPermissions as _GrantExtensionAppPermissions } from './ContainerType/GrantExtensionAppPermissions';
 import { GetLocalAdminConsent as _GetLocalAdminConsent } from './App/GetLocalAdminConsent';
 import { RenameContainerType as _RenameContainerType } from './ContainerType/RenameContainerType';
 import { SignIn as _SignIn } from './Accounts/SignIn';
@@ -63,6 +64,7 @@ export namespace Commands {
   export const CopySubscriptionId = _CopySubscriptionId;
   export const ViewContainerTypeProperties = _ViewContainerTypeProperties;
   export const RegisterOnLocalTenant = _RegisterOnLocalTenant;
+  export const GrantExtensionAppPermissions = _GrantExtensionAppPermissions;
   export const RenameContainerType = _RenameContainerType;
   export const LearnMoreDiscoverability = _LearnMoreDiscoverability;
   export const EnableContainerTypeDiscoverability = _EnableContainerTypeDiscoverability;

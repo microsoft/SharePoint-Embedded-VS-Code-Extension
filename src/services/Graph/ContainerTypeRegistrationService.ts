@@ -12,6 +12,7 @@ import {
     containerTypeRegistrationCreateSchema,
     containerTypeRegistrationUpdateSchema
 } from '../../models/schemas';
+import { Logger } from '../../utils/Logger';
 
 /**
  * Service for managing File Storage Container Type Registrations via Microsoft Graph API
@@ -34,34 +35,39 @@ export class ContainerTypeRegistrationService {
         top?: number;
         skip?: number;
     }): Promise<ContainerTypeRegistration[]> {
-        let request = this._client
-            .api(ContainerTypeRegistrationService.BASE_PATH)
-            .version(ContainerTypeRegistrationService.API_VERSION);
+        try {
+            let request = this._client
+                .api(ContainerTypeRegistrationService.BASE_PATH)
+                .version(ContainerTypeRegistrationService.API_VERSION);
 
-        if (options?.filter) {
-            request = request.filter(options.filter);
-        }
-        if (options?.select) {
-            request = request.select(options.select.join(','));
-        }
-        if (options?.orderBy) {
-            request = request.orderby(options.orderBy);
-        }
-        if (options?.top) {
-            request = request.top(options.top);
-        }
-        if (options?.skip) {
-            request = request.skip(options.skip);
-        }
+            if (options?.filter) {
+                request = request.filter(options.filter);
+            }
+            if (options?.select) {
+                request = request.select(options.select.join(','));
+            }
+            if (options?.orderBy) {
+                request = request.orderby(options.orderBy);
+            }
+            if (options?.top) {
+                request = request.top(options.top);
+            }
+            if (options?.skip) {
+                request = request.skip(options.skip);
+            }
 
-        const response = await request.get();
-        
-        // Validate and parse each registration
-        const registrations = response.value.map((reg: any) => {
-            return containerTypeRegistrationSchema.parse(reg);
-        });
+            const response = await request.get();
 
-        return registrations;
+            // Validate and parse each registration
+            const registrations = (response?.value || []).map((reg: any) => {
+                return containerTypeRegistrationSchema.parse(reg);
+            });
+
+            return registrations;
+        } catch (error: any) {
+            console.error('[ContainerTypeRegistrationService.list] Error listing registrations:', error);
+            throw new Error(`Failed to list container type registrations: ${error.message || error}`);
+        }
     }
 
     /**
@@ -94,19 +100,25 @@ export class ContainerTypeRegistrationService {
      * Note: Uses PUT method as specified in the API documentation
      */
     async register(
-        containerTypeId: string, 
+        containerTypeId: string,
         registration: ContainerTypeRegistrationCreate
     ): Promise<ContainerTypeRegistration> {
-        // Validate input data
-        const validatedData = containerTypeRegistrationCreateSchema.parse(registration);
-        console.log('[ContainerTypeRegistrationService.register] Registering container type (check preceding Bearer token log)');
+        try {
+            // Validate input data
+            const validatedData = containerTypeRegistrationCreateSchema.parse(registration);
+            Logger.log(`[ContainerTypeRegistrationService.register] Registering container type ${containerTypeId}`);
 
-        const response = await this._client
-            .api(`${ContainerTypeRegistrationService.BASE_PATH}/${containerTypeId}`)
-            .version(ContainerTypeRegistrationService.API_VERSION)
-            .put(validatedData);
+            const response = await this._client
+                .api(`${ContainerTypeRegistrationService.BASE_PATH}/${containerTypeId}`)
+                .version(ContainerTypeRegistrationService.API_VERSION)
+                .put(validatedData);
 
-        return containerTypeRegistrationSchema.parse(response);
+            Logger.log(`[ContainerTypeRegistrationService.register] Container type ${containerTypeId} registered successfully`);
+            return containerTypeRegistrationSchema.parse(response);
+        } catch (error: any) {
+            console.error(`[ContainerTypeRegistrationService.register] Error registering container type ${containerTypeId}:`, error);
+            throw new Error(`Failed to register container type ${containerTypeId}: ${error.message || error}`);
+        }
     }
 
     /**
@@ -114,18 +126,26 @@ export class ContainerTypeRegistrationService {
      * PATCH /storage/fileStorage/containerTypeRegistrations/{containerTypeId}
      */
     async update(
-        containerTypeId: string, 
+        containerTypeId: string,
         updates: ContainerTypeRegistrationUpdate
     ): Promise<ContainerTypeRegistration> {
-        // Validate input data
-        const validatedUpdates = containerTypeRegistrationUpdateSchema.parse(updates);
+        try {
+            // Validate input data
+            const validatedUpdates = containerTypeRegistrationUpdateSchema.parse(updates);
 
-        const response = await this._client
-            .api(`${ContainerTypeRegistrationService.BASE_PATH}/${containerTypeId}`)
-            .version(ContainerTypeRegistrationService.API_VERSION)
-            .patch(validatedUpdates);
+            Logger.log(`[ContainerTypeRegistrationService.update] Updating registration ${containerTypeId}:`, Object.keys(validatedUpdates));
 
-        return containerTypeRegistrationSchema.parse(response);
+            const response = await this._client
+                .api(`${ContainerTypeRegistrationService.BASE_PATH}/${containerTypeId}`)
+                .version(ContainerTypeRegistrationService.API_VERSION)
+                .patch(validatedUpdates);
+
+            Logger.log(`[ContainerTypeRegistrationService.update] Registration ${containerTypeId} updated successfully`);
+            return containerTypeRegistrationSchema.parse(response);
+        } catch (error: any) {
+            console.error(`[ContainerTypeRegistrationService.update] Error updating registration ${containerTypeId}:`, error);
+            throw new Error(`Failed to update registration ${containerTypeId}: ${error.message || error}`);
+        }
     }
 
     /**
@@ -133,10 +153,17 @@ export class ContainerTypeRegistrationService {
      * DELETE /storage/fileStorage/containerTypeRegistrations/{containerTypeId}
      */
     async unregister(containerTypeId: string): Promise<void> {
-        await this._client
-            .api(`${ContainerTypeRegistrationService.BASE_PATH}/${containerTypeId}`)
-            .version(ContainerTypeRegistrationService.API_VERSION)
-            .delete();
+        try {
+            Logger.log(`[ContainerTypeRegistrationService.unregister] Unregistering container type ${containerTypeId}`);
+            await this._client
+                .api(`${ContainerTypeRegistrationService.BASE_PATH}/${containerTypeId}`)
+                .version(ContainerTypeRegistrationService.API_VERSION)
+                .delete();
+            Logger.log(`[ContainerTypeRegistrationService.unregister] Container type ${containerTypeId} unregistered successfully`);
+        } catch (error: any) {
+            console.error(`[ContainerTypeRegistrationService.unregister] Error unregistering container type ${containerTypeId}:`, error);
+            throw new Error(`Failed to unregister container type ${containerTypeId}: ${error.message || error}`);
+        }
     }
 
     /**

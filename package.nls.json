@@ -5,6 +5,7 @@
     "commands.spe.cancelSignIn": "SharePoint Embedded: Cancel Sign In",
     "commands.spe.ContainerTypes.createTrial": "Create trial container type",
     "commands.spe.ContainerType.registerOnLocalTenant": "Register on local tenant",
+    "commands.spe.ContainerType.grantExtensionAppPermissions": "Grant extension app permissions",
     "commands.spe.ContainerType.rename": "Rename...",
     "commands.spe.ContainerType.delete": "Delete",
     "commands.spe.ContainerType.disableDiscoverability": "  Disable Discoverability",

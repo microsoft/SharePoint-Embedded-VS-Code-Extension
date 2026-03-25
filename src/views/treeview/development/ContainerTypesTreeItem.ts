@@ -8,6 +8,7 @@ import { ContainerTypeTreeItem } from "./ContainerTypeTreeItem";
 import { IChildrenProvidingTreeItem } from "./IDataProvidingTreeItem";
 import { ContainerType, ContainerTypeRegistration } from "../../../models/schemas";
 import { GraphProvider } from "../../../services/Graph/GraphProvider";
+import { hasExtensionAppPermissions } from "../../../utils/ExtensionAppPermissions";
 
 export class ContainerTypesTreeItem extends IChildrenProvidingTreeItem {
     private static readonly label = vscode.l10n.t("Container Types");
@@ -51,7 +52,18 @@ export class ContainerTypesTreeItem extends IChildrenProvidingTreeItem {
                 } catch (error) {
                     console.log(`[ContainerTypesTreeItem] Could not get registration for ${ct.id}:`, error);
                 }
-                return new ContainerTypeTreeItem(ct, registration);
+
+                // Check extension app permissions for registered container types
+                let hasPermissions = false;
+                if (registration) {
+                    try {
+                        hasPermissions = await hasExtensionAppPermissions(ct.id);
+                    } catch (error) {
+                        console.log(`[ContainerTypesTreeItem] Could not check permissions for ${ct.id}:`, error);
+                    }
+                }
+
+                return new ContainerTypeTreeItem(ct, registration, hasPermissions);
             })
         );
 

@@ -19,7 +19,9 @@ export class OwningAppTreeItem extends AppTreeItem {
         this.contextValue += '-local';
         
         // Asynchronously load the full application details
-        this._loadApplicationDetails();
+        this._loadApplicationDetails().catch((error) => {
+            console.error('[OwningAppTreeItem] Failed to load application details:', error);
+        });
     }
 
     public get application(): Application | undefined {

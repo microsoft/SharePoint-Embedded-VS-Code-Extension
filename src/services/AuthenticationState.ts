@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import { decodeJwt } from '../utils/token';
-import { GraphAuthProvider } from './Auth';
+import { GraphAuthProvider, ARMAuthProvider, AppAuthProviderFactory } from './Auth';
 
 /**
  * Authentication state change events
@@ -31,7 +31,7 @@ export interface AuthenticatedAccount {
  */
 export interface AuthStateChangeListener {
     onBeforeSignIn?(): void;
-    onSignIn?(account: AuthenticatedAccount): void;
+    onSignIn?(account: AuthenticatedAccount): void | Promise<void>;
     onSignInFailed?(): void;
     onSignOut?(): void;
 }
@@ -168,10 +168,10 @@ export class AuthenticationState {
             };
 
             AuthenticationState._currentAccount = account;
-            AuthenticationState._notifySignIn(account);
 
-            // Set VS Code context variables
-            vscode.commands.executeCommand('setContext', 'spe:isLoggedIn', true);
+            // Await listeners (extension.ts loads tree data and sets spe:isLoggedIn)
+            // BEFORE clearing isLoggingIn — prevents welcome-view flash.
+            await AuthenticationState._notifySignIn(account);
             vscode.commands.executeCommand('setContext', 'spe:isLoggingIn', false);
 
             return account;
@@ -269,12 +269,20 @@ export class AuthenticationState {
             const graphAuth = GraphAuthProvider.getInstance();
             await graphAuth.signOut();
 
+            // Reset all auth singletons so the next sign-in creates fresh instances
+            // (prevents stale data from the old account leaking through)
+            GraphAuthProvider.resetInstance(); // also resets GraphProvider
+            ARMAuthProvider.resetInstance();
+            AppAuthProviderFactory.clearAll();
+
             AuthenticationState._currentAccount = undefined;
+
+            // Notify listeners so they can empty the tree.
             AuthenticationState._notifySignOut();
 
-            // Clear VS Code context variables
-            vscode.commands.executeCommand('setContext', 'spe:isLoggedIn', false);
-            vscode.commands.executeCommand('setContext', 'spe:isLoggingIn', false);
+            // Note: do NOT touch spe:isLoggingIn here — SwitchAccount sets it
+            // to true before calling signOut() to suppress the welcome view.
+            await vscode.commands.executeCommand('setContext', 'spe:isLoggedIn', false);
 
         } catch (error) {
             console.error('Sign out failed:', error);
@@ -321,6 +329,7 @@ export class AuthenticationState {
             }
         } catch (error) {
             console.error('Failed to initialize authentication state:', error);
+            vscode.commands.executeCommand('setContext', 'spe:isLoggedIn', false);
         }
     }
 
@@ -348,20 +357,24 @@ export class AuthenticationState {
 
     // Notification methods
     private static _notifyBeforeSignIn(): void {
-        vscode.commands.executeCommand('setContext', 'spe:isLoggingIn', true);
+        // Notify listeners BEFORE setting isLoggingIn — listeners lock the
+        // dev tree to return [] so stale items never flash when it becomes visible.
         AuthenticationState._listeners.forEach(listener => {
             if (listener.onBeforeSignIn) {
                 listener.onBeforeSignIn();
             }
         });
+        vscode.commands.executeCommand('setContext', 'spe:isLoggingIn', true);
     }
 
-    private static _notifySignIn(account: AuthenticatedAccount): void {
-        AuthenticationState._listeners.forEach(listener => {
+    private static async _notifySignIn(account: AuthenticatedAccount): Promise<void> {
+        const promises: (void | Promise<void>)[] = [];
+        for (const listener of AuthenticationState._listeners) {
             if (listener.onSignIn) {
-                listener.onSignIn(account);
+                promises.push(listener.onSignIn(account));
             }
-        });
+        }
+        await Promise.all(promises);
     }
 
     private static _notifySignInFailed(): void {
