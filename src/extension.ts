@@ -15,6 +15,19 @@ import { GraphAuthProvider } from './services/Auth';
 import { SpeUriHandler } from './services/UriHandler';
 
 export async function activate(context: vscode.ExtensionContext) {
+    // Reset view state so the welcome/sign-in view shows first.
+    // initialize() will flip these if there's a valid session.
+    await vscode.commands.executeCommand('setContext', 'spe:isLoggedIn', false);
+    await vscode.commands.executeCommand('setContext', 'spe:isLoggingIn', false);
+    // Compat: versions <= 1.0.2 used spe:isAdmin to gate the dev view.
+    // After VSIX upgrade VS Code restarts the extension host but keeps
+    // the old package.json cached, so the stale when-clause "spe:isAdmin"
+    // is still evaluated. Clearing it here hides the dev view until sign-in.
+    // See: https://github.com/microsoft/vscode/issues/131208
+    //      https://github.com/microsoft/vscode/issues/67559
+    //      https://github.com/microsoft/vscode/issues/40500
+    await vscode.commands.executeCommand('setContext', 'spe:isAdmin', false);
+
     ext.context = context;
     ext.outputChannel = vscode.window.createOutputChannel("SharePoint Embedded", { log: true });
     context.subscriptions.push(ext.outputChannel);
@@ -56,12 +69,17 @@ export async function activate(context: vscode.ExtensionContext) {
             // Wait for tree to load new data before making view visible
             await devTree.getChildren();
             await vscode.commands.executeCommand('setContext', 'spe:isLoggedIn', true);
+            // Compat: set spe:isAdmin for stale cached package.json from <= 1.0.2
+            // where the dev view used when: "spe:isAdmin". No-op after window reload.
+            await vscode.commands.executeCommand('setContext', 'spe:isAdmin', true);
             // Now that the dev tree is ready, flip account node from spinner to username
             AccountTreeViewProvider.getInstance().m365AccountNode.showReady();
         },
         onSignOut: () => {
             // Empty tree while still visible so VS Code's cache clears
             DevelopmentTreeViewProvider.getInstance().emptyTree();
+            // Compat: clear spe:isAdmin for stale cached package.json from <= 1.0.2
+            vscode.commands.executeCommand('setContext', 'spe:isAdmin', false);
         }
     });
 

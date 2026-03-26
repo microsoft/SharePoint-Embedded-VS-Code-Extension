@@ -200,6 +200,8 @@ export class AuthenticationState {
         AuthenticationState._notifySignInFailed();
         vscode.commands.executeCommand('setContext', 'spe:isLoggingIn', false);
         vscode.commands.executeCommand('setContext', 'spe:isLoggedIn', false);
+        // Compat: clear spe:isAdmin for stale cached package.json from <= 1.0.2
+        vscode.commands.executeCommand('setContext', 'spe:isAdmin', false);
     }
 
     /**
@@ -283,6 +285,8 @@ export class AuthenticationState {
             // Note: do NOT touch spe:isLoggingIn here — SwitchAccount sets it
             // to true before calling signOut() to suppress the welcome view.
             await vscode.commands.executeCommand('setContext', 'spe:isLoggedIn', false);
+            // Compat: clear spe:isAdmin for stale cached package.json from <= 1.0.2
+            vscode.commands.executeCommand('setContext', 'spe:isAdmin', false);
 
         } catch (error) {
             console.error('Sign out failed:', error);
@@ -324,12 +328,21 @@ export class AuthenticationState {
                 const account = await AuthenticationState.getCurrentAccount();
                 if (account) {
                     AuthenticationState._currentAccount = account;
-                    vscode.commands.executeCommand('setContext', 'spe:isLoggedIn', true);
+                    // Notify listeners so the extension.ts subscriber loads
+                    // tree data, sets isLoggedIn, and calls showReady() on the
+                    // account node. Without this, M365AccountNode stays on the
+                    // spinner because initialize() bypasses signIn().
+                    AuthenticationState._notifyBeforeSignIn();
+                    await AuthenticationState._notifySignIn(account);
+                    vscode.commands.executeCommand('setContext', 'spe:isLoggingIn', false);
                 }
             }
         } catch (error) {
             console.error('Failed to initialize authentication state:', error);
             vscode.commands.executeCommand('setContext', 'spe:isLoggedIn', false);
+            vscode.commands.executeCommand('setContext', 'spe:isLoggingIn', false);
+            // Compat: clear spe:isAdmin for stale cached package.json from <= 1.0.2
+            vscode.commands.executeCommand('setContext', 'spe:isAdmin', false);
         }
     }
 
