@@ -287,18 +287,23 @@
         },
         {
           "when": "viewItem =~ /spe:containerTypeTreeItem.*/",
-          "command": "spe.ContainerType.viewProperties",
+          "command": "spe.ContainerType.browseGraphExplorer",
           "group": "5@1"
+        },
+        {
+          "when": "viewItem =~ /spe:containerTypeTreeItem.*/",
+          "command": "spe.ContainerType.viewProperties",
+          "group": "5@2"
         },
         {
           "when": "viewItem =~ /spe:containerTypeTreeItem.*-paid.*/",
           "command": "spe.ContainerType.viewSubscriptionInAzure",
-          "group": "5@2"
+          "group": "5@3"
         },
         {
           "when": "viewItem =~ /spe:containerTypeTreeItem.*/",
           "command": "spe.refresh",
-          "group": "5@3"
+          "group": "5@4"
         },
         {
           "when": "viewItem =~ /spe:containerTypeTreeItem.*/",
@@ -490,6 +495,10 @@
       {
         "command": "spe.ContainerType.copyOwningTenantId",
         "title": "%commands.spe.ContainerType.copyOwningTenantId%"
+      },
+      {
+        "command": "spe.ContainerType.browseGraphExplorer",
+        "title": "%commands.spe.ContainerType.browseGraphExplorer%"
       },
       {
         "command": "spe.ContainerType.viewProperties",

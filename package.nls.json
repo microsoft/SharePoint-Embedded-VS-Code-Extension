@@ -14,6 +14,7 @@
     "commands.spe.ContainerType.copyId": "Copy container type Id",
     "commands.spe.ContainerType.copySubscriptionId": "Copy subscription Id",
     "commands.spe.ContainerType.copyOwningTenantId": "Copy owning tenant Id",
+    "commands.spe.ContainerType.browseGraphExplorer": "Browse in Graph Explorer",
     "commands.spe.ContainerType.viewProperties": "View properties",
     "commands.spe.ContainerType.viewSubscriptionInAzure": "View subscription in Azure",
     "commands.spe.Apps.getOrCreate": "Create or choose existing app",
