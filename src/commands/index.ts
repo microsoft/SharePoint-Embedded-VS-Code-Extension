@@ -30,6 +30,7 @@ import { SignOut as _SignOut } from './Accounts/SignOut';
 import { ViewInAzure as _ViewInAzure } from './App/ViewInAzure';
 import { ViewContainerTypeProperties as _ViewContainerTypeProperties } from './ContainerType/ViewContainerTypeProperties';
 import { BrowseGraphExplorer as _BrowseGraphExplorer } from './ContainerType/BrowseGraphExplorer';
+import { OpenStorageExplorer as _OpenStorageExplorer } from './ContainerType/OpenStorageExplorer';
 import { RenameContainer as _RenameContainer } from './Container/RenameContainer';
 import { EditContainerDescription as _EditContainerDescription } from './Container/EditContainerDescription';
 import { RecycleContainer as _RecycleContainer } from './Container/RecycleContainer';
@@ -68,6 +69,7 @@ export namespace Commands {
   export const CopySubscriptionId = _CopySubscriptionId;
   export const ViewContainerTypeProperties = _ViewContainerTypeProperties;
   export const BrowseGraphExplorer = _BrowseGraphExplorer;
+  export const OpenStorageExplorer = _OpenStorageExplorer;
   export const RegisterOnLocalTenant = _RegisterOnLocalTenant;
   export const GrantExtensionAppPermissions = _GrantExtensionAppPermissions;
   export const RenameContainerType = _RenameContainerType;

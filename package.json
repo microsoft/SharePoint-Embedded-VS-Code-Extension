@@ -287,6 +287,16 @@
           "group": "5@1"
         },
         {
+          "when": "viewItem =~ /spe:localRegistrationTreeItem/",
+          "command": "spe.ContainerType.openStorageExplorer",
+          "group": "1@1"
+        },
+        {
+          "when": "viewItem =~ /spe:localRegistrationTreeItem/",
+          "command": "spe.ContainerType.openStorageExplorer",
+          "group": "inline@1"
+        },
+        {
           "when": "viewItem =~ /spe:containerTypeTreeItem.*/",
           "command": "spe.ContainerType.viewProperties",
           "group": "5@2"
@@ -512,6 +522,11 @@
         "title": "%commands.spe.ContainerType.browseGraphExplorer%"
       },
       {
+        "command": "spe.ContainerType.openStorageExplorer",
+        "title": "%commands.spe.ContainerType.openStorageExplorer%",
+        "icon": "$(database)"
+      },
+      {
         "command": "spe.ContainerType.viewProperties",
         "title": "%commands.spe.ContainerType.viewProperties%"
       },
@@ -633,7 +648,9 @@
     ]
   },
   "scripts": {
-    "vscode:prepublish": "npm run esbuild-base -- --minify",
+    "vscode:prepublish": "npm run build:webview && npm run esbuild-base -- --minify",
+    "build:webview": "cd webview-ui && npm run build",
+    "watch:webview": "cd webview-ui && npm run watch",
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
     "pretest": "npm run compile && npm run lint",

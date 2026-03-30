@@ -102,6 +102,7 @@ export async function activate(context: vscode.ExtensionContext) {
     Commands.CopySubscriptionId.register(context);
     Commands.ViewContainerTypeProperties.register(context);
     Commands.BrowseGraphExplorer.register(context);
+    Commands.OpenStorageExplorer.register(context);
     Commands.RegisterOnLocalTenant.register(context);
     Commands.RenameContainerType.register(context);
     Commands.LearnMoreDiscoverability.register(context);

@@ -1,0 +1,147 @@
+/*
+ * Base styles for the Storage Explorer webview.
+ * Uses VS Code CSS variables for automatic theme adaptation (dark, light, high-contrast).
+ */
+
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+}
+
+body {
+    font-family: var(--vscode-font-family);
+    font-size: var(--vscode-font-size);
+    color: var(--vscode-foreground);
+    background-color: var(--vscode-editor-background);
+}
+
+/* VS Code-styled scrollbars */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+::-webkit-scrollbar-thumb {
+    background: var(--vscode-scrollbarSlider-background);
+    border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: var(--vscode-scrollbarSlider-hoverBackground);
+}
+::-webkit-scrollbar-thumb:active {
+    background: var(--vscode-scrollbarSlider-activeBackground);
+}
+
+/* Focus ring */
+*:focus-visible {
+    outline: 1px solid var(--vscode-focusBorder);
+    outline-offset: -1px;
+}
+
+/* Icon buttons (header bar, etc.) */
+.icon-btn {
+    background: transparent;
+    border: none;
+    color: var(--vscode-icon-foreground);
+    cursor: pointer;
+    padding: 4px 6px;
+    border-radius: 3px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    font-size: 16px;
+}
+.icon-btn:hover {
+    background-color: var(--vscode-toolbar-hoverBackground);
+}
+.icon-btn.active {
+    background-color: var(--vscode-toolbar-activeBackground, var(--vscode-toolbar-hoverBackground));
+    color: var(--vscode-foreground);
+}
+
+/* Toolbar action buttons (icon + label) */
+.action-btn {
+    background: transparent;
+    border: none;
+    color: var(--vscode-foreground);
+    cursor: pointer;
+    padding: 3px 8px;
+    border-radius: 3px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-family: var(--vscode-font-family);
+    font-size: var(--vscode-font-size);
+    white-space: nowrap;
+}
+.action-btn:hover:not(:disabled) {
+    background-color: var(--vscode-toolbar-hoverBackground);
+}
+.action-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+.action-btn .codicon {
+    font-size: 14px;
+}
+
+/* Context / dropdown menu items */
+.menu-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 6px 12px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--vscode-menu-foreground);
+    font-family: var(--vscode-font-family);
+    font-size: var(--vscode-font-size);
+    text-align: left;
+    white-space: nowrap;
+}
+.menu-item:hover:not(:disabled) {
+    background: var(--vscode-menu-selectionBackground);
+    color: var(--vscode-menu-selectionForeground);
+}
+.menu-item.danger {
+    color: var(--vscode-errorForeground);
+}
+.menu-item .codicon {
+    font-size: 14px;
+    flex-shrink: 0;
+}
+
+/* Side-panel tab buttons */
+.tab-btn {
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--vscode-foreground);
+    cursor: pointer;
+    padding: 6px 10px;
+    font-family: var(--vscode-font-family);
+    font-size: var(--vscode-font-size);
+    opacity: 0.7;
+}
+.tab-btn:hover {
+    opacity: 1;
+}
+.tab-btn.active {
+    border-bottom-color: var(--vscode-focusBorder);
+    opacity: 1;
+}
