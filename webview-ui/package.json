@@ -1,0 +1,22 @@
+{
+  "name": "storage-explorer-webview",
+  "private": true,
+  "version": "0.0.1",
+  "scripts": {
+    "build": "vite build",
+    "watch": "vite build --watch",
+    "dev": "vite"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.1",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.1",
+    "@vscode/codicons": "^0.0.36",
+    "typescript": "^5.5.4",
+    "vite": "^5.4.0"
+  }
+}
