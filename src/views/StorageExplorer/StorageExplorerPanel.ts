@@ -44,6 +44,16 @@ export class StorageExplorerPanel {
 
         this._panel.webview.html = StorageExplorerPanel._buildHtml(this._panel.webview, state);
         this._panel.onDidDispose(() => this.dispose(), null, this._disposables);
+
+        this._panel.webview.onDidReceiveMessage(
+            async (message: { command: string; har?: string }) => {
+                if (message.command === 'exportHar' && message.har) {
+                    await StorageExplorerPanel._handleExportHar(message.har);
+                }
+            },
+            null,
+            this._disposables
+        );
     }
 
     // ------------------------------------------------------------------
@@ -90,6 +100,17 @@ export class StorageExplorerPanel {
     // ------------------------------------------------------------------
     // Private helpers
     // ------------------------------------------------------------------
+
+    private static async _handleExportHar(har: string): Promise<void> {
+        const tmpDir = require('os').tmpdir();
+        const path = require('path');
+        const fs = require('fs');
+        const fileName = `storage-explorer-${Date.now()}.har`;
+        const filePath = path.join(tmpDir, fileName);
+        fs.writeFileSync(filePath, har, 'utf8');
+        const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(filePath));
+        await vscode.window.showTextDocument(doc, { preview: false });
+    }
 
     private static _buildHtml(webview: vscode.Webview, state: PanelState): string {
         const base = ext.context.extensionUri;

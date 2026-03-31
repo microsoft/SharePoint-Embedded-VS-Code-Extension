@@ -63,14 +63,22 @@ function getActions(
     }
 
     // container
+    const columns: MenuAction = {
+        icon: 'codicon-list-tree', label: 'Columns',
+        onClick: () => { onClose(); openTab('columns'); },
+    };
+    const recycleBin: MenuAction = {
+        icon: 'codicon-trash', label: 'Recycle bin', dividerBefore: true,
+        onClick: () => { onClose(); navigateToContainerRecycleBin(item.id, item.name); },
+    };
     return [
         rename,
         del,
+        recycleBin,
         { ...perms, dividerBefore: true },
-        { icon: 'codicon-list-tree', label: 'Columns', dividerBefore: true, onClick: () => { onClose(); /* TODO */ } },
-        { icon: 'codicon-settings-gear', label: 'Custom properties', onClick: () => { onClose(); /* TODO */ } },
-        { icon: 'codicon-trash', label: 'Recycle bin', onClick: () => { onClose(); navigateToContainerRecycleBin(item.id, item.name); } },
-        { ...properties, dividerBefore: true },
+        columns,
+        metadata,
+        properties,
     ];
 }
 

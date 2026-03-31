@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { StorageItem } from '../../models/StorageItem';
 import { getItemIcon, getItemIconColor } from '../FileList/fileListUtils';
-import { RECYCLED_COL_TEMPLATE } from './RecycledListHeader';
 import { RecycledContextMenu } from './RecycledContextMenu';
 import { useStorageExplorer } from '../../context/StorageExplorerContext';
 
@@ -9,9 +8,10 @@ interface RecycledListRowProps {
     item: StorageItem;
     isSelected: boolean;
     onSelect: (item: StorageItem) => void;
+    colTemplate: string;
 }
 
-export function RecycledListRow({ item, isSelected, onSelect }: RecycledListRowProps) {
+export function RecycledListRow({ item, isSelected, onSelect, colTemplate }: RecycledListRowProps) {
     const [isHovered, setIsHovered] = useState(false);
     const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
     const { openModal } = useStorageExplorer();
@@ -47,7 +47,7 @@ export function RecycledListRow({ item, isSelected, onSelect }: RecycledListRowP
             <div
                 style={{
                     display: 'grid',
-                    gridTemplateColumns: RECYCLED_COL_TEMPLATE,
+                    gridTemplateColumns: colTemplate,
                     backgroundColor: rowBg,
                     color: rowColor,
                     cursor: 'default',

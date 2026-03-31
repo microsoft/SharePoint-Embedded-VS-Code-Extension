@@ -1,12 +1,13 @@
 import React from 'react';
 import { SortColumn, SortDirection } from '../../models/StorageItem';
-
-const COL_TEMPLATE = '32px 1fr 150px 130px 80px';
+import { ColResizeHandle } from '../../hooks/useResizableColumns';
 
 interface FileListHeaderProps {
+    colTemplate: string;
     sortColumn: SortColumn;
     sortDirection: SortDirection;
     onSort: (col: SortColumn) => void;
+    onColResize?: (e: React.MouseEvent, idx: number, direction?: number) => void;
     onClick?: (e: React.MouseEvent) => void;
 }
 
@@ -17,16 +18,14 @@ interface ColDef {
 }
 
 const COLUMNS: ColDef[] = [
-    { key: null, label: '' },          // checkbox
+    { key: null, label: '' },
     { key: 'name', label: 'Name' },
     { key: 'modified', label: 'Date Modified' },
     { key: 'type', label: 'Type' },
     { key: 'size', label: 'Size', align: 'right' },
 ];
 
-export { COL_TEMPLATE };
-
-export function FileListHeader({ sortColumn, sortDirection, onSort, onClick }: FileListHeaderProps) {
+export function FileListHeader({ colTemplate, sortColumn, sortDirection, onSort, onColResize, onClick }: FileListHeaderProps) {
     const arrow = sortDirection === 'asc' ? 'codicon-arrow-up' : 'codicon-arrow-down';
 
     return (
@@ -34,7 +33,7 @@ export function FileListHeader({ sortColumn, sortDirection, onSort, onClick }: F
             onClick={onClick}
             style={{
                 display: 'grid',
-                gridTemplateColumns: COL_TEMPLATE,
+                gridTemplateColumns: colTemplate,
                 borderBottom: '1px solid var(--vscode-panel-border)',
                 backgroundColor: 'var(--vscode-editor-background)',
                 position: 'sticky',
@@ -43,29 +42,38 @@ export function FileListHeader({ sortColumn, sortDirection, onSort, onClick }: F
                 userSelect: 'none',
             }}
         >
-            {COLUMNS.map((col, i) => (
-                <div
-                    key={i}
-                    onClick={() => col.key && onSort(col.key)}
-                    style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 4,
-                        padding: '5px 8px',
-                        cursor: col.key ? 'pointer' : 'default',
-                        justifyContent: col.align === 'right' ? 'flex-end' : 'flex-start',
-                        fontSize: 11,
-                        fontWeight: 600,
-                        opacity: 0.7,
-                        whiteSpace: 'nowrap',
-                    }}
-                >
-                    {col.label}
-                    {col.key && sortColumn === col.key && (
-                        <span className={`codicon ${arrow}`} style={{ fontSize: 10 }} />
-                    )}
-                </div>
-            ))}
+            {COLUMNS.map((col, i) => {
+                // Left-edge handle on all fixed-width columns (i >= 2)
+                const showHandle = onColResize && i >= 2;
+                const fixedIdx = i - 2;
+                return (
+                    <div
+                        key={i}
+                        onClick={() => col.key && onSort(col.key)}
+                        style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 4,
+                            padding: '5px 8px',
+                            cursor: col.key ? 'pointer' : 'default',
+                            justifyContent: col.align === 'right' ? 'flex-end' : 'flex-start',
+                            fontSize: 11,
+                            fontWeight: 600,
+                            opacity: 0.7,
+                            whiteSpace: 'nowrap',
+                            position: showHandle ? 'relative' : undefined,
+                        }}
+                    >
+                        {col.label}
+                        {col.key && sortColumn === col.key && (
+                            <span className={`codicon ${arrow}`} style={{ fontSize: 10 }} />
+                        )}
+                        {showHandle && (
+                            <ColResizeHandle side="left" onMouseDown={e => onColResize!(e, fixedIdx, -1)} />
+                        )}
+                    </div>
+                );
+            })}
         </div>
     );
 }

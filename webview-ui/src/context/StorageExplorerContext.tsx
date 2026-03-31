@@ -1,6 +1,6 @@
-import React, { createContext, useContext, useState, useMemo } from 'react';
-import { StorageItem, BreadcrumbEntry, SortColumn, SortDirection, SidePanelTab, ModalState, ViewMode } from '../models/StorageItem';
-import { ROOT_ITEMS, ITEMS_BY_ID, DUMMY_APP_INFO, DELETED_CONTAINERS, RECYCLED_ITEMS_BY_CONTAINER_ID } from '../data/dummyData';
+import React, { createContext, useCallback, useContext, useRef, useState, useMemo } from 'react';
+import { StorageItem, BreadcrumbEntry, SortColumn, SortDirection, SidePanelTab, ModalState, ViewMode, NetworkRequest, UploadFile, UploadStatus } from '../models/StorageItem';
+import { ROOT_ITEMS, ITEMS_BY_ID, DUMMY_APP_INFO, DELETED_CONTAINERS, RECYCLED_ITEMS_BY_CONTAINER_ID, DUMMY_NETWORK_REQUESTS } from '../data/dummyData';
 
 interface StorageExplorerContextValue {
     appName: string;
@@ -27,6 +27,23 @@ interface StorageExplorerContextValue {
     closeModal: () => void;
     retentionOverrides: Record<string, number | null>;
     setRetentionOverride: (containerId: string, days: number | null) => void;
+    networkRequests: NetworkRequest[];
+    networkDrawerOpen: boolean;
+    toggleNetworkDrawer: () => void;
+    clearNetworkRequests: () => void;
+    logNetworkRequest: (req: NetworkRequest) => void;
+    // ── uploads ──
+    uploads: UploadFile[];
+    uploadCardOpen: boolean;
+    enqueueUploads: (files: FileList | File[]) => void;
+    pauseUpload: (id: string) => void;
+    resumeUpload: (id: string) => void;
+    cancelUpload: (id: string) => void;
+    retryUpload: (id: string) => void;
+    dismissUpload: (id: string) => void;
+    dismissAllCompleted: () => void;
+    closeUploadCard: () => void;
+    toggleUploadCard: () => void;
 }
 
 const StorageExplorerContext = createContext<StorageExplorerContextValue | null>(null);
@@ -42,6 +59,13 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
     const [sidePanelTab, setSidePanelTabState] = useState<SidePanelTab>('permissions');
     const [modal, setModal] = useState<ModalState | null>(null);
     const [retentionOverrides, setRetentionOverridesState] = useState<Record<string, number | null>>({});
+    const [networkRequests, setNetworkRequests] = useState<NetworkRequest[]>(DUMMY_NETWORK_REQUESTS);
+    const [networkDrawerOpen, setNetworkDrawerOpen] = useState(false);
+    // ── upload state ──
+    const [uploads, setUploads] = useState<UploadFile[]>([]);
+    const [uploadCardOpen, setUploadCardOpen] = useState(false);
+    // Map of upload id → interval handle for simulation
+    const uploadTimers = useRef<Record<string, ReturnType<typeof setInterval>>>({});
 
     const lastId = path[path.length - 1]?.id ?? null;
 
@@ -147,6 +171,107 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
         setRetentionOverridesState(prev => ({ ...prev, [containerId]: days }));
     }
 
+    function toggleNetworkDrawer() {
+        setNetworkDrawerOpen(o => !o);
+    }
+
+    function clearNetworkRequests() {
+        setNetworkRequests([]);
+    }
+
+    function logNetworkRequest(req: NetworkRequest) {
+        setNetworkRequests(prev => [...prev, req]);
+    }
+
+    // ── upload helpers ────────────────────────────────────────────────────────
+
+    function startSimulation(id: string) {
+        if (uploadTimers.current[id]) return;
+        uploadTimers.current[id] = setInterval(() => {
+            setUploads(prev => prev.map(u => {
+                if (u.id !== id || u.status !== 'uploading') return u;
+                // Advance by a random 2–6% of total per tick
+                const chunk = Math.floor(u.size * (0.02 + Math.random() * 0.04));
+                const next = Math.min(u.uploaded + chunk, u.size);
+                if (next >= u.size) {
+                    clearInterval(uploadTimers.current[id]);
+                    delete uploadTimers.current[id];
+                    return { ...u, uploaded: u.size, status: 'completed' as UploadStatus };
+                }
+                // ~5% chance of a transient failure for demo realism
+                if (Math.random() < 0.03) {
+                    clearInterval(uploadTimers.current[id]);
+                    delete uploadTimers.current[id];
+                    return { ...u, status: 'failed' as UploadStatus, error: 'Network error. Click Retry to try again.' };
+                }
+                return { ...u, uploaded: next };
+            }));
+        }, 300);
+    }
+
+    function stopSimulation(id: string) {
+        if (uploadTimers.current[id]) {
+            clearInterval(uploadTimers.current[id]);
+            delete uploadTimers.current[id];
+        }
+    }
+
+    function enqueueUploads(files: FileList | File[]) {
+        const arr = Array.from(files);
+        if (!arr.length) return;
+        const newUploads: UploadFile[] = arr.map(f => ({
+            id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+            name: f.name,
+            size: f.size || 1024 * 1024, // fallback for demo
+            uploaded: 0,
+            status: 'pending' as UploadStatus,
+        }));
+        setUploads(prev => [...prev, ...newUploads]);
+        setUploadCardOpen(true);
+        // Start uploading all immediately (simulate)
+        newUploads.forEach(u => {
+            setUploads(prev => prev.map(x => x.id === u.id ? { ...x, status: 'uploading' as UploadStatus } : x));
+            setTimeout(() => startSimulation(u.id), 50);
+        });
+    }
+
+    function pauseUpload(id: string) {
+        stopSimulation(id);
+        setUploads(prev => prev.map(u => u.id === id && u.status === 'uploading' ? { ...u, status: 'paused' as UploadStatus } : u));
+    }
+
+    function resumeUpload(id: string) {
+        setUploads(prev => prev.map(u => u.id === id && u.status === 'paused' ? { ...u, status: 'uploading' as UploadStatus } : u));
+        startSimulation(id);
+    }
+
+    function cancelUpload(id: string) {
+        stopSimulation(id);
+        setUploads(prev => prev.filter(u => u.id !== id));
+    }
+
+    function retryUpload(id: string) {
+        setUploads(prev => prev.map(u => u.id === id ? { ...u, status: 'uploading' as UploadStatus, uploaded: 0, error: undefined } : u));
+        startSimulation(id);
+    }
+
+    function dismissUpload(id: string) {
+        stopSimulation(id);
+        setUploads(prev => prev.filter(u => u.id !== id));
+    }
+
+    function dismissAllCompleted() {
+        setUploads(prev => prev.filter(u => u.status !== 'completed'));
+    }
+
+    function closeUploadCard() {
+        setUploadCardOpen(false);
+    }
+
+    function toggleUploadCard() {
+        setUploadCardOpen(o => !o);
+    }
+
     const value: StorageExplorerContextValue = {
         appName: DUMMY_APP_INFO.name,
         tenantDomain: DUMMY_APP_INFO.tenantDomain,
@@ -172,6 +297,22 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
         closeModal,
         retentionOverrides,
         setRetentionOverride,
+        networkRequests,
+        networkDrawerOpen,
+        toggleNetworkDrawer,
+        clearNetworkRequests,
+        logNetworkRequest,
+        uploads,
+        uploadCardOpen,
+        enqueueUploads,
+        pauseUpload,
+        resumeUpload,
+        cancelUpload,
+        retryUpload,
+        dismissUpload,
+        dismissAllCompleted,
+        closeUploadCard,
+        toggleUploadCard,
     };
 
     return (
