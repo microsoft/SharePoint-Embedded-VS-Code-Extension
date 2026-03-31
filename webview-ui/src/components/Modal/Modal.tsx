@@ -71,9 +71,11 @@ export function Modal({
                 <div>{children}</div>
 
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-                    <button className="action-btn" onClick={onCancel}>
-                        {cancelLabel}
-                    </button>
+                    {cancelLabel && (
+                        <button className="action-btn" onClick={onCancel}>
+                            {cancelLabel}
+                        </button>
+                    )}
                     <button
                         className="action-btn"
                         disabled={confirmDisabled}

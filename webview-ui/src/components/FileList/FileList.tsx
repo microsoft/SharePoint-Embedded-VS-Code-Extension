@@ -2,16 +2,28 @@ import React from 'react';
 import { useStorageExplorer } from '../../context/StorageExplorerContext';
 import { FileListHeader } from './FileListHeader';
 import { FileListRow } from './FileListRow';
+import { useResizableColumns } from '../../hooks/useResizableColumns';
+
+// Initial widths for: Date Modified, Type, Size (Name stays 1fr)
+const INITIAL_COL_WIDTHS = [150, 130, 80];
 
 export function FileList() {
     const { currentItems, selectedItem, selectItem, setSort, sortColumn, sortDirection, navigate } = useStorageExplorer();
+    const { colWidths, onColResizeMouseDown } = useResizableColumns(INITIAL_COL_WIDTHS);
+    const colTemplate = `32px 1fr ${colWidths[0]}px ${colWidths[1]}px ${colWidths[2]}px`;
 
     return (
         <div
             style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}
-            onClick={() => selectItem(null)} // deselect when clicking the empty area
+            onClick={() => selectItem(null)}
         >
-            <FileListHeader sortColumn={sortColumn} sortDirection={sortDirection} onSort={setSort} onClick={(e: React.MouseEvent) => e.stopPropagation()} />
+            <FileListHeader
+                colTemplate={colTemplate}
+                sortColumn={sortColumn}
+                sortDirection={sortDirection}
+                onSort={setSort}
+                onClick={(e: React.MouseEvent) => e.stopPropagation()}
+            />
             <div style={{ flex: 1, overflowY: 'auto', padding: '0 4px' }}>
                 {currentItems.length === 0 ? (
                     <EmptyState />
@@ -20,6 +32,7 @@ export function FileList() {
                         <FileListRow
                             key={item.id}
                             item={item}
+                            colTemplate={colTemplate}
                             isSelected={selectedItem?.id === item.id}
                             onSelect={selectItem}
                             onNavigate={navigate}

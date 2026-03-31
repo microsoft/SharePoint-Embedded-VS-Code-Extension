@@ -1,25 +1,57 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useStorageExplorer } from '../../context/StorageExplorerContext';
-import { SidePanelTab, StorageItem } from '../../models/StorageItem';
+import { SidePanelTab, StorageItem, ItemKind } from '../../models/StorageItem';
 import { MetadataPanel } from './MetadataPanel';
+import { FileMetadataPanel } from './FileMetadataPanel';
 import { VersionsPanel } from './VersionsPanel';
 import { PermissionsPanel } from './PermissionsPanel';
+import { FilePermissionsPanel } from './FilePermissionsPanel';
+import { ColumnsPanel } from './ColumnsPanel';
 import { getItemIcon, getItemIconColor } from '../FileList/fileListUtils';
 
-const TABS: { key: SidePanelTab; label: string; icon: string }[] = [
+const CONTAINER_TABS: { key: SidePanelTab; label: string; icon: string }[] = [
     { key: 'permissions', label: 'Permissions', icon: 'codicon-account' },
-    { key: 'metadata', label: 'Metadata', icon: 'codicon-tag' },
-    { key: 'versions', label: 'Versions', icon: 'codicon-history' },
+    { key: 'columns',     label: 'Columns',     icon: 'codicon-list-tree' },
+    { key: 'metadata',    label: 'Metadata',    icon: 'codicon-tag' },
+    { key: 'properties',  label: 'Properties',  icon: 'codicon-info' },
+];
+
+const FILE_TABS: { key: SidePanelTab; label: string; icon: string }[] = [
+    { key: 'permissions', label: 'Permissions', icon: 'codicon-account' },
+    { key: 'metadata',    label: 'Metadata',    icon: 'codicon-tag' },
+    { key: 'versions',    label: 'Versions',    icon: 'codicon-history' },
+    { key: 'properties',  label: 'Properties',  icon: 'codicon-info' },
+];
+
+const FOLDER_TABS: { key: SidePanelTab; label: string; icon: string }[] = [
+    { key: 'permissions', label: 'Permissions', icon: 'codicon-account' },
+    { key: 'metadata',    label: 'Metadata',    icon: 'codicon-tag' },
+    { key: 'properties',  label: 'Properties',  icon: 'codicon-info' },
+];
+
+const RECYCLE_TABS: { key: SidePanelTab; label: string; icon: string }[] = [
     { key: 'properties', label: 'Properties', icon: 'codicon-info' },
 ];
+
+function getTabsForKind(kind: ItemKind | undefined, isRecycledView: boolean) {
+    if (isRecycledView) return RECYCLE_TABS;
+    if (kind === 'container') return CONTAINER_TABS;
+    if (kind === 'file') return FILE_TABS;
+    return FOLDER_TABS;
+}
 
 export function SidePanel() {
     const { selectedItem, sidePanelTab, setSidePanelTab, toggleSidePanel, viewMode } = useStorageExplorer();
     const isRecycledView = viewMode.kind !== 'normal';
 
-    const visibleTabs = isRecycledView
-        ? TABS.filter(t => t.key === 'properties')
-        : TABS;
+    const visibleTabs = getTabsForKind(selectedItem?.kind, isRecycledView);
+
+    // Auto-switch to first valid tab when item kind changes
+    useEffect(() => {
+        if (!visibleTabs.find(t => t.key === sidePanelTab)) {
+            setSidePanelTab(visibleTabs[0].key);
+        }
+    }, [selectedItem?.id, selectedItem?.kind, isRecycledView]); // eslint-disable-line
 
     return (
         <div
@@ -89,10 +121,19 @@ export function SidePanel() {
 
             {/* Panel content */}
             <div style={{ flex: 1, overflowY: 'auto', padding: '8px 12px' }}>
-                {sidePanelTab === 'properties' && <PropertiesPanel item={selectedItem} />}
-                {sidePanelTab === 'metadata' && <MetadataPanel item={selectedItem} />}
-                {sidePanelTab === 'versions' && <VersionsPanel item={selectedItem} />}
-                {sidePanelTab === 'permissions' && <PermissionsPanel item={selectedItem} />}
+                {sidePanelTab === 'properties'   && <PropertiesPanel item={selectedItem} />}
+                {sidePanelTab === 'metadata'     && (
+                    selectedItem?.kind === 'container'
+                        ? <MetadataPanel item={selectedItem} />
+                        : <FileMetadataPanel item={selectedItem} />
+                )}
+                {sidePanelTab === 'versions'     && <VersionsPanel item={selectedItem} />}
+                {sidePanelTab === 'permissions'  && (
+                    selectedItem?.kind === 'container'
+                        ? <PermissionsPanel item={selectedItem} />
+                        : <FilePermissionsPanel item={selectedItem} />
+                )}
+                {sidePanelTab === 'columns'      && <ColumnsPanel item={selectedItem} />}
             </div>
         </div>
     );

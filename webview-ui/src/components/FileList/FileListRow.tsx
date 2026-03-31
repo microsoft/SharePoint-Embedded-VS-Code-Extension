@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { StorageItem } from '../../models/StorageItem';
 import { getItemIcon, getItemIconColor, formatSize, isOfficeFile } from './fileListUtils';
-import { COL_TEMPLATE } from './FileListHeader';
 import { ContextMenu } from '../ContextMenu/ContextMenu';
 
 interface FileListRowProps {
@@ -9,9 +8,10 @@ interface FileListRowProps {
     isSelected: boolean;
     onSelect: (item: StorageItem) => void;
     onNavigate: (item: StorageItem) => void;
+    colTemplate: string;
 }
 
-export function FileListRow({ item, isSelected, onSelect, onNavigate }: FileListRowProps) {
+export function FileListRow({ item, isSelected, onSelect, onNavigate, colTemplate }: FileListRowProps) {
     const [isHovered, setIsHovered] = useState(false);
     const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
 
@@ -52,7 +52,7 @@ export function FileListRow({ item, isSelected, onSelect, onNavigate }: FileList
             <div
                 style={{
                     display: 'grid',
-                    gridTemplateColumns: COL_TEMPLATE,
+                    gridTemplateColumns: colTemplate,
                     backgroundColor: rowBg,
                     color: rowColor,
                     cursor: 'default',

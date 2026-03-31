@@ -2,9 +2,15 @@ import React from 'react';
 import { useStorageExplorer } from '../../context/StorageExplorerContext';
 import { RecycledListHeader } from './RecycledListHeader';
 import { RecycledListRow } from './RecycledListRow';
+import { useResizableColumns } from '../../hooks/useResizableColumns';
+
+// Initial widths for: Date Deleted, Type (Name stays 1fr)
+const INITIAL_COL_WIDTHS = [150, 120];
 
 export function RecycledList() {
     const { currentRecycledItems, selectedItem, selectItem, setSort, sortColumn, sortDirection, viewMode } = useStorageExplorer();
+    const { colWidths, onColResizeMouseDown } = useResizableColumns(INITIAL_COL_WIDTHS);
+    const colTemplate = `32px 1fr ${colWidths[0]}px ${colWidths[1]}px`;
 
     const emptyMessage = viewMode.kind === 'deleted-containers'
         ? 'No deleted containers'
@@ -16,6 +22,7 @@ export function RecycledList() {
             onClick={() => selectItem(null)}
         >
             <RecycledListHeader
+                colTemplate={colTemplate}
                 sortColumn={sortColumn}
                 sortDirection={sortDirection}
                 onSort={setSort}
@@ -29,6 +36,7 @@ export function RecycledList() {
                         <RecycledListRow
                             key={item.id}
                             item={item}
+                            colTemplate={colTemplate}
                             isSelected={selectedItem?.id === item.id}
                             onSelect={selectItem}
                         />
