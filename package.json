@@ -663,6 +663,7 @@
     "test-compile": "tsc -p ./"
   },
   "devDependencies": {
+    "@microsoft/microsoft-graph-types": "^2.43.1",
     "@types/chai": "^4.3.11",
     "@types/glob": "^8.1.0",
     "@types/jsrsasign": "^10.5.8",

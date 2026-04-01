@@ -1,13 +1,16 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { useStorageExplorer } from '../../context/StorageExplorerContext';
-import { isOfficeFile } from '../FileList/fileListUtils';
+import { openUrl } from '../../utils/openUrl';
 
 export function ActionBar() {
     const { path, selectedItem } = useStorageExplorer();
     const atRoot = path.length === 1;
     const isFile = selectedItem?.kind === 'file';
     const hasSelection = selectedItem !== null;
-    const canOpen = isFile && !!selectedItem && isOfficeFile(selectedItem);
+    // Open in web: only Office files carry a webUrl
+    const canOpen     = isFile && !!selectedItem?.webUrl;
+    const canPreview  = isFile && !!selectedItem?.previewUrl;
+    const canDownload = isFile && !!selectedItem?.downloadUrl;
 
     return (
         <div
@@ -24,7 +27,10 @@ export function ActionBar() {
             {atRoot ? (
                 <ContainerActions hasSelection={hasSelection} />
             ) : (
-                <FileActions hasSelection={hasSelection} isFile={isFile} canOpen={canOpen} />
+                <FileActions
+                    hasSelection={hasSelection} isFile={isFile}
+                    canOpen={canOpen} canPreview={canPreview} canDownload={canDownload}
+                />
             )}
         </div>
     );
@@ -70,9 +76,10 @@ function ContainerActions({ hasSelection }: { hasSelection: boolean }) {
 }
 
 function FileActions({
-    hasSelection, isFile, canOpen,
+    hasSelection, isFile, canOpen, canPreview, canDownload,
 }: {
-    hasSelection: boolean; isFile: boolean; canOpen: boolean;
+    hasSelection: boolean; isFile: boolean;
+    canOpen: boolean; canPreview: boolean; canDownload: boolean;
 }) {
     const { selectedItem, openModal, enqueueUploads } = useStorageExplorer();
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -98,11 +105,11 @@ function FileActions({
             <NewDropdown />
             <ActionBtn icon="codicon-cloud-upload" label="Upload" title="Upload files" onClick={() => fileInputRef.current?.click()} />
             <Separator />
-            <OpenDropdown disabled={!canOpen} />
-            <ActionBtn icon="codicon-eye" label="Preview" title="Preview selected file" disabled={!isFile} onClick={() => { /* TODO */ }} />
+            <OpenDropdown disabled={!canOpen} onOpenInWeb={() => selectedItem?.webUrl && openUrl(selectedItem.webUrl)} />
+            <ActionBtn icon="codicon-eye" label="Preview" title="Preview selected file" disabled={!canPreview} onClick={() => selectedItem?.previewUrl && openUrl(selectedItem.previewUrl)} />
             <ActionBtn icon="codicon-edit" label="Rename" title="Rename selected item" disabled={!hasSelection} onClick={() => selectedItem && openModal({ kind: 'rename', item: selectedItem })} />
             <ActionBtn icon="codicon-trash" label="Delete" title="Delete selected item" disabled={!hasSelection} danger onClick={() => selectedItem && openModal({ kind: 'delete', item: selectedItem })} />
-            <ActionBtn icon="codicon-cloud-download" label="Download" title="Download selected file" disabled={!isFile} onClick={() => { /* TODO */ }} />
+            <ActionBtn icon="codicon-cloud-download" label="Download" title="Download selected file" disabled={!canDownload} onClick={() => selectedItem?.downloadUrl && openUrl(selectedItem.downloadUrl)} />
         </>
     );
 }
@@ -206,7 +213,7 @@ function NewDropdown() {
 
 // ── Open dropdown ────────────────────────────────────────────────────────────
 
-function OpenDropdown({ disabled }: { disabled: boolean }) {
+function OpenDropdown({ disabled, onOpenInWeb }: { disabled: boolean; onOpenInWeb: () => void }) {
     const [open, setOpen] = useState(false);
     const ref = useRef<HTMLDivElement>(null);
 
@@ -254,7 +261,7 @@ function OpenDropdown({ disabled }: { disabled: boolean }) {
                         padding: '4px 0',
                     }}
                 >
-                    <button className="menu-item" onClick={() => { setOpen(false); /* TODO */ }}>
+                    <button className="menu-item" onClick={() => { setOpen(false); onOpenInWeb(); }}>
                         <span className="codicon codicon-globe" />
                         Open in web browser
                     </button>

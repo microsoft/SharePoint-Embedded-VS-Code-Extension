@@ -46,9 +46,20 @@ export class StorageExplorerPanel {
         this._panel.onDidDispose(() => this.dispose(), null, this._disposables);
 
         this._panel.webview.onDidReceiveMessage(
-            async (message: { command: string; har?: string }) => {
+            async (message: { command: string; har?: string; url?: string }) => {
+                ext.outputChannel.debug(`[StorageExplorerPanel] received message: command=${message.command}`);
                 if (message.command === 'exportHar' && message.har) {
                     await StorageExplorerPanel._handleExportHar(message.har);
+                } else if (message.command === 'openExternal' && message.url) {
+                    ext.outputChannel.info(`[StorageExplorerPanel] opening external URL: ${message.url}`);
+                    try {
+                        await vscode.env.openExternal(vscode.Uri.parse(message.url));
+                        ext.outputChannel.info(`[StorageExplorerPanel] openExternal succeeded`);
+                    } catch (err) {
+                        ext.outputChannel.error(`[StorageExplorerPanel] openExternal failed: ${err}`);
+                    }
+                } else {
+                    ext.outputChannel.warn(`[StorageExplorerPanel] unhandled message command: ${message.command}`);
                 }
             },
             null,

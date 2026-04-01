@@ -12,6 +12,25 @@ export interface StorageItem {
     size: string;
     description?: string;
     mimeType?: string;
+    /**
+     * Browser-facing URL for the item (`DriveItem.webUrl` / `BaseItem.webUrl`).
+     * Opens Office files in the browser viewer; acts as a direct link for
+     * other file types.
+     */
+    webUrl?: string;
+    /**
+     * Pre-authenticated temporary download URL.
+     * Sourced from the `@microsoft.graph.downloadUrl` OData annotation,
+     * which Graph returns when the field is explicitly `$select`-ed.
+     * Expires after a short time — do not cache long-term.
+     */
+    downloadUrl?: string;
+    /**
+     * Embedded preview / view URL returned by `POST /driveItem/preview`
+     * (`ItemPreviewInfo.getUrl`).  Populated on demand after a preview call;
+     * not available from a normal listing response.
+     */
+    previewUrl?: string;
 }
 
 export interface BreadcrumbEntry {

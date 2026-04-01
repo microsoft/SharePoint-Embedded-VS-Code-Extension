@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
-import { DUMMY_CONTAINER_METADATA, ContainerCustomProperty } from '../../data/dummyData';
+import { DUMMY_CONTAINER_METADATA } from '../../data/dummyData';
 import { StorageItem } from '../../models/StorageItem';
 import { Modal } from '../Modal/Modal';
+
+type MetadataRow = { key: string; value?: string; isSearchable?: boolean | null };
 
 interface AddMetadataState {
     key: string;
@@ -12,7 +14,9 @@ interface AddMetadataState {
 const DEFAULT_FORM: AddMetadataState = { key: '', value: '', isSearchable: false };
 
 export function MetadataPanel({ item }: { item: StorageItem | null }) {
-    const [properties, setProperties] = useState<ContainerCustomProperty[]>([...DUMMY_CONTAINER_METADATA]);
+    const [properties, setProperties] = useState<MetadataRow[]>(
+        () => Object.entries(DUMMY_CONTAINER_METADATA).map(([key, v]) => ({ key, ...v }))
+    );
     const [showAdd, setShowAdd] = useState(false);
     const [form, setForm] = useState<AddMetadataState>(DEFAULT_FORM);
     const [editingKey, setEditingKey] = useState<string | null>(null);
@@ -35,8 +39,8 @@ export function MetadataPanel({ item }: { item: StorageItem | null }) {
         setShowAdd(false);
     }
 
-    function openEdit(p: ContainerCustomProperty) {
-        setEditForm({ key: p.key, value: p.value, isSearchable: p.isSearchable });
+    function openEdit(p: MetadataRow) {
+        setEditForm({ key: p.key, value: p.value ?? '', isSearchable: p.isSearchable ?? false });
         setEditingKey(p.key);
     }
 
@@ -92,11 +96,11 @@ export function MetadataPanel({ item }: { item: StorageItem | null }) {
                                 fontSize: 12, opacity: 0.9,
                                 overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                             }}>
-                                {p.value}
+                                {p.value ?? ''}
                             </span>
                             <span title={p.isSearchable ? 'Searchable' : 'Not searchable'}>
                                 <span className="codicon codicon-search" style={{
-                                    fontSize: 12, opacity: p.isSearchable ? 0.85 : 0.2,
+                                    fontSize: 12, opacity: (p.isSearchable ?? false) ? 0.85 : 0.2,
                                 }} />
                             </span>
                             <button

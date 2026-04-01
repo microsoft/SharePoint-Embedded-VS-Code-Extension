@@ -4,7 +4,13 @@
  * touching any component or context files.
  */
 
+import type {
+    Permission,
+    ColumnDefinition,
+    FileStorageContainerCustomPropertyValue,
+} from '@microsoft/microsoft-graph-types';
 import { StorageItem, NetworkRequest } from '../models/StorageItem';
+import type { ContainerRole, PeopleSuggestion, SpeIdentity } from '../models/spe';
 
 export const DUMMY_APP_INFO = {
     name: 'Contoso Files App',
@@ -22,35 +28,114 @@ export const ITEMS_BY_ID: Record<string, StorageItem[]> = {
     c1: [
         { id: 'c1-f1', name: 'Q1 Campaign', kind: 'folder', modifiedAt: 'Mar 10, 2024', type: 'Folder', size: '' },
         { id: 'c1-f2', name: 'Brand Assets', kind: 'folder', modifiedAt: 'Feb 20, 2024', type: 'Folder', size: '' },
-        { id: 'c1-d1', name: 'Brand Guide.pdf', kind: 'file', modifiedAt: 'Feb 14, 2024', type: 'PDF Document', size: '4.2 MB', mimeType: 'application/pdf' },
-        { id: 'c1-d2', name: 'Campaign Deck.pptx', kind: 'file', modifiedAt: 'Mar 5, 2024', type: 'Presentation', size: '8.7 MB', mimeType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation' },
-        { id: 'c1-d3', name: 'Logo Pack.zip', kind: 'file', modifiedAt: 'Jan 30, 2024', type: 'ZIP Archive', size: '128 MB', mimeType: 'application/zip' },
+        {
+            id: 'c1-d1', name: 'Brand Guide.pdf', kind: 'file',
+            modifiedAt: 'Feb 14, 2024', type: 'PDF Document', size: '4.2 MB', mimeType: 'application/pdf',
+            downloadUrl: 'https://contoso.sharepoint.com/sites/contoso/_layouts/15/download.aspx?id=brand-guide.pdf',
+            previewUrl: 'https://contoso.sharepoint.com/_layouts/15/Doc.aspx?sourcedoc=c1-d1&action=embedview',
+        },
+        {
+            id: 'c1-d2', name: 'Campaign Deck.pptx', kind: 'file',
+            modifiedAt: 'Mar 5, 2024', type: 'Presentation', size: '8.7 MB',
+            mimeType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+            webUrl: 'https://contoso.sharepoint.com/:p:/s/contoso/campaign-deck',
+            downloadUrl: 'https://contoso.sharepoint.com/sites/contoso/_layouts/15/download.aspx?id=campaign-deck.pptx',
+            previewUrl: 'https://contoso.sharepoint.com/_layouts/15/Doc.aspx?sourcedoc=c1-d2&action=embedview',
+        },
+        {
+            id: 'c1-d3', name: 'Logo Pack.zip', kind: 'file',
+            modifiedAt: 'Jan 30, 2024', type: 'ZIP Archive', size: '128 MB', mimeType: 'application/zip',
+            downloadUrl: 'https://contoso.sharepoint.com/sites/contoso/_layouts/15/download.aspx?id=logo-pack.zip',
+        },
     ],
     'c1-f1': [
-        { id: 'c1-f1-d1', name: 'Email Campaign.docx', kind: 'file', modifiedAt: 'Mar 8, 2024', type: 'Word Document', size: '2.1 MB', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' },
-        { id: 'c1-f1-d2', name: 'Campaign Budget.xlsx', kind: 'file', modifiedAt: 'Feb 29, 2024', type: 'Spreadsheet', size: '450 KB', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' },
-        { id: 'c1-f1-d3', name: 'Social Media Post.png', kind: 'file', modifiedAt: 'Mar 9, 2024', type: 'Image', size: '1.8 MB', mimeType: 'image/png' },
+        {
+            id: 'c1-f1-d1', name: 'Email Campaign.docx', kind: 'file',
+            modifiedAt: 'Mar 8, 2024', type: 'Word Document', size: '2.1 MB',
+            mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            webUrl: 'https://contoso.sharepoint.com/:w:/s/contoso/email-campaign',
+            downloadUrl: 'https://contoso.sharepoint.com/sites/contoso/_layouts/15/download.aspx?id=email-campaign.docx',
+            previewUrl: 'https://contoso.sharepoint.com/_layouts/15/Doc.aspx?sourcedoc=c1-f1-d1&action=embedview',
+        },
+        {
+            id: 'c1-f1-d2', name: 'Campaign Budget.xlsx', kind: 'file',
+            modifiedAt: 'Feb 29, 2024', type: 'Spreadsheet', size: '450 KB',
+            mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            webUrl: 'https://contoso.sharepoint.com/:x:/s/contoso/campaign-budget',
+            downloadUrl: 'https://contoso.sharepoint.com/sites/contoso/_layouts/15/download.aspx?id=campaign-budget.xlsx',
+            previewUrl: 'https://contoso.sharepoint.com/_layouts/15/Doc.aspx?sourcedoc=c1-f1-d2&action=embedview',
+        },
+        {
+            id: 'c1-f1-d3', name: 'Social Media Post.png', kind: 'file',
+            modifiedAt: 'Mar 9, 2024', type: 'Image', size: '1.8 MB', mimeType: 'image/png',
+            downloadUrl: 'https://contoso.sharepoint.com/sites/contoso/_layouts/15/download.aspx?id=social-media-post.png',
+            previewUrl: 'https://contoso.sharepoint.com/_layouts/15/Doc.aspx?sourcedoc=c1-f1-d3&action=embedview',
+        },
     ],
     'c1-f2': [
-        { id: 'c1-f2-d1', name: 'Primary Logo.svg', kind: 'file', modifiedAt: 'Nov 12, 2023', type: 'Image', size: '42 KB', mimeType: 'image/svg+xml' },
-        { id: 'c1-f2-d2', name: 'Color Palette.pdf', kind: 'file', modifiedAt: 'Oct 5, 2023', type: 'PDF Document', size: '800 KB', mimeType: 'application/pdf' },
+        {
+            id: 'c1-f2-d1', name: 'Primary Logo.svg', kind: 'file',
+            modifiedAt: 'Nov 12, 2023', type: 'Image', size: '42 KB', mimeType: 'image/svg+xml',
+            downloadUrl: 'https://contoso.sharepoint.com/sites/contoso/_layouts/15/download.aspx?id=primary-logo.svg',
+            previewUrl: 'https://contoso.sharepoint.com/_layouts/15/Doc.aspx?sourcedoc=c1-f2-d1&action=embedview',
+        },
+        {
+            id: 'c1-f2-d2', name: 'Color Palette.pdf', kind: 'file',
+            modifiedAt: 'Oct 5, 2023', type: 'PDF Document', size: '800 KB', mimeType: 'application/pdf',
+            downloadUrl: 'https://contoso.sharepoint.com/sites/contoso/_layouts/15/download.aspx?id=color-palette.pdf',
+            previewUrl: 'https://contoso.sharepoint.com/_layouts/15/Doc.aspx?sourcedoc=c1-f2-d2&action=embedview',
+        },
     ],
     c2: [
         { id: 'c2-f1', name: 'Contracts', kind: 'folder', modifiedAt: 'Feb 27, 2024', type: 'Folder', size: '' },
         { id: 'c2-f2', name: 'NDAs', kind: 'folder', modifiedAt: 'Jan 15, 2024', type: 'Folder', size: '' },
-        { id: 'c2-d1', name: 'Policy Handbook.pdf', kind: 'file', modifiedAt: 'Feb 20, 2024', type: 'PDF Document', size: '1.8 MB', mimeType: 'application/pdf' },
+        {
+            id: 'c2-d1', name: 'Policy Handbook.pdf', kind: 'file',
+            modifiedAt: 'Feb 20, 2024', type: 'PDF Document', size: '1.8 MB', mimeType: 'application/pdf',
+            downloadUrl: 'https://contoso.sharepoint.com/sites/contoso/_layouts/15/download.aspx?id=policy-handbook.pdf',
+            previewUrl: 'https://contoso.sharepoint.com/_layouts/15/Doc.aspx?sourcedoc=c2-d1&action=embedview',
+        },
     ],
     c3: [
         { id: 'c3-f1', name: 'Product Specs', kind: 'folder', modifiedAt: 'Mar 19, 2024', type: 'Folder', size: '' },
         { id: 'c3-f2', name: 'Architecture', kind: 'folder', modifiedAt: 'Mar 18, 2024', type: 'Folder', size: '' },
-        { id: 'c3-d1', name: 'Requirements.docx', kind: 'file', modifiedAt: 'Mar 15, 2024', type: 'Word Document', size: '340 KB', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' },
-        { id: 'c3-d2', name: 'Tech Roadmap.xlsx', kind: 'file', modifiedAt: 'Mar 14, 2024', type: 'Spreadsheet', size: '2.3 MB', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' },
-        { id: 'c3-d3', name: 'API Reference.md', kind: 'file', modifiedAt: 'Mar 10, 2024', type: 'Markdown', size: '78 KB', mimeType: 'text/markdown' },
+        {
+            id: 'c3-d1', name: 'Requirements.docx', kind: 'file',
+            modifiedAt: 'Mar 15, 2024', type: 'Word Document', size: '340 KB',
+            mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            webUrl: 'https://contoso.sharepoint.com/:w:/s/contoso/requirements',
+            downloadUrl: 'https://contoso.sharepoint.com/sites/contoso/_layouts/15/download.aspx?id=requirements.docx',
+            previewUrl: 'https://contoso.sharepoint.com/_layouts/15/Doc.aspx?sourcedoc=c3-d1&action=embedview',
+        },
+        {
+            id: 'c3-d2', name: 'Tech Roadmap.xlsx', kind: 'file',
+            modifiedAt: 'Mar 14, 2024', type: 'Spreadsheet', size: '2.3 MB',
+            mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            webUrl: 'https://contoso.sharepoint.com/:x:/s/contoso/tech-roadmap',
+            downloadUrl: 'https://contoso.sharepoint.com/sites/contoso/_layouts/15/download.aspx?id=tech-roadmap.xlsx',
+            previewUrl: 'https://contoso.sharepoint.com/_layouts/15/Doc.aspx?sourcedoc=c3-d2&action=embedview',
+        },
+        {
+            id: 'c3-d3', name: 'API Reference.md', kind: 'file',
+            modifiedAt: 'Mar 10, 2024', type: 'Markdown', size: '78 KB', mimeType: 'text/markdown',
+            downloadUrl: 'https://contoso.sharepoint.com/sites/contoso/_layouts/15/download.aspx?id=api-reference.md',
+            previewUrl: 'https://contoso.sharepoint.com/_layouts/15/Doc.aspx?sourcedoc=c3-d3&action=embedview',
+        },
     ],
     c4: [
         { id: 'c4-f1', name: 'Job Postings', kind: 'folder', modifiedAt: 'Jan 8, 2024', type: 'Folder', size: '' },
-        { id: 'c4-d1', name: 'Employee Handbook.pdf', kind: 'file', modifiedAt: 'Dec 15, 2023', type: 'PDF Document', size: '3.2 MB', mimeType: 'application/pdf' },
-        { id: 'c4-d2', name: 'Benefits Overview.pdf', kind: 'file', modifiedAt: 'Nov 30, 2023', type: 'PDF Document', size: '1.1 MB', mimeType: 'application/pdf' },
+        {
+            id: 'c4-d1', name: 'Employee Handbook.pdf', kind: 'file',
+            modifiedAt: 'Dec 15, 2023', type: 'PDF Document', size: '3.2 MB', mimeType: 'application/pdf',
+            downloadUrl: 'https://contoso.sharepoint.com/sites/contoso/_layouts/15/download.aspx?id=employee-handbook.pdf',
+            previewUrl: 'https://contoso.sharepoint.com/_layouts/15/Doc.aspx?sourcedoc=c4-d1&action=embedview',
+        },
+        {
+            id: 'c4-d2', name: 'Benefits Overview.pdf', kind: 'file',
+            modifiedAt: 'Nov 30, 2023', type: 'PDF Document', size: '1.1 MB', mimeType: 'application/pdf',
+            downloadUrl: 'https://contoso.sharepoint.com/sites/contoso/_layouts/15/download.aspx?id=benefits-overview.pdf',
+            previewUrl: 'https://contoso.sharepoint.com/_layouts/15/Doc.aspx?sourcedoc=c4-d2&action=embedview',
+        },
     ],
 };
 
@@ -167,60 +252,25 @@ export const DUMMY_PERMISSIONS = [
     { identity: 'Marketing Team', role: 'Read', type: 'Group' },
 ];
 
-// ── DriveItem permissions (files & folders) ───────────────────────────────────────
+// ── DriveItem permissions (files & folders) ───────────────────────────────────
+// Typed as MicrosoftGraph.Permission — the canonical Graph API shape.
 
-export type DriveRole = 'read' | 'write' | 'owner';
-export type LinkType = 'view' | 'edit' | 'embed';
-export type LinkScope = 'anonymous' | 'organization' | 'existingAccess';
-
-export interface DriveIdentity {
-    userPrincipalName: string;
-    displayName: string;
-}
-
-export interface DriveItemPermission {
-    id: string;
-    roles: DriveRole[];
-    shareId?: string;
-    expirationDateTime?: string;
-    grantedToV2?: {
-        user?: DriveIdentity;
-        group?: DriveIdentity;
-    };
-    invitation?: {
-        email: string;
-        signInRequired: boolean;
-        invitedBy?: { user?: DriveIdentity };
-    };
-    link?: {
-        type: LinkType;
-        scope: LinkScope;
-        webUrl: string;
-        webHtml?: string;
-        preventsDownload: boolean;
-    };
-    inheritedFrom?: {
-        id: string;
-        path: string;
-    };
-}
-
-export const DUMMY_DRIVE_PERMISSIONS: DriveItemPermission[] = [
+export const DUMMY_DRIVE_PERMISSIONS: Permission[] = [
     {
         id: 'perm-1',
         roles: ['owner'],
-        grantedToV2: { user: { userPrincipalName: 'jane.doe@contoso.com', displayName: 'Jane Doe' } },
+        grantedToV2: { user: { displayName: 'Jane Doe', id: 'aaaaaaaa-0001-0000-0000-000000000001', userPrincipalName: 'jane.doe@contoso.com' } as SpeIdentity },
     },
     {
         id: 'perm-2',
         roles: ['write'],
-        grantedToV2: { user: { userPrincipalName: 'john.smith@contoso.com', displayName: 'John Smith' } },
+        grantedToV2: { user: { displayName: 'John Smith', id: 'aaaaaaaa-0001-0000-0000-000000000002', userPrincipalName: 'john.smith@contoso.com' } as SpeIdentity },
         expirationDateTime: '2026-09-30T23:59:59Z',
     },
     {
         id: 'perm-3',
         roles: ['read'],
-        grantedToV2: { group: { userPrincipalName: 'marketing@contoso.com', displayName: 'Marketing Team' } },
+        grantedToV2: { group: { displayName: 'Marketing Team', id: 'bbbbbbbb-0001-0000-0000-000000000001' } },
     },
     {
         id: 'perm-4',
@@ -251,123 +301,123 @@ export const DUMMY_DRIVE_PERMISSIONS: DriveItemPermission[] = [
         invitation: {
             email: 'alice.brown@external.com',
             signInRequired: true,
-            invitedBy: { user: { userPrincipalName: 'jane.doe@contoso.com', displayName: 'Jane Doe' } },
+            invitedBy: { user: { displayName: 'Jane Doe' } },
         },
     },
     {
         id: 'perm-7',
         roles: ['read'],
-        grantedToV2: { group: { userPrincipalName: 'allemployees@contoso.com', displayName: 'All Employees' } },
-        inheritedFrom: { id: 'parent-folder', path: '/Marketing' },
+        grantedToV2: { group: { displayName: 'All Employees', id: 'bbbbbbbb-0001-0000-0000-000000000002' } },
+        inheritedFrom: { id: 'parent-folder', path: '/Marketing', driveId: '', driveType: '' },
     },
 ];
 
 // ── Container permissions ───────────────────────────────────────────────────
+// ContainerRole is the SPE-specific role enum (not in graph-types).
+// PeopleSuggestion is our people-picker view model (from spe.ts).
 
-export type ContainerRole = 'owner' | 'manager' | 'writer' | 'reader';
-
-export interface PermissionMember {
-    id: string;
-    displayName: string;
-    email: string;
-    type: 'user' | 'group';
-}
-
-export const DUMMY_CONTAINER_PERMISSIONS: Record<ContainerRole, PermissionMember[]> = {
+export const DUMMY_CONTAINER_PERMISSIONS: Record<ContainerRole, PeopleSuggestion[]> = {
     owner: [
-        { id: 'u1', displayName: 'Jane Doe', email: 'jane.doe@contoso.com', type: 'user' },
-        { id: 'u2', displayName: 'John Smith', email: 'john.smith@contoso.com', type: 'user' },
+        { id: 'aaaaaaaa-0001-0000-0000-000000000001', displayName: 'Jane Doe',    email: 'jane.doe@contoso.com',    userPrincipalName: 'jane.doe@contoso.com',    kind: 'user' },
+        { id: 'aaaaaaaa-0001-0000-0000-000000000002', displayName: 'John Smith',  email: 'john.smith@contoso.com',  userPrincipalName: 'john.smith@contoso.com',  kind: 'user' },
     ],
     manager: [
-        { id: 'g1', displayName: 'Marketing Team', email: 'marketing@contoso.com', type: 'group' },
+        { id: 'bbbbbbbb-0001-0000-0000-000000000001', displayName: 'Marketing Team', email: 'marketing@contoso.com', kind: 'group' },
     ],
     writer: [
-        { id: 'u3', displayName: 'Alice Brown', email: 'alice.brown@contoso.com', type: 'user' },
-        { id: 'u4', displayName: 'Bob Wilson', email: 'bob.wilson@contoso.com', type: 'user' },
+        { id: 'aaaaaaaa-0001-0000-0000-000000000003', displayName: 'Alice Brown', email: 'alice.brown@contoso.com', userPrincipalName: 'alice.brown@contoso.com', kind: 'user' },
+        { id: 'aaaaaaaa-0001-0000-0000-000000000004', displayName: 'Bob Wilson',  email: 'bob.wilson@contoso.com',  userPrincipalName: 'bob.wilson@contoso.com',  kind: 'user' },
     ],
     reader: [
-        { id: 'g2', displayName: 'All Employees', email: 'allemployees@contoso.com', type: 'group' },
-        { id: 'u5', displayName: 'Charlie Davis', email: 'charlie.davis@contoso.com', type: 'user' },
+        { id: 'bbbbbbbb-0001-0000-0000-000000000002', displayName: 'All Employees',  email: 'allemployees@contoso.com', kind: 'group' },
+        { id: 'aaaaaaaa-0001-0000-0000-000000000005', displayName: 'Charlie Davis', email: 'charlie.davis@contoso.com', userPrincipalName: 'charlie.davis@contoso.com', kind: 'user' },
     ],
 };
 
-export const DUMMY_USERS_AND_GROUPS: PermissionMember[] = [
-    { id: 'u1', displayName: 'Jane Doe', email: 'jane.doe@contoso.com', type: 'user' },
-    { id: 'u2', displayName: 'John Smith', email: 'john.smith@contoso.com', type: 'user' },
-    { id: 'u3', displayName: 'Alice Brown', email: 'alice.brown@contoso.com', type: 'user' },
-    { id: 'u4', displayName: 'Bob Wilson', email: 'bob.wilson@contoso.com', type: 'user' },
-    { id: 'u5', displayName: 'Charlie Davis', email: 'charlie.davis@contoso.com', type: 'user' },
-    { id: 'u6', displayName: 'Diana Evans', email: 'diana.evans@contoso.com', type: 'user' },
-    { id: 'u7', displayName: 'Edward Foster', email: 'edward.foster@contoso.com', type: 'user' },
-    { id: 'g1', displayName: 'Marketing Team', email: 'marketing@contoso.com', type: 'group' },
-    { id: 'g2', displayName: 'All Employees', email: 'allemployees@contoso.com', type: 'group' },
-    { id: 'g3', displayName: 'Engineering Team', email: 'engineering@contoso.com', type: 'group' },
-    { id: 'g4', displayName: 'Legal Team', email: 'legal@contoso.com', type: 'group' },
+export const DUMMY_USERS_AND_GROUPS: PeopleSuggestion[] = [
+    { id: 'aaaaaaaa-0001-0000-0000-000000000001', displayName: 'Jane Doe',       email: 'jane.doe@contoso.com',       userPrincipalName: 'jane.doe@contoso.com',       kind: 'user' },
+    { id: 'aaaaaaaa-0001-0000-0000-000000000002', displayName: 'John Smith',     email: 'john.smith@contoso.com',     userPrincipalName: 'john.smith@contoso.com',     kind: 'user' },
+    { id: 'aaaaaaaa-0001-0000-0000-000000000003', displayName: 'Alice Brown',    email: 'alice.brown@contoso.com',    userPrincipalName: 'alice.brown@contoso.com',    kind: 'user' },
+    { id: 'aaaaaaaa-0001-0000-0000-000000000004', displayName: 'Bob Wilson',     email: 'bob.wilson@contoso.com',     userPrincipalName: 'bob.wilson@contoso.com',     kind: 'user' },
+    { id: 'aaaaaaaa-0001-0000-0000-000000000005', displayName: 'Charlie Davis',  email: 'charlie.davis@contoso.com',  userPrincipalName: 'charlie.davis@contoso.com',  kind: 'user' },
+    { id: 'aaaaaaaa-0001-0000-0000-000000000006', displayName: 'Diana Evans',    email: 'diana.evans@contoso.com',    userPrincipalName: 'diana.evans@contoso.com',    kind: 'user' },
+    { id: 'aaaaaaaa-0001-0000-0000-000000000007', displayName: 'Edward Foster',  email: 'edward.foster@contoso.com',  userPrincipalName: 'edward.foster@contoso.com',  kind: 'user' },
+    { id: 'bbbbbbbb-0001-0000-0000-000000000001', displayName: 'Marketing Team', email: 'marketing@contoso.com',      kind: 'group' },
+    { id: 'bbbbbbbb-0001-0000-0000-000000000002', displayName: 'All Employees',  email: 'allemployees@contoso.com',   kind: 'group' },
+    { id: 'bbbbbbbb-0001-0000-0000-000000000003', displayName: 'Engineering Team', email: 'engineering@contoso.com',  kind: 'group' },
+    { id: 'bbbbbbbb-0001-0000-0000-000000000004', displayName: 'Legal Team',     email: 'legal@contoso.com',          kind: 'group' },
 ];
 
 // ── Container columns ───────────────────────────────────────────────────────
+// Typed as MicrosoftGraph.ColumnDefinition.
+// The column "type" is encoded in which facet property is set (choice, number, etc.)
+// rather than a separate discriminator field.  Use getColumnTypeName() from spe.ts
+// to derive the display type.
 
-export type ColumnTypeName =
-    | 'text' | 'boolean' | 'dateTime' | 'currency'
-    | 'choice' | 'hyperlinkOrPicture' | 'number' | 'personOrGroup';
-
-export interface ContainerColumn {
-    id: string;
-    name: string;
-    displayName: string;
-    description: string;
-    enforceUniqueValues: boolean;
-    hidden: boolean;
-    indexed: boolean;
-    columnType: ColumnTypeName;
-    /** Only present for choice columns */
-    choiceSettings?: { choices: string[]; allowTextEntry: boolean };
-    /** Only present for number columns */
-    numberSettings?: { decimalPlaces?: string; displayAs?: 'number' | 'percentage'; minimum?: number; maximum?: number };
-    /** Only present for dateTime columns */
-    dateTimeSettings?: { format?: 'dateOnly' | 'dateTime' };
-    /** Only present for currency columns */
-    currencySettings?: { locale?: string };
-    /** Only present for hyperlinkOrPicture columns */
-    hyperlinkSettings?: { isPicture?: boolean };
-    /** Only present for personOrGroup columns */
-    personOrGroupSettings?: { allowMultipleSelection?: boolean; chooseFromType?: 'peopleAndGroups' | 'peopleOnly' };
-}
-
-export const DUMMY_CONTAINER_COLUMNS: ContainerColumn[] = [
-    { id: 'col1', name: 'Department', displayName: 'Department', description: 'Owning department', enforceUniqueValues: false, hidden: false, indexed: true, columnType: 'text' },
-    { id: 'col2', name: 'Status', displayName: 'Status', description: 'Approval status', enforceUniqueValues: false, hidden: false, indexed: true, columnType: 'choice',
-      choiceSettings: { choices: ['Draft', 'Under Review', 'Approved', 'Rejected'], allowTextEntry: false } },
-    { id: 'col3', name: 'ExpiryDate', displayName: 'Expiry Date', description: 'Document expiry date', enforceUniqueValues: false, hidden: false, indexed: false, columnType: 'dateTime',
-      dateTimeSettings: { format: 'dateOnly' } },
-    { id: 'col4', name: 'Confidential', displayName: 'Confidential', description: 'Mark as confidential', enforceUniqueValues: false, hidden: false, indexed: false, columnType: 'boolean' },
-    { id: 'col5', name: 'Budget', displayName: 'Budget', description: 'Allocated budget (USD)', enforceUniqueValues: false, hidden: false, indexed: false, columnType: 'currency',
-      currencySettings: { locale: 'en-us' } },
-    { id: 'col6', name: 'ReviewedBy', displayName: 'Reviewed By', description: 'Person who reviewed this document', enforceUniqueValues: false, hidden: false, indexed: false, columnType: 'personOrGroup',
-      personOrGroupSettings: { allowMultipleSelection: false, chooseFromType: 'peopleOnly' } },
-    { id: 'col7', name: 'ReferenceUrl', displayName: 'Reference URL', description: 'Link to related resource', enforceUniqueValues: false, hidden: false, indexed: false, columnType: 'hyperlinkOrPicture',
-      hyperlinkSettings: { isPicture: false } },
-    { id: 'col8', name: 'Priority', displayName: 'Priority', description: 'Numeric priority (1–10)', enforceUniqueValues: false, hidden: false, indexed: false, columnType: 'number',
-      numberSettings: { decimalPlaces: 'none', displayAs: 'number', minimum: 1, maximum: 10 } },
+export const DUMMY_CONTAINER_COLUMNS: ColumnDefinition[] = [
+    {
+        id: 'col1', name: 'Department', displayName: 'Department',
+        description: 'Owning department', enforceUniqueValues: false,
+        hidden: false, indexed: true,
+        text: {},
+    },
+    {
+        id: 'col2', name: 'Status', displayName: 'Status',
+        description: 'Approval status', enforceUniqueValues: false,
+        hidden: false, indexed: true,
+        choice: { choices: ['Draft', 'Under Review', 'Approved', 'Rejected'], allowTextEntry: false },
+    },
+    {
+        id: 'col3', name: 'ExpiryDate', displayName: 'Expiry Date',
+        description: 'Document expiry date', enforceUniqueValues: false,
+        hidden: false, indexed: false,
+        dateTime: { format: 'dateOnly' },
+    },
+    {
+        id: 'col4', name: 'Confidential', displayName: 'Confidential',
+        description: 'Mark as confidential', enforceUniqueValues: false,
+        hidden: false, indexed: false,
+        boolean: {},
+    },
+    {
+        id: 'col5', name: 'Budget', displayName: 'Budget',
+        description: 'Allocated budget (USD)', enforceUniqueValues: false,
+        hidden: false, indexed: false,
+        currency: { locale: 'en-us' },
+    },
+    {
+        id: 'col6', name: 'ReviewedBy', displayName: 'Reviewed By',
+        description: 'Person who reviewed this document', enforceUniqueValues: false,
+        hidden: false, indexed: false,
+        personOrGroup: { allowMultipleSelection: false, chooseFromType: 'peopleOnly' },
+    },
+    {
+        id: 'col7', name: 'ReferenceUrl', displayName: 'Reference URL',
+        description: 'Link to related resource', enforceUniqueValues: false,
+        hidden: false, indexed: false,
+        hyperlinkOrPicture: { isPicture: false },
+    },
+    {
+        id: 'col8', name: 'Priority', displayName: 'Priority',
+        description: 'Numeric priority (1–10)', enforceUniqueValues: false,
+        hidden: false, indexed: false,
+        number: { decimalPlaces: 'none', displayAs: 'number', minimum: 1, maximum: 10 },
+    },
 ];
 
 // ── Container metadata (custom properties) ──────────────────────────────────
+// Typed as Record<string, MicrosoftGraph.FileStorageContainerCustomPropertyValue>,
+// which mirrors the Graph API response shape exactly.
 
-export interface ContainerCustomProperty {
-    key: string;
-    value: string;
-    isSearchable: boolean;
-}
+export const DUMMY_CONTAINER_METADATA: Record<string, FileStorageContainerCustomPropertyValue> = {
+    costCenter:    { value: 'CC-4821',                              isSearchable: true  },
+    projectPhase:  { value: 'Planning',                             isSearchable: true  },
+    internalNotes: { value: 'Requires approval before sharing',     isSearchable: false },
+};
 
-export const DUMMY_CONTAINER_METADATA: ContainerCustomProperty[] = [
-    { key: 'costCenter', value: 'CC-4821', isSearchable: true },
-    { key: 'projectPhase', value: 'Planning', isSearchable: true },
-    { key: 'internalNotes', value: 'Requires approval before sharing', isSearchable: false },
-];
+// ── DriveItem fields (files & folders) ─────────────────────────────────────
+// Record<itemId, Record<columnName, serialized-string-value>>
 
-// ── DriveItem fields (files & folders) ──────────────────────────────────────────────
-
-/** Record<columnName, serialized-string-value> */
 export const DUMMY_ITEM_FIELDS: Record<string, Record<string, string>> = {
     'c1-d1': { Department: 'Marketing', Status: 'Approved', Confidential: 'true' },
     'c1-d2': { Department: 'Marketing', Status: 'Under Review', Budget: '15000' },
