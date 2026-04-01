@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
-import { DUMMY_CONTAINER_COLUMNS, ContainerColumn, ColumnTypeName } from '../../data/dummyData';
+import type { ColumnDefinition } from '@microsoft/microsoft-graph-types';
+import { DUMMY_CONTAINER_COLUMNS } from '../../data/dummyData';
+import { ColumnTypeName, getColumnTypeName } from '../../models/spe';
 import { StorageItem } from '../../models/StorageItem';
 import { Modal } from '../Modal/Modal';
 
@@ -62,7 +64,7 @@ const DEFAULT_ADD: AddColumnState = {
 };
 
 export function ColumnsPanel({ item }: { item: StorageItem | null }) {
-    const [columns, setColumns] = useState<ContainerColumn[]>([...DUMMY_CONTAINER_COLUMNS]);
+    const [columns, setColumns] = useState<ColumnDefinition[]>([...DUMMY_CONTAINER_COLUMNS]);
     const [showAdd, setShowAdd] = useState(false);
     const [form, setForm] = useState<AddColumnState>(DEFAULT_ADD);
     const [editingId, setEditingId] = useState<string | null>(null);
@@ -81,7 +83,19 @@ export function ColumnsPanel({ item }: { item: StorageItem | null }) {
 
     function confirmAdd() {
         if (!form.name.trim()) return;
-        const newCol: ContainerColumn = {
+        const facet: Partial<ColumnDefinition> = (() => {
+            switch (form.columnType) {
+                case 'boolean':            return { boolean: {} };
+                case 'dateTime':           return { dateTime: { format: form.dateTime.format } };
+                case 'currency':           return { currency: { locale: form.currency.locale } };
+                case 'choice':             return { choice: { choices: form.choice.choices.filter(Boolean), allowTextEntry: form.choice.allowTextEntry } };
+                case 'hyperlinkOrPicture': return { hyperlinkOrPicture: { isPicture: form.hyperlinkOrPicture.isPicture } };
+                case 'number':             return { number: { decimalPlaces: form.number.decimalPlaces, displayAs: form.number.displayAs, minimum: form.number.minimum ? parseFloat(form.number.minimum) : null, maximum: form.number.maximum ? parseFloat(form.number.maximum) : null } };
+                case 'personOrGroup':      return { personOrGroup: { allowMultipleSelection: form.personOrGroup.allowMultipleSelection, chooseFromType: form.personOrGroup.chooseFromType } };
+                default:                   return { text: {} };
+            }
+        })();
+        const newCol: ColumnDefinition = {
             id: `col-${Date.now()}`,
             name: form.name.trim().replace(/\s+/g, ''),
             displayName: form.name.trim(),
@@ -89,15 +103,15 @@ export function ColumnsPanel({ item }: { item: StorageItem | null }) {
             enforceUniqueValues: false,
             hidden: false,
             indexed: form.indexed,
-            columnType: form.columnType,
+            ...facet,
         };
         setColumns(prev => [...prev, newCol]);
         setShowAdd(false);
     }
 
-    function openEdit(col: ContainerColumn) {
-        setEditForm({ ...DEFAULT_ADD, name: col.displayName, description: col.description, indexed: col.indexed, columnType: col.columnType });
-        setEditingId(col.id);
+    function openEdit(col: ColumnDefinition) {
+        setEditForm({ ...DEFAULT_ADD, name: col.displayName ?? '', description: col.description ?? '', indexed: col.indexed ?? true, columnType: getColumnTypeName(col) });
+        setEditingId(col.id ?? '');
     }
 
     function confirmEdit() {
@@ -125,7 +139,7 @@ export function ColumnsPanel({ item }: { item: StorageItem | null }) {
                 <p style={{ margin: 0, opacity: 0.4, fontSize: 12, fontStyle: 'italic' }}>No columns defined.</p>
             ) : (
                 columns.map(col => (
-                    <div key={col.id} style={{
+                    <div key={col.id ?? ''} style={{
                         display: 'flex', alignItems: 'flex-start', gap: 8,
                         padding: '7px 0',
                         borderBottom: '1px solid var(--vscode-panel-border)',
@@ -133,21 +147,21 @@ export function ColumnsPanel({ item }: { item: StorageItem | null }) {
                         <div style={{ flex: 1, minWidth: 0 }}>
                             {/* Name + type badge + flags */}
                             <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
-                                <span style={{ fontSize: 12, fontWeight: 600 }}>{col.displayName}</span>
+                                <span style={{ fontSize: 12, fontWeight: 600 }}>{col.displayName ?? ''}</span>
                                 <span style={{
                                     fontSize: 10, padding: '1px 6px', borderRadius: 8,
-                                    border: `1px solid ${COLUMN_TYPE_COLORS[col.columnType]}50`,
-                                    color: COLUMN_TYPE_COLORS[col.columnType],
+                                    border: `1px solid ${COLUMN_TYPE_COLORS[getColumnTypeName(col)]}50`,
+                                    color: COLUMN_TYPE_COLORS[getColumnTypeName(col)],
                                     whiteSpace: 'nowrap',
                                 }}>
-                                    {COLUMN_TYPE_LABELS[col.columnType]}
+                                    {COLUMN_TYPE_LABELS[getColumnTypeName(col)]}
                                 </span>
-                                {col.indexed && (
+                                {(col.indexed ?? false) && (
                                     <span title="Indexed — searchable">
                                         <span className="codicon codicon-search" style={{ fontSize: 11, opacity: 0.65 }} />
                                     </span>
                                 )}
-                                {col.hidden && (
+                                {(col.hidden ?? false) && (
                                     <span title="Hidden">
                                         <span className="codicon codicon-eye-closed" style={{ fontSize: 11, opacity: 0.65 }} />
                                     </span>
@@ -170,7 +184,7 @@ export function ColumnsPanel({ item }: { item: StorageItem | null }) {
                         </button>
                         <button
                             className="icon-btn" title="Remove column" style={{ fontSize: 13, flexShrink: 0 }}
-                            onClick={() => removeColumn(col.id)}
+                            onClick={() => removeColumn(col.id ?? '')}
                         >
                             <span className="codicon codicon-close" />
                         </button>

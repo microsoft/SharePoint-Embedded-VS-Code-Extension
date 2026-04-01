@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { ContainerColumn, DUMMY_CONTAINER_COLUMNS, DUMMY_ITEM_FIELDS } from '../../data/dummyData';
+import type { ColumnDefinition } from '@microsoft/microsoft-graph-types';
+import { DUMMY_CONTAINER_COLUMNS, DUMMY_ITEM_FIELDS } from '../../data/dummyData';
+import { getColumnTypeName } from '../../models/spe';
 import { StorageItem } from '../../models/StorageItem';
 import { Modal } from '../Modal/Modal';
 
@@ -60,8 +62,9 @@ const TYPE_LABELS: Record<string, string> = {
     personOrGroup: 'Person',
 };
 
-function TypeChip({ col }: { col: ContainerColumn }) {
-    const color = TYPE_COLORS[col.columnType] ?? 'var(--vscode-foreground)';
+function TypeChip({ col }: { col: ColumnDefinition }) {
+    const typeName = getColumnTypeName(col);
+    const color = TYPE_COLORS[typeName] ?? 'var(--vscode-foreground)';
     return (
         <span style={{
             fontSize: 10,
@@ -72,15 +75,16 @@ function TypeChip({ col }: { col: ContainerColumn }) {
             color,
             border: `1px solid ${color}50`,
         }}>
-            {TYPE_LABELS[col.columnType] ?? col.columnType}
+            {TYPE_LABELS[typeName] ?? typeName}
         </span>
     );
 }
 
 // ── Type-aware read-only value display ────────────────────────────────────────
 
-function formatFieldValue(col: ContainerColumn, value: string): React.ReactNode {
-    if (col.columnType === 'boolean') {
+function formatFieldValue(col: ColumnDefinition, value: string): React.ReactNode {
+    const colType = getColumnTypeName(col);
+    if (colType === 'boolean') {
         const isTrue = value === 'true';
         return (
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
@@ -92,23 +96,23 @@ function formatFieldValue(col: ContainerColumn, value: string): React.ReactNode 
             </span>
         );
     }
-    if (col.columnType === 'dateTime' && value) {
+    if (colType === 'dateTime' && value) {
         try {
             return new Date(value + 'T00:00:00').toLocaleDateString();
         } catch {
             return value;
         }
     }
-    if (col.columnType === 'currency' && value) {
+    if (colType === 'currency' && value) {
         const num = parseFloat(value);
         if (!isNaN(num)) {
-            return new Intl.NumberFormat(col.currencySettings?.locale ?? 'en-US', {
+            return new Intl.NumberFormat(col.currency?.locale ?? 'en-US', {
                 style: 'currency',
                 currency: 'USD',
             }).format(num);
         }
     }
-    if (col.columnType === 'hyperlinkOrPicture' && value) {
+    if (colType === 'hyperlinkOrPicture' && value) {
         return (
             <a href={value} target="_blank" rel="noreferrer" style={{ color: 'var(--vscode-textLink-foreground)', fontSize: 12 }}>
                 {value}
@@ -121,11 +125,11 @@ function formatFieldValue(col: ContainerColumn, value: string): React.ReactNode 
 // ── Type-specific field value input ──────────────────────────────────────────
 
 function FieldValueInput({ col, value, onChange }: {
-    col: ContainerColumn;
+    col: ColumnDefinition;
     value: string;
     onChange: (v: string) => void;
 }) {
-    switch (col.columnType) {
+    switch (getColumnTypeName(col)) {
         case 'boolean':
             return (
                 <div style={{ display: 'flex', gap: 16, padding: '4px 0' }}>
@@ -145,8 +149,8 @@ function FieldValueInput({ col, value, onChange }: {
             );
 
         case 'choice': {
-            const choices = col.choiceSettings?.choices ?? [];
-            const allowFree = col.choiceSettings?.allowTextEntry ?? false;
+            const choices = col.choice?.choices ?? [];
+            const allowFree = col.choice?.allowTextEntry ?? false;
             if (allowFree) {
                 const isCustom = Boolean(value && !choices.includes(value));
                 return (
@@ -186,7 +190,7 @@ function FieldValueInput({ col, value, onChange }: {
         case 'dateTime':
             return (
                 <input
-                    type={col.dateTimeSettings?.format === 'dateTime' ? 'datetime-local' : 'date'}
+                    type={col.dateTime?.format === 'dateTime' ? 'datetime-local' : 'date'}
                     style={INPUT}
                     value={value}
                     onChange={e => onChange(e.target.value)}
@@ -207,15 +211,14 @@ function FieldValueInput({ col, value, onChange }: {
             );
 
         case 'number': {
-            const ns = col.numberSettings;
             return (
                 <input
                     type="number"
                     style={INPUT}
                     placeholder="0"
-                    step={ns?.decimalPlaces === 'none' ? '1' : 'any'}
-                    min={ns?.minimum}
-                    max={ns?.maximum}
+                    step={col.number?.decimalPlaces === 'none' ? '1' : 'any'}
+                    min={col.number?.minimum ?? undefined}
+                    max={col.number?.maximum ?? undefined}
                     value={value}
                     onChange={e => onChange(e.target.value)}
                 />
@@ -259,7 +262,7 @@ function FieldValueInput({ col, value, onChange }: {
 
 interface FieldDialogProps {
     /** Available columns (filtered to unset ones when adding) */
-    columns: ContainerColumn[];
+    columns: ColumnDefinition[];
     initialColumnId: string;
     initialValue: string;
     isEdit: boolean;
@@ -279,8 +282,9 @@ function FieldDialog({ columns, initialColumnId, initialValue, isEdit, onConfirm
     }
 
     // boolean and choice require a non-empty selection to confirm
+    const colType = selectedCol ? getColumnTypeName(selectedCol) : 'text';
     const canConfirm = !!selectedCol && (
-        selectedCol.columnType === 'boolean' || selectedCol.columnType === 'choice'
+        colType === 'boolean' || colType === 'choice'
             ? value !== ''
             : true
     );
@@ -322,7 +326,7 @@ function FieldDialog({ columns, initialColumnId, initialValue, isEdit, onConfirm
                             onChange={e => handleColumnChange(e.target.value)}
                         >
                             {columns.map(c => (
-                                <option key={c.id} value={c.id}>{c.displayName}</option>
+                                <option key={c.id ?? ''} value={c.id ?? ''}>{c.displayName ?? ''}</option>
                             ))}
                         </select>
                         {selectedCol?.description && (
@@ -338,7 +342,7 @@ function FieldDialog({ columns, initialColumnId, initialValue, isEdit, onConfirm
                     <div>
                         <label style={LBL}>
                             Value{' '}
-                            {selectedCol.columnType !== 'boolean' && (
+                            {getColumnTypeName(selectedCol) !== 'boolean' && (
                                 <span style={{ color: 'var(--vscode-errorForeground)' }}>*</span>
                             )}
                         </label>
@@ -386,13 +390,13 @@ export function FileMetadataPanel({ item }: { item: StorageItem | null }) {
     }
 
     const setFieldNames = Object.keys(fields);
-    const unsetColumns = ALL_COLUMNS.filter(c => !setFieldNames.includes(c.name));
+    const unsetColumns = ALL_COLUMNS.filter(c => c.name != null && !setFieldNames.includes(c.name));
     const colByName = (name: string) => ALL_COLUMNS.find(c => c.name === name);
 
     function handleSetField(columnId: string, value: string) {
         const col = ALL_COLUMNS.find(c => c.id === columnId);
         if (!col) return;
-        setFields(prev => ({ ...prev, [col.name]: value }));
+        setFields(prev => ({ ...prev, [col.name ?? '']: value }));
         setShowAdd(false);
         setEditingColName(null);
     }
@@ -479,7 +483,7 @@ export function FileMetadataPanel({ item }: { item: StorageItem | null }) {
             {showAdd && unsetColumns.length > 0 && (
                 <FieldDialog
                     columns={unsetColumns}
-                    initialColumnId={unsetColumns[0].id}
+                    initialColumnId={unsetColumns[0].id ?? ''}
                     initialValue=""
                     isEdit={false}
                     onConfirm={handleSetField}
@@ -494,7 +498,7 @@ export function FileMetadataPanel({ item }: { item: StorageItem | null }) {
                 return (
                     <FieldDialog
                         columns={ALL_COLUMNS}
-                        initialColumnId={col.id}
+                        initialColumnId={col.id ?? ''}
                         initialValue={fields[editingColName] ?? ''}
                         isEdit={true}
                         onConfirm={handleSetField}

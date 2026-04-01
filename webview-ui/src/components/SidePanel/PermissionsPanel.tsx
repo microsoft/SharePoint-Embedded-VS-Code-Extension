@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
     DUMMY_CONTAINER_PERMISSIONS, DUMMY_USERS_AND_GROUPS,
-    PermissionMember, ContainerRole,
 } from '../../data/dummyData';
+import type { PeopleSuggestion, ContainerRole } from '../../models/spe';
 import { StorageItem } from '../../models/StorageItem';
 import { Modal } from '../Modal/Modal';
 
@@ -28,11 +28,11 @@ const ROLE_COLORS: Record<ContainerRole, string> = {
     reader: 'var(--vscode-foreground)',
 };
 
-type Permissions = Record<ContainerRole, PermissionMember[]>;
+type Permissions = Record<ContainerRole, PeopleSuggestion[]>;
 
 interface AddDialogState {
     searchText: string;
-    selectedMember: PermissionMember | null;
+    selectedMember: PeopleSuggestion | null;
     role: ContainerRole;
     dropdownOpen: boolean;
 }
@@ -67,7 +67,7 @@ export function PermissionsPanel({ item }: { item: StorageItem | null }) {
         setShowAdd(false);
     }
 
-    function openEdit(role: ContainerRole, member: PermissionMember) {
+    function openEdit(role: ContainerRole, member: PeopleSuggestion) {
         setEditState({
             originalRole: role,
             originalId: member.id,
@@ -131,7 +131,7 @@ export function PermissionsPanel({ item }: { item: StorageItem | null }) {
                                     borderBottom: '1px solid var(--vscode-panel-border)',
                                 }}>
                                     <span
-                                        className={`codicon ${m.type === 'group' ? 'codicon-organization' : 'codicon-account'}`}
+                                        className={`codicon ${m.kind === 'group' ? 'codicon-organization' : 'codicon-account'}`}
                                         style={{ fontSize: 14, opacity: 0.65, flexShrink: 0 }}
                                     />
                                     <div style={{ flex: 1, minWidth: 0 }}>
@@ -139,7 +139,7 @@ export function PermissionsPanel({ item }: { item: StorageItem | null }) {
                                             {m.displayName}
                                         </div>
                                         <div style={{ fontSize: 11, opacity: 0.55, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                            {m.email}
+                                            {m.userPrincipalName ?? m.email}
                                         </div>
                                     </div>
                                     <button
@@ -203,7 +203,9 @@ function AddPermissionForm({
     const filtered = DUMMY_USERS_AND_GROUPS.filter(m => {
         const q = dialog.searchText.toLowerCase();
         return q.length > 0 && (
-            m.displayName.toLowerCase().includes(q) || m.email.toLowerCase().includes(q)
+            m.displayName.toLowerCase().includes(q) ||
+            m.email.toLowerCase().includes(q) ||
+            (m.userPrincipalName?.toLowerCase().includes(q) ?? false)
         );
     });
 
@@ -274,14 +276,14 @@ function AddPermissionForm({
                                     onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
                                 >
                                     <span
-                                        className={`codicon ${m.type === 'group' ? 'codicon-organization' : 'codicon-account'}`}
+                                        className={`codicon ${m.kind === 'group' ? 'codicon-organization' : 'codicon-account'}`}
                                         style={{ opacity: 0.7, flexShrink: 0 }}
                                     />
                                     <div style={{ overflow: 'hidden' }}>
                                         <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                             {m.displayName}
                                         </div>
-                                        <div style={{ fontSize: 11, opacity: 0.6 }}>{m.email}</div>
+                                        <div style={{ fontSize: 11, opacity: 0.6 }}>{m.userPrincipalName ?? m.email}</div>
                                     </div>
                                 </button>
                             ))}

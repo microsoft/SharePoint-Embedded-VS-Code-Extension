@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
+import type { Permission } from '@microsoft/microsoft-graph-types';
+import type { SpeIdentity } from '../../models/spe';
 import {
-    DriveItemPermission, DriveRole, LinkType, LinkScope,
     DUMMY_DRIVE_PERMISSIONS,
 } from '../../data/dummyData';
 import { StorageItem } from '../../models/StorageItem';
@@ -8,8 +9,11 @@ import { Modal } from '../Modal/Modal';
 
 // ── Permission type discriminator ────────────────────────────────────────────
 type PermissionKind = 'direct' | 'link' | 'invitation';
+type DriveRole = 'owner' | 'write' | 'read';
+type LinkType = 'view' | 'edit' | 'embed';
+type LinkScope = 'anonymous' | 'organization' | 'existingAccess';
 
-function getKind(p: DriveItemPermission): PermissionKind {
+function getKind(p: Permission): PermissionKind {
     if (p.link) return 'link';
     if (p.invitation) return 'invitation';
     return 'direct';
@@ -49,8 +53,8 @@ const CHECK: React.CSSProperties = { display: 'flex', alignItems: 'center', gap:
 const FORM: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 14 };
 
 // ── Small reusable components ─────────────────────────────────────────────────
-function RoleBadge({ roles }: { roles: DriveRole[] }) {
-    const role = roles[0];
+function RoleBadge({ roles }: { roles: string[] | null | undefined }) {
+    const role = (roles ?? [])[0] as DriveRole | undefined;
     if (!role) return null;
     return (
         <span style={{
@@ -102,8 +106,9 @@ function ExpirationPicker({ value, onChange }: { value: string; onChange: (v: st
 }
 
 // ── Permission row identity sub-views ─────────────────────────────────────────
-function DirectIdentity({ perm }: { perm: DriveItemPermission }) {
-    const identity = perm.grantedToV2?.user ?? perm.grantedToV2?.group;
+function DirectIdentity({ perm }: { perm: Permission }) {
+    const rawIdentity = perm.grantedToV2?.user ?? perm.grantedToV2?.group;
+    const identity = rawIdentity as SpeIdentity | undefined;
     const isGroup = !!perm.grantedToV2?.group;
     return (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
@@ -115,26 +120,28 @@ function DirectIdentity({ perm }: { perm: DriveItemPermission }) {
                 <div style={{ fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {identity?.displayName ?? '—'}
                 </div>
-                <div style={{ fontSize: 11, opacity: 0.55, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {identity?.userPrincipalName}
-                </div>
+                {identity?.userPrincipalName && (
+                    <div style={{ fontSize: 11, opacity: 0.55, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {identity.userPrincipalName}
+                    </div>
+                )}
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
                 <RoleBadge roles={perm.roles} />
-                <ExpiryBadge iso={perm.expirationDateTime} />
+                <ExpiryBadge iso={perm.expirationDateTime ?? undefined} />
             </div>
         </div>
     );
 }
 
-function InvitationIdentity({ perm }: { perm: DriveItemPermission }) {
+function InvitationIdentity({ perm }: { perm: Permission }) {
     const inv = perm.invitation!;
     return (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
             <span className="codicon codicon-mail" style={{ fontSize: 14, opacity: 0.65, flexShrink: 0 }} />
             <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {inv.email}
+                    {inv.email ?? ''}
                 </div>
                 {inv.invitedBy?.user && (
                     <div style={{ fontSize: 11, opacity: 0.55, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -144,27 +151,27 @@ function InvitationIdentity({ perm }: { perm: DriveItemPermission }) {
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
                 <RoleBadge roles={perm.roles} />
-                <ExpiryBadge iso={perm.expirationDateTime} />
+                <ExpiryBadge iso={perm.expirationDateTime ?? undefined} />
             </div>
         </div>
     );
 }
 
-function LinkIdentity({ perm }: { perm: DriveItemPermission }) {
+function LinkIdentity({ perm }: { perm: Permission }) {
     const link = perm.link!;
     return (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
             <span className="codicon codicon-link" style={{ fontSize: 14, opacity: 0.65, flexShrink: 0 }} />
             <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: 12, fontWeight: 600 }}>{LINK_TYPE_LABEL[link.type]} link</span>
+                    <span style={{ fontSize: 12, fontWeight: 600 }}>{LINK_TYPE_LABEL[link.type as LinkType]} link</span>
                     <span style={{
                         fontSize: 10, padding: '1px 5px', borderRadius: 8,
                         border: '1px solid var(--vscode-panel-border)', opacity: 0.7, whiteSpace: 'nowrap',
                     }}>
-                        {SCOPE_LABEL[link.scope]}
+                        {SCOPE_LABEL[link.scope as LinkScope]}
                     </span>
-                    {link.preventsDownload && (
+                    {(link.preventsDownload ?? false) && (
                         <span style={{
                             fontSize: 10, padding: '1px 5px', borderRadius: 8,
                             border: '1px solid var(--vscode-panel-border)', opacity: 0.7, whiteSpace: 'nowrap',
@@ -172,7 +179,7 @@ function LinkIdentity({ perm }: { perm: DriveItemPermission }) {
                             No download
                         </span>
                     )}
-                    <ExpiryBadge iso={perm.expirationDateTime} />
+                    <ExpiryBadge iso={perm.expirationDateTime ?? undefined} />
                 </div>
                 <div style={{ fontSize: 11, opacity: 0.55, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {link.webUrl}
@@ -184,7 +191,7 @@ function LinkIdentity({ perm }: { perm: DriveItemPermission }) {
 
 // ── PermissionRow ─────────────────────────────────────────────────────────────
 function PermissionRow({ perm, onEdit, onDelete, onCopyLink }: {
-    perm: DriveItemPermission;
+    perm: Permission;
     onEdit: () => void;
     onDelete: () => void;
     onCopyLink: () => void;
@@ -238,7 +245,7 @@ function PermissionRow({ perm, onEdit, onDelete, onCopyLink }: {
             {inherited && (
                 <div style={{ marginTop: 3, fontSize: 10, opacity: 0.45, display: 'flex', alignItems: 'center', gap: 4 }}>
                     <span className="codicon codicon-arrow-up" style={{ fontSize: 9 }} />
-                    Inherited from {perm.inheritedFrom!.path}
+                    Inherited from {perm.inheritedFrom!.path ?? ''}
                 </div>
             )}
         </div>
@@ -270,7 +277,7 @@ const DEFAULT_LINK: LinkForm = {
 };
 
 function CreatePermissionDialog({ onCreate, onCancel }: {
-    onCreate: (perms: DriveItemPermission[]) => void;
+    onCreate: (perms: Permission[]) => void;
     onCancel: () => void;
 }) {
     const [mode, setMode] = useState<CreateMode>('direct');
@@ -284,7 +291,7 @@ function CreatePermissionDialog({ onCreate, onCancel }: {
     function handleConfirm() {
         if (mode === 'direct') {
             const emails = direct.emails.split(',').map(e => e.trim()).filter(Boolean);
-            const perms: DriveItemPermission[] = emails.map((email, i) => ({
+            const perms: Permission[] = emails.map((email, i) => ({
                 id: `new-${Date.now()}-${i}`,
                 roles: [direct.role],
                 expirationDateTime: direct.expirationDate ? new Date(direct.expirationDate).toISOString() : undefined,
@@ -296,7 +303,7 @@ function CreatePermissionDialog({ onCreate, onCancel }: {
             const id = `link-${Date.now()}`;
             const prefix = linkForm.type === 'edit' ? ':w:' : ':b:';
             const webUrl = `https://contoso.sharepoint.com/${prefix}/s/${id}`;
-            const perm: DriveItemPermission = {
+            const perm: Permission = {
                 id,
                 roles: [linkForm.type === 'edit' ? 'write' : 'read'],
                 expirationDateTime: linkForm.expirationDate ? new Date(linkForm.expirationDate).toISOString() : undefined,
@@ -459,10 +466,10 @@ function CreatePermissionDialog({ onCreate, onCancel }: {
 }
 
 // ── Edit Permission Dialog ────────────────────────────────────────────────────
-function describePermission(perm: DriveItemPermission): string {
+function describePermission(perm: Permission): string {
     const kind = getKind(perm);
     if (kind === 'link') {
-        return `${LINK_TYPE_LABEL[perm.link!.type]} link · ${SCOPE_LABEL[perm.link!.scope]}`;
+        return `${LINK_TYPE_LABEL[(perm.link!.type ?? 'view') as LinkType]} link · ${SCOPE_LABEL[(perm.link!.scope ?? 'anonymous') as LinkScope]}`;
     }
     if (kind === 'invitation') return `Invitation · ${perm.invitation!.email}`;
     const identity = perm.grantedToV2?.user ?? perm.grantedToV2?.group;
@@ -476,13 +483,13 @@ interface EditForm {
 }
 
 function EditPermissionDialog({ perm, onSave, onCancel }: {
-    perm: DriveItemPermission;
-    onSave: (patch: Partial<DriveItemPermission>) => void;
+    perm: Permission;
+    onSave: (patch: Partial<Permission>) => void;
     onCancel: () => void;
 }) {
     const kind = getKind(perm);
     const [form, setForm] = useState<EditForm>({
-        role: perm.roles[0] ?? 'read',
+        role: (((perm.roles ?? [])[0] ?? 'read') as DriveRole),
         expirationDate: perm.expirationDateTime
             ? perm.expirationDateTime.substring(0, 10)
             : '',
@@ -490,7 +497,7 @@ function EditPermissionDialog({ perm, onSave, onCancel }: {
     });
 
     function handleSave() {
-        const patch: Partial<DriveItemPermission> = {
+        const patch: Partial<Permission> = {
             roles: [form.role],
             expirationDateTime: form.expirationDate
                 ? new Date(form.expirationDate).toISOString()
@@ -542,15 +549,15 @@ function EditPermissionDialog({ perm, onSave, onCancel }: {
 
 // ── Main panel ────────────────────────────────────────────────────────────────
 export function FilePermissionsPanel({ item }: { item: StorageItem | null }) {
-    const [permissions, setPermissions] = useState<DriveItemPermission[]>([...DUMMY_DRIVE_PERMISSIONS]);
+    const [permissions, setPermissions] = useState<Permission[]>([...DUMMY_DRIVE_PERMISSIONS]);
     const [showCreate, setShowCreate] = useState(false);
-    const [editingPerm, setEditingPerm] = useState<DriveItemPermission | null>(null);
+    const [editingPerm, setEditingPerm] = useState<Permission | null>(null);
 
     if (!item) {
         return <p style={{ margin: 0, opacity: 0.5, fontSize: 12 }}>Select an item to view its permissions.</p>;
     }
 
-    function handleCreate(perms: DriveItemPermission[]) {
+    function handleCreate(perms: Permission[]) {
         setPermissions(prev => [...prev, ...perms]);
     }
 
@@ -558,16 +565,17 @@ export function FilePermissionsPanel({ item }: { item: StorageItem | null }) {
         setPermissions(prev => prev.filter(p => p.id !== id));
     }
 
-    function handleEdit(patch: Partial<DriveItemPermission>) {
+    function handleEdit(patch: Partial<Permission>) {
         setPermissions(prev =>
             prev.map(p => p.id === editingPerm?.id ? { ...p, ...patch } : p)
         );
         setEditingPerm(null);
     }
 
-    function copyLink(perm: DriveItemPermission) {
-        if (perm.link?.webUrl) {
-            navigator.clipboard.writeText(perm.link.webUrl).catch(() => {});
+    function copyLink(perm: Permission) {
+        const webUrl = perm.link?.webUrl;
+        if (webUrl) {
+            navigator.clipboard.writeText(webUrl).catch(() => {});
         }
     }
 
@@ -592,10 +600,10 @@ export function FilePermissionsPanel({ item }: { item: StorageItem | null }) {
             ) : (
                 direct.map(p => (
                     <PermissionRow
-                        key={p.id}
+                        key={p.id ?? ''}
                         perm={p}
                         onEdit={() => setEditingPerm(p)}
-                        onDelete={() => handleDelete(p.id)}
+                        onDelete={() => handleDelete(p.id ?? '')}
                         onCopyLink={() => copyLink(p)}
                     />
                 ))
@@ -612,7 +620,7 @@ export function FilePermissionsPanel({ item }: { item: StorageItem | null }) {
                     </div>
                     {inherited.map(p => (
                         <PermissionRow
-                            key={p.id}
+                            key={p.id ?? ''}
                             perm={p}
                             onEdit={() => {}}
                             onDelete={() => {}}
