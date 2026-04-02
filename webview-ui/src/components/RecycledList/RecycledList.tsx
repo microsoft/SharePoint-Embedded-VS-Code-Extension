@@ -4,13 +4,19 @@ import { RecycledListHeader } from './RecycledListHeader';
 import { RecycledListRow } from './RecycledListRow';
 import { useResizableColumns } from '../../hooks/useResizableColumns';
 
-// Initial widths for: Date Deleted, Type (Name stays 1fr)
-const INITIAL_COL_WIDTHS = [150, 120];
+// Initial widths for container-recycle-bin: [Date Deleted, Type]
+// Initial widths for deleted-containers: [Created, Deleted, Type]
+const INITIAL_COL_WIDTHS_RECYCLE = [150, 120];
+const INITIAL_COL_WIDTHS_DELETED = [140, 140, 120];
 
 export function RecycledList() {
     const { currentRecycledItems, selectedItem, selectItem, setSort, sortColumn, sortDirection, viewMode } = useStorageExplorer();
-    const { colWidths, onColResizeMouseDown } = useResizableColumns(INITIAL_COL_WIDTHS);
-    const colTemplate = `32px 1fr ${colWidths[0]}px ${colWidths[1]}px`;
+    const isDeletedContainers = viewMode.kind === 'deleted-containers';
+    const { colWidths: colWidthsRecycle } = useResizableColumns(INITIAL_COL_WIDTHS_RECYCLE);
+    const { colWidths: colWidthsDeleted } = useResizableColumns(INITIAL_COL_WIDTHS_DELETED);
+    const colTemplate = isDeletedContainers
+        ? `32px 1fr ${colWidthsDeleted[0]}px ${colWidthsDeleted[1]}px ${colWidthsDeleted[2]}px`
+        : `32px 1fr ${colWidthsRecycle[0]}px ${colWidthsRecycle[1]}px`;
 
     const emptyMessage = viewMode.kind === 'deleted-containers'
         ? 'No deleted containers'
@@ -26,6 +32,7 @@ export function RecycledList() {
                 sortColumn={sortColumn}
                 sortDirection={sortDirection}
                 onSort={setSort}
+                isDeletedContainers={isDeletedContainers}
                 onClick={(e: React.MouseEvent) => e.stopPropagation()}
             />
             <div style={{ flex: 1, overflowY: 'auto', padding: '0 4px' }}>
@@ -37,6 +44,7 @@ export function RecycledList() {
                             key={item.id}
                             item={item}
                             colTemplate={colTemplate}
+                            isDeletedContainers={isDeletedContainers}
                             isSelected={selectedItem?.id === item.id}
                             onSelect={selectItem}
                         />

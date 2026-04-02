@@ -74,7 +74,53 @@ function buildHar(requests: NetworkRequest[]): string {
 
 type DetailTab = 'request' | 'response';
 
+// ─── JSON syntax colouriser ────────────────────────────────────────────────────────────────────────────
+
+const JSON_TOKEN_RE = /"(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+-]?\d+)?/g;
+
+const TOKEN_COLORS: Record<string, string> = {
+    key:     'var(--vscode-debugTokenExpression-name, #9CDCFE)',
+    string:  'var(--vscode-debugTokenExpression-string, #CE9178)',
+    number:  'var(--vscode-debugTokenExpression-number, #B5CEA8)',
+    boolean: 'var(--vscode-debugTokenExpression-boolean, #569CD6)',
+    null:    'var(--vscode-debugTokenExpression-boolean, #569CD6)',
+};
+
+function JsonColorize({ text }: { text: string }) {
+    const parts: { text: string; color?: string }[] = [];
+    const re = new RegExp(JSON_TOKEN_RE.source, 'g');
+    let lastIndex = 0;
+    let match: RegExpExecArray | null;
+    while ((match = re.exec(text)) !== null) {
+        if (match.index > lastIndex) {
+            parts.push({ text: text.slice(lastIndex, match.index) });
+        }
+        const raw = match[0];
+        let type: string;
+        if (raw.startsWith('"') && match[2]?.includes(':')) { type = 'key'; }
+        else if (raw.startsWith('"'))                       { type = 'string'; }
+        else if (raw === 'true' || raw === 'false')          { type = 'boolean'; }
+        else if (raw === 'null')                             { type = 'null'; }
+        else                                                 { type = 'number'; }
+        parts.push({ text: raw, color: TOKEN_COLORS[type] });
+        lastIndex = re.lastIndex;
+    }
+    if (lastIndex < text.length) parts.push({ text: text.slice(lastIndex) });
+    return <>{parts.map((p, i) => <span key={i} style={p.color ? { color: p.color } : undefined}>{p.text}</span>)}</>;
+}
+
+// ─── Header table ────────────────────────────────────────────────────────────────────────────────
+
 function HeadersTable({ headers }: { headers: Record<string, string> }) {
+    const [copied, setCopied] = useState<string | null>(null);
+
+    function copy(key: string, value: string) {
+        navigator.clipboard.writeText(value).then(() => {
+            setCopied(key);
+            setTimeout(() => setCopied(null), 1500);
+        }).catch(() => {});
+    }
+
     const entries = Object.entries(headers);
     if (entries.length === 0) {
         return <span style={{ opacity: 0.5, fontSize: 12 }}>No headers</span>;
@@ -85,7 +131,22 @@ function HeadersTable({ headers }: { headers: Record<string, string> }) {
                 {entries.map(([k, v]) => (
                     <tr key={k} style={{ borderBottom: '1px solid var(--vscode-panel-border)' }}>
                         <td style={{ padding: '3px 8px 3px 0', fontWeight: 600, whiteSpace: 'nowrap', opacity: 0.75, verticalAlign: 'top', width: 1, paddingRight: 16 }}>{k}</td>
-                        <td style={{ padding: '3px 0', wordBreak: 'break-all' }}>{v}</td>
+                        <td style={{ padding: '3px 0' }}>
+                            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 4 }}>
+                                <span style={{ flex: 1, wordBreak: 'break-all' }}>{v}</span>
+                                <button
+                                    className="icon-btn"
+                                    title={copied === k ? 'Copied!' : `Copy ${k}`}
+                                    style={{ fontSize: 11, flexShrink: 0, padding: '0 2px', marginTop: 1 }}
+                                    onClick={() => copy(k, v)}
+                                >
+                                    <span
+                                        className={`codicon codicon-${copied === k ? 'check' : 'copy'}`}
+                                        style={copied === k ? { color: 'var(--vscode-testing-iconPassed, #73c991)' } : undefined}
+                                    />
+                                </button>
+                            </div>
+                        </td>
                     </tr>
                 ))}
             </tbody>
@@ -94,27 +155,67 @@ function HeadersTable({ headers }: { headers: Record<string, string> }) {
 }
 
 function BodyBlock({ body }: { body?: string }) {
+    const [copied, setCopied] = useState(false);
+
     if (!body) return <span style={{ opacity: 0.5, fontSize: 12 }}>No body</span>;
+
+    let pretty = body;
+    let isJson = false;
+    try { pretty = JSON.stringify(JSON.parse(body), null, 2); isJson = true; } catch {}
+
+    function copyBody() {
+        navigator.clipboard.writeText(pretty).then(() => {
+            setCopied(true);
+            setTimeout(() => setCopied(false), 1500);
+        }).catch(() => {});
+    }
+
     return (
-        <pre style={{
-            margin: 0,
-            padding: 8,
-            background: 'var(--vscode-textBlockQuote-background, rgba(127,127,127,0.1))',
-            borderRadius: 3,
-            fontSize: 12,
-            overflowX: 'auto',
-            whiteSpace: 'pre-wrap',
-            wordBreak: 'break-word',
-            maxHeight: 260,
-            overflowY: 'auto',
-        }}>
-            {body}
-        </pre>
+        <div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 4 }}>
+                <button
+                    className="icon-btn"
+                    title={copied ? 'Copied!' : 'Copy body'}
+                    style={{ fontSize: 12 }}
+                    onClick={copyBody}
+                >
+                    <span
+                        className={`codicon codicon-${copied ? 'check' : 'copy'}`}
+                        style={copied ? { color: 'var(--vscode-testing-iconPassed, #73c991)' } : undefined}
+                    />
+                </button>
+            </div>
+            <pre style={{
+                margin: 0,
+                padding: 8,
+                background: 'var(--vscode-textBlockQuote-background, rgba(127,127,127,0.1))',
+                borderRadius: 3,
+                fontSize: 12,
+                overflowX: 'auto',
+                whiteSpace: 'pre-wrap',
+                wordBreak: 'break-word',
+                maxHeight: 300,
+                overflowY: 'auto',
+                lineHeight: 1.5,
+            }}>
+                {isJson ? <JsonColorize text={pretty} /> : pretty}
+            </pre>
+        </div>
     );
 }
 
 function RequestDetail({ req, onClose }: { req: NetworkRequest; onClose: () => void }) {
     const [tab, setTab] = useState<DetailTab>('request');
+    const [copiedUrl, setCopiedUrl] = useState(false);
+
+    useEffect(() => { setCopiedUrl(false); }, [req.id]);
+
+    function copyUrl() {
+        navigator.clipboard.writeText(req.url).then(() => {
+            setCopiedUrl(true);
+            setTimeout(() => setCopiedUrl(false), 1500);
+        }).catch(() => {});
+    }
 
     return (
         <div style={{
@@ -150,7 +251,20 @@ function RequestDetail({ req, onClose }: { req: NetworkRequest; onClose: () => v
                         {/* URL */}
                         <section>
                             <div style={{ fontSize: 11, fontWeight: 600, opacity: 0.6, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>URL</div>
-                            <div style={{ fontSize: 12, wordBreak: 'break-all', opacity: 0.9 }}>{req.url}</div>
+                            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 4 }}>
+                                <div style={{ flex: 1, fontSize: 12, wordBreak: 'break-all', opacity: 0.9 }}>{req.url}</div>
+                                <button
+                                    className="icon-btn"
+                                    title={copiedUrl ? 'Copied!' : 'Copy URL'}
+                                    style={{ fontSize: 12, flexShrink: 0 }}
+                                    onClick={copyUrl}
+                                >
+                                    <span
+                                        className={`codicon codicon-${copiedUrl ? 'check' : 'copy'}`}
+                                        style={copiedUrl ? { color: 'var(--vscode-testing-iconPassed, #73c991)' } : undefined}
+                                    />
+                                </button>
+                            </div>
                         </section>
                         <section>
                             <div style={{ fontSize: 11, fontWeight: 600, opacity: 0.6, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Headers</div>
@@ -334,7 +448,7 @@ export function NetworkDrawer() {
                                 </tr>
                             </thead>
                             <tbody>
-                                {networkRequests.map(req => {
+                                {[...networkRequests].reverse().map(req => {
                                     const isSelected = req.id === selectedId;
                                     return (
                                         <tr

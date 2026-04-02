@@ -1,7 +1,7 @@
 export type ItemKind = 'container' | 'folder' | 'file';
 export type SortColumn = 'name' | 'modified' | 'type' | 'size';
 export type SortDirection = 'asc' | 'desc';
-export type SidePanelTab = 'properties' | 'metadata' | 'versions' | 'permissions' | 'columns';
+export type SidePanelTab = 'properties' | 'metadata' | 'versions' | 'permissions' | 'columns' | 'settings';
 
 export interface StorageItem {
     id: string;
@@ -12,6 +12,13 @@ export interface StorageItem {
     size: string;
     description?: string;
     mimeType?: string;
+    // Container-specific fields
+    containerTypeId?: string;
+    createdAt?: string;
+    deletedAt?: string;
+    lockState?: 'unlocked' | 'lockedReadOnly' | null;
+    status?: 'active' | 'inactive' | null;
+    sensitivityLabel?: { id?: string; displayName?: string } | null;
     /**
      * Browser-facing URL for the item (`DriveItem.webUrl` / `BaseItem.webUrl`).
      * Opens Office files in the browser viewer; acts as a direct link for

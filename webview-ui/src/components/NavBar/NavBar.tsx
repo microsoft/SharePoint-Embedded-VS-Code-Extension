@@ -7,6 +7,7 @@ export function NavBar() {
         tenantDomain, toggleSidePanel, sidePanelOpen,
         toggleNetworkDrawer, networkDrawerOpen, networkRequests,
         uploads, uploadCardOpen, toggleUploadCard,
+        refresh, isLoading,
     } = useStorageExplorer();
     const hasRequests = networkRequests.length > 0;
 
@@ -57,8 +58,8 @@ export function NavBar() {
             </div>
 
             {/* Right-side actions */}
-            <button className="icon-btn" title="Refresh" onClick={() => { /* TODO: reload from API */ }}>
-                <span className="codicon codicon-refresh" />
+            <button className="icon-btn" title="Refresh" onClick={refresh} disabled={isLoading}>
+                <span className={`codicon codicon-refresh${isLoading ? ' codicon-modifier-spin' : ''}`} />
             </button>
             {/* Network activity toggle */}
             <div style={{ position: 'relative' }}>

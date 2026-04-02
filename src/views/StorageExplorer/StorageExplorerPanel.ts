@@ -6,6 +6,7 @@
 import * as vscode from 'vscode';
 import { ContainerType, ContainerTypeRegistration } from '../../models/schemas';
 import { ext } from '../../utils/extensionVariables';
+import { GraphAuthProvider } from '../../services/Auth';
 
 function getNonce(): string {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
@@ -21,6 +22,8 @@ interface PanelState {
     tenantDomain: string;
     containerTypeId: string;
     registrationId: string;
+    /** Pre-seeded access token so the webview auth provider avoids a cold first request. */
+    initialToken?: string;
 }
 
 /**
@@ -46,7 +49,7 @@ export class StorageExplorerPanel {
         this._panel.onDidDispose(() => this.dispose(), null, this._disposables);
 
         this._panel.webview.onDidReceiveMessage(
-            async (message: { command: string; har?: string; url?: string }) => {
+            async (message: { command: string; har?: string; url?: string; requestId?: string }) => {
                 ext.outputChannel.debug(`[StorageExplorerPanel] received message: command=${message.command}`);
                 if (message.command === 'exportHar' && message.har) {
                     await StorageExplorerPanel._handleExportHar(message.har);
@@ -57,6 +60,14 @@ export class StorageExplorerPanel {
                         ext.outputChannel.info(`[StorageExplorerPanel] openExternal succeeded`);
                     } catch (err) {
                         ext.outputChannel.error(`[StorageExplorerPanel] openExternal failed: ${err}`);
+                    }
+                } else if (message.command === 'getToken' && message.requestId) {
+                    try {
+                        const token = await GraphAuthProvider.getInstance().getToken(undefined, false);
+                        this._panel.webview.postMessage({ command: 'tokenResponse', token, requestId: message.requestId });
+                    } catch (err) {
+                        ext.outputChannel.error(`[StorageExplorerPanel] getToken failed: ${err}`);
+                        this._panel.webview.postMessage({ command: 'tokenResponse', error: String(err), requestId: message.requestId });
                     }
                 } else {
                     ext.outputChannel.warn(`[StorageExplorerPanel] unhandled message command: ${message.command}`);
@@ -71,10 +82,10 @@ export class StorageExplorerPanel {
     // Public API
     // ------------------------------------------------------------------
 
-    public static open(
+    public static async open(
         containerType: ContainerType,
         registration: ContainerTypeRegistration
-    ): void {
+    ): Promise<void> {
         const registrationId = registration.id;
         const existing = StorageExplorerPanel._panels.get(registrationId);
         if (existing) {
@@ -97,11 +108,22 @@ export class StorageExplorerPanel {
         );
         panel.iconPath = vscode.Uri.joinPath(ext.context.extensionUri, 'media', 'sharepoint-embedded-icon.png');
 
+        // Pre-fetch the token so the webview can seed its auth cache immediately,
+        // eliminating the cold-start latency on the first Graph call.
+        let initialToken: string | undefined;
+        try {
+            initialToken = GraphAuthProvider.getInstance().getCachedToken()
+                ?? await GraphAuthProvider.getInstance().getToken(undefined, false);
+        } catch {
+            // No session yet — the webview will request a token via message when needed.
+        }
+
         const state: PanelState = {
             appName: containerType.name,
             tenantDomain: 'local tenant',   // TODO: derive from AuthenticationState
             containerTypeId: containerType.id,
             registrationId: registration.id,
+            initialToken,
         };
 
         const instance = new StorageExplorerPanel(panel, registrationId, state);
@@ -133,6 +155,7 @@ export class StorageExplorerPanel {
         const nonce = getNonce();
         const csp = [
             `default-src 'none'`,
+            `connect-src https://graph.microsoft.com`,
             `font-src ${webview.cspSource}`,
             `img-src ${webview.cspSource} data:`,
             `style-src ${webview.cspSource} 'unsafe-inline'`,

@@ -7,6 +7,7 @@ interface RecycledListHeaderProps {
     sortColumn: SortColumn;
     sortDirection: SortDirection;
     onSort: (col: SortColumn) => void;
+    isDeletedContainers?: boolean;
     onColResize?: (e: React.MouseEvent, idx: number, direction?: number) => void;
     onClick?: (e: React.MouseEvent) => void;
 }
@@ -16,15 +17,24 @@ interface ColDef {
     label: string;
 }
 
-const COLUMNS: ColDef[] = [
+const COLUMNS_RECYCLE: ColDef[] = [
     { key: null, label: '' },
     { key: 'name', label: 'Name' },
     { key: 'modified', label: 'Date Deleted' },
     { key: 'type', label: 'Type' },
 ];
 
-export function RecycledListHeader({ colTemplate, sortColumn, sortDirection, onSort, onColResize, onClick }: RecycledListHeaderProps) {
+const COLUMNS_DELETED: ColDef[] = [
+    { key: null, label: '' },
+    { key: 'name', label: 'Name' },
+    { key: 'modified', label: 'Created' },
+    { key: null, label: 'Deleted' },
+    { key: 'type', label: 'Type' },
+];
+
+export function RecycledListHeader({ colTemplate, sortColumn, sortDirection, onSort, isDeletedContainers, onColResize, onClick }: RecycledListHeaderProps) {
     const arrow = sortDirection === 'asc' ? 'codicon-arrow-up' : 'codicon-arrow-down';
+    const COLUMNS = isDeletedContainers ? COLUMNS_DELETED : COLUMNS_RECYCLE;
 
     return (
         <div

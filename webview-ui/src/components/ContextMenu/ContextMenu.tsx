@@ -67,6 +67,10 @@ function getActions(
         icon: 'codicon-list-tree', label: 'Columns',
         onClick: () => { onClose(); openTab('columns'); },
     };
+    const settings: MenuAction = {
+        icon: 'codicon-settings-gear', label: 'Settings',
+        onClick: () => { onClose(); openTab('settings'); },
+    };
     const recycleBin: MenuAction = {
         icon: 'codicon-trash', label: 'Recycle bin', dividerBefore: true,
         onClick: () => { onClose(); navigateToContainerRecycleBin(item.id, item.name); },
@@ -78,6 +82,7 @@ function getActions(
         { ...perms, dividerBefore: true },
         columns,
         metadata,
+        settings,
         properties,
     ];
 }

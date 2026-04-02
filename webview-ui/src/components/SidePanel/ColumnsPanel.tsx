@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { ColumnDefinition } from '@microsoft/microsoft-graph-types';
-import { DUMMY_CONTAINER_COLUMNS } from '../../data/dummyData';
 import { ColumnTypeName, getColumnTypeName } from '../../models/spe';
 import { StorageItem } from '../../models/StorageItem';
 import { Modal } from '../Modal/Modal';
+import { useStorageExplorer } from '../../context/StorageExplorerContext';
 
 const COLUMN_TYPE_LABELS: Record<ColumnTypeName, string> = {
     text: 'Text',
@@ -30,13 +30,12 @@ const COLUMN_TYPE_COLORS: Record<ColumnTypeName, string> = {
 const ALL_TYPES = Object.keys(COLUMN_TYPE_LABELS) as ColumnTypeName[];
 
 // ── Per-type setting shapes ───────────────────────────────────────────────
-interface TextSettings { allowMultipleLines: boolean; appendChangesToExistingText: boolean; linesForEditing: number; maxLength: number; }
-interface DateTimeSettings { displayAs: 'default' | 'friendly' | 'standard'; format: 'dateOnly' | 'dateTime'; }
+interface TextSettings { allowMultipleLines: boolean; }
+interface DateTimeSettings { format: 'dateOnly' | 'dateTime'; }
 interface CurrencySettings { locale: string; }
 interface ChoiceSettings { allowTextEntry: boolean; choices: string[]; }
-interface HyperlinkSettings { isPicture: boolean; }
-interface NumberSettings { decimalPlaces: 'automatic' | 'none' | 'one' | 'two' | 'three' | 'four' | 'five'; displayAs: 'number' | 'percentage'; maximum: string; minimum: string; }
-interface PersonOrGroupSettings { allowMultipleSelection: boolean; displayAs: string; chooseFromType: 'peopleAndGroups' | 'peopleOnly'; }
+interface NumberSettings { decimalPlaces: 'automatic' | 'none' | 'one' | 'two' | 'three' | 'four' | 'five'; maximum: string; minimum: string; }
+interface PersonOrGroupSettings { allowMultipleSelection: boolean; chooseFromType: 'peopleAndGroups' | 'peopleOnly'; }
 
 interface AddColumnState {
     name: string;
@@ -47,28 +46,49 @@ interface AddColumnState {
     dateTime: DateTimeSettings;
     currency: CurrencySettings;
     choice: ChoiceSettings;
-    hyperlinkOrPicture: HyperlinkSettings;
     number: NumberSettings;
     personOrGroup: PersonOrGroupSettings;
 }
 
 const DEFAULT_ADD: AddColumnState = {
     name: '', description: '', columnType: 'text', indexed: true,
-    text: { allowMultipleLines: false, appendChangesToExistingText: false, linesForEditing: 0, maxLength: 255 },
-    dateTime: { displayAs: 'default', format: 'dateTime' },
+    text: { allowMultipleLines: false },
+    dateTime: { format: 'dateTime' },
     currency: { locale: 'en-us' },
     choice: { allowTextEntry: false, choices: [] },
-    hyperlinkOrPicture: { isPicture: false },
-    number: { decimalPlaces: 'automatic', displayAs: 'number', maximum: '', minimum: '' },
-    personOrGroup: { allowMultipleSelection: false, displayAs: 'account', chooseFromType: 'peopleAndGroups' },
+    number: { decimalPlaces: 'automatic', maximum: '', minimum: '' },
+    personOrGroup: { allowMultipleSelection: false, chooseFromType: 'peopleAndGroups' },
 };
 
 export function ColumnsPanel({ item }: { item: StorageItem | null }) {
-    const [columns, setColumns] = useState<ColumnDefinition[]>([...DUMMY_CONTAINER_COLUMNS]);
+    const { api } = useStorageExplorer();
+
+    const [columns, setColumns] = useState<ColumnDefinition[]>([]);
+    const [loading, setLoading] = useState(false);
+    const [loadError, setLoadError] = useState<string | null>(null);
+
     const [showAdd, setShowAdd] = useState(false);
     const [form, setForm] = useState<AddColumnState>(DEFAULT_ADD);
+    const [addBusy, setAddBusy] = useState(false);
+    const [addError, setAddError] = useState<string | null>(null);
+
     const [editingId, setEditingId] = useState<string | null>(null);
     const [editForm, setEditForm] = useState<AddColumnState>(DEFAULT_ADD);
+    const [editBusy, setEditBusy] = useState(false);
+    const [editError, setEditError] = useState<string | null>(null);
+
+    const [removingId, setRemovingId] = useState<string | null>(null);
+    const [removeError, setRemoveError] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (!item || item.kind !== 'container') return;
+        setLoading(true);
+        setLoadError(null);
+        api.columns.listContainerColumns(item.id)
+            .then(cols => setColumns(cols))
+            .catch((err: any) => setLoadError(err?.message ?? 'Failed to load columns.'))
+            .finally(() => setLoading(false));
+    }, [item?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
     if (!item) {
         return <p style={{ margin: 0, opacity: 0.5, fontSize: 12 }}>Select an item to view its columns.</p>;
@@ -77,146 +97,288 @@ export function ColumnsPanel({ item }: { item: StorageItem | null }) {
         return <p style={{ margin: 0, opacity: 0.5, fontSize: 12 }}>Columns are only configurable on containers.</p>;
     }
 
-    function removeColumn(id: string) {
-        setColumns(prev => prev.filter(c => c.id !== id));
+    async function removeColumn(id: string) {
+        setRemovingId(id);
+        setRemoveError(null);
+        try {
+            await api.columns.deleteContainerColumn(item!.id, id);
+            setColumns(prev => prev.filter(c => c.id !== id));
+        } catch (err: any) {
+            setRemoveError(err?.message ?? 'Failed to delete column.');
+        } finally {
+            setRemovingId(null);
+        }
     }
 
-    function confirmAdd() {
+    async function confirmAdd() {
         if (!form.name.trim()) return;
-        const facet: Partial<ColumnDefinition> = (() => {
-            switch (form.columnType) {
-                case 'boolean':            return { boolean: {} };
-                case 'dateTime':           return { dateTime: { format: form.dateTime.format } };
-                case 'currency':           return { currency: { locale: form.currency.locale } };
-                case 'choice':             return { choice: { choices: form.choice.choices.filter(Boolean), allowTextEntry: form.choice.allowTextEntry } };
-                case 'hyperlinkOrPicture': return { hyperlinkOrPicture: { isPicture: form.hyperlinkOrPicture.isPicture } };
-                case 'number':             return { number: { decimalPlaces: form.number.decimalPlaces, displayAs: form.number.displayAs, minimum: form.number.minimum ? parseFloat(form.number.minimum) : null, maximum: form.number.maximum ? parseFloat(form.number.maximum) : null } };
-                case 'personOrGroup':      return { personOrGroup: { allowMultipleSelection: form.personOrGroup.allowMultipleSelection, chooseFromType: form.personOrGroup.chooseFromType } };
-                default:                   return { text: {} };
-            }
-        })();
-        const newCol: ColumnDefinition = {
-            id: `col-${Date.now()}`,
-            name: form.name.trim().replace(/\s+/g, ''),
-            displayName: form.name.trim(),
-            description: form.description.trim(),
-            enforceUniqueValues: false,
-            hidden: false,
-            indexed: form.indexed,
-            ...facet,
-        };
-        setColumns(prev => [...prev, newCol]);
-        setShowAdd(false);
+        setAddBusy(true);
+        setAddError(null);
+        try {
+            const colDef = buildColumnDefinition(form);
+            const created = await api.columns.createContainerColumn(item!.id, colDef);
+            setColumns(prev => [...prev, created]);
+            setShowAdd(false);
+        } catch (err: any) {
+            setAddError(err?.message ?? 'Failed to create column.');
+        } finally {
+            setAddBusy(false);
+        }
     }
 
     function openEdit(col: ColumnDefinition) {
-        setEditForm({ ...DEFAULT_ADD, name: col.displayName ?? '', description: col.description ?? '', indexed: col.indexed ?? true, columnType: getColumnTypeName(col) });
+        setEditError(null);
+        setEditForm({
+            ...DEFAULT_ADD,
+            name: col.displayName ?? '',
+            description: col.description ?? '',
+            indexed: col.indexed ?? true,
+            columnType: getColumnTypeName(col),
+            text: {
+                allowMultipleLines: col.text?.allowMultipleLines ?? false,
+            },
+            dateTime: {
+                format: (col.dateTime?.format as DateTimeSettings['format']) ?? 'dateTime',
+            },
+            currency: {
+                locale: (col.currency as any)?.locale ?? 'en-us',
+            },
+            choice: {
+                allowTextEntry: col.choice?.allowTextEntry ?? false,
+                choices: col.choice?.choices ?? [],
+            },
+            number: {
+                decimalPlaces: (col.number?.decimalPlaces as NumberSettings['decimalPlaces']) ?? 'automatic',
+                minimum: col.number?.minimum != null ? String(col.number.minimum) : '',
+                maximum: col.number?.maximum != null ? String(col.number.maximum) : '',
+            },
+            personOrGroup: {
+                allowMultipleSelection: col.personOrGroup?.allowMultipleSelection ?? false,
+                chooseFromType: (col.personOrGroup?.chooseFromType as PersonOrGroupSettings['chooseFromType']) ?? 'peopleAndGroups',
+            },
+        });
         setEditingId(col.id ?? '');
     }
 
-    function confirmEdit() {
+    async function confirmEdit() {
         if (!editForm.name.trim() || !editingId) return;
-        setColumns(prev => prev.map(c => c.id !== editingId ? c : {
-            ...c,
-            name: editForm.name.trim().replace(/\s+/g, ''),
-            displayName: editForm.name.trim(),
-            description: editForm.description.trim(),
-            indexed: editForm.indexed,
-        }));
-        setEditingId(null);
+        setEditBusy(true);
+        setEditError(null);
+        try {
+            const full = buildColumnDefinition(editForm);
+            // Don't send name/enforceUniqueValues/hidden on updates — only mutable fields
+            const { name: _n, enforceUniqueValues: _e, hidden: _h, ...patch } = full;
+            const updated = await api.columns.updateContainerColumn(item!.id, editingId, patch);
+            setColumns(prev => prev.map(c => c.id === editingId ? { ...c, ...updated } : c));
+            setEditingId(null);
+        } catch (err: any) {
+            setEditError(err?.message ?? 'Failed to update column.');
+        } finally {
+            setEditBusy(false);
+        }
     }
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '4px 0 8px' }}>
-                <button className="action-btn" onClick={() => { setForm(DEFAULT_ADD); setShowAdd(true); }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0 8px' }}>
+                {removeError && (
+                    <p style={{ margin: 0, fontSize: 11, color: 'var(--vscode-errorForeground)', flex: 1 }}>{removeError}</p>
+                )}
+                <div style={{ flex: 1 }} />
+                <button className="action-btn" onClick={() => { setForm(DEFAULT_ADD); setAddError(null); setShowAdd(true); }} disabled={loading}>
                     <span className="codicon codicon-add" />
                     Add
                 </button>
             </div>
 
-            {columns.length === 0 ? (
-                <p style={{ margin: 0, opacity: 0.4, fontSize: 12, fontStyle: 'italic' }}>No columns defined.</p>
-            ) : (
-                columns.map(col => (
-                    <div key={col.id ?? ''} style={{
-                        display: 'flex', alignItems: 'flex-start', gap: 8,
-                        padding: '7px 0',
-                        borderBottom: '1px solid var(--vscode-panel-border)',
-                    }}>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                            {/* Name + type badge + flags */}
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
-                                <span style={{ fontSize: 12, fontWeight: 600 }}>{col.displayName ?? ''}</span>
-                                <span style={{
-                                    fontSize: 10, padding: '1px 6px', borderRadius: 8,
-                                    border: `1px solid ${COLUMN_TYPE_COLORS[getColumnTypeName(col)]}50`,
-                                    color: COLUMN_TYPE_COLORS[getColumnTypeName(col)],
-                                    whiteSpace: 'nowrap',
-                                }}>
-                                    {COLUMN_TYPE_LABELS[getColumnTypeName(col)]}
-                                </span>
-                                {(col.indexed ?? false) && (
-                                    <span title="Indexed — searchable">
-                                        <span className="codicon codicon-search" style={{ fontSize: 11, opacity: 0.65 }} />
-                                    </span>
-                                )}
-                                {(col.hidden ?? false) && (
-                                    <span title="Hidden">
-                                        <span className="codicon codicon-eye-closed" style={{ fontSize: 11, opacity: 0.65 }} />
-                                    </span>
-                                )}
-                            </div>
-                            {col.description && (
-                                <div style={{
-                                    fontSize: 11, opacity: 0.55, marginTop: 2,
-                                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                                }}>
-                                    {col.description}
-                                </div>
-                            )}
-                        </div>
-                        <button
-                            className="icon-btn" title="Edit column" style={{ fontSize: 13, flexShrink: 0 }}
-                            onClick={() => openEdit(col)}
-                        >
-                            <span className="codicon codicon-edit" />
-                        </button>
-                        <button
-                            className="icon-btn" title="Remove column" style={{ fontSize: 13, flexShrink: 0 }}
-                            onClick={() => removeColumn(col.id ?? '')}
-                        >
-                            <span className="codicon codicon-close" />
-                        </button>
-                    </div>
-                ))
+            {loading && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 0', opacity: 0.6, fontSize: 12 }}>
+                    <span className="codicon codicon-loading codicon-modifier-spin" style={{ fontSize: 13 }} />
+                    Loading columns…
+                </div>
             )}
+            {loadError && (
+                <p style={{ margin: '4px 0', fontSize: 12, color: 'var(--vscode-errorForeground)' }}>{loadError}</p>
+            )}
+
+            {!loading && !loadError && (() => {
+                const custom  = columns.filter(c => c.isDeletable !== false);
+                const builtin = columns.filter(c => c.isDeletable === false);
+
+                return (
+                    <>
+                        {custom.length === 0 && builtin.length === 0 && (
+                            <p style={{ margin: 0, opacity: 0.4, fontSize: 12, fontStyle: 'italic' }}>No columns defined.</p>
+                        )}
+
+                        {/* Custom (deletable) columns */}
+                        {custom.map(col => (
+                            <div key={col.id ?? ''} style={{
+                                display: 'flex', alignItems: 'flex-start', gap: 8,
+                                padding: '7px 0',
+                                borderBottom: '1px solid var(--vscode-panel-border)',
+                                opacity: removingId === col.id ? 0.4 : 1,
+                            }}>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
+                                        <span style={{ fontSize: 12, fontWeight: 600 }}>{col.displayName ?? ''}</span>
+                                        <span style={{
+                                            fontSize: 10, padding: '1px 6px', borderRadius: 8,
+                                            border: `1px solid ${COLUMN_TYPE_COLORS[getColumnTypeName(col)]}50`,
+                                            color: COLUMN_TYPE_COLORS[getColumnTypeName(col)],
+                                            whiteSpace: 'nowrap',
+                                        }}>
+                                            {COLUMN_TYPE_LABELS[getColumnTypeName(col)]}
+                                        </span>
+                                        {(col.indexed ?? false) && (
+                                            <span title="Indexed — searchable">
+                                                <span className="codicon codicon-search" style={{ fontSize: 11, opacity: 0.65 }} />
+                                            </span>
+                                        )}
+                                        {(col.hidden ?? false) && (
+                                            <span title="Hidden">
+                                                <span className="codicon codicon-eye-closed" style={{ fontSize: 11, opacity: 0.65 }} />
+                                            </span>
+                                        )}
+                                    </div>
+                                    {col.description && (
+                                        <div style={{
+                                            fontSize: 11, opacity: 0.55, marginTop: 2,
+                                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                                        }}>
+                                            {col.description}
+                                        </div>
+                                    )}
+                                </div>
+                                <button
+                                    className="icon-btn" title="Edit column" style={{ fontSize: 13, flexShrink: 0 }}
+                                    onClick={() => openEdit(col)}
+                                    disabled={removingId === col.id}
+                                >
+                                    <span className="codicon codicon-edit" />
+                                </button>
+                                <button
+                                    className="icon-btn" title="Remove column" style={{ fontSize: 13, flexShrink: 0 }}
+                                    onClick={() => removeColumn(col.id ?? '')}
+                                    disabled={removingId === col.id}
+                                >
+                                    {removingId === col.id
+                                        ? <span className="codicon codicon-loading codicon-modifier-spin" />
+                                        : <span className="codicon codicon-close" />
+                                    }
+                                </button>
+                            </div>
+                        ))}
+
+                        {/* Built-in (non-deletable) columns */}
+                        {builtin.length > 0 && (
+                            <>
+                                <div style={{
+                                    fontSize: 11, fontWeight: 700, textTransform: 'uppercase',
+                                    letterSpacing: '0.05em', opacity: 0.45, padding: '10px 0 2px',
+                                }}>
+                                    Built-in
+                                </div>
+                                {builtin.map(col => (
+                                    <div key={col.id ?? ''} style={{
+                                        display: 'flex', alignItems: 'flex-start', gap: 8,
+                                        padding: '7px 0',
+                                        borderBottom: '1px solid var(--vscode-panel-border)',
+                                        opacity: 0.55,
+                                    }}>
+                                        <div style={{ flex: 1, minWidth: 0 }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
+                                                <span style={{ fontSize: 12, fontWeight: 600 }}>{col.displayName ?? ''}</span>
+                                                <span style={{
+                                                    fontSize: 10, padding: '1px 6px', borderRadius: 8,
+                                                    border: `1px solid ${COLUMN_TYPE_COLORS[getColumnTypeName(col)]}50`,
+                                                    color: COLUMN_TYPE_COLORS[getColumnTypeName(col)],
+                                                    whiteSpace: 'nowrap',
+                                                }}>
+                                                    {COLUMN_TYPE_LABELS[getColumnTypeName(col)]}
+                                                </span>
+                                                {(col.indexed ?? false) && (
+                                                    <span title="Indexed — searchable">
+                                                        <span className="codicon codicon-search" style={{ fontSize: 11, opacity: 0.65 }} />
+                                                    </span>
+                                                )}
+                                                {(col.hidden ?? false) && (
+                                                    <span title="Hidden">
+                                                        <span className="codicon codicon-eye-closed" style={{ fontSize: 11, opacity: 0.65 }} />
+                                                    </span>
+                                                )}
+                                            </div>
+                                            {col.description && (
+                                                <div style={{
+                                                    fontSize: 11, opacity: 0.55, marginTop: 2,
+                                                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                                                }}>
+                                                    {col.description}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                ))}
+                            </>
+                        )}
+                    </>
+                );
+            })()}
 
             {showAdd && (
                 <Modal
                     title="Add column"
-                    confirmLabel="Add"
-                    confirmDisabled={!form.name.trim()}
+                    confirmLabel={addBusy ? 'Adding…' : 'Add'}
+                    confirmDisabled={!form.name.trim() || addBusy}
                     onConfirm={confirmAdd}
                     onCancel={() => setShowAdd(false)}
                 >
-                    <AddColumnForm form={form} setForm={setForm} />
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        {addError && <p style={{ margin: 0, fontSize: 11, color: 'var(--vscode-errorForeground)' }}>{addError}</p>}
+                        <AddColumnForm form={form} setForm={setForm} />
+                    </div>
                 </Modal>
             )}
 
             {editingId !== null && (
                 <Modal
                     title="Edit column"
-                    confirmLabel="Save"
-                    confirmDisabled={!editForm.name.trim()}
+                    confirmLabel={editBusy ? 'Saving…' : 'Save'}
+                    confirmDisabled={!editForm.name.trim() || editBusy}
                     onConfirm={confirmEdit}
                     onCancel={() => setEditingId(null)}
                 >
-                    <AddColumnForm form={editForm} setForm={setEditForm} lockType />
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        {editError && <p style={{ margin: 0, fontSize: 11, color: 'var(--vscode-errorForeground)' }}>{editError}</p>}
+                        <AddColumnForm form={editForm} setForm={setEditForm} lockType />
+                    </div>
                 </Modal>
             )}
         </div>
     );
+}
+
+// ── Build a ColumnDefinition payload from the form state ──────────────────────
+function buildColumnDefinition(form: AddColumnState): Partial<ColumnDefinition> {
+    const base: Partial<ColumnDefinition> = {
+        name: form.name.trim().replace(/\s+/g, '_'),
+        displayName: form.name.trim(),
+        description: form.description.trim() || undefined,
+        enforceUniqueValues: false,
+        hidden: false,
+        indexed: form.indexed,
+    };
+    switch (form.columnType) {
+        case 'boolean':            return { ...base, boolean: {} };
+        case 'text':               return { ...base, text: { allowMultipleLines: form.text.allowMultipleLines } };
+        case 'dateTime':           return { ...base, dateTime: { format: form.dateTime.format } };
+        case 'currency':           return { ...base, currency: { locale: form.currency.locale } };
+        case 'choice':             return { ...base, choice: { choices: form.choice.choices.filter(Boolean), allowTextEntry: form.choice.allowTextEntry } };
+        case 'hyperlinkOrPicture': return { ...base, hyperlinkOrPicture: {} };
+        case 'number':             return { ...base, number: { decimalPlaces: form.number.decimalPlaces, minimum: form.number.minimum ? parseFloat(form.number.minimum) : undefined, maximum: form.number.maximum ? parseFloat(form.number.maximum) : undefined } };
+        case 'personOrGroup':      return { ...base, personOrGroup: { allowMultipleSelection: form.personOrGroup.allowMultipleSelection, chooseFromType: form.personOrGroup.chooseFromType } };
+        default:                   return { ...base, text: {} };
+    }
 }
 
 function AddColumnForm({
@@ -314,24 +476,7 @@ function TypeSettingsSection({
                     <input type="checkbox" checked={s.allowMultipleLines} onChange={e => upd('text', { allowMultipleLines: e.target.checked })} />
                     Allow multiple lines
                 </label>
-                {s.allowMultipleLines && (
-                    <>
-                        <label style={checkLabel}>
-                            <input type="checkbox" checked={s.appendChangesToExistingText} onChange={e => upd('text', { appendChangesToExistingText: e.target.checked })} />
-                            Append changes to existing text
-                        </label>
-                        <div>
-                            <label style={labelStyle}>Lines for editing</label>
-                            <input type="number" min={0} style={inputStyle} value={s.linesForEditing}
-                                onChange={e => upd('text', { linesForEditing: parseInt(e.target.value) || 0 })} />
-                        </div>
-                    </>
-                )}
-                <div>
-                    <label style={labelStyle}>Max length (characters)</label>
-                    <input type="number" min={1} max={255} style={inputStyle} value={s.maxLength}
-                        onChange={e => upd('text', { maxLength: Math.min(255, parseInt(e.target.value) || 1) })} />
-                </div>
+
             </div>
         );
     }
@@ -340,15 +485,6 @@ function TypeSettingsSection({
         const s = form.dateTime;
         return (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '10px 12px', background: 'var(--vscode-textBlockQuote-background, rgba(127,127,127,0.07))', borderRadius: 4 }}>
-                <div>
-                    <label style={labelStyle}>Display as</label>
-                    {(['default', 'friendly', 'standard'] as const).map(v => (
-                        <label key={v} style={{ ...checkLabel, marginBottom: 4 }}>
-                            <input type="radio" name="dtDisplayAs" value={v} checked={s.displayAs === v} onChange={() => upd('dateTime', { displayAs: v })} />
-                            {v.charAt(0).toUpperCase() + v.slice(1)}
-                        </label>
-                    ))}
-                </div>
                 <div>
                     <label style={labelStyle}>Format</label>
                     {(['dateOnly', 'dateTime'] as const).map(v => (
@@ -422,18 +558,7 @@ function TypeSettingsSection({
     }
 
     if (form.columnType === 'hyperlinkOrPicture') {
-        const s = form.hyperlinkOrPicture;
-        return (
-            <div style={{ padding: '10px 12px', background: 'var(--vscode-textBlockQuote-background, rgba(127,127,127,0.07))', borderRadius: 4 }}>
-                <label style={labelStyle}>Format</label>
-                {[{ value: false, label: 'Hyperlink' }, { value: true, label: 'Picture' }].map(opt => (
-                    <label key={String(opt.value)} style={{ ...checkLabel, marginBottom: 4 }}>
-                        <input type="radio" name="hlFormat" checked={s.isPicture === opt.value} onChange={() => upd('hyperlinkOrPicture', { isPicture: opt.value })} />
-                        {opt.label}
-                    </label>
-                ))}
-            </div>
-        );
+        return <div style={{ fontSize: 12, opacity: 0.45, fontStyle: 'italic' }}>No additional settings.</div>;
     }
 
     if (form.columnType === 'number') {
@@ -447,15 +572,6 @@ function TypeSettingsSection({
                         onChange={e => upd('number', { decimalPlaces: e.target.value as typeof s.decimalPlaces })}>
                         {decimalOptions.map(o => <option key={o} value={o}>{o.charAt(0).toUpperCase() + o.slice(1)}</option>)}
                     </select>
-                </div>
-                <div>
-                    <label style={labelStyle}>Display as</label>
-                    {(['number', 'percentage'] as const).map(v => (
-                        <label key={v} style={{ ...checkLabel, marginBottom: 4 }}>
-                            <input type="radio" name="numDisplayAs" value={v} checked={s.displayAs === v} onChange={() => upd('number', { displayAs: v })} />
-                            {v.charAt(0).toUpperCase() + v.slice(1)}
-                        </label>
-                    ))}
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                     <div>
@@ -475,20 +591,12 @@ function TypeSettingsSection({
 
     if (form.columnType === 'personOrGroup') {
         const s = form.personOrGroup;
-        const displayAsOptions = ['account', 'contentType', 'created', 'department', 'email', 'jobTitle', 'organization', 'title'];
         return (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '10px 12px', background: 'var(--vscode-textBlockQuote-background, rgba(127,127,127,0.07))', borderRadius: 4 }}>
                 <label style={checkLabel}>
                     <input type="checkbox" checked={s.allowMultipleSelection} onChange={e => upd('personOrGroup', { allowMultipleSelection: e.target.checked })} />
                     Allow multiple selection
                 </label>
-                <div>
-                    <label style={labelStyle}>Display as</label>
-                    <select value={s.displayAs} style={selectStyle}
-                        onChange={e => upd('personOrGroup', { displayAs: e.target.value })}>
-                        {displayAsOptions.map(o => <option key={o} value={o}>{o}</option>)}
-                    </select>
-                </div>
                 <div>
                     <label style={labelStyle}>Choose from</label>
                     {([['peopleAndGroups', 'People and groups'], ['peopleOnly', 'People only']] as const).map(([v, lbl]) => (
