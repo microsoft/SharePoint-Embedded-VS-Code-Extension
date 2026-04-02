@@ -15,6 +15,14 @@ import {
     servicePrincipalSchema
 } from '../../models/schemas';
 import { Logger } from '../../utils/Logger';
+import { clientId } from '../../client';
+
+/** Well-known 1P app IDs whose service principals won't exist in customer tenants. */
+const wellKnownApps: ReadonlyMap<string, string> = new Map([
+    [clientId, 'SharePoint Embedded VS Code Extension'],
+    ['de8bc8b5-d9f9-48b1-a8ad-b748da725064', 'Graph Explorer'],
+    ['e8e1b0bf-140f-4b8b-8e94-fbe8937fad04', 'Power Platform Connector'],
+]);
 
 /**
  * Service for managing Applications via Microsoft Graph API
@@ -462,7 +470,6 @@ export class ApplicationService {
                 { id: "c319a7df-930e-44c0-a43b-7e5e9c7f4f24", name: "FileStorageContainerTypeReg.Manage.All" },
                 { id: "085ca537-6565-41c2-aca7-db852babc212", name: "FileStorageContainer.Selected" },
                 { id: "8e6ec84c-5fcd-4cc7-ac8a-2296efc0ed9b", name: "FileStorageContainerType.Manage.All" },
-                { id: "527b6d64-cdf5-4b8b-b336-4aa0b8ca2ce5", name: "FileStorageContainer.Manage.All" },
                 { id: "e1fe6dd8-ba31-4d61-89e7-88639da4683d", name: "User.Read" },
             ];
 
@@ -533,7 +540,7 @@ export class ApplicationService {
      *   - FileStorageContainer.Selected Scope (delegated containers access)
      *
      * These complement the scopes that ensureContainerTypePermissions adds at
-     * registration time (User.Read, FSC.Manage.All, etc.).
+     * registration time (User.Read etc.).
      *
      * @returns true if any permissions were added, false if all already existed
      */
@@ -714,6 +721,13 @@ export class ApplicationService {
      * @returns The ServicePrincipal or null if not found
      */
     async getServicePrincipal(appId: string): Promise<ServicePrincipal> {
+        // Short-circuit for well-known 1P apps that won't have a service principal in the tenant
+        const knownName = wellKnownApps.get(appId);
+        if (knownName) {
+            Logger.log(`[ApplicationService.getServicePrincipal] Resolved well-known app ${appId} → ${knownName}`);
+            return servicePrincipalSchema.parse({ id: appId, appId, displayName: knownName });
+        }
+
         try {
             Logger.log(`[ApplicationService.getServicePrincipal] Getting service principal for appId: ${appId}`);
 
@@ -733,4 +747,5 @@ export class ApplicationService {
             throw new Error(`Failed to get service principal for application ${appId}: ${error.message || error}`);
         }
     }
+
 }

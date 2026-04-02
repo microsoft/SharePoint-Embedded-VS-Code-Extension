@@ -357,6 +357,21 @@
         },
         {
           "when": "viewItem == spe:guestAppsTreeItem",
+          "command": "spe.GuestApps.addGraphExplorer",
+          "group": "1@2"
+        },
+        {
+          "when": "viewItem == spe:guestAppsTreeItem",
+          "command": "spe.GuestApps.addConnector",
+          "group": "1@3"
+        },
+        {
+          "when": "viewItem == spe:guestAppsTreeItem",
+          "command": "spe.GuestApps.addExtension",
+          "group": "1@4"
+        },
+        {
+          "when": "viewItem == spe:guestAppsTreeItem",
           "command": "spe.refresh",
           "group": "2@1"
         },
@@ -556,6 +571,18 @@
         "command": "spe.GuestApps.add",
         "title": "%commands.spe.GuestApps.add%",
         "icon": "$(plus)"
+      },
+      {
+        "command": "spe.GuestApps.addGraphExplorer",
+        "title": "%commands.spe.GuestApps.addGraphExplorer%"
+      },
+      {
+        "command": "spe.GuestApps.addConnector",
+        "title": "%commands.spe.GuestApps.addConnector%"
+      },
+      {
+        "command": "spe.GuestApps.addExtension",
+        "title": "%commands.spe.GuestApps.addExtension%"
       },
       {
         "command": "spe.GuestApp.editPermissions",

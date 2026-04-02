@@ -27,7 +27,7 @@ export class ContainersTreeItem extends IChildrenProvidingTreeItem {
 
         // Informational node about post-registration propagation delay
         const infoNode = new vscode.TreeItem(
-            vscode.l10n.t('Container operations may take up to 30 minutes after registration to stabilize'),
+            vscode.l10n.t('Changes to containers may take up to 30 minutes to show up here'),
             vscode.TreeItemCollapsibleState.None
         );
         infoNode.iconPath = new vscode.ThemeIcon('info');

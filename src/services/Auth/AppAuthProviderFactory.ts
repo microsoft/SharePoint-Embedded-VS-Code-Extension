@@ -13,7 +13,6 @@ import { VSCodeAuthProvider, VSCodeAuthConfig } from './VSCodeAuthProvider';
 export class AppAuthProviderFactory {
     private static readonly APP_SCOPES = [
         'https://graph.microsoft.com/FileStorageContainer.Selected',
-        'https://graph.microsoft.com/FileStorageContainerType.Manage.All',
         'https://graph.microsoft.com/FileStorageContainerTypeReg.Manage.All'
     ];
 

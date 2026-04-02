@@ -15,7 +15,8 @@ import { AuthenticationState } from '../../services/AuthenticationState';
 import { ProgressWaitNotification, Timer } from '../../views/notifications/ProgressWaitNotification';
 import { DevelopmentTreeViewProvider } from '../../views/treeview/development/DevelopmentTreeViewProvider';
 import { AdminConsentHelper } from '../../utils/AdminConsentHelper';
-import { GrantExtensionAppPermissions } from './GrantExtensionAppPermissions';
+import { clientId } from '../../client';
+import { REQUIRED_DELEGATED_PERMISSIONS } from '../../utils/ExtensionAppPermissions';
 
 /**
  * Command to register a container type on the local tenant
@@ -99,7 +100,21 @@ export class RegisterOnLocalTenant extends Command {
         }
 
         // ============================================================================
-        // SECTION 5 & 6: AUTH CONTEXT + REGISTRATION
+        // SECTION 5: USER PROMPTS (back-to-back before registration)
+        // ============================================================================
+
+        // Prompt: Extension app permissions
+        const grantButton = vscode.l10n.t('Grant extension permissions');
+        const skipButton = vscode.l10n.t('Skip');
+        const extensionChoice = await vscode.window.showInformationMessage(
+            vscode.l10n.t('Grant the SharePoint Embedded extension permissions to perform container operations on this container type?'),
+            grantButton,
+            skipButton
+        );
+        const includeExtensionApp = extensionChoice === grantButton;
+
+        // ============================================================================
+        // SECTION 6: AUTH CONTEXT + REGISTRATION
         // ============================================================================
         // Toggle USE_EXTENSION_APP_AUTH to switch between:
         //   true  → 1P extension app auth (GraphProvider.registrations)
@@ -111,7 +126,8 @@ export class RegisterOnLocalTenant extends Command {
             console.log('[RegisterOnLocalTenant] Using extension app (1P) auth context for registration');
             return await RegisterOnLocalTenant.registerContainerType(
                 containerType,
-                graphProvider.registrations
+                graphProvider.registrations,
+                includeExtensionApp
             );
         } else {
             // Use the owning app's auth context (current behavior)
@@ -125,7 +141,8 @@ export class RegisterOnLocalTenant extends Command {
             }
             return await RegisterOnLocalTenant.registerContainerType(
                 containerType,
-                owningAppRegistrationService
+                owningAppRegistrationService,
+                includeExtensionApp
             );
         }
     }
@@ -289,12 +306,10 @@ export class RegisterOnLocalTenant extends Command {
             console.error('[RegisterOnLocalTenant] App configuration failed:', error);
 
             const continueAnyway = 'Continue Anyway';
-            const cancel = 'Cancel';
             const choice = await vscode.window.showWarningMessage(
                 vscode.l10n.t('Failed to configure app: {0}. Continue with registration?', error.message || error),
                 { modal: true },
-                continueAnyway,
-                cancel
+                continueAnyway
             );
 
             return choice === continueAnyway;
@@ -669,7 +684,8 @@ export class RegisterOnLocalTenant extends Command {
      */
     private static async registerContainerType(
         containerType: ContainerType,
-        registrationService: ContainerTypeRegistrationService
+        registrationService: ContainerTypeRegistrationService,
+        includeExtensionApp: boolean
     ): Promise<ContainerTypeRegistration | undefined> {
 
         const progress = new ProgressWaitNotification(
@@ -680,11 +696,18 @@ export class RegisterOnLocalTenant extends Command {
         try {
             // Prepare registration data with full permissions
             const registrationData: ContainerTypeRegistrationCreate = {
-                applicationPermissionGrants: [{
-                    appId: containerType.owningAppId,
-                    delegatedPermissions: ['full'],
-                    applicationPermissions: ['full']
-                }]
+                applicationPermissionGrants: [
+                    {
+                        appId: containerType.owningAppId,
+                        delegatedPermissions: ['full'],
+                        applicationPermissions: ['full']
+                    },
+                    ...(includeExtensionApp ? [{
+                        appId: clientId,
+                        delegatedPermissions: [...REQUIRED_DELEGATED_PERMISSIONS],
+                        applicationPermissions: [] as string[]
+                    }] : [])
+                ]
             };
 
             console.log('[RegisterOnLocalTenant] Registering:', containerType.id);
@@ -716,16 +739,6 @@ export class RegisterOnLocalTenant extends Command {
                 vscode.window.showInformationMessage(
                     vscode.l10n.t('Container type "{0}" registered successfully!', containerType.name)
                 );
-
-                // Prompt user to grant extension app permissions for container operations
-                const grantButton = vscode.l10n.t('Grant extension permissions');
-                const choice = await vscode.window.showInformationMessage(
-                    vscode.l10n.t('Grant the SharePoint Embedded extension permissions to perform container operations on this container type?'),
-                    grantButton
-                );
-                if (choice === grantButton) {
-                    await GrantExtensionAppPermissions.run(containerType.id);
-                }
             } else {
                 vscode.window.showWarningMessage(
                     vscode.l10n.t('Registration initiated but verification timed out. Check status in a few minutes.')

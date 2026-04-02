@@ -43,6 +43,9 @@ import { OpenPostmanDocumentation as _OpenPostmanDocumentation } from './App/Pos
 import { CopyAppId as _CopyAppId } from './App/CopyAppId';
 import { RestoreContainer as _RestoreContainer } from './RecycledContainer/RestoreContainer'; 
 import { GetorCreateGuestApp as _GetOrCreateGuestApp } from './GuestApps/GetorCreateGuestApp';
+import { AddGraphExplorerPermissions as _AddGraphExplorerPermissions } from './GuestApps/AddGraphExplorerPermissions';
+import { AddConnectorPermissions as _AddConnectorPermissions } from './GuestApps/AddConnectorPermissions';
+import { AddExtensionPermissions as _AddExtensionPermissions } from './GuestApps/AddExtensionPermissions';
 import { CopyRecycledContainerId as _CopyRecycledContainerId } from './RecycledContainer/CopyContainerId';
 import { EditGuestAppPermissions as _EditGuestAppPermissions } from './GuestApps/EditGuestAppPermissions';
 import { RemoveGuestApp as _RemoveGuestApp } from './GuestApps/RemoveGuestApp';
@@ -75,6 +78,9 @@ export namespace Commands {
   // Apps Commands
   export const GetOrCreateApp = _GetOrCreateApp;
 export const GetOrCreateGuestApp = _GetOrCreateGuestApp;
+  export const AddGraphExplorerPermissions = _AddGraphExplorerPermissions;
+  export const AddConnectorPermissions = _AddConnectorPermissions;
+  export const AddExtensionPermissions = _AddExtensionPermissions;
 
   // App Commands
   export const CreatePostmanConfig = _CreatePostmanConfig;

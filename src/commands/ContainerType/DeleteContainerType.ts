@@ -35,13 +35,11 @@ export class DeleteContainerType extends Command {
             name || id
         );
         const deleteButton = vscode.l10n.t('Delete');
-        const cancelButton = vscode.l10n.t('Cancel');
 
         const selection = await vscode.window.showWarningMessage(
             confirmMessage,
             { modal: true },
-            deleteButton,
-            cancelButton
+            deleteButton
         );
 
         if (selection !== deleteButton) {
@@ -56,6 +54,13 @@ export class DeleteContainerType extends Command {
 
         try {
             const graphProvider = GraphProvider.getInstance();
+
+            // Clean up registration on local tenant if it exists
+            const isRegistered = await graphProvider.registrations.isRegistered(id);
+            if (isRegistered) {
+                await graphProvider.registrations.unregister(id);
+            }
+
             await graphProvider.containerTypes.delete(id);
 
             progressWindow.hide();

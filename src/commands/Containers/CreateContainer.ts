@@ -66,13 +66,23 @@ export class CreateContainer extends Command {
                 throw new Error(vscode.l10n.t('Failed to create container'));
             }
             DevelopmentTreeViewProvider.getInstance().refresh(containersViewModel);
+            vscode.window.showInformationMessage(
+                vscode.l10n.t('Container "{0}" created successfully.', container.displayName)
+            );
             progressWindow.hide();
             TelemetryProvider.instance.send(new CreateContainerEvent());
             return container;
         } catch (error: any) {
             progressWindow.hide();
-            const message = vscode.l10n.t('Unable to create container object: {0}', error.message);
-            vscode.window.showErrorMessage(message);
+            let errorMessage = vscode.l10n.t('Unable to create container: {0}', error.message);
+
+            if (error.statusCode === 403 || error.code === 'Forbidden' || /access denied/i.test(error.message)) {
+                errorMessage = vscode.l10n.t(
+                    'Access denied. This can happen if permissions have not finished propagating. Please wait a few minutes and try again.'
+                );
+            }
+
+            vscode.window.showErrorMessage(errorMessage);
             TelemetryProvider.instance.send(new CreateContainerFailure(error.message));
             return;
         }

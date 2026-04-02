@@ -5,6 +5,7 @@
 
 import * as vscode from 'vscode';
 import { ext } from '../../utils/extensionVariables';
+import { Logger } from '../../utils/Logger';
 
 export interface AuthHandler {
     (done: AuthHandlerCallback): void;
@@ -58,6 +59,7 @@ export class VSCodeAuthProvider {
                     return this.getToken(scopes, true);
                 })
                 .then(token => {
+                    //Logger.log(`[VSCodeAuthProvider.getAuthHandler] Token acquired (clientId=${this._config.clientId})`);
                     done(null, token);
                 })
                 .catch(err => done(err, null));
