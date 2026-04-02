@@ -12,7 +12,7 @@ import { useStorageExplorer } from '../context/StorageExplorerContext';
 import { DEFAULT_RETENTION_DAYS } from '../data/dummyData';
 
 export function StorageExplorerPage() {
-    const { sidePanelOpen, modal, closeModal, viewMode, setRetentionOverride, networkDrawerOpen } = useStorageExplorer();
+    const { sidePanelOpen, modal, closeModal, viewMode, setRetentionOverride, networkDrawerOpen, createContainer, renameContainer, deleteContainer, permanentlyDeleteContainer } = useStorageExplorer();
     const isRecycledView = viewMode.kind !== 'normal';
 
     return (
@@ -29,28 +29,40 @@ export function StorageExplorerPage() {
             <UploadCard />
             {modal?.kind === 'new-container' && (
                 <NewContainerModal
-                    onConfirm={() => closeModal()}
+                    onConfirm={async (name, description) => {
+                        await createContainer(name, description);
+                        closeModal();
+                    }}
                     onCancel={closeModal}
                 />
             )}
             {modal?.kind === 'rename' && (
                 <RenameModal
                     currentName={modal.item.name}
-                    onConfirm={(newName) => { closeModal(); /* TODO: rename(modal.item, newName) */ }}
+                    onConfirm={async (newName) => {
+                        await renameContainer(modal.item.id, newName);
+                        closeModal();
+                    }}
                     onCancel={closeModal}
                 />
             )}
             {modal?.kind === 'delete' && (
                 <DeleteModal
                     itemName={modal.item.name}
-                    onConfirm={() => { closeModal(); /* TODO: delete(modal.item) */ }}
+                    onConfirm={async () => {
+                        await deleteContainer(modal.item.id);
+                        closeModal();
+                    }}
                     onCancel={closeModal}
                 />
             )}
             {modal?.kind === 'permanently-delete' && (
                 <PermanentlyDeleteModal
                     itemName={modal.item.name}
-                    onConfirm={() => { closeModal(); /* TODO: permanentlyDelete(modal.item) */ }}
+                    onConfirm={async () => {
+                        await permanentlyDeleteContainer(modal.item.id);
+                        closeModal();
+                    }}
                     onCancel={closeModal}
                 />
             )}
@@ -118,51 +130,60 @@ function RenameModal({
     currentName, onConfirm, onCancel,
 }: {
     currentName: string;
-    onConfirm: (name: string) => void;
+    onConfirm: (name: string) => Promise<void>;
     onCancel: () => void;
 }) {
     const [value, setValue] = useState(currentName);
+    const [busy, setBusy] = useState(false);
+    const [error, setError] = useState<string | null>(null);
     const inputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         inputRef.current?.select();
     }, []);
 
-    function handleConfirm() {
+    async function handleConfirm() {
         const trimmed = value.trim();
-        if (trimmed && trimmed !== currentName) {
-            onConfirm(trimmed);
-        } else {
-            onCancel();
+        if (!trimmed || trimmed === currentName) { onCancel(); return; }
+        setBusy(true);
+        setError(null);
+        try {
+            await onConfirm(trimmed);
+        } catch (err: any) {
+            setError(err?.message ?? 'Rename failed.');
+            setBusy(false);
         }
     }
 
     return (
         <Modal
             title="Rename"
-            confirmLabel="Rename"
-            confirmDisabled={!value.trim() || value.trim() === currentName}
+            confirmLabel={busy ? 'Renaming…' : 'Rename'}
+            confirmDisabled={!value.trim() || value.trim() === currentName || busy}
             onConfirm={handleConfirm}
             onCancel={onCancel}
         >
-            <input
-                ref={inputRef}
-                autoFocus
-                value={value}
-                onChange={e => setValue(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') handleConfirm(); }}
-                style={{
-                    width: '100%',
-                    boxSizing: 'border-box',
-                    padding: '5px 8px',
-                    background: 'var(--vscode-input-background)',
-                    color: 'var(--vscode-input-foreground)',
-                    border: '1px solid var(--vscode-input-border, var(--vscode-panel-border))',
-                    borderRadius: 3,
-                    fontSize: 13,
-                    outline: 'none',
-                }}
-            />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {error && <p style={{ margin: 0, fontSize: 12, color: 'var(--vscode-errorForeground)' }}>{error}</p>}
+                <input
+                    ref={inputRef}
+                    autoFocus
+                    value={value}
+                    onChange={e => setValue(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') handleConfirm(); }}
+                    style={{
+                        width: '100%',
+                        boxSizing: 'border-box',
+                        padding: '5px 8px',
+                        background: 'var(--vscode-input-background)',
+                        color: 'var(--vscode-input-foreground)',
+                        border: '1px solid var(--vscode-input-border, var(--vscode-panel-border))',
+                        borderRadius: 3,
+                        fontSize: 13,
+                        outline: 'none',
+                    }}
+                />
+            </div>
         </Modal>
     );
 }
@@ -171,20 +192,38 @@ function DeleteModal({
     itemName, onConfirm, onCancel,
 }: {
     itemName: string;
-    onConfirm: () => void;
+    onConfirm: () => Promise<void>;
     onCancel: () => void;
 }) {
+    const [busy, setBusy] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+
+    async function handleConfirm() {
+        setBusy(true);
+        setError(null);
+        try {
+            await onConfirm();
+        } catch (err: any) {
+            setError(err?.message ?? 'Delete failed.');
+            setBusy(false);
+        }
+    }
+
     return (
         <Modal
             title="Delete"
-            confirmLabel="Delete"
+            confirmLabel={busy ? 'Deleting…' : 'Delete'}
+            confirmDisabled={busy}
             danger
-            onConfirm={onConfirm}
+            onConfirm={handleConfirm}
             onCancel={onCancel}
         >
-            <p style={{ margin: 0, color: 'var(--vscode-foreground)', fontSize: 13, lineHeight: '1.5' }}>
-                Are you sure you want to delete <strong>"{itemName}"</strong>?
-            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {error && <p style={{ margin: 0, fontSize: 12, color: 'var(--vscode-errorForeground)' }}>{error}</p>}
+                <p style={{ margin: 0, color: 'var(--vscode-foreground)', fontSize: 13, lineHeight: '1.5' }}>
+                    Are you sure you want to delete <strong>"{itemName}"</strong>?
+                </p>
+            </div>
         </Modal>
     );
 }
@@ -295,23 +334,32 @@ function RetentionSettingsModal({
 function NewContainerModal({
     onConfirm, onCancel,
 }: {
-    onConfirm: (name: string, description: string) => void;
+    onConfirm: (name: string, description: string) => Promise<void>;
     onCancel: () => void;
 }) {
     const [name, setName] = useState('');
     const [description, setDescription] = useState('');
+    const [busy, setBusy] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
-    function handleConfirm() {
+    async function handleConfirm() {
         const trimmedName = name.trim();
         if (!trimmedName) return;
-        onConfirm(trimmedName, description.trim());
+        setBusy(true);
+        setError(null);
+        try {
+            await onConfirm(trimmedName, description.trim());
+        } catch (err: any) {
+            setError(err?.message ?? 'Failed to create container.');
+            setBusy(false);
+        }
     }
 
     return (
         <Modal
             title="New container"
-            confirmLabel="Create"
-            confirmDisabled={!name.trim()}
+            confirmLabel={busy ? 'Creating…' : 'Create'}
+            confirmDisabled={!name.trim() || busy}
             onConfirm={handleConfirm}
             onCancel={onCancel}
         >
@@ -319,6 +367,9 @@ function NewContainerModal({
                 <p style={{ margin: 0, fontSize: 13, color: 'var(--vscode-foreground)', opacity: 0.75, lineHeight: '1.5' }}>
                     Containers are the top-level storage units in SharePoint Embedded. Each container has its own set of permissions, columns, and settings.
                 </p>
+                {error && (
+                    <p style={{ margin: 0, fontSize: 12, color: 'var(--vscode-errorForeground)' }}>{error}</p>
+                )}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                     <label htmlFor="container-name" style={{ fontSize: 12, opacity: 0.7 }}>
                         Name <span style={{ color: 'var(--vscode-errorForeground)' }}>*</span>

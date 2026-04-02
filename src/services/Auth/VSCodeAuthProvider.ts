@@ -100,6 +100,15 @@ export class VSCodeAuthProvider {
     }
 
     /**
+     * Return the access token from the most recently acquired session without
+     * making any network call.  Returns undefined if no session has been
+     * established yet in this provider instance.
+     */
+    public getCachedToken(): string | undefined {
+        return this._currentSession?.accessToken;
+    }
+
+    /**
      * Sign in and create a new authentication session
      */
     public async signIn(additionalScopes?: string[], account?: vscode.AuthenticationSessionAccountInformation): Promise<vscode.AuthenticationSession> {

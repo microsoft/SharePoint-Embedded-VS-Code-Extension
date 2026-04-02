@@ -1,6 +1,20 @@
-import React, { createContext, useCallback, useContext, useRef, useState, useMemo } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState, useMemo } from 'react';
 import { StorageItem, BreadcrumbEntry, SortColumn, SortDirection, SidePanelTab, ModalState, ViewMode, NetworkRequest, UploadFile, UploadStatus } from '../models/StorageItem';
-import { ROOT_ITEMS, ITEMS_BY_ID, DUMMY_APP_INFO, DELETED_CONTAINERS, RECYCLED_ITEMS_BY_CONTAINER_ID, DUMMY_NETWORK_REQUESTS } from '../data/dummyData';
+import { ITEMS_BY_ID, DELETED_CONTAINERS, RECYCLED_ITEMS_BY_CONTAINER_ID } from '../data/dummyData';
+import { createStorageExplorerApi, StorageExplorerApi, WebviewAuthProvider } from '../api';
+
+// Window state injected by StorageExplorerPanel._buildHtml
+declare global {
+    interface Window {
+        __STORAGE_EXPLORER_STATE__?: {
+            appName: string;
+            tenantDomain: string;
+            containerTypeId: string;
+            registrationId: string;
+            initialToken?: string;
+        };
+    }
+}
 
 interface StorageExplorerContextValue {
     appName: string;
@@ -27,6 +41,14 @@ interface StorageExplorerContextValue {
     closeModal: () => void;
     retentionOverrides: Record<string, number | null>;
     setRetentionOverride: (containerId: string, days: number | null) => void;
+    api: StorageExplorerApi;
+    isLoading: boolean;
+    refresh: () => void;
+    createContainer: (name: string, description?: string) => Promise<void>;
+    renameContainer: (containerId: string, newName: string) => Promise<void>;
+    deleteContainer: (containerId: string) => Promise<void>;
+    restoreContainer: (containerId: string) => Promise<void>;
+    permanentlyDeleteContainer: (containerId: string) => Promise<void>;
     networkRequests: NetworkRequest[];
     networkDrawerOpen: boolean;
     toggleNetworkDrawer: () => void;
@@ -49,9 +71,35 @@ interface StorageExplorerContextValue {
 const StorageExplorerContext = createContext<StorageExplorerContextValue | null>(null);
 
 export function StorageExplorerProvider({ children }: { children: React.ReactNode }) {
+    // Panel state injected by the extension host (immutable for this session)
+    const panelState = window.__STORAGE_EXPLORER_STATE__ ?? {
+        appName: 'Storage Explorer',
+        tenantDomain: '',
+        containerTypeId: '',
+        registrationId: '',
+    };
+
+    // ── API instances (created once per session) ──────────────────────────────
+    const authProviderRef = useRef<WebviewAuthProvider | undefined>(undefined);
+    const apiRef = useRef<StorageExplorerApi | undefined>(undefined);
+
+    // Stable network logger — setNetworkRequests is stable across renders
+    const handleNetworkRequest = useCallback((req: NetworkRequest) => {
+        setNetworkRequests(prev => [...prev, req]);
+    }, []);
+
+    if (!authProviderRef.current) {
+        authProviderRef.current = new WebviewAuthProvider();
+    }
+    if (!apiRef.current) {
+        apiRef.current = createStorageExplorerApi(authProviderRef.current, handleNetworkRequest);
+    }
+
     const [path, setPath] = useState<BreadcrumbEntry[]>([
-        { label: DUMMY_APP_INFO.name, id: null }
+        { label: panelState.appName, id: null }
     ]);
+    const [rootItems, setRootItems] = useState<StorageItem[]>([]);
+    const [deletedContainers, setDeletedContainers] = useState<StorageItem[]>([]);
     const [selectedItem, setSelectedItem] = useState<StorageItem | null>(null);
     const [sortColumn, setSortColumnState] = useState<SortColumn>('name');
     const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
@@ -59,7 +107,8 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
     const [sidePanelTab, setSidePanelTabState] = useState<SidePanelTab>('permissions');
     const [modal, setModal] = useState<ModalState | null>(null);
     const [retentionOverrides, setRetentionOverridesState] = useState<Record<string, number | null>>({});
-    const [networkRequests, setNetworkRequests] = useState<NetworkRequest[]>(DUMMY_NETWORK_REQUESTS);
+    const [isLoading, setIsLoading] = useState(false);
+    const [networkRequests, setNetworkRequests] = useState<NetworkRequest[]>([]);
     const [networkDrawerOpen, setNetworkDrawerOpen] = useState(false);
     // ── upload state ──
     const [uploads, setUploads] = useState<UploadFile[]>([]);
@@ -69,6 +118,8 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
 
     const lastId = path[path.length - 1]?.id ?? null;
 
+    // viewMode must be declared before loadCurrentView and refresh so their
+    // useCallback/useMemo dep arrays can reference it without hitting TDZ.
     const viewMode = useMemo((): ViewMode => {
         if (lastId === '__deleted_containers') return { kind: 'deleted-containers' };
         if (lastId === '__recyclebin__') {
@@ -78,9 +129,62 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
         return { kind: 'normal' };
     }, [lastId, path]);
 
+    // ── Refresh / data loading ────────────────────────────────────────────────
+    const loadCurrentView = useCallback((currentViewMode: ViewMode) => {
+        const { containerTypeId } = panelState;
+        setIsLoading(true);
+        if (currentViewMode.kind === 'normal') {
+            if (!containerTypeId) { setIsLoading(false); return; }
+            apiRef.current!.containers.list(containerTypeId)
+                .then(items => setRootItems(items))
+                .catch(err => console.error('[StorageExplorer] Failed to load containers:', err))
+                .finally(() => setIsLoading(false));
+        } else if (currentViewMode.kind === 'deleted-containers') {
+            if (!containerTypeId) { setIsLoading(false); return; }
+            apiRef.current!.containers.listDeleted(containerTypeId)
+                .then(items => setDeletedContainers(items))
+                .catch(err => console.error('[StorageExplorer] Failed to load deleted containers:', err))
+                .finally(() => setIsLoading(false));
+        } else {
+            // Inside a container/folder — will call drive.listChildren once implemented
+            setIsLoading(false);
+        }
+    // panelState is stable (injected once at mount)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    // Load whenever the view mode changes (includes initial mount)
+    useEffect(() => {
+        loadCurrentView(viewMode);
+    // viewMode is a stable object from useMemo; using .kind ensures we re-fire on navigation
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [viewMode.kind]);
+
+    const refresh = useCallback(() => {
+        loadCurrentView(viewMode);
+    }, [loadCurrentView, viewMode]);
+
+    const createContainer = useCallback(async (name: string, description?: string) => {
+        const { containerTypeId } = panelState;
+        await apiRef.current!.containers.create(containerTypeId, name, description);
+        await loadCurrentView(viewMode);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [loadCurrentView, viewMode]);
+
+    const renameContainer = useCallback(async (containerId: string, newName: string) => {
+        await apiRef.current!.containers.rename(containerId, newName);
+        await loadCurrentView(viewMode);
+    }, [loadCurrentView, viewMode]);
+
+    const deleteContainer = useCallback(async (containerId: string) => {
+        await apiRef.current!.containers.delete(containerId);
+        setSelectedItem(null);
+        await loadCurrentView(viewMode);
+    }, [loadCurrentView, viewMode]);
+
     const currentItems = useMemo(() => {
         if (viewMode.kind !== 'normal') return [];
-        const raw = lastId === null ? ROOT_ITEMS : (ITEMS_BY_ID[lastId] ?? []);
+        const raw = lastId === null ? rootItems : (ITEMS_BY_ID[lastId] ?? []);
         const kindOrder: Record<string, number> = { container: 0, folder: 1, file: 2 };
 
         return [...raw].sort((a, b) => {
@@ -97,12 +201,12 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
             }
             return sortDirection === 'asc' ? cmp : -cmp;
         });
-    }, [lastId, viewMode, sortColumn, sortDirection]);
+    }, [lastId, viewMode, rootItems, sortColumn, sortDirection]);
 
     const currentRecycledItems = useMemo(() => {
         if (viewMode.kind === 'normal') return [];
         const raw = viewMode.kind === 'deleted-containers'
-            ? DELETED_CONTAINERS
+            ? deletedContainers
             : (RECYCLED_ITEMS_BY_CONTAINER_ID[viewMode.containerId] ?? []);
         return [...raw].sort((a, b) => {
             let cmp = 0;
@@ -114,7 +218,19 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
             }
             return sortDirection === 'asc' ? cmp : -cmp;
         });
-    }, [viewMode, sortColumn, sortDirection]);
+    }, [viewMode, deletedContainers, sortColumn, sortDirection]);
+
+    const restoreContainer = useCallback(async (containerId: string) => {
+        await apiRef.current!.containers.restore(containerId);
+        setSelectedItem(null);
+        await loadCurrentView(viewMode);
+    }, [loadCurrentView, viewMode]);
+
+    const permanentlyDeleteContainer = useCallback(async (containerId: string) => {
+        await apiRef.current!.containers.permanentlyDelete(containerId);
+        setSelectedItem(null);
+        await loadCurrentView(viewMode);
+    }, [loadCurrentView, viewMode]);
 
     function navigate(item: StorageItem) {
         if (item.kind === 'file') return;
@@ -273,8 +389,16 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
     }
 
     const value: StorageExplorerContextValue = {
-        appName: DUMMY_APP_INFO.name,
-        tenantDomain: DUMMY_APP_INFO.tenantDomain,
+        appName: panelState.appName,
+        tenantDomain: panelState.tenantDomain,
+        api: apiRef.current!,
+        isLoading,
+        refresh,
+        createContainer,
+        renameContainer,
+        deleteContainer,
+        restoreContainer,
+        permanentlyDeleteContainer,
         path,
         viewMode,
         currentItems,

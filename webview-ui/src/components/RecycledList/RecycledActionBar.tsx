@@ -29,7 +29,7 @@ function ActionBtn({
 }
 
 export function RecycledActionBar() {
-    const { selectedItem, viewMode, openModal, retentionOverrides } = useStorageExplorer();
+    const { selectedItem, viewMode, openModal, retentionOverrides, restoreContainer } = useStorageExplorer();
     const hasSelection = selectedItem !== null;
     const isContainerRecycleBin = viewMode.kind === 'container-recycle-bin';
 
@@ -67,7 +67,7 @@ export function RecycledActionBar() {
                 label="Restore"
                 title="Restore selected item"
                 disabled={!hasSelection}
-                onClick={() => { /* TODO */ }}
+                onClick={() => selectedItem && restoreContainer(selectedItem.id).catch(console.error)}
             />
             <ActionBtn
                 icon="codicon-trash"

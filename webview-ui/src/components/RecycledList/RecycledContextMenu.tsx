@@ -11,7 +11,7 @@ interface RecycledContextMenuProps {
 }
 
 export function RecycledContextMenu({ item, x, y, onClose }: RecycledContextMenuProps) {
-    const { setSidePanelTab, openModal } = useStorageExplorer();
+    const { setSidePanelTab, openModal, restoreContainer, refresh } = useStorageExplorer();
     const ref = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -30,7 +30,7 @@ export function RecycledContextMenu({ item, x, y, onClose }: RecycledContextMenu
     }, [onClose]);
 
     const actions = [
-        { icon: 'codicon-redo', label: 'Restore', danger: false, onClick: () => { onClose(); /* TODO */ } },
+        { icon: 'codicon-redo', label: 'Restore', danger: false, onClick: () => { onClose(); restoreContainer(item.id).catch(console.error); } },
         { icon: 'codicon-trash', label: 'Permanently delete', danger: true, dividerAfter: true, onClick: () => { onClose(); setSidePanelTab('properties'); openModal({ kind: 'permanently-delete' as const, item }); } },
         { icon: 'codicon-info', label: 'Properties', danger: false, dividerBefore: true, onClick: () => { onClose(); setSidePanelTab('properties'); } },
     ];

@@ -1,10 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
-import {
-    DUMMY_CONTAINER_PERMISSIONS, DUMMY_USERS_AND_GROUPS,
-} from '../../data/dummyData';
-import type { PeopleSuggestion, ContainerRole } from '../../models/spe';
+import type { Permission } from '@microsoft/microsoft-graph-types';
+import type { PeopleSuggestion, ContainerRole, SpeIdentity } from '../../models/spe';
 import { StorageItem } from '../../models/StorageItem';
 import { Modal } from '../Modal/Modal';
+import { useStorageExplorer } from '../../context/StorageExplorerContext';
 
 const ROLES: ContainerRole[] = ['owner', 'manager', 'writer', 'reader'];
 
@@ -15,12 +14,6 @@ const ROLE_LABELS: Record<ContainerRole, string> = {
     reader: 'Readers',
 };
 
-interface EditState {
-    originalRole: ContainerRole;
-    originalId: string;
-    dialog: AddDialogState;
-}
-
 const ROLE_COLORS: Record<ContainerRole, string> = {
     owner: 'var(--vscode-symbolIcon-classForeground, #4ec9b0)',
     manager: 'var(--vscode-symbolIcon-constructorForeground, #b8d7a3)',
@@ -28,7 +21,65 @@ const ROLE_COLORS: Record<ContainerRole, string> = {
     reader: 'var(--vscode-foreground)',
 };
 
-type Permissions = Record<ContainerRole, PeopleSuggestion[]>;
+// ── Data model ────────────────────────────────────────────────────────────────
+
+interface PermEntry extends PeopleSuggestion {
+    /** The Graph Permission.id — needed for update/delete calls. */
+    permissionId: string;
+}
+
+type PermMap = Record<ContainerRole, PermEntry[]>;
+
+function emptyPermMap(): PermMap {
+    return { owner: [], manager: [], writer: [], reader: [] };
+}
+
+function toPermEntry(perm: Permission): PermEntry {
+    const user = perm.grantedToV2?.user as SpeIdentity | undefined;
+    const group = (perm.grantedToV2 as any)?.group as
+        | { id?: string; displayName?: string; mail?: string }
+        | undefined;
+
+    if (user) {
+        return {
+            permissionId: perm.id!,
+            id: user.id ?? perm.id!,
+            displayName: user.displayName ?? user.userPrincipalName ?? 'Unknown user',
+            email: (user as any).mail ?? user.userPrincipalName ?? '',
+            userPrincipalName: user.userPrincipalName ?? undefined,
+            kind: 'user',
+        };
+    }
+    if (group) {
+        return {
+            permissionId: perm.id!,
+            id: group.id ?? perm.id!,
+            displayName: group.displayName ?? 'Unknown group',
+            email: group.mail ?? '',
+            kind: 'group',
+        };
+    }
+    return {
+        permissionId: perm.id!,
+        id: perm.id!,
+        displayName: 'Unknown',
+        email: '',
+        kind: 'user',
+    };
+}
+
+function buildPermMap(perms: Permission[]): PermMap {
+    const map = emptyPermMap();
+    for (const perm of perms) {
+        const role = (perm.roles?.[0] ?? 'reader') as ContainerRole;
+        if (role in map) {
+            map[role].push(toPermEntry(perm));
+        }
+    }
+    return map;
+}
+
+// ── Dialog state ──────────────────────────────────────────────────────────────
 
 interface AddDialogState {
     searchText: string;
@@ -41,13 +92,58 @@ const DEFAULT_DIALOG: AddDialogState = {
     searchText: '', selectedMember: null, role: 'reader', dropdownOpen: false,
 };
 
+interface EditState {
+    permissionId: string;
+    originalRole: ContainerRole;
+    dialog: AddDialogState;
+}
+
+// ── Main component ────────────────────────────────────────────────────────────
+
 export function PermissionsPanel({ item }: { item: StorageItem | null }) {
-    const [permissions, setPermissions] = useState<Permissions>(() =>
-        Object.fromEntries(ROLES.map(r => [r, [...DUMMY_CONTAINER_PERMISSIONS[r]]])) as Permissions
-    );
+    const { api } = useStorageExplorer();
+
+    const [permMap, setPermMap] = useState<PermMap>(emptyPermMap);
+    const [loading, setLoading] = useState(false);
+    const [loadError, setLoadError] = useState<string | null>(null);
+
     const [showAdd, setShowAdd] = useState(false);
-    const [dialog, setDialog] = useState<AddDialogState>(DEFAULT_DIALOG);
+    const [addDialog, setAddDialog] = useState<AddDialogState>(DEFAULT_DIALOG);
+    const [addBusy, setAddBusy] = useState(false);
+    const [addError, setAddError] = useState<string | null>(null);
+
     const [editState, setEditState] = useState<EditState | null>(null);
+    const [editBusy, setEditBusy] = useState(false);
+    const [editError, setEditError] = useState<string | null>(null);
+
+    const [removeError, setRemoveError] = useState<string | null>(null);
+    const [removingId, setRemovingId] = useState<string | null>(null);
+
+    // People-picker search state (shared between add/edit forms)
+    const [searchQuery, setSearchQuery] = useState('');
+    const [suggestions, setSuggestions] = useState<PeopleSuggestion[]>([]);
+
+    // Load permissions when container changes
+    useEffect(() => {
+        if (!item || item.kind !== 'container') return;
+        setLoading(true);
+        setLoadError(null);
+        api.permissions.listContainerPermissions(item.id)
+            .then(perms => setPermMap(buildPermMap(perms)))
+            .catch((err: any) => setLoadError(err?.message ?? 'Failed to load permissions.'))
+            .finally(() => setLoading(false));
+    }, [item?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // Debounced people search
+    useEffect(() => {
+        if (!searchQuery.trim()) { setSuggestions([]); return; }
+        const timer = setTimeout(() => {
+            api.people.search(searchQuery)
+                .then(setSuggestions)
+                .catch(() => setSuggestions([]));
+        }, 300);
+        return () => clearTimeout(timer);
+    }, [searchQuery]); // eslint-disable-line react-hooks/exhaustive-deps
 
     if (!item) {
         return <p style={{ margin: 0, opacity: 0.5, fontSize: 12 }}>Select an item to view its permissions.</p>;
@@ -56,51 +152,113 @@ export function PermissionsPanel({ item }: { item: StorageItem | null }) {
         return <p style={{ margin: 0, opacity: 0.5, fontSize: 12 }}>Permissions management is only available for containers.</p>;
     }
 
-    function removeMember(role: ContainerRole, id: string) {
-        setPermissions(prev => ({ ...prev, [role]: prev[role].filter(m => m.id !== id) }));
+    async function reloadPermissions() {
+        const perms = await api.permissions.listContainerPermissions(item!.id);
+        setPermMap(buildPermMap(perms));
     }
 
-    function confirmAdd() {
-        if (!dialog.selectedMember) return;
-        const member = dialog.selectedMember;
-        setPermissions(prev => ({ ...prev, [dialog.role]: [...prev[dialog.role], member] }));
-        setShowAdd(false);
+    async function removeMember(permissionId: string) {
+        setRemovingId(permissionId);
+        setRemoveError(null);
+        try {
+            await api.permissions.deleteContainerPermission(item!.id, permissionId);
+            await reloadPermissions();
+        } catch (err: any) {
+            setRemoveError(err?.message ?? 'Failed to remove permission.');
+        } finally {
+            setRemovingId(null);
+        }
     }
 
-    function openEdit(role: ContainerRole, member: PeopleSuggestion) {
+    async function confirmAdd() {
+        if (!addDialog.selectedMember) return;
+        setAddBusy(true);
+        setAddError(null);
+        try {
+            await api.permissions.addContainerPermission(item!.id, addDialog.selectedMember, addDialog.role);
+            await reloadPermissions();
+            setShowAdd(false);
+        } catch (err: any) {
+            setAddError(err?.message ?? 'Failed to add permission.');
+        } finally {
+            setAddBusy(false);
+        }
+    }
+
+    function openEdit(role: ContainerRole, member: PermEntry) {
+        setEditError(null);
+        setSearchQuery('');
+        setSuggestions([]);
         setEditState({
+            permissionId: member.permissionId,
             originalRole: role,
-            originalId: member.id,
-            dialog: { searchText: member.displayName, selectedMember: member, role, dropdownOpen: false },
+            dialog: {
+                searchText: member.displayName,
+                selectedMember: member,
+                role,
+                dropdownOpen: false,
+            },
         });
     }
 
-    function confirmEdit() {
-        if (!editState?.dialog.selectedMember) return;
-        const { originalRole, originalId } = editState;
-        const { selectedMember: member, role: newRole } = editState.dialog;
-        setPermissions(prev => {
-            const next = { ...prev };
-            next[originalRole] = prev[originalRole].filter(m => m.id !== originalId);
-            if (!next[newRole].find(m => m.id === member.id)) {
-                next[newRole] = [...next[newRole], member];
-            }
-            return next;
-        });
-        setEditState(null);
+    async function confirmEdit() {
+        if (!editState) return;
+        setEditBusy(true);
+        setEditError(null);
+        try {
+            await api.permissions.updateContainerPermission(
+                item!.id,
+                editState.permissionId,
+                editState.dialog.role,
+            );
+            await reloadPermissions();
+            setEditState(null);
+        } catch (err: any) {
+            setEditError(err?.message ?? 'Failed to update permission.');
+        } finally {
+            setEditBusy(false);
+        }
     }
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '4px 0 8px' }}>
-                <button className="action-btn" onClick={() => { setDialog(DEFAULT_DIALOG); setShowAdd(true); }}>
+
+            {/* Toolbar */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0 8px' }}>
+                {removeError && (
+                    <p style={{ margin: 0, fontSize: 11, color: 'var(--vscode-errorForeground)', flex: 1 }}>{removeError}</p>
+                )}
+                <div style={{ flex: 1 }} />
+                <button
+                    className="action-btn"
+                    onClick={() => {
+                        setAddDialog(DEFAULT_DIALOG);
+                        setAddError(null);
+                        setSearchQuery('');
+                        setSuggestions([]);
+                        setShowAdd(true);
+                    }}
+                    disabled={loading}
+                >
                     <span className="codicon codicon-add" />
                     Add
                 </button>
             </div>
 
-            {ROLES.map(role => {
-                const members = permissions[role];
+            {/* Loading / error states */}
+            {loading && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 0', opacity: 0.6, fontSize: 12 }}>
+                    <span className="codicon codicon-loading codicon-modifier-spin" style={{ fontSize: 13 }} />
+                    Loading permissions…
+                </div>
+            )}
+            {loadError && (
+                <p style={{ margin: '4px 0', fontSize: 12, color: 'var(--vscode-errorForeground)' }}>{loadError}</p>
+            )}
+
+            {/* Permission list by role */}
+            {!loading && !loadError && ROLES.map(role => {
+                const members = permMap[role];
                 return (
                     <div key={role} style={{ marginBottom: 6 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 0 3px' }}>
@@ -125,10 +283,11 @@ export function PermissionsPanel({ item }: { item: StorageItem | null }) {
                             </div>
                         ) : (
                             members.map(m => (
-                                <div key={m.id} style={{
+                                <div key={m.permissionId} style={{
                                     display: 'flex', alignItems: 'center', gap: 8,
                                     padding: '5px 0',
                                     borderBottom: '1px solid var(--vscode-panel-border)',
+                                    opacity: removingId === m.permissionId ? 0.4 : 1,
                                 }}>
                                     <span
                                         className={`codicon ${m.kind === 'group' ? 'codicon-organization' : 'codicon-account'}`}
@@ -145,14 +304,19 @@ export function PermissionsPanel({ item }: { item: StorageItem | null }) {
                                     <button
                                         className="icon-btn" title="Edit" style={{ fontSize: 13 }}
                                         onClick={() => openEdit(role, m)}
+                                        disabled={removingId === m.permissionId}
                                     >
                                         <span className="codicon codicon-edit" />
                                     </button>
                                     <button
                                         className="icon-btn" title="Remove" style={{ fontSize: 13 }}
-                                        onClick={() => removeMember(role, m.id)}
+                                        onClick={() => removeMember(m.permissionId)}
+                                        disabled={removingId === m.permissionId}
                                     >
-                                        <span className="codicon codicon-close" />
+                                        {removingId === m.permissionId
+                                            ? <span className="codicon codicon-loading codicon-modifier-spin" />
+                                            : <span className="codicon codicon-close" />
+                                        }
                                     </button>
                                 </div>
                             ))
@@ -161,53 +325,75 @@ export function PermissionsPanel({ item }: { item: StorageItem | null }) {
                 );
             })}
 
+            {/* Add permission modal */}
             {showAdd && (
                 <Modal
                     title="Add permission"
-                    confirmLabel="Add"
-                    confirmDisabled={!dialog.selectedMember}
+                    confirmLabel={addBusy ? 'Adding…' : 'Add'}
+                    confirmDisabled={!addDialog.selectedMember || addBusy}
                     onConfirm={confirmAdd}
                     onCancel={() => setShowAdd(false)}
                 >
-                    <AddPermissionForm dialog={dialog} setDialog={setDialog} />
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        {addError && (
+                            <p style={{ margin: 0, fontSize: 11, color: 'var(--vscode-errorForeground)' }}>{addError}</p>
+                        )}
+                        <AddPermissionForm
+                            dialog={addDialog}
+                            setDialog={setAddDialog}
+                            suggestions={suggestions}
+                            onSearchChange={q => { setSearchQuery(q); setSuggestions([]); }}
+                        />
+                    </div>
                 </Modal>
             )}
 
+            {/* Edit permission modal */}
             {editState && (
                 <Modal
                     title="Edit permission"
-                    confirmLabel="Save"
-                    confirmDisabled={!editState.dialog.selectedMember}
+                    confirmLabel={editBusy ? 'Saving…' : 'Save'}
+                    confirmDisabled={editBusy}
                     onConfirm={confirmEdit}
                     onCancel={() => setEditState(null)}
                 >
-                    <AddPermissionForm
-                        dialog={editState.dialog}
-                        setDialog={d => setEditState(s => s ? { ...s, dialog: typeof d === 'function' ? d(s.dialog) : d } : s)}
-                    />
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        {editError && (
+                            <p style={{ margin: 0, fontSize: 11, color: 'var(--vscode-errorForeground)' }}>{editError}</p>
+                        )}
+                        <AddPermissionForm
+                            dialog={editState.dialog}
+                            setDialog={d => setEditState(s => s
+                                ? { ...s, dialog: typeof d === 'function' ? d(s.dialog) : d }
+                                : s
+                            )}
+                            suggestions={[]}
+                            onSearchChange={() => {}}
+                            isEdit
+                        />
+                    </div>
                 </Modal>
             )}
         </div>
     );
 }
 
+// ── Add / Edit form ───────────────────────────────────────────────────────────
+
 function AddPermissionForm({
     dialog,
     setDialog,
+    suggestions,
+    onSearchChange,
+    isEdit = false,
 }: {
     dialog: AddDialogState;
     setDialog: React.Dispatch<React.SetStateAction<AddDialogState>>;
+    suggestions: PeopleSuggestion[];
+    onSearchChange: (query: string) => void;
+    isEdit?: boolean;
 }) {
     const wrapRef = useRef<HTMLDivElement>(null);
-
-    const filtered = DUMMY_USERS_AND_GROUPS.filter(m => {
-        const q = dialog.searchText.toLowerCase();
-        return q.length > 0 && (
-            m.displayName.toLowerCase().includes(q) ||
-            m.email.toLowerCase().includes(q) ||
-            (m.userPrincipalName?.toLowerCase().includes(q) ?? false)
-        );
-    });
 
     useEffect(() => {
         function onMouseDown(e: MouseEvent) {
@@ -226,7 +412,12 @@ function AddPermissionForm({
         border: '1px solid var(--vscode-input-border, var(--vscode-panel-border))',
         borderRadius: 3, outline: 'none',
         fontFamily: 'var(--vscode-font-family)',
+        boxSizing: 'border-box',
     };
+
+    const displayValue = dialog.selectedMember
+        ? dialog.selectedMember.displayName
+        : dialog.searchText;
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -236,16 +427,20 @@ function AddPermissionForm({
                 </label>
                 <div ref={wrapRef} style={{ position: 'relative' }}>
                     <input
-                        autoFocus
-                        style={inputStyle}
+                        autoFocus={!isEdit}
+                        readOnly={isEdit}
+                        style={{ ...inputStyle, opacity: isEdit ? 0.7 : 1 }}
                         placeholder="Search by name or email…"
-                        value={dialog.selectedMember ? dialog.selectedMember.displayName : dialog.searchText}
-                        onChange={e => setDialog(d => ({
-                            ...d, searchText: e.target.value, selectedMember: null, dropdownOpen: true,
-                        }))}
-                        onFocus={() => setDialog(d => ({ ...d, dropdownOpen: true }))}
+                        value={displayValue}
+                        onChange={e => {
+                            if (isEdit) return;
+                            const val = e.target.value;
+                            setDialog(d => ({ ...d, searchText: val, selectedMember: null, dropdownOpen: true }));
+                            onSearchChange(val);
+                        }}
+                        onFocus={() => { if (!isEdit) setDialog(d => ({ ...d, dropdownOpen: true })); }}
                     />
-                    {dialog.dropdownOpen && filtered.length > 0 && (
+                    {!isEdit && dialog.dropdownOpen && suggestions.length > 0 && (
                         <div style={{
                             position: 'absolute', top: '100%', left: 0, right: 0,
                             backgroundColor: 'var(--vscode-dropdown-background, var(--vscode-editor-background))',
@@ -254,7 +449,7 @@ function AddPermissionForm({
                             maxHeight: 160, overflowY: 'auto',
                             boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
                         }}>
-                            {filtered.map(m => (
+                            {suggestions.map(m => (
                                 <button
                                     key={m.id}
                                     onMouseDown={e => {
@@ -295,6 +490,7 @@ function AddPermissionForm({
             <div>
                 <label style={{ fontSize: 11, opacity: 0.7, display: 'block', marginBottom: 4 }}>Role</label>
                 <select
+                    autoFocus={isEdit}
                     value={dialog.role}
                     onChange={e => setDialog(d => ({ ...d, role: e.target.value as ContainerRole }))}
                     style={{
@@ -312,3 +508,5 @@ function AddPermissionForm({
         </div>
     );
 }
+
+

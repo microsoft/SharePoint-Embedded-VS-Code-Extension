@@ -9,17 +9,7 @@
  * `window.open` so the developer experience is unaffected.
  */
 
-// acquireVsCodeApi() must be called at most once per webview session.
-// We cache the result here at module level.
-let _vscode: { postMessage: (msg: unknown) => void } | null | undefined;
-
-function getVsCode() {
-    if (_vscode === undefined) {
-        // @ts-ignore — injected by VS Code at runtime
-        _vscode = typeof acquireVsCodeApi !== 'undefined' ? acquireVsCodeApi() : null;
-    }
-    return _vscode;
-}
+import { isInsideVsCode, postToExtension } from './vsbridge';
 
 /**
  * Open `url` in the user's default external browser.
@@ -28,9 +18,8 @@ function getVsCode() {
  * - Outside VS Code: delegates to `window.open`.
  */
 export function openUrl(url: string): void {
-    const vscode = getVsCode();
-    if (vscode) {
-        vscode.postMessage({ command: 'openExternal', url });
+    if (isInsideVsCode()) {
+        postToExtension({ command: 'openExternal', url });
     } else {
         window.open(url, '_blank', 'noopener,noreferrer');
     }

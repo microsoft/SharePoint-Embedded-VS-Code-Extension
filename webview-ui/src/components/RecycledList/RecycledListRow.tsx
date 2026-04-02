@@ -9,9 +9,10 @@ interface RecycledListRowProps {
     isSelected: boolean;
     onSelect: (item: StorageItem) => void;
     colTemplate: string;
+    isDeletedContainers?: boolean;
 }
 
-export function RecycledListRow({ item, isSelected, onSelect, colTemplate }: RecycledListRowProps) {
+export function RecycledListRow({ item, isSelected, onSelect, colTemplate, isDeletedContainers }: RecycledListRowProps) {
     const [isHovered, setIsHovered] = useState(false);
     const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
     const { openModal } = useStorageExplorer();
@@ -123,8 +124,15 @@ export function RecycledListRow({ item, isSelected, onSelect, colTemplate }: Rec
                     </div>
                 </div>
 
-                {/* Date Deleted */}
-                <div style={{ padding: '5px 8px', whiteSpace: 'nowrap', opacity: 0.8 }}>{item.modifiedAt}</div>
+                {/* Date(s) */}
+                {isDeletedContainers ? (
+                    <>
+                        <div style={{ padding: '5px 8px', whiteSpace: 'nowrap', opacity: 0.8 }}>{item.createdAt}</div>
+                        <div style={{ padding: '5px 8px', whiteSpace: 'nowrap', opacity: 0.8 }}>{item.deletedAt || '—'}</div>
+                    </>
+                ) : (
+                    <div style={{ padding: '5px 8px', whiteSpace: 'nowrap', opacity: 0.8 }}>{item.modifiedAt}</div>
+                )}
 
                 {/* Type */}
                 <div style={{ padding: '5px 8px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', opacity: 0.8 }}>{item.type}</div>
