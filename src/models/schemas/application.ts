@@ -65,8 +65,8 @@ export const oauth2PermissionScopeSchema = z.object({
     id: z.string(),
     isEnabled: z.boolean(),
     type: z.string(),
-    userConsentDescription: z.string().optional(),
-    userConsentDisplayName: z.string().optional(),
+    userConsentDescription: z.string().nullish(),
+    userConsentDisplayName: z.string().nullish(),
     value: z.string()
 });
 

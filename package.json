@@ -236,12 +236,12 @@
           "group": "1@1"
         },
         {
-          "when": "viewItem == spe:containerTypesTreeItem",
+          "when": "viewItem =~ /spe:containerTypesTreeItem.*/",
           "command": "spe.refresh",
           "group": "2@1"
         },
         {
-          "when": "viewItem == spe:containerTypesTreeItem",
+          "when": "viewItem =~ /spe:containerTypesTreeItem.*/",
           "command": "spe.refresh",
           "group": "inline@1"
         },

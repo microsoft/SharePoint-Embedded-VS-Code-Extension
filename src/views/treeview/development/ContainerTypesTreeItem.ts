@@ -18,7 +18,10 @@ export class ContainerTypesTreeItem extends IChildrenProvidingTreeItem {
         super(ContainerTypesTreeItem.label, vscode.TreeItemCollapsibleState.Expanded);
         this.id = "spe-container-types";
         this.iconPath = new vscode.ThemeIcon("containertype-icon");
-        this.contextValue = "spe:containerTypesTreeItem";
+        const hasTrialCT = _containerTypes.some(ct => ct.billingClassification === 'trial');
+        this.contextValue = hasTrialCT
+            ? "spe:containerTypesTreeItem-hasTrialCT"
+            : "spe:containerTypesTreeItem";
     }
 
     public getCachedChildren(): ContainerTypeTreeItem[] | undefined {
