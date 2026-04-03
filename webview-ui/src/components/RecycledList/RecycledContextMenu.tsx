@@ -11,8 +11,17 @@ interface RecycledContextMenuProps {
 }
 
 export function RecycledContextMenu({ item, x, y, onClose }: RecycledContextMenuProps) {
-    const { setSidePanelTab, openModal, restoreContainer, refresh } = useStorageExplorer();
+    const { setSidePanelTab, openModal, viewMode, restoreContainer, restoreRecycledItem } = useStorageExplorer();
     const ref = useRef<HTMLDivElement>(null);
+
+    function handleRestore() {
+        onClose();
+        if (viewMode.kind === 'container-recycle-bin') {
+            restoreRecycledItem(item).catch(console.error);
+        } else {
+            restoreContainer(item.id).catch(console.error);
+        }
+    }
 
     useEffect(() => {
         function handleMouseDown(e: MouseEvent) {
@@ -30,8 +39,8 @@ export function RecycledContextMenu({ item, x, y, onClose }: RecycledContextMenu
     }, [onClose]);
 
     const actions = [
-        { icon: 'codicon-redo', label: 'Restore', danger: false, onClick: () => { onClose(); restoreContainer(item.id).catch(console.error); } },
-        { icon: 'codicon-trash', label: 'Permanently delete', danger: true, dividerAfter: true, onClick: () => { onClose(); setSidePanelTab('properties'); openModal({ kind: 'permanently-delete' as const, item }); } },
+        { icon: 'codicon-redo', label: 'Restore', danger: false, onClick: handleRestore },
+        { icon: 'codicon-trash', label: 'Permanently delete', danger: true, dividerAfter: true, onClick: () => { onClose(); openModal({ kind: 'permanently-delete' as const, item }); } },
         { icon: 'codicon-info', label: 'Properties', danger: false, dividerBefore: true, onClick: () => { onClose(); setSidePanelTab('properties'); } },
     ];
 

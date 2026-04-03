@@ -24,7 +24,7 @@ export function createStorageExplorerApi(
     const client = createGraphClient(authProvider, onNetworkRequest);
     return {
         containers: new ContainerGraphService(client, authProvider),
-        drive: new DriveGraphService(client, authProvider),
+        drive: new DriveGraphService(client, authProvider, onNetworkRequest),
         permissions: new PermissionGraphService(client, authProvider),
         columns: new ColumnGraphService(client, authProvider),
         people: new PeopleGraphService(client, authProvider),

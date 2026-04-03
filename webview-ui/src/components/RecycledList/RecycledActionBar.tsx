@@ -29,7 +29,7 @@ function ActionBtn({
 }
 
 export function RecycledActionBar() {
-    const { selectedItem, viewMode, openModal, retentionOverrides, restoreContainer } = useStorageExplorer();
+    const { selectedItem, viewMode, openModal, retentionOverrides, restoreContainer, restoreRecycledItem } = useStorageExplorer();
     const hasSelection = selectedItem !== null;
     const isContainerRecycleBin = viewMode.kind === 'container-recycle-bin';
 
@@ -37,6 +37,15 @@ export function RecycledActionBar() {
         if (viewMode.kind !== 'container-recycle-bin') return;
         const currentDays = retentionOverrides[viewMode.containerId] ?? null;
         openModal({ kind: 'retention-settings', containerId: viewMode.containerId, currentDays });
+    }
+
+    function handleRestore() {
+        if (!selectedItem) return;
+        if (isContainerRecycleBin) {
+            restoreRecycledItem(selectedItem).catch(console.error);
+        } else {
+            restoreContainer(selectedItem.id).catch(console.error);
+        }
     }
 
     return (
@@ -67,7 +76,7 @@ export function RecycledActionBar() {
                 label="Restore"
                 title="Restore selected item"
                 disabled={!hasSelection}
-                onClick={() => selectedItem && restoreContainer(selectedItem.id).catch(console.error)}
+                onClick={handleRestore}
             />
             <ActionBtn
                 icon="codicon-trash"

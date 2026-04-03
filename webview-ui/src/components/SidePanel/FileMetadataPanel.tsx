@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import type { ColumnDefinition } from '@microsoft/microsoft-graph-types';
-import { DUMMY_CONTAINER_COLUMNS, DUMMY_ITEM_FIELDS } from '../../data/dummyData';
 import { getColumnTypeName } from '../../models/spe';
 import { StorageItem } from '../../models/StorageItem';
 import { Modal } from '../Modal/Modal';
+import { useStorageExplorer } from '../../context/StorageExplorerContext';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -266,13 +266,15 @@ interface FieldDialogProps {
     initialColumnId: string;
     initialValue: string;
     isEdit: boolean;
-    onConfirm: (columnId: string, value: string) => void;
+    onConfirm: (columnId: string, value: string) => Promise<void>;
     onCancel: () => void;
 }
 
 function FieldDialog({ columns, initialColumnId, initialValue, isEdit, onConfirm, onCancel }: FieldDialogProps) {
     const [selectedId, setSelectedId] = useState(initialColumnId || (columns[0]?.id ?? ''));
     const [value, setValue] = useState(initialValue);
+    const [busy, setBusy] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
     const selectedCol = columns.find(c => c.id === selectedId) ?? columns[0];
 
@@ -289,12 +291,24 @@ function FieldDialog({ columns, initialColumnId, initialValue, isEdit, onConfirm
             : true
     );
 
+    async function handleConfirm() {
+        if (!selectedId) return;
+        setBusy(true);
+        setError(null);
+        try {
+            await onConfirm(selectedId, value);
+        } catch (err: any) {
+            setError(err?.message ?? 'Failed to save.');
+            setBusy(false);
+        }
+    }
+
     return (
         <Modal
             title={isEdit ? `Edit "${selectedCol?.displayName ?? ''}"` : 'Set field'}
             confirmLabel={isEdit ? 'Save' : 'Set'}
-            confirmDisabled={!canConfirm}
-            onConfirm={() => { if (selectedId) onConfirm(selectedId, value); }}
+            confirmDisabled={!canConfirm || busy}
+            onConfirm={handleConfirm}
             onCancel={onCancel}
         >
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -350,6 +364,10 @@ function FieldDialog({ columns, initialColumnId, initialValue, isEdit, onConfirm
                     </div>
                 )}
 
+                {error && (
+                    <p style={{ margin: 0, fontSize: 12, color: 'var(--vscode-errorForeground)' }}>{error}</p>
+                )}
+
             </div>
         </Modal>
     );
@@ -357,21 +375,61 @@ function FieldDialog({ columns, initialColumnId, initialValue, isEdit, onConfirm
 
 // ── Main panel ────────────────────────────────────────────────────────────────
 
-const ALL_COLUMNS = DUMMY_CONTAINER_COLUMNS;
-
 export function FileMetadataPanel({ item }: { item: StorageItem | null }) {
-    const [fields, setFields] = useState<DriveItemFields>(() =>
-        item?.id ? { ...(DUMMY_ITEM_FIELDS[item.id] ?? {}) } : {}
-    );
+    const { api, currentDriveId } = useStorageExplorer();
+
+    // Columns for the current container — loaded once per container change
+    const [columns, setColumns] = useState<ColumnDefinition[]>([]);
+    const [colsLoading, setColsLoading] = useState(false);
+    const [colsError, setColsError] = useState<string | null>(null);
+
+    // Field values for the current item
+    const [fields, setFields] = useState<DriveItemFields>({});
+    const [fieldsLoading, setFieldsLoading] = useState(false);
+    const [fieldsError, setFieldsError] = useState<string | null>(null);
+
     const [showAdd, setShowAdd] = useState(false);
     const [editingColName, setEditingColName] = useState<string | null>(null);
+    const [removingColName, setRemovingColName] = useState<string | null>(null);
+    const [actionError, setActionError] = useState<string | null>(null);
 
-    // Sync fields when the selected item changes
+    const driveId = currentDriveId;
+
+    // Load container columns whenever the container changes
     useEffect(() => {
-        setFields(item?.id ? { ...(DUMMY_ITEM_FIELDS[item.id] ?? {}) } : {});
+        if (!driveId) { setColumns([]); return; }
+        setColsLoading(true);
+        setColsError(null);
+        api.columns.listContainerColumns(driveId)
+            .then(setColumns)
+            .catch((err: any) => setColsError(err?.message ?? 'Failed to load columns.'))
+            .finally(() => setColsLoading(false));
+    }, [driveId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // Load item fields whenever the selected item changes
+    useEffect(() => {
+        setFields({});
         setShowAdd(false);
         setEditingColName(null);
-    }, [item?.id]);
+        setActionError(null);
+        if (!item || !driveId || item.kind === 'container') return;
+        setFieldsLoading(true);
+        setFieldsError(null);
+        api.columns.getItemFields(driveId, item.id)
+            .then(raw => {
+                // Keep only keys that correspond to known custom columns (by name)
+                const colNames = new Set(columns.map(c => c.name).filter(Boolean));
+                const filtered: DriveItemFields = {};
+                for (const [k, v] of Object.entries(raw)) {
+                    if (colNames.has(k) && v != null && v !== '') {
+                        filtered[k] = String(v);
+                    }
+                }
+                setFields(filtered);
+            })
+            .catch((err: any) => setFieldsError(err?.message ?? 'Failed to load fields.'))
+            .finally(() => setFieldsLoading(false));
+    }, [item?.id, driveId, columns]); // eslint-disable-line react-hooks/exhaustive-deps
 
     if (!item) {
         return (
@@ -389,27 +447,51 @@ export function FileMetadataPanel({ item }: { item: StorageItem | null }) {
         );
     }
 
+    const colByName = (name: string) => columns.find(c => c.name === name);
     const setFieldNames = Object.keys(fields);
-    const unsetColumns = ALL_COLUMNS.filter(c => c.name != null && !setFieldNames.includes(c.name));
-    const colByName = (name: string) => ALL_COLUMNS.find(c => c.name === name);
+    // Only offer "Set field" for columns that can be deleted (i.e. user-managed)
+    const unsetColumns = columns.filter(c => c.name != null && c.isDeletable !== false && !setFieldNames.includes(c.name));
 
-    function handleSetField(columnId: string, value: string) {
-        const col = ALL_COLUMNS.find(c => c.id === columnId);
-        if (!col) return;
-        setFields(prev => ({ ...prev, [col.name ?? '']: value }));
+    async function handleSetField(columnId: string, value: string): Promise<void> {
+        const col = columns.find(c => c.id === columnId);
+        if (!col?.name || !driveId) return;
+        setActionError(null);
+        await api.columns.updateItemFields(driveId, item!.id, { [col.name]: value || null });
+        setFields(prev => {
+            if (!value) {
+                const next = { ...prev };
+                delete next[col.name!];
+                return next;
+            }
+            return { ...prev, [col.name!]: value };
+        });
         setShowAdd(false);
         setEditingColName(null);
     }
 
-    function removeField(colName: string) {
-        setFields(prev => {
-            const next = { ...prev };
-            delete next[colName];
-            return next;
-        });
+    async function removeField(colName: string) {
+        if (!driveId) return;
+        setRemovingColName(colName);
+        setActionError(null);
+        try {
+            await api.columns.updateItemFields(driveId, item!.id, { [colName]: null });
+            setFields(prev => {
+                const next = { ...prev };
+                delete next[colName];
+                return next;
+            });
+        } catch (err: any) {
+            setActionError(err?.message ?? 'Failed to remove field.');
+        } finally {
+            setRemovingColName(null);
+        }
     }
 
+    const isLoading = colsLoading || fieldsLoading;
     const fieldEntries = Object.entries(fields);
+    // Split into editable (user-managed columns) and read-only (built-in columns)
+    const editableEntries = fieldEntries.filter(([colName]) => colByName(colName)?.isDeletable !== false);
+    const readonlyEntries = fieldEntries.filter(([colName]) => colByName(colName)?.isDeletable === false);
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
@@ -418,25 +500,40 @@ export function FileMetadataPanel({ item }: { item: StorageItem | null }) {
             <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '4px 0 10px' }}>
                 <button
                     className="action-btn"
-                    disabled={unsetColumns.length === 0}
+                    disabled={isLoading || unsetColumns.length === 0}
                     title={unsetColumns.length === 0 ? 'All columns already have values' : 'Set a field value from a column'}
-                    onClick={() => setShowAdd(true)}
+                    onClick={() => { setShowAdd(true); setActionError(null); }}
                 >
                     <span className="codicon codicon-add" />
                     Set field
                 </button>
             </div>
 
-            {/* Empty state */}
-            {fieldEntries.length === 0 && (
-                <p style={{ margin: 0, opacity: 0.4, fontSize: 12, fontStyle: 'italic' }}>
-                    No fields set. Use "Set field" to add values from the container's columns.
+            {isLoading && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, opacity: 0.6, fontSize: 12 }}>
+                    <span className="codicon codicon-loading codicon-modifier-spin" style={{ fontSize: 13 }} />
+                    Loading…
+                </div>
+            )}
+            {(colsError || fieldsError || actionError) && (
+                <p style={{ margin: 0, color: 'var(--vscode-errorForeground)', fontSize: 12 }}>
+                    {colsError ?? fieldsError ?? actionError}
                 </p>
             )}
 
-            {/* Field rows */}
-            {fieldEntries.map(([colName, value]) => {
+            {/* Empty state */}
+            {!isLoading && !fieldsError && fieldEntries.length === 0 && (
+                <p style={{ margin: 0, opacity: 0.4, fontSize: 12, fontStyle: 'italic' }}>
+                    {columns.length === 0
+                        ? 'No custom columns defined on this container.'
+                        : 'No fields set. Use "Set field" to add values from the container\'s columns.'}
+                </p>
+            )}
+
+            {/* Editable field rows (user-managed columns) */}
+            {editableEntries.map(([colName, value]) => {
                 const col = colByName(colName);
+                const isRemoving = removingColName === colName;
                 return (
                     <div
                         key={colName}
@@ -446,6 +543,8 @@ export function FileMetadataPanel({ item }: { item: StorageItem | null }) {
                             gap: 6,
                             padding: '7px 0',
                             borderBottom: '1px solid var(--vscode-panel-border)',
+                            opacity: isRemoving ? 0.4 : 1,
+                            transition: 'opacity 0.15s',
                         }}
                     >
                         <div style={{ flex: 1, minWidth: 0 }}>
@@ -463,21 +562,63 @@ export function FileMetadataPanel({ item }: { item: StorageItem | null }) {
                             className="icon-btn"
                             title="Edit"
                             style={{ fontSize: 13, flexShrink: 0 }}
-                            onClick={() => setEditingColName(colName)}
+                            disabled={isRemoving}
+                            onClick={() => { setEditingColName(colName); setActionError(null); }}
                         >
                             <span className="codicon codicon-edit" />
                         </button>
                         <button
                             className="icon-btn"
-                            title="Remove"
+                            title={isRemoving ? 'Removing…' : 'Remove'}
                             style={{ fontSize: 13, flexShrink: 0 }}
+                            disabled={isRemoving}
                             onClick={() => removeField(colName)}
                         >
-                            <span className="codicon codicon-close" />
+                            <span className={`codicon ${isRemoving ? 'codicon-loading codicon-modifier-spin' : 'codicon-close'}`} />
                         </button>
                     </div>
                 );
             })}
+
+            {/* Read-only field rows (built-in / non-deletable columns) */}
+            {readonlyEntries.length > 0 && (
+                <>
+                    <div style={{
+                        fontSize: 11, fontWeight: 700, textTransform: 'uppercase',
+                        letterSpacing: '0.05em', opacity: 0.35, padding: '10px 0 2px',
+                    }}>
+                        Built-in
+                    </div>
+                    {readonlyEntries.map(([colName, value]) => {
+                        const col = colByName(colName);
+                        return (
+                            <div
+                                key={colName}
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 6,
+                                    padding: '6px 0',
+                                    borderBottom: '1px solid var(--vscode-panel-border)',
+                                    opacity: 0.5,
+                                }}
+                            >
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 3 }}>
+                                        <span style={{ fontSize: 12, fontWeight: 600 }}>
+                                            {col?.displayName ?? colName}
+                                        </span>
+                                        {col && <TypeChip col={col} />}
+                                    </div>
+                                    <div style={{ fontSize: 12, wordBreak: 'break-all' }}>
+                                        {col ? formatFieldValue(col, value) : value}
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    })}
+                </>
+            )}
 
             {/* Add dialog */}
             {showAdd && unsetColumns.length > 0 && (
@@ -497,7 +638,7 @@ export function FileMetadataPanel({ item }: { item: StorageItem | null }) {
                 if (!col) return null;
                 return (
                     <FieldDialog
-                        columns={ALL_COLUMNS}
+                        columns={columns}
                         initialColumnId={col.id ?? ''}
                         initialValue={fields[editingColName] ?? ''}
                         isEdit={true}

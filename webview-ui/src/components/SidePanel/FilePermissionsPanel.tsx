@@ -1,11 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { Permission } from '@microsoft/microsoft-graph-types';
 import type { SpeIdentity } from '../../models/spe';
-import {
-    DUMMY_DRIVE_PERMISSIONS,
-} from '../../data/dummyData';
 import { StorageItem } from '../../models/StorageItem';
 import { Modal } from '../Modal/Modal';
+import { useStorageExplorer } from '../../context/StorageExplorerContext';
 
 // ── Permission type discriminator ────────────────────────────────────────────
 type PermissionKind = 'direct' | 'link' | 'invitation';
@@ -110,6 +108,7 @@ function DirectIdentity({ perm }: { perm: Permission }) {
     const rawIdentity = perm.grantedToV2?.user ?? perm.grantedToV2?.group;
     const identity = rawIdentity as SpeIdentity | undefined;
     const isGroup = !!perm.grantedToV2?.group;
+    const subtitle = identity?.userPrincipalName ?? identity?.email ?? null;
     return (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
             <span
@@ -120,9 +119,9 @@ function DirectIdentity({ perm }: { perm: Permission }) {
                 <div style={{ fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {identity?.displayName ?? '—'}
                 </div>
-                {identity?.userPrincipalName && (
+                {subtitle && (
                     <div style={{ fontSize: 11, opacity: 0.55, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {identity.userPrincipalName}
+                        {subtitle}
                     </div>
                 )}
             </div>
@@ -174,7 +173,8 @@ function LinkIdentity({ perm }: { perm: Permission }) {
                     {(link.preventsDownload ?? false) && (
                         <span style={{
                             fontSize: 10, padding: '1px 5px', borderRadius: 8,
-                            border: '1px solid var(--vscode-panel-border)', opacity: 0.7, whiteSpace: 'nowrap',
+                            color: 'var(--vscode-notificationsWarningIcon-foreground, #cca700)',
+                            border: '1px solid currentColor', opacity: 0.85, whiteSpace: 'nowrap',
                         }}>
                             No download
                         </span>
@@ -193,16 +193,35 @@ function LinkIdentity({ perm }: { perm: Permission }) {
 function PermissionRow({ perm, onEdit, onDelete, onCopyLink }: {
     perm: Permission;
     onEdit: () => void;
-    onDelete: () => void;
+    onDelete: () => Promise<void>;
     onCopyLink: () => void;
 }) {
     const kind = getKind(perm);
     const inherited = !!perm.inheritedFrom;
+    const [copied, setCopied] = useState(false);
+    const [deleting, setDeleting] = useState(false);
+
+    function handleCopy() {
+        onCopyLink();
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+    }
+
+    async function handleDelete() {
+        setDeleting(true);
+        try {
+            await onDelete();
+        } catch {
+            setDeleting(false);
+        }
+    }
+
     return (
         <div style={{
             padding: '7px 0',
             borderBottom: '1px solid var(--vscode-panel-border)',
-            opacity: inherited ? 0.65 : 1,
+            opacity: inherited ? 0.65 : deleting ? 0.4 : 1,
+            transition: 'opacity 0.15s',
         }}>
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
                 {kind === 'direct'     && <DirectIdentity perm={perm} />}
@@ -213,31 +232,31 @@ function PermissionRow({ perm, onEdit, onDelete, onCopyLink }: {
                     {kind === 'link' && (
                         <button
                             className="icon-btn"
-                            title={inherited ? 'Cannot copy inherited link' : 'Copy link'}
-                            style={{ fontSize: 13 }}
-                            disabled={inherited}
-                            onClick={onCopyLink}
+                            title={inherited ? 'Cannot copy inherited link' : copied ? 'Copied!' : 'Copy link'}
+                            style={{ fontSize: 13, color: copied ? 'var(--vscode-terminal-ansiGreen)' : undefined }}
+                            disabled={inherited || deleting}
+                            onClick={handleCopy}
                         >
-                            <span className="codicon codicon-copy" />
+                            <span className={`codicon ${copied ? 'codicon-check' : 'codicon-copy'}`} />
                         </button>
                     )}
                     <button
                         className="icon-btn"
                         title={inherited ? 'Inherited — cannot edit' : 'Edit'}
                         style={{ fontSize: 13 }}
-                        disabled={inherited}
+                        disabled={inherited || deleting}
                         onClick={onEdit}
                     >
                         <span className="codicon codicon-edit" />
                     </button>
                     <button
                         className="icon-btn"
-                        title={inherited ? 'Inherited — cannot delete' : 'Delete'}
+                        title={inherited ? 'Inherited — cannot delete' : deleting ? 'Deleting…' : 'Delete'}
                         style={{ fontSize: 13 }}
-                        disabled={inherited}
-                        onClick={onDelete}
+                        disabled={inherited || deleting}
+                        onClick={handleDelete}
                     >
-                        <span className="codicon codicon-trash" />
+                        <span className={`codicon ${deleting ? 'codicon-loading codicon-modifier-spin' : 'codicon-trash'}`} />
                     </button>
                 </div>
             </div>
@@ -276,46 +295,37 @@ const DEFAULT_LINK: LinkForm = {
     type: 'view', scope: 'organization', preventDownload: false, expirationDate: '',
 };
 
-function CreatePermissionDialog({ onCreate, onCancel }: {
-    onCreate: (perms: Permission[]) => void;
-    onCancel: () => void;
+function CreatePermissionDialog({ onInvite, onCreateLink, onClose }: {
+    onInvite: (emails: string[], role: DriveRole, requireSignIn: boolean, sendInvitation: boolean, expirationDate: string) => Promise<void>;
+    onCreateLink: (type: LinkType, scope: LinkScope, preventDownload: boolean, expirationDate: string) => Promise<string>;
+    onClose: () => void;
 }) {
     const [mode, setMode] = useState<CreateMode>('direct');
     const [direct, setDirect] = useState<DirectForm>(DEFAULT_DIRECT);
     const [linkForm, setLinkForm] = useState<LinkForm>(DEFAULT_LINK);
     const [createdUrl, setCreatedUrl] = useState<string | null>(null);
     const [copied, setCopied] = useState(false);
+    const [busy, setBusy] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
     const canConfirm = mode === 'direct' ? direct.emails.trim().length > 0 : true;
 
-    function handleConfirm() {
-        if (mode === 'direct') {
-            const emails = direct.emails.split(',').map(e => e.trim()).filter(Boolean);
-            const perms: Permission[] = emails.map((email, i) => ({
-                id: `new-${Date.now()}-${i}`,
-                roles: [direct.role],
-                expirationDateTime: direct.expirationDate ? new Date(direct.expirationDate).toISOString() : undefined,
-                invitation: { email, signInRequired: direct.requireSignIn },
-            }));
-            onCreate(perms);
-            onCancel();
-        } else {
-            const id = `link-${Date.now()}`;
-            const prefix = linkForm.type === 'edit' ? ':w:' : ':b:';
-            const webUrl = `https://contoso.sharepoint.com/${prefix}/s/${id}`;
-            const perm: Permission = {
-                id,
-                roles: [linkForm.type === 'edit' ? 'write' : 'read'],
-                expirationDateTime: linkForm.expirationDate ? new Date(linkForm.expirationDate).toISOString() : undefined,
-                link: {
-                    type: linkForm.type,
-                    scope: linkForm.scope,
-                    webUrl,
-                    preventsDownload: linkForm.preventDownload,
-                },
-            };
-            onCreate([perm]);
-            setCreatedUrl(webUrl);
+    async function handleConfirm() {
+        setBusy(true);
+        setError(null);
+        try {
+            if (mode === 'direct') {
+                const emails = direct.emails.split(',').map(e => e.trim()).filter(Boolean);
+                await onInvite(emails, direct.role, direct.requireSignIn, direct.sendInvitation, direct.expirationDate);
+                onClose();
+            } else {
+                const webUrl = await onCreateLink(linkForm.type, linkForm.scope, linkForm.preventDownload, linkForm.expirationDate);
+                setCreatedUrl(webUrl);
+            }
+        } catch (err: any) {
+            setError(err?.message ?? 'Operation failed.');
+        } finally {
+            setBusy(false);
         }
     }
 
@@ -329,7 +339,7 @@ function CreatePermissionDialog({ onCreate, onCancel }: {
     // Post-creation: show the new link
     if (createdUrl) {
         return (
-            <Modal title="Link created" confirmLabel="Done" cancelLabel="" onConfirm={onCancel} onCancel={onCancel}>
+            <Modal title="Link created" confirmLabel="Done" cancelLabel="" onConfirm={onClose} onCancel={onClose}>
                 <div style={FORM}>
                     <p style={{ margin: 0, fontSize: 12, opacity: 0.8 }}>
                         Your sharing link is ready. Copy it to share with others.
@@ -350,9 +360,9 @@ function CreatePermissionDialog({ onCreate, onCancel }: {
         <Modal
             title="Add permission"
             confirmLabel={mode === 'direct' ? 'Invite' : 'Create link'}
-            confirmDisabled={!canConfirm}
+            confirmDisabled={!canConfirm || busy}
             onConfirm={handleConfirm}
-            onCancel={onCancel}
+            onCancel={onClose}
         >
             <div style={FORM}>
                 {/* Mode tab strip */}
@@ -460,6 +470,9 @@ function CreatePermissionDialog({ onCreate, onCancel }: {
                         </label>
                     </>
                 )}
+                {error && (
+                    <p style={{ margin: 0, fontSize: 12, color: 'var(--vscode-errorForeground)' }}>{error}</p>
+                )}
             </div>
         </Modal>
     );
@@ -479,40 +492,44 @@ function describePermission(perm: Permission): string {
 interface EditForm {
     role: DriveRole;
     expirationDate: string;
-    preventDownload: boolean;
 }
 
 function EditPermissionDialog({ perm, onSave, onCancel }: {
     perm: Permission;
-    onSave: (patch: Partial<Permission>) => void;
+    onSave: (patch: Partial<Permission>) => Promise<void>;
     onCancel: () => void;
 }) {
     const kind = getKind(perm);
     const [form, setForm] = useState<EditForm>({
         role: (((perm.roles ?? [])[0] ?? 'read') as DriveRole),
         expirationDate: perm.expirationDateTime
-            ? perm.expirationDateTime.substring(0, 10)
+            ? perm.expirationDateTime.split('T')[0]
             : '',
-        preventDownload: perm.link?.preventsDownload ?? false,
     });
+    const [busy, setBusy] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
-    function handleSave() {
-        const patch: Partial<Permission> = {
-            roles: [form.role],
-            expirationDateTime: form.expirationDate
-                ? new Date(form.expirationDate).toISOString()
-                : undefined,
-        };
-        if (kind === 'link' && perm.link) {
-            patch.link = { ...perm.link, preventsDownload: form.preventDownload };
+    async function handleSave() {
+        setBusy(true);
+        setError(null);
+        try {
+            const patch: Partial<Permission> = {
+                roles: [form.role],
+                expirationDateTime: form.expirationDate
+                    ? new Date(form.expirationDate).toISOString()
+                    : undefined,
+            };
+            await onSave(patch);
+        } catch (err: any) {
+            setError(err?.message ?? 'Failed to save.');
+            setBusy(false);
         }
-        onSave(patch);
     }
 
-    const roleOptions: DriveRole[] = kind === 'direct' ? ['read', 'write', 'owner'] : ['read', 'write'];
+    const roleOptions: DriveRole[] = ['read', 'write'];
 
     return (
-        <Modal title="Edit permission" confirmLabel="Save" onConfirm={handleSave} onCancel={onCancel}>
+        <Modal title="Edit permission" confirmLabel="Save" confirmDisabled={busy} onConfirm={handleSave} onCancel={onCancel}>
             <div style={FORM}>
                 {/* Read-only identity header */}
                 <div style={{
@@ -532,15 +549,8 @@ function EditPermissionDialog({ perm, onSave, onCancel }: {
                     value={form.expirationDate}
                     onChange={v => setForm(f => ({ ...f, expirationDate: v }))}
                 />
-                {kind === 'link' && (
-                    <label style={CHECK}>
-                        <input
-                            type="checkbox"
-                            checked={form.preventDownload}
-                            onChange={e => setForm(f => ({ ...f, preventDownload: e.target.checked }))}
-                        />
-                        Prevent download
-                    </label>
+                {error && (
+                    <p style={{ margin: 0, fontSize: 12, color: 'var(--vscode-errorForeground)' }}>{error}</p>
                 )}
             </div>
         </Modal>
@@ -549,26 +559,63 @@ function EditPermissionDialog({ perm, onSave, onCancel }: {
 
 // ── Main panel ────────────────────────────────────────────────────────────────
 export function FilePermissionsPanel({ item }: { item: StorageItem | null }) {
-    const [permissions, setPermissions] = useState<Permission[]>([...DUMMY_DRIVE_PERMISSIONS]);
+    const { api, currentDriveId } = useStorageExplorer();
+    const [permissions, setPermissions] = useState<Permission[]>([]);
+    const [loading, setLoading] = useState(false);
+    const [loadError, setLoadError] = useState<string | null>(null);
     const [showCreate, setShowCreate] = useState(false);
     const [editingPerm, setEditingPerm] = useState<Permission | null>(null);
+    const [actionError, setActionError] = useState<string | null>(null);
 
-    if (!item) {
-        return <p style={{ margin: 0, opacity: 0.5, fontSize: 12 }}>Select an item to view its permissions.</p>;
+    const driveId = currentDriveId;
+
+    useEffect(() => {
+        if (!item || !driveId) return;
+        setLoading(true);
+        setLoadError(null);
+        api.permissions.listItemPermissions(driveId, item.id)
+            .then(setPermissions)
+            .catch((err: any) => setLoadError(err?.message ?? 'Failed to load permissions.'))
+            .finally(() => setLoading(false));
+    }, [item?.id, driveId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    async function reload() {
+        if (!item || !driveId) return;
+        const perms = await api.permissions.listItemPermissions(driveId, item.id);
+        setPermissions(perms);
     }
 
-    function handleCreate(perms: Permission[]) {
-        setPermissions(prev => [...prev, ...perms]);
+    async function handleInvite(emails: string[], role: DriveRole, requireSignIn: boolean, sendInvitation: boolean, expirationDate: string) {
+        if (!driveId || !item) return;
+        setActionError(null);
+        await api.permissions.inviteToItem(driveId, item.id, emails, role, requireSignIn, sendInvitation, expirationDate || undefined);
+        await reload();
     }
 
-    function handleDelete(id: string) {
-        setPermissions(prev => prev.filter(p => p.id !== id));
+    async function handleCreateLink(type: LinkType, scope: LinkScope, preventDownload: boolean, expirationDate: string): Promise<string> {
+        if (!driveId || !item) throw new Error('No container context.');
+        setActionError(null);
+        const perm = await api.permissions.createSharingLink(driveId, item.id, type, scope, expirationDate || undefined, preventDownload);
+        await reload();
+        return perm.link?.webUrl ?? '';
     }
 
-    function handleEdit(patch: Partial<Permission>) {
-        setPermissions(prev =>
-            prev.map(p => p.id === editingPerm?.id ? { ...p, ...patch } : p)
-        );
+    async function handleDelete(permId: string) {
+        if (!driveId || !item) return;
+        setActionError(null);
+        try {
+            await api.permissions.deleteItemPermission(driveId, item.id, permId);
+            await reload();
+        } catch (err: any) {
+            setActionError(err?.message ?? 'Failed to delete permission.');
+        }
+    }
+
+    async function handleEdit(patch: Partial<Permission>) {
+        if (!driveId || !item || !editingPerm?.id) return;
+        setActionError(null);
+        await api.permissions.updateItemPermission(driveId, item.id, editingPerm.id, patch);
+        await reload();
         setEditingPerm(null);
     }
 
@@ -579,6 +626,10 @@ export function FilePermissionsPanel({ item }: { item: StorageItem | null }) {
         }
     }
 
+    if (!item) {
+        return <p style={{ margin: 0, opacity: 0.5, fontSize: 12 }}>Select an item to view its permissions.</p>;
+    }
+
     const direct    = permissions.filter(p => !p.inheritedFrom);
     const inherited = permissions.filter(p => !!p.inheritedFrom);
 
@@ -586,28 +637,40 @@ export function FilePermissionsPanel({ item }: { item: StorageItem | null }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
             {/* Toolbar */}
             <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '4px 0 8px' }}>
-                <button className="action-btn" onClick={() => setShowCreate(true)}>
+                <button className="action-btn" onClick={() => { setShowCreate(true); setActionError(null); }} disabled={loading}>
                     <span className="codicon codicon-add" />
                     Add
                 </button>
             </div>
 
+            {loading && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, opacity: 0.6, fontSize: 12 }}>
+                    <span className="codicon codicon-loading codicon-modifier-spin" style={{ fontSize: 13 }} />
+                    Loading permissions…
+                </div>
+            )}
+            {loadError && (
+                <p style={{ margin: 0, color: 'var(--vscode-errorForeground)', fontSize: 12 }}>{loadError}</p>
+            )}
+            {actionError && (
+                <p style={{ margin: 0, color: 'var(--vscode-errorForeground)', fontSize: 12 }}>{actionError}</p>
+            )}
+
             {/* Direct permissions */}
-            {direct.length === 0 ? (
+            {!loading && direct.length === 0 && !loadError && (
                 <p style={{ margin: '0 0 8px', opacity: 0.4, fontSize: 12, fontStyle: 'italic' }}>
                     No direct permissions.
                 </p>
-            ) : (
-                direct.map(p => (
-                    <PermissionRow
-                        key={p.id ?? ''}
-                        perm={p}
-                        onEdit={() => setEditingPerm(p)}
-                        onDelete={() => handleDelete(p.id ?? '')}
-                        onCopyLink={() => copyLink(p)}
-                    />
-                ))
             )}
+            {direct.map(p => (
+                <PermissionRow
+                    key={p.id ?? ''}
+                    perm={p}
+                    onEdit={() => { setEditingPerm(p); setActionError(null); }}
+                    onDelete={() => handleDelete(p.id ?? '')}
+                    onCopyLink={() => copyLink(p)}
+                />
+            ))}
 
             {/* Inherited permissions */}
             {inherited.length > 0 && (
@@ -623,7 +686,7 @@ export function FilePermissionsPanel({ item }: { item: StorageItem | null }) {
                             key={p.id ?? ''}
                             perm={p}
                             onEdit={() => {}}
-                            onDelete={() => {}}
+                            onDelete={() => Promise.resolve()}
                             onCopyLink={() => copyLink(p)}
                         />
                     ))}
@@ -632,8 +695,9 @@ export function FilePermissionsPanel({ item }: { item: StorageItem | null }) {
 
             {showCreate && (
                 <CreatePermissionDialog
-                    onCreate={handleCreate}
-                    onCancel={() => setShowCreate(false)}
+                    onInvite={handleInvite}
+                    onCreateLink={handleCreateLink}
+                    onClose={() => setShowCreate(false)}
                 />
             )}
             {editingPerm && (

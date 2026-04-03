@@ -13,40 +13,80 @@ export class PermissionGraphService {
     // ── Drive item permissions ────────────────────────────────────────────────
 
     /** List sharing permissions on a drive item. */
-    async listItemPermissions(_itemId: string): Promise<Permission[]> {
-        throw new Error('PermissionGraphService.listItemPermissions: not yet implemented');
+    async listItemPermissions(driveId: string, itemId: string): Promise<Permission[]> {
+        return withAuthRetry(this._authProvider, async () => {
+            const result = await this._client
+                .api(`/drives/${driveId}/items/${itemId}/permissions`)
+                .get();
+            return result.value ?? [];
+        });
     }
 
     /** Create a sharing link for a drive item. */
     async createSharingLink(
-        _itemId: string,
-        _type: 'view' | 'edit',
-        _scope: 'anonymous' | 'organization',
+        driveId: string,
+        itemId: string,
+        type: string,
+        scope: string,
+        expirationDate?: string,
+        preventDownload?: boolean,
     ): Promise<Permission> {
-        throw new Error('PermissionGraphService.createSharingLink: not yet implemented');
+        return withAuthRetry(this._authProvider, async () => {
+            const body: Record<string, unknown> = { type, scope };
+            if (expirationDate) body.expirationDateTime = new Date(expirationDate).toISOString();
+            if (preventDownload) body.preventsDownload = true;
+            return this._client
+                .api(`/drives/${driveId}/items/${itemId}/createLink`)
+                .post(body);
+        });
     }
 
-    /** Invite users/groups to a drive item with a specific role. */
+    /** Invite users to a drive item with a specific role. */
     async inviteToItem(
-        _itemId: string,
-        _emails: string[],
-        _role: 'read' | 'write',
+        driveId: string,
+        itemId: string,
+        emails: string[],
+        role: string,
+        requireSignIn: boolean,
+        sendInvitation: boolean,
+        expirationDate?: string,
     ): Promise<Permission[]> {
-        throw new Error('PermissionGraphService.inviteToItem: not yet implemented');
+        return withAuthRetry(this._authProvider, async () => {
+            const body: Record<string, unknown> = {
+                requireSignIn,
+                sendInvitation,
+                roles: [role],
+                recipients: emails.map(email => ({ email })),
+            };
+            if (expirationDate) body.expirationDateTime = new Date(expirationDate).toISOString();
+            const result = await this._client
+                .api(`/drives/${driveId}/items/${itemId}/invite`)
+                .post(body);
+            return result.value ?? result ?? [];
+        });
     }
 
-    /** Update a permission role on a drive item. */
+    /** Update a permission on a drive item. */
     async updateItemPermission(
-        _itemId: string,
-        _permissionId: string,
-        _role: 'read' | 'write',
+        driveId: string,
+        itemId: string,
+        permissionId: string,
+        patch: Partial<Permission>,
     ): Promise<Permission> {
-        throw new Error('PermissionGraphService.updateItemPermission: not yet implemented');
+        return withAuthRetry(this._authProvider, async () => {
+            return this._client
+                .api(`/drives/${driveId}/items/${itemId}/permissions/${permissionId}`)
+                .patch(patch);
+        });
     }
 
     /** Delete a permission from a drive item. */
-    async deleteItemPermission(_itemId: string, _permissionId: string): Promise<void> {
-        throw new Error('PermissionGraphService.deleteItemPermission: not yet implemented');
+    async deleteItemPermission(driveId: string, itemId: string, permissionId: string): Promise<void> {
+        return withAuthRetry(this._authProvider, async () => {
+            await this._client
+                .api(`/drives/${driveId}/items/${itemId}/permissions/${permissionId}`)
+                .delete();
+        });
     }
 
     // ── Container permissions (roles) ─────────────────────────────────────────

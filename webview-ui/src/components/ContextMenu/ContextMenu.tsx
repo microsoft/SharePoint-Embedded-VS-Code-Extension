@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
 import { StorageItem, SidePanelTab, ModalState } from '../../models/StorageItem';
 import { useStorageExplorer } from '../../context/StorageExplorerContext';
+import { openUrl } from '../../utils/openUrl';
 
 interface MenuAction {
     icon: string;
@@ -16,7 +17,10 @@ function getActions(
     onClose: () => void,
     openTab: (tab: SidePanelTab) => void,
     openModal: (state: ModalState) => void,
-    navigateToContainerRecycleBin: (containerId: string, containerName: string) => void
+    navigateToContainerRecycleBin: (containerId: string, containerName: string) => void,
+    previewItem: (item: StorageItem) => Promise<void>,
+    downloadItem: (item: StorageItem) => Promise<void>,
+    openInDesktopApp: (item: StorageItem) => Promise<void>
 ): MenuAction[] {
     const rename: MenuAction = { icon: 'codicon-edit', label: 'Rename', onClick: () => { onClose(); openModal({ kind: 'rename', item }); } };
     const del: MenuAction = { icon: 'codicon-trash', label: 'Delete', danger: true, onClick: () => { onClose(); openModal({ kind: 'delete', item }); } };
@@ -39,10 +43,10 @@ function getActions(
             onClick: () => { onClose(); openTab('versions'); },
         };
         return [
-            { icon: 'codicon-eye', label: 'Preview', onClick: () => { onClose(); /* TODO */ } },
-            { icon: 'codicon-globe', label: 'Open in web browser', onClick: () => { onClose(); /* TODO */ } },
-            { icon: 'codicon-desktop-download', label: 'Open in desktop app', onClick: () => { onClose(); /* TODO */ } },
-            { icon: 'codicon-cloud-download', label: 'Download', onClick: () => { onClose(); /* TODO */ } },
+            { icon: 'codicon-eye', label: 'Preview', onClick: () => { onClose(); previewItem(item); } },
+            { icon: 'codicon-globe', label: 'Open in browser', onClick: () => { onClose(); item.webUrl && openUrl(item.webUrl); } },
+            { icon: 'codicon-desktop-download', label: 'Open in desktop', onClick: () => { onClose(); openInDesktopApp(item); } },
+            { icon: 'codicon-cloud-download', label: 'Download', onClick: () => { onClose(); downloadItem(item); } },
             { ...rename, dividerBefore: true },
             del,
             { ...perms, dividerBefore: true },
@@ -95,7 +99,7 @@ interface ContextMenuProps {
 }
 
 export function ContextMenu({ item, x, y, onClose }: ContextMenuProps) {
-    const { setSidePanelTab, openModal, navigateToContainerRecycleBin } = useStorageExplorer();
+    const { setSidePanelTab, openModal, navigateToContainerRecycleBin, previewItem, downloadItem, openInDesktopApp } = useStorageExplorer();
     const ref = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -113,7 +117,7 @@ export function ContextMenu({ item, x, y, onClose }: ContextMenuProps) {
         };
     }, [onClose]);
 
-    const actions = getActions(item, onClose, setSidePanelTab, openModal, navigateToContainerRecycleBin);
+    const actions = getActions(item, onClose, setSidePanelTab, openModal, navigateToContainerRecycleBin, previewItem, downloadItem, openInDesktopApp);
 
     // Clamp to viewport
     const maxX = Math.min(x, window.innerWidth - 210);
