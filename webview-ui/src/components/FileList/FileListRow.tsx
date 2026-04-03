@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { StorageItem } from '../../models/StorageItem';
 import { getItemIcon, getItemIconColor, formatSize, isOfficeFile } from './fileListUtils';
 import { ContextMenu } from '../ContextMenu/ContextMenu';
+import { useStorageExplorer } from '../../context/StorageExplorerContext';
+import { openUrl } from '../../utils/openUrl';
 
 interface FileListRowProps {
     item: StorageItem;
@@ -14,12 +16,13 @@ interface FileListRowProps {
 export function FileListRow({ item, isSelected, onSelect, onNavigate, colTemplate }: FileListRowProps) {
     const [isHovered, setIsHovered] = useState(false);
     const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+    const { previewItem, downloadItem, openInDesktopApp } = useStorageExplorer();
 
     const icon = getItemIcon(item);
     const iconColor = getItemIconColor(item);
     const showInlineActions = isHovered || isSelected;
     const isFile = item.kind === 'file';
-    const canOpen = isFile && isOfficeFile(item);
+    const isOffice = isFile && isOfficeFile(item);
 
     const rowBg = isSelected
         ? 'var(--vscode-list-activeSelectionBackground)'
@@ -37,7 +40,9 @@ export function FileListRow({ item, isSelected, onSelect, onNavigate, colTemplat
     }
 
     function handleDoubleClick() {
-        if (item.kind !== 'file') onNavigate(item);
+        if (item.kind !== 'file') { onNavigate(item); return; }
+        if (isOffice) { item.webUrl && openUrl(item.webUrl); }
+        else { previewItem(item); }
     }
 
     function handleContextMenuBtn(e: React.MouseEvent) {
@@ -112,15 +117,15 @@ export function FileListRow({ item, isSelected, onSelect, onNavigate, colTemplat
                             <span className="codicon codicon-ellipsis" />
                         </button>
 
-                        {/* Open (Office only) */}
+                        {/* Open (Office only — open in browser) */}
                         <button
                             className="icon-btn"
-                            title="Open in web browser"
-                            style={{ fontSize: 14, padding: '2px 4px', opacity: canOpen ? 1 : 0.25 }}
-                            disabled={!canOpen}
-                            onClick={() => { /* TODO */ }}
+                            title="Open in browser"
+                            style={{ fontSize: 14, padding: '2px 4px', opacity: isOffice ? 1 : 0.25 }}
+                            disabled={!isOffice}
+                            onClick={() => { item.webUrl && openUrl(item.webUrl); }}
                         >
-                            <span className="codicon codicon-link-external" />
+                            <span className="codicon codicon-globe" />
                         </button>
 
                         {/* Preview */}
@@ -129,7 +134,7 @@ export function FileListRow({ item, isSelected, onSelect, onNavigate, colTemplat
                             title="Preview"
                             style={{ fontSize: 14, padding: '2px 4px', opacity: isFile ? 1 : 0.25 }}
                             disabled={!isFile}
-                            onClick={() => { /* TODO */ }}
+                            onClick={() => { previewItem(item); }}
                         >
                             <span className="codicon codicon-eye" />
                         </button>
@@ -140,7 +145,7 @@ export function FileListRow({ item, isSelected, onSelect, onNavigate, colTemplat
                             title="Download"
                             style={{ fontSize: 14, padding: '2px 4px', opacity: isFile ? 1 : 0.25 }}
                             disabled={!isFile}
-                            onClick={() => { /* TODO */ }}
+                            onClick={() => { downloadItem(item); }}
                         >
                             <span className="codicon codicon-cloud-download" />
                         </button>

@@ -63,17 +63,26 @@ export class ColumnGraphService {
     // ── Drive item custom columns (listItem fields) ───────────────────────────
 
     /** Get the column values (fields) for a drive item's list item. */
-    async getItemFields(_driveId: string, _itemId: string): Promise<Record<string, unknown>> {
-        throw new Error('ColumnGraphService.getItemFields: not yet implemented');
+    async getItemFields(driveId: string, itemId: string): Promise<Record<string, unknown>> {
+        return withAuthRetry(this._authProvider, async () => {
+            return this._client
+                .api(`/drives/${driveId}/items/${itemId}/listitem/fields`)
+                .get();
+        });
     }
 
-    /** Update column values (fields) for a drive item's list item. */
+    /** Update column values (fields) for a drive item's list item.
+     *  Pass null for any field to unset it. */
     async updateItemFields(
-        _driveId: string,
-        _itemId: string,
-        _fields: Record<string, unknown>,
+        driveId: string,
+        itemId: string,
+        fields: Record<string, unknown>,
     ): Promise<void> {
-        throw new Error('ColumnGraphService.updateItemFields: not yet implemented');
+        return withAuthRetry(this._authProvider, async () => {
+            await this._client
+                .api(`/drives/${driveId}/items/${itemId}/listitem/fields`)
+                .patch(fields);
+        });
     }
 }
 

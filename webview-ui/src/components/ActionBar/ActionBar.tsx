@@ -9,8 +9,8 @@ export function ActionBar() {
     const hasSelection = selectedItem !== null;
     // Open in web: only Office files carry a webUrl
     const canOpen     = isFile && !!selectedItem?.webUrl;
-    const canPreview  = isFile && !!selectedItem?.previewUrl;
-    const canDownload = isFile && !!selectedItem?.downloadUrl;
+    const canPreview  = isFile;   // preview is fetched on demand via POST /preview
+    const canDownload = isFile;
 
     return (
         <div
@@ -81,7 +81,7 @@ function FileActions({
     hasSelection: boolean; isFile: boolean;
     canOpen: boolean; canPreview: boolean; canDownload: boolean;
 }) {
-    const { selectedItem, openModal, enqueueUploads } = useStorageExplorer();
+    const { selectedItem, openModal, enqueueUploads, previewItem, downloadItem, openInDesktopApp } = useStorageExplorer();
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     function handleFilesSelected(e: React.ChangeEvent<HTMLInputElement>) {
@@ -105,11 +105,15 @@ function FileActions({
             <NewDropdown />
             <ActionBtn icon="codicon-cloud-upload" label="Upload" title="Upload files" onClick={() => fileInputRef.current?.click()} />
             <Separator />
-            <OpenDropdown disabled={!canOpen} onOpenInWeb={() => selectedItem?.webUrl && openUrl(selectedItem.webUrl)} />
-            <ActionBtn icon="codicon-eye" label="Preview" title="Preview selected file" disabled={!canPreview} onClick={() => selectedItem?.previewUrl && openUrl(selectedItem.previewUrl)} />
+            <OpenDropdown
+                disabled={!canOpen}
+                onOpenInWeb={() => selectedItem?.webUrl && openUrl(selectedItem.webUrl)}
+                onOpenInDesktop={() => selectedItem && openInDesktopApp(selectedItem)}
+            />
+            <ActionBtn icon="codicon-eye" label="Preview" title="Preview selected file" disabled={!canPreview} onClick={() => selectedItem && previewItem(selectedItem)} />
             <ActionBtn icon="codicon-edit" label="Rename" title="Rename selected item" disabled={!hasSelection} onClick={() => selectedItem && openModal({ kind: 'rename', item: selectedItem })} />
             <ActionBtn icon="codicon-trash" label="Delete" title="Delete selected item" disabled={!hasSelection} danger onClick={() => selectedItem && openModal({ kind: 'delete', item: selectedItem })} />
-            <ActionBtn icon="codicon-cloud-download" label="Download" title="Download selected file" disabled={!canDownload} onClick={() => selectedItem?.downloadUrl && openUrl(selectedItem.downloadUrl)} />
+            <ActionBtn icon="codicon-cloud-download" label="Download" title="Download selected file" disabled={!canDownload} onClick={() => selectedItem && downloadItem(selectedItem)} />
         </>
     );
 }
@@ -213,7 +217,7 @@ function NewDropdown() {
 
 // ── Open dropdown ────────────────────────────────────────────────────────────
 
-function OpenDropdown({ disabled, onOpenInWeb }: { disabled: boolean; onOpenInWeb: () => void }) {
+function OpenDropdown({ disabled, onOpenInWeb, onOpenInDesktop }: { disabled: boolean; onOpenInWeb: () => void; onOpenInDesktop: () => void }) {
     const [open, setOpen] = useState(false);
     const ref = useRef<HTMLDivElement>(null);
 
@@ -263,11 +267,11 @@ function OpenDropdown({ disabled, onOpenInWeb }: { disabled: boolean; onOpenInWe
                 >
                     <button className="menu-item" onClick={() => { setOpen(false); onOpenInWeb(); }}>
                         <span className="codicon codicon-globe" />
-                        Open in web browser
+                        Open in browser
                     </button>
-                    <button className="menu-item" onClick={() => { setOpen(false); /* TODO */ }}>
+                    <button className="menu-item" onClick={() => { setOpen(false); onOpenInDesktop(); }}>
                         <span className="codicon codicon-desktop-download" />
-                        Open in desktop app
+                        Open in desktop
                     </button>
                 </div>
             )}

@@ -8,6 +8,7 @@ import { PermissionsPanel } from './PermissionsPanel';
 import { FilePermissionsPanel } from './FilePermissionsPanel';
 import { ColumnsPanel } from './ColumnsPanel';
 import { SettingsPanel } from './SettingsPanel';
+import { FilePropertiesPanel } from './FilePropertiesPanel';
 import { getItemIcon, getItemIconColor } from '../FileList/fileListUtils';
 
 const CONTAINER_TABS: { key: SidePanelTab; label: string; icon: string }[] = [
@@ -154,7 +155,11 @@ function PropertiesPanel({ item }: { item: StorageItem | null }) {
         return <ContainerPropertiesPanel item={item} />;
     }
 
-    // Simple read-only panel for files, folders, recycled items
+    if ((item.kind === 'file' || item.kind === 'folder') && !isRecycledView) {
+        return <FilePropertiesPanel item={item} />;
+    }
+
+    // Simple read-only panel for recycled items
     const rows = [
         { label: 'Name', value: item.name },
         { label: 'Type', value: item.type },

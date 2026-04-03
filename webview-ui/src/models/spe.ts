@@ -29,7 +29,7 @@ export type SpeDriveItem = DriveItem & {
  * on user identities, but the library types don't model it.  This
  * intersection type adds the field so we can work with it safely.
  */
-export type SpeIdentity = Identity & { userPrincipalName?: string | null };
+export type SpeIdentity = Identity & { userPrincipalName?: string | null; email?: string | null };
 
 // ── Container permissions ─────────────────────────────────────────────────────
 

@@ -12,7 +12,7 @@ import { useStorageExplorer } from '../context/StorageExplorerContext';
 import { DEFAULT_RETENTION_DAYS } from '../data/dummyData';
 
 export function StorageExplorerPage() {
-    const { sidePanelOpen, modal, closeModal, viewMode, setRetentionOverride, networkDrawerOpen, createContainer, renameContainer, deleteContainer, permanentlyDeleteContainer } = useStorageExplorer();
+    const { sidePanelOpen, modal, closeModal, viewMode, setRetentionOverride, networkDrawerOpen, createContainer, renameContainer, deleteContainer, permanentlyDeleteContainer, permanentlyDeleteItem, createFolder, createFile, renameItem, deleteItem, currentDriveId } = useStorageExplorer();
     const isRecycledView = viewMode.kind !== 'normal';
 
     return (
@@ -40,7 +40,11 @@ export function StorageExplorerPage() {
                 <RenameModal
                     currentName={modal.item.name}
                     onConfirm={async (newName) => {
-                        await renameContainer(modal.item.id, newName);
+                        if (modal.item.kind === 'container') {
+                            await renameContainer(modal.item.id, newName);
+                        } else {
+                            await renameItem(modal.item, newName);
+                        }
                         closeModal();
                     }}
                     onCancel={closeModal}
@@ -50,7 +54,11 @@ export function StorageExplorerPage() {
                 <DeleteModal
                     itemName={modal.item.name}
                     onConfirm={async () => {
-                        await deleteContainer(modal.item.id);
+                        if (modal.item.kind === 'container') {
+                            await deleteContainer(modal.item.id);
+                        } else {
+                            await deleteItem(modal.item);
+                        }
                         closeModal();
                     }}
                     onCancel={closeModal}
@@ -60,7 +68,11 @@ export function StorageExplorerPage() {
                 <PermanentlyDeleteModal
                     itemName={modal.item.name}
                     onConfirm={async () => {
-                        await permanentlyDeleteContainer(modal.item.id);
+                        if (modal.item.kind === 'container') {
+                            await permanentlyDeleteContainer(modal.item.id);
+                        } else {
+                            await permanentlyDeleteItem(modal.item);
+                        }
                         closeModal();
                     }}
                     onCancel={closeModal}
@@ -80,7 +92,7 @@ export function StorageExplorerPage() {
                     description="Enter a name for the document. The .docx extension will be added automatically."
                     placeholder="Document name"
                     extension=".docx"
-                    onConfirm={() => closeModal()}
+                    onConfirm={async (name) => { await createFile(name); closeModal(); }}
                     onCancel={closeModal}
                 />
             )}
@@ -90,7 +102,7 @@ export function StorageExplorerPage() {
                     description="Enter a name for the presentation. The .pptx extension will be added automatically."
                     placeholder="Presentation name"
                     extension=".pptx"
-                    onConfirm={() => closeModal()}
+                    onConfirm={async (name) => { await createFile(name); closeModal(); }}
                     onCancel={closeModal}
                 />
             )}
@@ -100,7 +112,7 @@ export function StorageExplorerPage() {
                     description="Enter a name for the workbook. The .xlsx extension will be added automatically."
                     placeholder="Workbook name"
                     extension=".xlsx"
-                    onConfirm={() => closeModal()}
+                    onConfirm={async (name) => { await createFile(name); closeModal(); }}
                     onCancel={closeModal}
                 />
             )}
@@ -109,7 +121,7 @@ export function StorageExplorerPage() {
                     title="New folder"
                     description="Enter a name for the new folder."
                     placeholder="Folder name"
-                    onConfirm={() => closeModal()}
+                    onConfirm={async (name) => { await createFolder(name); closeModal(); }}
                     onCancel={closeModal}
                 />
             )}
@@ -118,7 +130,7 @@ export function StorageExplorerPage() {
                     title="New file"
                     description="Enter a name for the new file, including its extension (e.g. report.pdf, notes.txt)."
                     placeholder="filename.ext"
-                    onConfirm={() => closeModal()}
+                    onConfirm={async (name) => { await createFile(name); closeModal(); }}
                     onCancel={closeModal}
                 />
             )}
@@ -425,27 +437,37 @@ function NewItemModal({
     placeholder: string;
     /** When provided, auto-appended and shown as a preview; prompt is for the base name only */
     extension?: string;
-    onConfirm: (name: string) => void;
+    onConfirm: (name: string) => void | Promise<void>;
     onCancel: () => void;
 }) {
     const [value, setValue] = useState('');
+    const [busy, setBusy] = useState(false);
+    const [error, setError] = useState<string | null>(null);
     const inputRef = useRef<HTMLInputElement>(null);
 
-    function handleConfirm() {
+    async function handleConfirm() {
         const trimmed = value.trim();
         if (!trimmed) return;
-        onConfirm(extension ? `${trimmed}${extension}` : trimmed);
+        setBusy(true);
+        setError(null);
+        try {
+            await onConfirm(extension ? `${trimmed}${extension}` : trimmed);
+        } catch (err: any) {
+            setError(err?.message ?? 'Failed to create item.');
+            setBusy(false);
+        }
     }
 
     return (
         <Modal
             title={title}
-            confirmLabel="Create"
-            confirmDisabled={!value.trim()}
+            confirmLabel={busy ? 'Creating…' : 'Create'}
+            confirmDisabled={!value.trim() || busy}
             onConfirm={handleConfirm}
             onCancel={onCancel}
         >
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {error && <p style={{ margin: 0, fontSize: 12, color: 'var(--vscode-errorForeground)' }}>{error}</p>}
                 <p style={{ margin: 0, fontSize: 13, color: 'var(--vscode-foreground)', opacity: 0.75, lineHeight: '1.5' }}>
                     {description}
                 </p>

@@ -7,6 +7,7 @@ import * as vscode from 'vscode';
 import { ContainerType, ContainerTypeRegistration } from '../../models/schemas';
 import { ext } from '../../utils/extensionVariables';
 import { GraphAuthProvider } from '../../services/Auth';
+import { AuthenticationState } from '../../services/AuthenticationState';
 
 function getNonce(): string {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
@@ -120,7 +121,7 @@ export class StorageExplorerPanel {
 
         const state: PanelState = {
             appName: containerType.name,
-            tenantDomain: 'local tenant',   // TODO: derive from AuthenticationState
+            tenantDomain: AuthenticationState.getCurrentAccountSync()?.domain ?? 'local tenant',
             containerTypeId: containerType.id,
             registrationId: registration.id,
             initialToken,
@@ -155,7 +156,7 @@ export class StorageExplorerPanel {
         const nonce = getNonce();
         const csp = [
             `default-src 'none'`,
-            `connect-src https://graph.microsoft.com`,
+            `connect-src https://graph.microsoft.com https://*.sharepoint.com`,
             `font-src ${webview.cspSource}`,
             `img-src ${webview.cspSource} data:`,
             `style-src ${webview.cspSource} 'unsafe-inline'`,

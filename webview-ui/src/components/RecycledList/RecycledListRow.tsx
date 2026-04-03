@@ -15,7 +15,15 @@ interface RecycledListRowProps {
 export function RecycledListRow({ item, isSelected, onSelect, colTemplate, isDeletedContainers }: RecycledListRowProps) {
     const [isHovered, setIsHovered] = useState(false);
     const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
-    const { openModal } = useStorageExplorer();
+    const { openModal, viewMode, restoreContainer, restoreRecycledItem } = useStorageExplorer();
+
+    function handleRestore() {
+        if (viewMode.kind === 'container-recycle-bin') {
+            restoreRecycledItem(item).catch(console.error);
+        } else {
+            restoreContainer(item.id).catch(console.error);
+        }
+    }
 
     const icon = getItemIcon(item);
     const iconColor = getItemIconColor(item);
@@ -109,7 +117,7 @@ export function RecycledListRow({ item, isSelected, onSelect, colTemplate, isDel
                             className="icon-btn"
                             title="Restore"
                             style={{ fontSize: 14, padding: '2px 4px' }}
-                            onClick={() => { /* TODO */ }}
+                            onClick={handleRestore}
                         >
                             <span className="codicon codicon-redo" />
                         </button>
