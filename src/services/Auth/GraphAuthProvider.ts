@@ -12,12 +12,7 @@ import { clientId } from '../../client';
  */
 export class GraphAuthProvider extends VSCodeAuthProvider {
     private static readonly GRAPH_SCOPES = [
-        'https://graph.microsoft.com/Application.ReadWrite.All',
-        'https://graph.microsoft.com/FileStorageContainer.Manage.All',
-        'https://graph.microsoft.com/FileStorageContainer.Selected',
-        'https://graph.microsoft.com/FileStorageContainerType.Manage.All',
-        'https://graph.microsoft.com/FileStorageContainerTypeReg.Manage.All',
-        'https://graph.microsoft.com/User.Read'
+        'https://graph.microsoft.com/.default'
     ];
 
     private static _instance: GraphAuthProvider | undefined;

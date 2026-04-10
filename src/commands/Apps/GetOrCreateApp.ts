@@ -78,13 +78,13 @@ export class GetOrCreateApp extends Command {
             }
 
             qp.busy = true;
-            if (!excludedAppIds) {
+            if (isOwningApp && !excludedAppIds) {
                 // Get container types to find apps that are already used
                 const containerTypes = await graphProvider.containerTypes.list();
                 excludedAppIds = containerTypes.map((ct) => ct.owningAppId);
             }
 
-            const exclusions = excludedAppIds || [];
+            const exclusions = isOwningApp ? (excludedAppIds || []) : [];
             // Search applications using the new service
         let appsResult: { applications: Application[] };
         

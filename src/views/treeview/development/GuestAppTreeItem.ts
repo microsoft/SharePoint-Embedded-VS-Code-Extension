@@ -19,9 +19,23 @@ export class GuestApplicationTreeItem extends AppTreeItem {
     ) {
         super(grant.appId);
         this.contextValue += '-guest';
+        this._updatePresentation();
         this._resolveDisplayName().catch((error) => {
             console.error('[GuestApplicationTreeItem] Failed to resolve display name:', error);
         });
+    }
+
+    private _updatePresentation(displayName?: string): void {
+        if (!displayName || displayName === this.grant.appId) {
+            this.label = this.grant.appId;
+            this.description = undefined;
+            this.tooltip = this.grant.appId;
+            return;
+        }
+
+        this.label = displayName;
+        this.description = `(${this.grant.appId})`;
+        this.tooltip = `${displayName} (${this.grant.appId})`;
     }
 
     private async _resolveDisplayName(): Promise<void> {
@@ -31,7 +45,7 @@ export class GuestApplicationTreeItem extends AppTreeItem {
         const app = await graphProvider.applications.get(this.grant.appId, { useAppId: true });
         if (app) {
             this.application = app;
-            this.label = app.displayName;
+            this._updatePresentation(app.displayName);
             this.contextValue += '-local';
             DevelopmentTreeViewProvider.instance.refresh(this);
             return;
@@ -41,7 +55,7 @@ export class GuestApplicationTreeItem extends AppTreeItem {
         try {
             const sp = await graphProvider.applications.getServicePrincipal(this.grant.appId);
             if (sp?.displayName) {
-                this.label = sp.displayName;
+                this._updatePresentation(sp.displayName);
                 DevelopmentTreeViewProvider.instance.refresh(this);
             }
         } catch {

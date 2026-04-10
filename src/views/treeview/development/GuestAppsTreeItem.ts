@@ -21,9 +21,7 @@ export class GuestAppsTreeItem extends IChildrenProvidingTreeItem {
         try {
             const grants = await GraphProvider.getInstance().appPermissionGrants.list(this.containerTypeId);
             grants.map((grant) => {
-                if (grant.appId !== this.owningAppId) {
-                    children.push(new GuestApplicationTreeItem(grant, this.containerTypeId, this));
-                }
+                children.push(new GuestApplicationTreeItem(grant, this.containerTypeId, this));
             });
         } catch (error) {
             console.error('[GuestAppsTreeItem.getChildren]', error);

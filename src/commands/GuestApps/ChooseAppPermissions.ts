@@ -20,18 +20,25 @@ export interface PermissionInput {
     appOnly?: string[];
 }
 
+export interface ChooseAppPermissionsOptions {
+    showCloseButton?: boolean;
+}
+
 export class ChooseAppPermissions extends Command {
 
-    public static async run(appPerms?: PermissionInput): Promise<SelectedAppPermissions | undefined> {
+    public static async run(
+        appPerms?: PermissionInput,
+        options?: ChooseAppPermissionsOptions
+    ): Promise<SelectedAppPermissions | undefined> {
 
         const existingDelegatedPerms = appPerms?.delegated;
         const existingAppPerms = appPerms?.appOnly;
 
-        const delegated = await ChooseAppPermission.run('Delegated', existingDelegatedPerms);
+        const delegated = await ChooseAppPermission.run('Delegated', existingDelegatedPerms, options);
         if (!delegated) {
             return;
         }
-        const appOnly = await ChooseAppPermission.run('Application', existingAppPerms);
+        const appOnly = await ChooseAppPermission.run('Application', existingAppPerms, options);
         if (!appOnly) {
             return;
         }
@@ -43,6 +50,10 @@ export class ChooseAppPermissions extends Command {
 }
 
 class ChooseAppPermission extends Command {
+    private static readonly _closeButton: vscode.QuickInputButton = {
+        iconPath: new vscode.ThemeIcon('close'),
+        tooltip: vscode.l10n.t('Close')
+    };
 
     private static readonly _permOptions: ApplicationPermissionOption[] = [
         { label: "None", value: "none", detail: vscode.l10n.t("No permissions") },
@@ -80,7 +91,11 @@ class ChooseAppPermission extends Command {
         return [...expanded];
     }
 
-    public static async run(permType?: string, existingPerms?: string[]): Promise<string[] | undefined> {
+    public static async run(
+        permType?: string,
+        existingPerms?: string[],
+        options?: ChooseAppPermissionsOptions
+    ): Promise<string[] | undefined> {
         if (!permType) {
             return [];
         }
@@ -101,6 +116,7 @@ class ChooseAppPermission extends Command {
             qp.canSelectMany = true;
             qp.ignoreFocusOut = true;
             qp.placeholder = placeholder;
+            qp.buttons = options?.showCloseButton ? [this._closeButton] : [];
             // Exclude "None" from the selectable permission options
             const selectableOptions = this._permOptions.filter(o => o.value !== this._noneOption);
             qp.items = selectableOptions;
@@ -108,6 +124,11 @@ class ChooseAppPermission extends Command {
                 ? existingPermsChoices.filter(o => o.value !== this._noneOption)
                 : existingPerms ? [] : selectableOptions;
             let selectedPerms: string[] = [];
+            qp.onDidTriggerButton((button) => {
+                if (button === this._closeButton) {
+                    qp.hide();
+                }
+            });
             qp.onDidAccept(() => {
                 if (qp.selectedItems.length === 0) {
                     // No permissions selected → "none"

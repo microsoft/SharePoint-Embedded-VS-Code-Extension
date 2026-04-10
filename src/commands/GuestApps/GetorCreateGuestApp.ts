@@ -34,7 +34,9 @@ export class GetorCreateGuestApp extends Command {
             return;
         }
 
-        const selectedPerms = await ChooseAppPermissions.run();
+        const selectedPerms = await ChooseAppPermissions.run(undefined, {
+            showCloseButton: true
+        });
         if (!selectedPerms) {
             return;
         }

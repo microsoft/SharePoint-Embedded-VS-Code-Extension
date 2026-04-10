@@ -18,6 +18,13 @@ export class SpeUriHandler implements vscode.UriHandler {
 
         // Parse path segments: /{tenant-id}/{container-type-id}
         const pathSegments = uri.path.split('/').filter(s => s.length > 0);
+
+        // No path segments means this is a bare "return focus to VS Code" redirect
+        // (e.g., after admin consent). Just bring VS Code to the foreground.
+        if (pathSegments.length === 0) {
+            return;
+        }
+
         if (pathSegments.length < 2) {
             vscode.window.showWarningMessage(
                 vscode.l10n.t('Invalid SharePoint Embedded link format.')

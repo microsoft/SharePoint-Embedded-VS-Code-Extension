@@ -24,7 +24,7 @@ export class SignOut extends Command {
                 vscode.l10n.t('OK'), vscode.l10n.t('Cancel')
             );
 
-            if (userChoice === vscode.l10n.t('Cancel')) {
+            if (userChoice !== vscode.l10n.t('OK')) {
                 return;
             }
 

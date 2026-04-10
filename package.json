@@ -143,10 +143,6 @@
         "label": "TypeScript + React + Azure Functions"
       },
       {
-        "id": "spe.App.SampleApps.ASPNET+C#",
-        "label": "ASP.NET + C#"
-      },
-      {
         "id": "spe.App.Permissions",
         "label": "Permissions"
       },
@@ -179,11 +175,6 @@
           "submenu": "spe.App.SampleApps.TypeScript+React+AzureFunctions",
           "command": "spe.App.SampleApps.TypeScript+React+AzureFunctions.clone",
           "group": "1@1"
-        },
-        {
-          "submenu": "spe.App.SampleApps.ASPNET+C#",
-          "command": "spe.App.SampleApps.ASPNET+C#.clone",
-          "group": "1@2"
         }
       ],
       "spe.App.Permissions": [

@@ -48,7 +48,9 @@ export class EditGuestAppPermissions extends Command {
             console.error('[EditGuestAppPermissions] Error fetching current permissions:', error);
         }
 
-        const selectedPerms = await ChooseAppPermissions.run(existingPerms);
+        const selectedPerms = await ChooseAppPermissions.run(existingPerms, {
+            showCloseButton: true
+        });
         if (!selectedPerms) {
             return;
         }
