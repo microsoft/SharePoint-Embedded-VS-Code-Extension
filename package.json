@@ -96,8 +96,13 @@
     "viewsWelcome": [
       {
         "view": "spe-welcome",
+        "contents": "Loading SharePoint Embedded...",
+        "when": "!spe:isActivated && !spe:isLoggedIn && !spe:isLoggingIn"
+      },
+      {
+        "view": "spe-welcome",
         "contents": "Sign into your Microsoft 365 tenant to get started.\n[Sign into Microsoft 365](command:spe.login) \n\n\n If you don't have a Microsoft 365 tenant, [get your own tenant with the Microsoft 365 Developer Program](https://developer.microsoft.com/en-us/microsoft-365/dev-program).",
-        "when": "!spe:isLoggedIn && !spe:isLoggingIn"
+        "when": "spe:isActivated && !spe:isLoggedIn && !spe:isLoggingIn"
       },
       {
         "view": "spe-development",

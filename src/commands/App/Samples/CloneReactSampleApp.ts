@@ -70,68 +70,104 @@ export class CloneReactSampleApp extends Command {
             return;
         }
 
-        const appConfigurationProgress = new ProgressWaitNotification(vscode.l10n.t('Configuring your app...'));
-        appConfigurationProgress.show();
+        const appCheckProgress = new ProgressWaitNotification(vscode.l10n.t('Checking your app configuration...'));
+        appCheckProgress.show();
 
         // Get tenant info from auth state
         const authAccount = AuthenticationState.getCurrentAccountSync();
         const tenantId = authAccount?.tenantId || '';
         const tenantDomain = extractDomainFromUsername(authAccount?.username);
 
-        // Configure app for React sample (redirect URIs + identifier URI)
+        // Check app configuration (read-only), then prompt before making changes
         try {
             const app = await graphProvider.applications.get(appId, { useAppId: true });
+            appCheckProgress.hide();
+
             if (app) {
+                // Check what configuration is missing
                 const existingSpaUris = app.spa?.redirectUris || [];
                 const existingWebUris = app.web?.redirectUris || [];
-                const updates: any = {};
+                const needsSpaRedirect = !existingSpaUris.includes('http://localhost:8080');
+                const needsWebRedirect = !existingWebUris.includes('http://localhost/redirect');
+                const needsIdentifierUri = !app.identifierUris?.includes(`api://${appId}`);
 
-                if (!existingSpaUris.includes('http://localhost:8080')) {
-                    updates.spa = { redirectUris: [...existingSpaUris, 'http://localhost:8080'] };
-                }
-                if (!existingWebUris.includes('http://localhost/redirect')) {
-                    updates.web = { redirectUris: [...existingWebUris, 'http://localhost/redirect'] };
-                }
-                if (!app.identifierUris?.includes(`api://${appId}`)) {
-                    updates.identifierUris = [`api://${appId}`];
-                }
+                const existingScopes = app.api?.oauth2PermissionScopes ?? [];
+                const needsContainerManageScope = !existingScopes.some((s: any) => s.value === 'Container.Manage');
 
-                if (Object.keys(updates).length > 0) {
-                    await graphProvider.applications.update(app.id!, updates);
-                }
+                const GRAPH_RESOURCE_APP_ID = '00000003-0000-0000-c000-000000000000';
+                const FSC_SELECTED_ROLE_ID = '40dc41bc-0f7e-42ff-89bd-d9516947e474';
+                const existingRRA = app.requiredResourceAccess ?? [];
+                const graphResource = existingRRA.find((r: any) => r.resourceAppId === GRAPH_RESOURCE_APP_ID);
+                const existingAccess = graphResource?.resourceAccess ?? [];
+                const needsFscRole = !existingAccess.some(
+                    (ra: any) => ra.id === FSC_SELECTED_ROLE_ID && ra.type === 'Role'
+                );
 
-                // Ensure Container.Manage API scope is exposed
-                await graphProvider.applications.ensureContainerManageScope(appId, { useAppId: true });
+                if (needsSpaRedirect || needsWebRedirect || needsIdentifierUri || needsContainerManageScope || needsFscRole) {
+                    const missing: string[] = [];
+                    if (needsSpaRedirect) { missing.push('SPA redirect URI (http://localhost:8080)'); }
+                    if (needsWebRedirect) { missing.push('Web redirect URI (http://localhost/redirect)'); }
+                    if (needsIdentifierUri) { missing.push(`Identifier URI (api://${appId})`); }
+                    if (needsContainerManageScope) { missing.push('Container.Manage API scope'); }
+                    if (needsFscRole) { missing.push('FileStorageContainer.Selected permission'); }
 
-                // Add FileStorageContainer.Selected application permission (for client credentials flow)
-                const roleAdded = await graphProvider.applications.ensureFileStorageContainerSelectedRole(appId, { useAppId: true });
-                if (roleAdded) {
-                    appConfigurationProgress.hide();
-                    const grantConsent = vscode.l10n.t('Grant consent');
+                    const configure = vscode.l10n.t('Configure');
                     const choice = await vscode.window.showInformationMessage(
-                        vscode.l10n.t('Your app {0} requires Graph FileStorageContainer.Selected API permission role to perform this action. Grant admin consent now?', appId),
-                        grantConsent,
+                        vscode.l10n.t('Your app is missing configuration required for this sample: {0}. Add now?', missing.join(', ')),
+                        configure,
                         vscode.l10n.t('Skip')
                     );
-                    if (choice === grantConsent) {
-                        const consentProgress = new ProgressWaitNotification(vscode.l10n.t('Waiting for admin consent...'));
-                        consentProgress.show();
+
+                    if (choice === configure) {
+                        const configProgress = new ProgressWaitNotification(vscode.l10n.t('Configuring your app...'));
+                        configProgress.show();
                         try {
-                            await AdminConsentHelper.listenForAdminConsent(appId, tenantId);
-                        } catch (e) {
-                            console.warn('[CloneReactSampleApp] Admin consent flow error:', e);
+                            const updates: any = {};
+                            if (needsSpaRedirect) {
+                                updates.spa = { redirectUris: [...existingSpaUris, 'http://localhost:8080'] };
+                            }
+                            if (needsWebRedirect) {
+                                updates.web = { redirectUris: [...existingWebUris, 'http://localhost/redirect'] };
+                            }
+                            if (needsIdentifierUri) {
+                                updates.identifierUris = [`api://${appId}`];
+                            }
+                            if (Object.keys(updates).length > 0) {
+                                await graphProvider.applications.update(app.id!, updates);
+                            }
+
+                            await graphProvider.applications.ensureContainerManageScope(appId, { useAppId: true });
+                            const roleAdded = await graphProvider.applications.ensureFileStorageContainerSelectedRole(appId, { useAppId: true });
+                            configProgress.hide();
+
+                            if (roleAdded) {
+                                const grantConsent = vscode.l10n.t('Grant consent');
+                                const consentChoice = await vscode.window.showInformationMessage(
+                                    vscode.l10n.t('Your app {0} requires Graph FileStorageContainer.Selected API permission role to perform this action. Grant admin consent now?', appId),
+                                    grantConsent,
+                                    vscode.l10n.t('Skip')
+                                );
+                                if (consentChoice === grantConsent) {
+                                    const consentProgress = new ProgressWaitNotification(vscode.l10n.t('Waiting for admin consent...'));
+                                    consentProgress.show();
+                                    try {
+                                        await AdminConsentHelper.listenForAdminConsent(appId, tenantId);
+                                    } catch (e) {
+                                        console.warn('[CloneReactSampleApp] Admin consent flow error:', e);
+                                    }
+                                    consentProgress.hide();
+                                }
+                            }
+                        } catch (error: any) {
+                            configProgress.hide();
+                            console.error('[CloneReactSampleApp] Error configuring app:', error);
                         }
-                        consentProgress.hide();
                     }
-                } else {
-                    appConfigurationProgress.hide();
                 }
-            } else {
-                appConfigurationProgress.hide();
             }
         } catch (error: any) {
-            console.error('[CloneReactSampleApp] Error configuring app:', error);
-            appConfigurationProgress.hide();
+            console.error('[CloneReactSampleApp] Error checking app configuration:', error);
+            appCheckProgress.hide();
             // Non-fatal - user can configure manually
         }
 

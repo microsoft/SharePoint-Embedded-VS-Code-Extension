@@ -11,6 +11,8 @@
   "Trial Container Type cannot be deleted as there are active containers associated to it. Please ensure there are no active containers and no containers in the recycle bin before proceeding.": "Trial Container Type cannot be deleted as there are active containers associated to it. Please ensure there are no active containers and no containers in the recycle bin before proceeding.",
   "OK": "OK",
   "Cancel": "Cancel",
+  "Checking your app configuration...": "Checking your app configuration...",
+  "Your app is missing configuration required for this sample: {0}. Add now?": "Your app is missing configuration required for this sample: {0}. Add now?",
   "Configuring your app...": "Configuring your app...",
   "Add FileStorageContainer.Selected role": "Add FileStorageContainer.Selected role",
   "Skip": "Skip",

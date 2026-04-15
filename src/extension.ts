@@ -27,6 +27,7 @@ export async function activate(context: vscode.ExtensionContext) {
     //      https://github.com/microsoft/vscode/issues/67559
     //      https://github.com/microsoft/vscode/issues/40500
     await vscode.commands.executeCommand('setContext', 'spe:isAdmin', false);
+    await vscode.commands.executeCommand('setContext', 'spe:isActivated', false);
 
     ext.context = context;
     ext.outputChannel = vscode.window.createOutputChannel("SharePoint Embedded", { log: true });
@@ -182,6 +183,8 @@ export async function activate(context: vscode.ExtensionContext) {
             }
         })
     );
+
+    await vscode.commands.executeCommand('setContext', 'spe:isActivated', true);
 }
 
 

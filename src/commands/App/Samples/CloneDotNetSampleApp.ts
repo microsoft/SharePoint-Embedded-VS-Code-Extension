@@ -70,42 +70,79 @@ export class CloneDotNetSampleApp extends Command {
             return;
         }
 
-        const appConfigurationProgress = new ProgressWaitNotification(vscode.l10n.t('Configuring your app...'));
-        appConfigurationProgress.show();
+        const appCheckProgress = new ProgressWaitNotification(vscode.l10n.t('Checking your app configuration...'));
+        appCheckProgress.show();
 
         // Get tenant info from auth state
         const authAccount = AuthenticationState.getCurrentAccountSync();
         const tenantId = authAccount?.tenantId || '';
 
-        // Configure app: ensure Container.Manage API scope + FSC.Selected role
+        // Check app configuration (read-only), then prompt before making changes
         try {
-            await graphProvider.applications.ensureContainerManageScope(appId, { useAppId: true });
+            const app = await graphProvider.applications.get(appId, { useAppId: true });
+            appCheckProgress.hide();
 
-            const roleAdded = await graphProvider.applications.ensureFileStorageContainerSelectedRole(appId, { useAppId: true });
-            if (roleAdded) {
-                appConfigurationProgress.hide();
-                const grantConsent = vscode.l10n.t('Grant consent');
-                const choice = await vscode.window.showInformationMessage(
-                    vscode.l10n.t('Your app {0} requires Graph FileStorageContainer.Selected API permission role to perform this action. Grant admin consent now?', appId),
-                    grantConsent,
-                    vscode.l10n.t('Skip')
+            if (app) {
+                const existingScopes = app.api?.oauth2PermissionScopes ?? [];
+                const needsContainerManageScope = !existingScopes.some((s: any) => s.value === 'Container.Manage');
+
+                const GRAPH_RESOURCE_APP_ID = '00000003-0000-0000-c000-000000000000';
+                const FSC_SELECTED_ROLE_ID = '40dc41bc-0f7e-42ff-89bd-d9516947e474';
+                const existingRRA = app.requiredResourceAccess ?? [];
+                const graphResource = existingRRA.find((r: any) => r.resourceAppId === GRAPH_RESOURCE_APP_ID);
+                const existingAccess = graphResource?.resourceAccess ?? [];
+                const needsFscRole = !existingAccess.some(
+                    (ra: any) => ra.id === FSC_SELECTED_ROLE_ID && ra.type === 'Role'
                 );
-                if (choice === grantConsent) {
-                    const consentProgress = new ProgressWaitNotification(vscode.l10n.t('Waiting for admin consent...'));
-                    consentProgress.show();
-                    try {
-                        await AdminConsentHelper.listenForAdminConsent(appId, tenantId);
-                    } catch (e) {
-                        console.warn('[CloneDotNetSampleApp] Admin consent flow error:', e);
+
+                if (needsContainerManageScope || needsFscRole) {
+                    const missing: string[] = [];
+                    if (needsContainerManageScope) { missing.push('Container.Manage API scope'); }
+                    if (needsFscRole) { missing.push('FileStorageContainer.Selected permission'); }
+
+                    const configure = vscode.l10n.t('Configure');
+                    const choice = await vscode.window.showInformationMessage(
+                        vscode.l10n.t('Your app is missing configuration required for this sample: {0}. Add now?', missing.join(', ')),
+                        configure,
+                        vscode.l10n.t('Skip')
+                    );
+
+                    if (choice === configure) {
+                        const configProgress = new ProgressWaitNotification(vscode.l10n.t('Configuring your app...'));
+                        configProgress.show();
+                        try {
+                            await graphProvider.applications.ensureContainerManageScope(appId, { useAppId: true });
+                            const roleAdded = await graphProvider.applications.ensureFileStorageContainerSelectedRole(appId, { useAppId: true });
+                            configProgress.hide();
+
+                            if (roleAdded) {
+                                const grantConsent = vscode.l10n.t('Grant consent');
+                                const consentChoice = await vscode.window.showInformationMessage(
+                                    vscode.l10n.t('Your app {0} requires Graph FileStorageContainer.Selected API permission role to perform this action. Grant admin consent now?', appId),
+                                    grantConsent,
+                                    vscode.l10n.t('Skip')
+                                );
+                                if (consentChoice === grantConsent) {
+                                    const consentProgress = new ProgressWaitNotification(vscode.l10n.t('Waiting for admin consent...'));
+                                    consentProgress.show();
+                                    try {
+                                        await AdminConsentHelper.listenForAdminConsent(appId, tenantId);
+                                    } catch (e) {
+                                        console.warn('[CloneDotNetSampleApp] Admin consent flow error:', e);
+                                    }
+                                    consentProgress.hide();
+                                }
+                            }
+                        } catch (error: any) {
+                            configProgress.hide();
+                            console.error('[CloneDotNetSampleApp] Error configuring app:', error);
+                        }
                     }
-                    consentProgress.hide();
                 }
-            } else {
-                appConfigurationProgress.hide();
             }
         } catch (error: any) {
-            console.error('[CloneDotNetSampleApp] Error configuring app:', error);
-            appConfigurationProgress.hide();
+            console.error('[CloneDotNetSampleApp] Error checking app configuration:', error);
+            appCheckProgress.hide();
             // Non-fatal - user can configure manually
         }
 
