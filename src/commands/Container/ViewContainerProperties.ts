@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import { Command } from '../Command';
 import { ContainerTreeItem } from '../../views/treeview/development/ContainerTreeItem';
-import { Container } from '../../models/Container';
+import { Container } from '../../models/schemas';
 
 // Static class that handles the view properties command
 export class ViewContainerProperties extends Command {
@@ -20,7 +20,7 @@ export class ViewContainerProperties extends Command {
         }
         const container: Container = containerViewModel.container;
         try {
-            const containerProperties = JSON.stringify(container.getProperties(), null, 4);
+            const containerProperties = JSON.stringify(container, null, 4);
             const provider = new (class implements vscode.TextDocumentContentProvider {
                 provideTextDocumentContent(uri: vscode.Uri): string {
                     return containerProperties;

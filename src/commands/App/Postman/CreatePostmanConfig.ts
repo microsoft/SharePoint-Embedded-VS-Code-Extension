@@ -4,143 +4,80 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { App } from "../../../models/App";
-import { ContainerType } from "../../../models/ContainerType";
-import { AppTreeItem } from "../../../views/treeview/development/AppTreeItem";
+import { ContainerType } from "../../../models/schemas";
 import { Command } from "../../Command";
 import { v4 as uuidv4 } from 'uuid';
-import { Account } from '../../../models/Account';
-import { CreateAppCert } from '../Credentials/CreateAppCert';
-import { CreateSecret } from '../Credentials/CreateSecret';
+import { GraphProvider } from '../../../services/Graph/GraphProvider';
+import { AuthenticationState } from '../../../services/AuthenticationState';
+
+/**
+ * Input parameters for creating a Postman config
+ */
+export interface CreatePostmanConfigParams {
+    appId: string;
+    objectId: string;
+    displayName: string;
+    containerType: ContainerType;
+}
 
 // Static class that handles the Postman config creation command
 export class CreatePostmanConfig extends Command {
     // Command name
     public static readonly COMMAND = 'App.Postman.createConfigFile';
+
     // Command handler
-    public static async run(applicationTreeItem?: AppTreeItem, app?: App, containerType?: ContainerType): Promise<PostmanEnvironmentConfig | undefined> {
-        if (!applicationTreeItem || !app || !containerType) {
+    public static async run(params?: CreatePostmanConfigParams): Promise<PostmanEnvironmentConfig | undefined> {
+        if (!params) {
             return;
         }
 
-        let appSecrets = await app.getSecrets();
+        const { appId, objectId, displayName, containerType } = params;
+        const graphProvider = GraphProvider.getInstance();
 
-        if (!appSecrets.clientSecret) {
-            const userChoice = await vscode.window.showInformationMessage(
-                vscode.l10n.t("No client secret was found. Would you like to create one for this app?"),
-                vscode.l10n.t('OK'), vscode.l10n.t('Skip')
-            );
-            if (userChoice === vscode.l10n.t('OK')) {
-                await CreateSecret.run(applicationTreeItem);
-                appSecrets = await app.getSecrets();
-            }
-        }
+        // Ensure Postman redirect URIs are on the app registration
+        await ensurePostmanRedirectUris(graphProvider, objectId, appId);
 
-        if (!appSecrets.privateKey || !appSecrets.thumbprint) {
-            const userChoice = await vscode.window.showInformationMessage(
-                vscode.l10n.t('No certificate was found. Would you like to create one for this app?'),
-                vscode.l10n.t('OK'), vscode.l10n.t('Skip')
-            );
-            if (userChoice === vscode.l10n.t('OK')) {
-                await CreateAppCert.run(applicationTreeItem);
-                appSecrets = await app.getSecrets();
+        // Get tenant info
+        const authAccount = AuthenticationState.getCurrentAccountSync();
+        const tenantId = authAccount?.tenantId || '';
+        const domain = extractDomainFromUsername(authAccount?.username);
+        const rootSiteUrl = `https://${domain}.sharepoint.com`;
 
-                let retries = 3;
-                while ((!appSecrets.privateKey || !appSecrets.thumbprint) && retries > 0) {
-                    retries--;
-                    appSecrets = await app.getSecrets();
-                }
-            }
-        }
-
-        const account = Account.get()!;
-        const authProvider = await app.getAppOnlyAuthProvider(account.tenantId);
-        const requiredUris = [
-            account.appProvider.WebRedirectUris.postmanBrowserCallbackUri,
-            account.appProvider.WebRedirectUris.postmanCallbackUri
-        ];
-
-        // Check Postman redirect URIs
-        try {
-            if (!await account.appProvider.checkWebRedirectUris(app, requiredUris)) {
-                const message = vscode.l10n.t('This app registration is missing the required Postman redirect URIs: {0}. Would you like to add them to the "Web" redirect URIs of your app configuration?', requiredUris.join('\n'));
-                const userChoice = await vscode.window.showInformationMessage(
-                    message,
-                    vscode.l10n.t('OK'), vscode.l10n.t('Skip')
-                );
-                if (userChoice === vscode.l10n.t('OK')) {
-                    await account.appProvider.addWebRedirectUris(app, requiredUris);
-                }
-            }
-        } catch (error: any) {
-            const message = vscode.l10n.t('Failed to add redirect URIs: {0}', error.message);
-            vscode.window.showErrorMessage(message);
-            return;
-        }
-
-        // Check for or enable App-Only auth
-        try {
-            await account.appProvider.checkOrConsentFileStorageContainerRole(app, authProvider, vscode.l10n.t("This enables the 'Application-only' requests in the Postman collection. "));
-        } catch (error: any) {
-            const message = vscode.l10n.t('Failed to add and consent the FileStorageContainer.Selected required role: {0}', error.message);
-            vscode.window.showErrorMessage(message);
-            return;
-        }
-
-        const tid = account.tenantId;
-        const values: any[] = [];
-        values.push(
+        // Build Postman environment values
+        const values: PostmanEnvironmentValue[] = [
             {
                 key: "ContainerTypeId",
-                value: containerType!.containerTypeId,
+                value: containerType.id,
                 type: "default",
                 enabled: true
             },
             {
                 key: "ClientID",
-                value: app!.clientId,
+                value: appId,
                 type: "default",
                 enabled: true
             },
             {
                 key: "ConsumingTenantId",
-                value: tid,
+                value: tenantId,
                 type: "default",
                 enabled: true
             },
             {
                 key: "TenantName",
-                value: account.domain,
+                value: domain || '',
                 type: "default",
                 enabled: true
             },
             {
                 key: "RootSiteUrl",
-                value: `${account.spRootSiteUrl}/`,
+                value: `${rootSiteUrl}/`,
                 type: "default",
-                enabled: true
-            },
-            {
-                key: "ClientSecret",
-                value: appSecrets.clientSecret,
-                type: "secret",
-                enabled: true
-            },
-            {
-                key: "CertThumbprint",
-                value: appSecrets.thumbprint,
-                type: "default",
-                enabled: true
-            },
-            {
-                key: "CertPrivateKey",
-                value: appSecrets.privateKey,
-                type: "secret",
                 enabled: true
             }
-        );
+        ];
 
-        const envName = `${containerType!.displayName} (appId ${app!.clientId})`;
+        const envName = `${containerType.name} (appId ${appId})`;
         const pmEnv: PostmanEnvironmentConfig = {
             id: uuidv4(),
             name: envName,
@@ -157,15 +94,90 @@ export class CreatePostmanConfig extends Command {
     }
 }
 
+/**
+ * Extract domain from username email
+ */
+function extractDomainFromUsername(username?: string): string {
+    if (!username) return '';
+    const atIndex = username.indexOf('@');
+    if (atIndex === -1) return '';
+    const fullDomain = username.substring(atIndex + 1);
+    const dotIndex = fullDomain.indexOf('.');
+    if (dotIndex !== -1) {
+        return fullDomain.substring(0, dotIndex);
+    }
+    return fullDomain;
+}
+
+const POSTMAN_REDIRECT_URIS = [
+    'https://oauth.pstmn.io/v1/browser-callback',
+    'https://oauth.pstmn.io/v1/callback'
+];
+
+/**
+ * Ensure the app registration has the Postman redirect URIs configured.
+ * Adds any missing URIs to web.redirectUris without removing existing ones.
+ */
+async function ensurePostmanRedirectUris(
+    graphProvider: GraphProvider,
+    objectId: string,
+    appId: string
+): Promise<void> {
+    try {
+        const app = await graphProvider.applications.get(appId, { useAppId: true });
+        if (!app) {
+            return;
+        }
+
+        const existingUris = app.web?.redirectUris ?? [];
+        const missingUris = POSTMAN_REDIRECT_URIS.filter(uri => !existingUris.includes(uri));
+
+        if (missingUris.length === 0) {
+            return;
+        }
+
+        const addUris = vscode.l10n.t('Add redirect URIs');
+        const choice = await vscode.window.showInformationMessage(
+            vscode.l10n.t(
+                'This app registration is missing the required Postman redirect URIs: {0}. Would you like to add them to the "Web" redirect URIs of your app configuration?',
+                missingUris.join(', ')
+            ),
+            addUris,
+            vscode.l10n.t('Skip')
+        );
+
+        if (choice !== addUris) {
+            return;
+        }
+
+        await graphProvider.applications.update(app.id!, {
+            web: {
+                redirectUris: [...existingUris, ...missingUris]
+            }
+        });
+
+        vscode.window.showInformationMessage(
+            vscode.l10n.t('Postman redirect URIs added successfully.')
+        );
+    } catch (error: any) {
+        console.warn('[CreatePostmanConfig] Failed to add Postman redirect URIs:', error.message || error);
+        vscode.window.showWarningMessage(
+            vscode.l10n.t('Failed to add Postman redirect URIs: {0}', error.message)
+        );
+    }
+}
+
+export interface PostmanEnvironmentValue {
+    key: string;
+    value: string;
+    type: string;
+    enabled?: boolean;
+}
+
 export type PostmanEnvironmentConfig = {
     id: string;
     name: string;
-    values: {
-        key: string;
-        value: string;
-        type: string;
-        enabled?: boolean;
-    }[];
+    values: PostmanEnvironmentValue[];
     // eslint-disable-next-line @typescript-eslint/naming-convention
     _postman_variable_scope: string;
     // eslint-disable-next-line @typescript-eslint/naming-convention
@@ -173,4 +185,3 @@ export type PostmanEnvironmentConfig = {
     // eslint-disable-next-line @typescript-eslint/naming-convention
     _postman_exported_using: string;
 };
-

@@ -5,17 +5,13 @@
 
 /* eslint-disable @typescript-eslint/naming-convention */
 import { CancelSignIn as _CancelSignIn } from './Accounts/CancelSignIn';
+import { SwitchAccount as _SwitchAccount } from './Accounts/SwitchAccount';
 import { CopyContainerTypeId as _CopyContainerTypeId } from './ContainerType/CopyContainerTypeId';
 import { CopyOwningTenantId as _CopyOwningTenantId} from './ContainerType/CopyOwningTenantId';
 import { CopyPostmanConfig as _CopyPostmanConfig } from './App/Postman/CopyPostmanConfig';
 import { CopySubscriptionId as _CopySubscriptionId } from './ContainerType/CopySubscriptionId';
-import { CreateAppCert as _CreateAppCert } from './App/Credentials/CreateAppCert';
-import { ForgetAppCert as _ForgetAppCert } from './App/Credentials/ForgetCert';
 import { CreateContainer as _CreateContainer } from './Containers/CreateContainer';
 import { CreatePostmanConfig as _CreatePostmanConfig } from './App/Postman/CreatePostmanConfig';
-import { CreateSecret as _CreateSecret } from './App/Credentials/CreateSecret';
-import { ForgetAppSecret as _ForgetAppSecret } from './App/Credentials/ForgetSecret';
-import { CopySecret as _CopySecret } from './App/Credentials/CopySecret';
 import { CreateTrialContainerType as _CreateTrialContainerType } from './ContainerTypes/CreateTrialContainerType';
 import { CreatePaidContainerType as _CreatePaidContainerType } from './ContainerTypes/CreateStandardContainerType';
 import { DeleteContainerType as _DeleteContainerType } from './ContainerType/DeleteContainerType';
@@ -26,12 +22,14 @@ import { ExportPostmanConfig as _ExportPostmanConfig } from './App/Postman/Expor
 import { GetOrCreateApp as _GetOrCreateApp } from './Apps/GetOrCreateApp';
 import { Refresh as _Refresh } from './Refresh';
 import { RegisterOnLocalTenant as _RegisterOnLocalTenant } from './ContainerType/RegisterOnLocalTenant';
+import { GrantExtensionAppPermissions as _GrantExtensionAppPermissions } from './ContainerType/GrantExtensionAppPermissions';
 import { GetLocalAdminConsent as _GetLocalAdminConsent } from './App/GetLocalAdminConsent';
 import { RenameContainerType as _RenameContainerType } from './ContainerType/RenameContainerType';
 import { SignIn as _SignIn } from './Accounts/SignIn';
 import { SignOut as _SignOut } from './Accounts/SignOut';
 import { ViewInAzure as _ViewInAzure } from './App/ViewInAzure';
 import { ViewContainerTypeProperties as _ViewContainerTypeProperties } from './ContainerType/ViewContainerTypeProperties';
+import { BrowseGraphExplorer as _BrowseGraphExplorer } from './ContainerType/BrowseGraphExplorer';
 import { RenameContainer as _RenameContainer } from './Container/RenameContainer';
 import { EditContainerDescription as _EditContainerDescription } from './Container/EditContainerDescription';
 import { RecycleContainer as _RecycleContainer } from './Container/RecycleContainer';
@@ -45,12 +43,17 @@ import { OpenPostmanDocumentation as _OpenPostmanDocumentation } from './App/Pos
 import { CopyAppId as _CopyAppId } from './App/CopyAppId';
 import { RestoreContainer as _RestoreContainer } from './RecycledContainer/RestoreContainer'; 
 import { GetorCreateGuestApp as _GetOrCreateGuestApp } from './GuestApps/GetorCreateGuestApp';
+import { AddGraphExplorerPermissions as _AddGraphExplorerPermissions } from './GuestApps/AddGraphExplorerPermissions';
+import { AddConnectorPermissions as _AddConnectorPermissions } from './GuestApps/AddConnectorPermissions';
+import { AddExtensionPermissions as _AddExtensionPermissions } from './GuestApps/AddExtensionPermissions';
 import { CopyRecycledContainerId as _CopyRecycledContainerId } from './RecycledContainer/CopyContainerId';
 import { EditGuestAppPermissions as _EditGuestAppPermissions } from './GuestApps/EditGuestAppPermissions';
+import { RemoveGuestApp as _RemoveGuestApp } from './GuestApps/RemoveGuestApp';
 
 export namespace Commands {
   export const SignIn = _SignIn;
   export const SignOut = _SignOut;
+  export const SwitchAccount = _SwitchAccount;
   export const CancelSignIn = _CancelSignIn;
   export const CreateTrialContainerType = _CreateTrialContainerType;
   export const CreatePaidContainerType = _CreatePaidContainerType;
@@ -64,7 +67,9 @@ export namespace Commands {
   export const CopyOwningTenantId = _CopyOwningTenantId;
   export const CopySubscriptionId = _CopySubscriptionId;
   export const ViewContainerTypeProperties = _ViewContainerTypeProperties;
+  export const BrowseGraphExplorer = _BrowseGraphExplorer;
   export const RegisterOnLocalTenant = _RegisterOnLocalTenant;
+  export const GrantExtensionAppPermissions = _GrantExtensionAppPermissions;
   export const RenameContainerType = _RenameContainerType;
   export const LearnMoreDiscoverability = _LearnMoreDiscoverability;
   export const EnableContainerTypeDiscoverability = _EnableContainerTypeDiscoverability;
@@ -73,17 +78,15 @@ export namespace Commands {
   // Apps Commands
   export const GetOrCreateApp = _GetOrCreateApp;
 export const GetOrCreateGuestApp = _GetOrCreateGuestApp;
+  export const AddGraphExplorerPermissions = _AddGraphExplorerPermissions;
+  export const AddConnectorPermissions = _AddConnectorPermissions;
+  export const AddExtensionPermissions = _AddExtensionPermissions;
 
   // App Commands
   export const CreatePostmanConfig = _CreatePostmanConfig;
   export const CopyPostmanConfig = _CopyPostmanConfig;
   export const ExportPostmanConfig = _ExportPostmanConfig;
-  export const CreateAppCert = _CreateAppCert;
-  export const ForgetAppCert = _ForgetAppCert;
-  export const CreateSecret = _CreateSecret;
-  export const CopySecret = _CopySecret;
   export const GetLocalAdminConsent = _GetLocalAdminConsent;
-  export const ForgetAppSecret = _ForgetAppSecret;
   export const ViewInAzure = _ViewInAzure;
   export const RenameApp = _RenameApp;
   export const CloneDotNetSampleApp = _CloneDotNetSampleApp;
@@ -91,6 +94,7 @@ export const GetOrCreateGuestApp = _GetOrCreateGuestApp;
   export const OpenPostmanDocumentation = _OpenPostmanDocumentation;
   export const CopyAppId = _CopyAppId;
   export const EditGuestAppPermissions = _EditGuestAppPermissions;
+  export const RemoveGuestApp = _RemoveGuestApp;
 
   // Container Commands
   export const RenameContainer = _RenameContainer;

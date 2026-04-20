@@ -7,10 +7,10 @@ import * as vscode from 'vscode';
 import { Command } from '../../Command';
 import { GuestApplicationTreeItem } from '../../../views/treeview/development/GuestAppTreeItem';
 import { OwningAppTreeItem } from '../../../views/treeview/development/OwningAppTreeItem';
-import { App } from '../../../models/App';
-import { ContainerType } from '../../../models/ContainerType';
+import { ContainerType } from '../../../models/schemas';
 import { AppTreeItem } from '../../../views/treeview/development/AppTreeItem';
-import { CreatePostmanConfig } from './CreatePostmanConfig';
+import { CreatePostmanConfig, CreatePostmanConfigParams } from './CreatePostmanConfig';
+import { GraphProvider } from '../../../services/Graph/GraphProvider';
 
 // Static class that handles the Postman copy command
 export class CopyPostmanConfig extends Command {
@@ -23,42 +23,57 @@ export class CopyPostmanConfig extends Command {
             return;
         }
 
-        let app: App | undefined;
+        const graphProvider = GraphProvider.getInstance();
+
+        let appId: string | undefined;
+        let objectId: string | undefined;
+        let displayName: string | undefined;
         let containerType: ContainerType | undefined;
+
         if (applicationTreeItem instanceof GuestApplicationTreeItem) {
-            app = applicationTreeItem.appPerms.app;
-            containerType = applicationTreeItem.appPerms.containerTypeRegistration.containerType;
-        }
-        if (applicationTreeItem instanceof OwningAppTreeItem) {
-            app = applicationTreeItem.containerType.owningApp!;
+            const app = applicationTreeItem.application;
+            if (app) {
+                appId = app.appId;
+                objectId = app.id;
+                displayName = app.displayName;
+            }
+            const ct = await graphProvider.containerTypes.get(applicationTreeItem.containerTypeId);
+            if (ct) {
+                containerType = ct;
+            }
+        } else if (applicationTreeItem instanceof OwningAppTreeItem) {
+            appId = applicationTreeItem.containerType.owningAppId;
             containerType = applicationTreeItem.containerType;
+            const app = await graphProvider.applications.get(appId, { useAppId: true });
+            if (app) {
+                objectId = app.id;
+                displayName = app.displayName;
+            }
         }
-        if (!app || !containerType) {
+
+        if (!appId || !objectId || !containerType) {
             vscode.window.showErrorMessage(vscode.l10n.t('Could not find app or container type'));
             return;
         }
 
-        const pmEnv = await CreatePostmanConfig.run(applicationTreeItem, app, containerType);
+        const params: CreatePostmanConfigParams = {
+            appId,
+            objectId,
+            displayName: displayName || appId,
+            containerType
+        };
+
+        const pmEnv = await CreatePostmanConfig.run(params);
         if (!pmEnv) {
             vscode.window.showErrorMessage(vscode.l10n.t('Failed to create Postman environment'));
             return;
         }
 
-        if (await app.hasCert() === true || await app.hasSecret() === true) {
-            const message = vscode.l10n.t("This will put your app's secret and other settings in a plain text Postman environment file on your clipboard. Are you sure you want to continue?");
-            const userChoice = await vscode.window.showInformationMessage(
-                message,
-                vscode.l10n.t('OK'), vscode.l10n.t('Cancel')
-            );
-            if (userChoice === vscode.l10n.t('Cancel')) {
-                return;
-            }
-        }
-
         try {
             await vscode.env.clipboard.writeText(JSON.stringify(pmEnv, null, 2));
-            const message = vscode.l10n.t('Postman environment copied to clipboard for {0}', pmEnv.name);
-            vscode.window.showInformationMessage(message);
+            vscode.window.showInformationMessage(
+                vscode.l10n.t('Postman environment copied to clipboard for {0}', pmEnv.name)
+            );
         } catch (error) {
             vscode.window.showErrorMessage(vscode.l10n.t('Failed to copy Postman environment'));
         }

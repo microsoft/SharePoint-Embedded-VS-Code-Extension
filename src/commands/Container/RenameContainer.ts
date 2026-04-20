@@ -5,11 +5,8 @@
 
 import { Command } from '../Command';
 import * as vscode from 'vscode';
-import { ContainerType } from '../../models/ContainerType';
 import { DevelopmentTreeViewProvider } from '../../views/treeview/development/DevelopmentTreeViewProvider';
-import { App } from '../../models/App';
-import { GraphProvider } from '../../services/GraphProvider';
-import { Container } from '../../models/Container';
+import { GraphProvider } from '../../services/Graph/GraphProvider';
 import { ProgressWaitNotification } from '../../views/notifications/ProgressWaitNotification';
 import { ContainerTreeItem } from '../../views/treeview/development/ContainerTreeItem';
 
@@ -19,14 +16,11 @@ export class RenameContainer extends Command {
     public static readonly COMMAND = 'Container.rename';
 
     // Command handler
-    public static async run(containerViewModel?: ContainerTreeItem): Promise<Container | undefined> {
+    public static async run(containerViewModel?: ContainerTreeItem): Promise<void> {
         if (!containerViewModel) {
             return;
         }
-        const containerType: ContainerType = containerViewModel.container.registration.containerType;
-        const containerTypeRegistration = containerViewModel.container.registration;
-        const container: Container = containerViewModel.container;
-        const owningApp: App = containerType.owningApp!;
+        const container = containerViewModel.container;
         const containerDisplayName = await vscode.window.showInputBox({
             title: vscode.l10n.t('New display name:'),
             value: container.displayName,
@@ -51,23 +45,17 @@ export class RenameContainer extends Command {
             return;
         }
 
-        const progressWindow = new ProgressWaitNotification(vscode.l10n.t('Renaming container...'));  
+        const progressWindow = new ProgressWaitNotification(vscode.l10n.t('Renaming container...'));
         progressWindow.show();
         try {
-            const authProvider = await owningApp.getAppOnlyAuthProvider(containerTypeRegistration.tenantId);
-            const graphProvider = new GraphProvider(authProvider);
-            const updatedContainer = await graphProvider.updateContainer(containerTypeRegistration, container.id, containerDisplayName, '');
-            if (!updatedContainer) {
-                throw new Error (vscode.l10n.t("Failed to create container"));
-            }
-            DevelopmentTreeViewProvider.getInstance().refresh(containerViewModel.reigstrationViewModel);
+            const graphProvider = GraphProvider.getInstance();
+            await graphProvider.containers.update(container.id, { displayName: containerDisplayName });
+            DevelopmentTreeViewProvider.getInstance().refresh(containerViewModel.registrationViewModel);
             progressWindow.hide();
-            return updatedContainer;
         } catch (error: any) {
             progressWindow.hide();
             const message = vscode.l10n.t('Unable to rename container object: {0}', error.message);
             vscode.window.showErrorMessage(message);
-            return;
         }
     }
 }

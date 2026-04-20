@@ -6,13 +6,10 @@
 import { Command } from '../Command';
 import * as vscode from 'vscode';
 import { ContainerTypeTreeItem } from '../../views/treeview/development/ContainerTypeTreeItem';
+import { ContainerType } from '../../models/schemas';
+import { GraphProvider } from '../../services/Graph/GraphProvider';
 import { DevelopmentTreeViewProvider } from '../../views/treeview/development/DevelopmentTreeViewProvider';
-import { ProgressWaitNotification, Timer } from '../../views/notifications/ProgressWaitNotification';
-import { ContainerType } from '../../models/ContainerType';
-import { GetAccount } from '../Accounts/GetAccount';
-import { ActiveContainersError, ActiveRecycledContainersError } from '../../utils/errors';
-import { TelemetryProvider } from '../../services/TelemetryProvider';
-import { DeleteTrialContainerType, TrialContainerTypeDeletionFailure } from '../../models/telemetry/telemetry';
+import { ProgressWaitNotification } from '../../views/notifications/ProgressWaitNotification';
 
 // Static class that handles the delete container type command
 export class DeleteContainerType extends Command {
@@ -25,78 +22,100 @@ export class DeleteContainerType extends Command {
             return;
         }
 
-        const account = await GetAccount.run();
-        if (!account) {
+        // Extract container type info from command props
+        const { id, name } = getContainerTypeInfo(commandProps);
+        if (!id) {
+            vscode.window.showErrorMessage(vscode.l10n.t('Could not determine container type ID'));
             return;
         }
 
-        let containerType: ContainerType;
-        if (commandProps instanceof ContainerTypeTreeItem) {
-            containerType = commandProps.containerType;
-        } else {
-            containerType = commandProps;
-        }
-        if (!containerType) {
-            return;
-        }
+        // Confirm deletion with user
+        const confirmMessage = vscode.l10n.t(
+            'Are you sure you want to delete the container type "{0}"? This action cannot be undone.',
+            name || id
+        );
+        const deleteButton = vscode.l10n.t('Delete');
 
-        const message = `Are you sure you delete the '${containerType.displayName}' Container Type?`;
-        const userChoice = await vscode.window.showInformationMessage(
-            message,
-            vscode.l10n.t('OK'), vscode.l10n.t('Cancel')
+        const selection = await vscode.window.showWarningMessage(
+            confirmMessage,
+            { modal: true },
+            deleteButton
         );
 
-        if (userChoice !== vscode.l10n.t('OK')) {
+        if (selection !== deleteButton) {
             return;
         }
 
-        const progressWindow = new ProgressWaitNotification('Deleting container type (make take a minute)...');
-        try {    
-            progressWindow.show();
-            const containerTypeProvider = account.containerTypeProvider;
-            await containerTypeProvider.delete(containerType);
-            const ctRefreshTimer = new Timer(60 * 1000);
-            const refreshCt = async (): Promise<void> => {
-                DevelopmentTreeViewProvider.instance.refresh();
-                do {
-                    const containerTypes = await containerTypeProvider.list();
-                    if (!containerTypes.find(ct => ct.containerTypeId === containerType.containerTypeId)) {
-                        break;
-                    }
-                    // sleep for 5 seconds
-                    await new Promise(r => setTimeout(r, 5000));
-                } while (!ctRefreshTimer.finished);
-                progressWindow.hide();
-                DevelopmentTreeViewProvider.instance.refresh();
-                TelemetryProvider.instance.send(new DeleteTrialContainerType());
-            };
-            refreshCt();
-        } catch (error: any) {
-            let errorDisplayMessage;
-            if (error.response && error.response.status === 400) {
-                const errorMessage = error.response.data && 
-                error.response.data['odata.error'] && 
-                error.response.data['odata.error'].message ? 
-                error.response.data['odata.error'].message.value : error.message;
+        // Delete the container type
+        const progressWindow = new ProgressWaitNotification(
+            vscode.l10n.t('Deleting container type...')
+        );
+        progressWindow.show();
 
-                switch (errorMessage) {
-                    case ActiveContainersError.serverMessage:
-                        errorDisplayMessage = ActiveContainersError.uiMessage;
-                        break;
-                    case ActiveRecycledContainersError.serverMessage:
-                        errorDisplayMessage = ActiveRecycledContainersError.uiMessage;
-                        break;
-                    default:
-                        errorDisplayMessage = error.message;
-                        break;
-                }
+        try {
+            const graphProvider = GraphProvider.getInstance();
+
+            // Clean up registration on local tenant if it exists
+            const isRegistered = await graphProvider.registrations.isRegistered(id);
+            if (isRegistered) {
+                await graphProvider.registrations.unregister(id);
             }
-            vscode.window.showErrorMessage(`Unable to delete Container Type ${containerType.displayName} : ${errorDisplayMessage || error.message}`);
-            TelemetryProvider.instance.send(new TrialContainerTypeDeletionFailure(errorDisplayMessage || error.message));
+
+            await graphProvider.containerTypes.delete(id);
+
             progressWindow.hide();
-            return;
+            vscode.window.showInformationMessage(
+                vscode.l10n.t('Container type "{0}" has been deleted.', name || id)
+            );
+
+            // Refresh the tree view
+            DevelopmentTreeViewProvider.getInstance().refresh();
+        } catch (error: any) {
+            progressWindow.hide();
+            console.error('[DeleteContainerType] Error deleting container type:', error);
+
+            let errorMessage = vscode.l10n.t('Failed to delete container type');
+            if (error.message) {
+                errorMessage += `: ${error.message}`;
+            }
+
+            // Check for common error scenarios
+            if (error.statusCode === 400 || error.code === 'BadRequest') {
+                errorMessage = vscode.l10n.t(
+                    'Cannot delete container type. Make sure all containers are deleted and the container type is unregistered from all tenants first.'
+                );
+            } else if (error.statusCode === 403 || error.code === 'Forbidden') {
+                errorMessage = vscode.l10n.t(
+                    'You do not have permission to delete this container type.'
+                );
+            } else if (error.statusCode === 404 || error.code === 'NotFound') {
+                errorMessage = vscode.l10n.t(
+                    'Container type not found. It may have already been deleted.'
+                );
+                // Still refresh the tree view since it's gone
+                DevelopmentTreeViewProvider.getInstance().refresh();
+            }
+
+            vscode.window.showErrorMessage(errorMessage);
         }
     }
+}
+
+/**
+ * Helper to extract container type info from various input types
+ */
+function getContainerTypeInfo(props: DeletionCommandProps): { id: string | undefined; name: string | undefined } {
+    if (props instanceof ContainerTypeTreeItem) {
+        return {
+            id: props.containerType.id,
+            name: props.containerType.name
+        };
+    }
+
+    return {
+        id: props.id,
+        name: props.name
+    };
 }
 
 export type DeletionCommandProps = ContainerTypeTreeItem | ContainerType;

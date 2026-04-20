@@ -1,0 +1,408 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import * as vscode from 'vscode';
+import { decodeJwt } from '../utils/token';
+import { GraphAuthProvider, ARMAuthProvider, AppAuthProviderFactory } from './Auth';
+
+/**
+ * Authentication state change events
+ */
+export interface AuthStateChangeEvent {
+    isSignedIn: boolean;
+    account?: AuthenticatedAccount;
+}
+
+/**
+ * Authenticated account information
+ */
+export interface AuthenticatedAccount {
+    id: string;
+    username: string;
+    name?: string;
+    tenantId: string;
+    domain: string;
+}
+
+/**
+ * Authentication state change listener
+ */
+export interface AuthStateChangeListener {
+    onBeforeSignIn?(): void;
+    onSignIn?(account: AuthenticatedAccount): void | Promise<void>;
+    onSignInFailed?(): void;
+    onSignOut?(): void;
+}
+
+/**
+ * Centralized authentication state manager using GraphAuthProvider
+ */
+export class AuthenticationState {
+    private static _instance: AuthenticationState;
+    private static readonly _listeners: AuthStateChangeListener[] = [];
+    private static _currentAccount: AuthenticatedAccount | undefined;
+    private static _isSigningIn: boolean = false;
+    private static _signInAbortController: AbortController | undefined;
+    private static readonly _SIGN_IN_TIMEOUT_MS = 60_000;
+
+    private constructor() {}
+
+    /**
+     * Get the singleton instance
+     */
+    public static getInstance(): AuthenticationState {
+        if (!AuthenticationState._instance) {
+            AuthenticationState._instance = new AuthenticationState();
+        }
+        return AuthenticationState._instance;
+    }
+
+    /**
+     * Check if user is currently signed in by validating GraphAuthProvider session
+     */
+    public static async isSignedIn(): Promise<boolean> {
+        try {
+            const graphAuth = GraphAuthProvider.getInstance();
+            const currentSession = graphAuth.getCurrentSession();
+            
+            if (currentSession) {
+                return true;
+            }
+            
+            // If no current session, try to get one silently (existing session)
+            try {
+                await graphAuth.getToken([], false);
+                return true;
+            } catch {
+                // No existing session available
+                return false;
+            }
+        } catch {
+            return false;
+        }
+    }
+
+    /**
+     * Get current authenticated account information (synchronous)
+     * Returns cached account if available, undefined otherwise
+     * Use getCurrentAccount() for async version that will fetch if needed
+     */
+    public static getCurrentAccountSync(): AuthenticatedAccount | undefined {
+        return AuthenticationState._currentAccount;
+    }
+
+    /**
+     * Get current authenticated account information
+     */
+    public static async getCurrentAccount(): Promise<AuthenticatedAccount | undefined> {
+        if (AuthenticationState._currentAccount) {
+            return AuthenticationState._currentAccount;
+        }
+
+        try {
+            const graphAuth = GraphAuthProvider.getInstance();
+            const session = graphAuth.getCurrentSession();
+            
+            if (!session) {
+                return undefined;
+            }
+
+            // Get additional account info from token
+            const decodedToken = decodeJwt(session.accessToken);
+
+            const account: AuthenticatedAccount = {
+                id: session.account.id,
+                username: session.account.label,
+                name: decodedToken.name,
+                tenantId: decodedToken.tid || 'unknown',
+                domain: AuthenticationState._extractDomain(session.account.label)
+            };
+
+            AuthenticationState._currentAccount = account;
+            return account;
+        } catch (error) {
+            console.error('Failed to get current account:', error);
+            return undefined;
+        }
+    }
+
+    /**
+     * Sign in with the GraphAuthProvider.
+     * The sign-in can be cancelled via `cancelSignIn()` and will auto-timeout
+     * after `_SIGN_IN_TIMEOUT_MS` milliseconds.
+     */
+    public static async signIn(): Promise<AuthenticatedAccount | undefined> {
+        if (AuthenticationState._isSigningIn) {
+            return undefined;
+        }
+
+        try {
+            AuthenticationState._isSigningIn = true;
+            AuthenticationState._signInAbortController = new AbortController();
+            AuthenticationState._notifyBeforeSignIn();
+
+            const graphAuth = GraphAuthProvider.getInstance();
+
+            // Race the sign-in against cancellation and timeout
+            const session = await AuthenticationState._raceWithAbort(
+                graphAuth.signIn(),
+                AuthenticationState._signInAbortController.signal,
+                AuthenticationState._SIGN_IN_TIMEOUT_MS
+            );
+
+            if (!session) {
+                throw new Error('Failed to create authentication session');
+            }
+
+            // Get additional account info from token
+            const decodedToken = decodeJwt(session.accessToken);
+
+            const account: AuthenticatedAccount = {
+                id: session.account.id,
+                username: session.account.label,
+                name: decodedToken.name,
+                tenantId: decodedToken.tid || 'unknown',
+                domain: AuthenticationState._extractDomain(session.account.label)
+            };
+
+            AuthenticationState._currentAccount = account;
+
+            // Await listeners (extension.ts loads tree data and sets spe:isLoggedIn)
+            // BEFORE clearing isLoggingIn — prevents welcome-view flash.
+            await AuthenticationState._notifySignIn(account);
+            vscode.commands.executeCommand('setContext', 'spe:isLoggingIn', false);
+
+            return account;
+        } catch (error) {
+            console.error('Sign in failed:', error);
+            AuthenticationState._notifySignInFailed();
+            vscode.commands.executeCommand('setContext', 'spe:isLoggingIn', false);
+            throw error;
+        } finally {
+            AuthenticationState._isSigningIn = false;
+            AuthenticationState._signInAbortController = undefined;
+        }
+    }
+
+    /**
+     * Cancel an in-flight sign-in operation.
+     * Aborts the pending promise, resets internal state, and notifies listeners.
+     */
+    public static cancelSignIn(): void {
+        if (AuthenticationState._signInAbortController) {
+            AuthenticationState._signInAbortController.abort();
+            AuthenticationState._signInAbortController = undefined;
+        }
+        AuthenticationState._isSigningIn = false;
+        AuthenticationState._currentAccount = undefined;
+        AuthenticationState._notifySignInFailed();
+        vscode.commands.executeCommand('setContext', 'spe:isLoggingIn', false);
+        vscode.commands.executeCommand('setContext', 'spe:isLoggedIn', false);
+        // Compat: clear spe:isAdmin for stale cached package.json from <= 1.0.2
+        vscode.commands.executeCommand('setContext', 'spe:isAdmin', false);
+    }
+
+    /**
+     * Race a promise against an AbortSignal and an optional timeout.
+     * Rejects with an appropriate error if cancelled or timed out.
+     */
+    private static _raceWithAbort<T>(
+        promise: Promise<T>,
+        signal: AbortSignal,
+        timeoutMs?: number
+    ): Promise<T> {
+        return new Promise<T>((resolve, reject) => {
+            // Already aborted
+            if (signal.aborted) {
+                reject(new Error('Sign-in was cancelled'));
+                return;
+            }
+
+            let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+            const onAbort = () => {
+                if (timeoutId) { clearTimeout(timeoutId); }
+                reject(new Error('Sign-in was cancelled'));
+            };
+            signal.addEventListener('abort', onAbort, { once: true });
+
+            if (timeoutMs) {
+                timeoutId = setTimeout(() => {
+                    signal.removeEventListener('abort', onAbort);
+                    AuthenticationState.cancelSignIn();
+                    vscode.window.showErrorMessage('Sign-in timed out. Please try again.');
+                    reject(new Error('Sign-in timed out'));
+                }, timeoutMs);
+            }
+
+            promise.then(
+                (value) => {
+                    if (timeoutId) { clearTimeout(timeoutId); }
+                    signal.removeEventListener('abort', onAbort);
+                    resolve(value);
+                },
+                (err) => {
+                    if (timeoutId) { clearTimeout(timeoutId); }
+                    signal.removeEventListener('abort', onAbort);
+                    reject(err);
+                }
+            );
+        });
+    }
+
+    /**
+     * Sign in targeting a specific tenant.
+     * Resets the auth provider to force tenant-scoped authentication,
+     * then performs a normal sign-in flow.
+     */
+    public static async signInToTenant(tenantId: string): Promise<AuthenticatedAccount | undefined> {
+        GraphAuthProvider.resetInstance();
+        GraphAuthProvider.getInstance(tenantId);
+        return await AuthenticationState.signIn();
+    }
+
+    /**
+     * Sign out
+     */
+    public static async signOut(): Promise<void> {
+        try {
+            const graphAuth = GraphAuthProvider.getInstance();
+            await graphAuth.signOut();
+
+            // Reset all auth singletons so the next sign-in creates fresh instances
+            // (prevents stale data from the old account leaking through)
+            GraphAuthProvider.resetInstance(); // also resets GraphProvider
+            ARMAuthProvider.resetInstance();
+            AppAuthProviderFactory.clearAll();
+
+            AuthenticationState._currentAccount = undefined;
+
+            // Notify listeners so they can empty the tree.
+            AuthenticationState._notifySignOut();
+
+            // Note: do NOT touch spe:isLoggingIn here — SwitchAccount sets it
+            // to true before calling signOut() to suppress the welcome view.
+            await vscode.commands.executeCommand('setContext', 'spe:isLoggedIn', false);
+            // Compat: clear spe:isAdmin for stale cached package.json from <= 1.0.2
+            vscode.commands.executeCommand('setContext', 'spe:isAdmin', false);
+
+        } catch (error) {
+            console.error('Sign out failed:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Check if currently signing in
+     */
+    public static isSigningIn(): boolean {
+        return AuthenticationState._isSigningIn;
+    }
+
+    /**
+     * Subscribe to authentication state changes
+     */
+    public static subscribe(listener: AuthStateChangeListener): void {
+        AuthenticationState._listeners.push(listener);
+    }
+
+    /**
+     * Unsubscribe from authentication state changes
+     */
+    public static unsubscribe(listener: AuthStateChangeListener): void {
+        const index = AuthenticationState._listeners.indexOf(listener);
+        if (index > -1) {
+            AuthenticationState._listeners.splice(index, 1);
+        }
+    }
+
+    /**
+     * Initialize authentication state (check if already signed in)
+     */
+    public static async initialize(): Promise<void> {
+        try {
+            const isSignedIn = await AuthenticationState.isSignedIn();
+            if (isSignedIn) {
+                const account = await AuthenticationState.getCurrentAccount();
+                if (account) {
+                    AuthenticationState._currentAccount = account;
+                    // Notify listeners so the extension.ts subscriber loads
+                    // tree data, sets isLoggedIn, and calls showReady() on the
+                    // account node. Without this, M365AccountNode stays on the
+                    // spinner because initialize() bypasses signIn().
+                    AuthenticationState._notifyBeforeSignIn();
+                    await AuthenticationState._notifySignIn(account);
+                    vscode.commands.executeCommand('setContext', 'spe:isLoggingIn', false);
+                }
+            }
+        } catch (error) {
+            console.error('Failed to initialize authentication state:', error);
+            vscode.commands.executeCommand('setContext', 'spe:isLoggedIn', false);
+            vscode.commands.executeCommand('setContext', 'spe:isLoggingIn', false);
+            // Compat: clear spe:isAdmin for stale cached package.json from <= 1.0.2
+            vscode.commands.executeCommand('setContext', 'spe:isAdmin', false);
+        }
+    }
+
+    /**
+     * Force refresh current account information
+     */
+    public static async refreshAccount(): Promise<AuthenticatedAccount | undefined> {
+        AuthenticationState._currentAccount = undefined;
+        return await AuthenticationState.getCurrentAccount();
+    }
+
+    /**
+     * Extract tenant domain from username email (e.g., user@contoso.onmicrosoft.com -> contoso)
+     */
+    private static _extractDomain(username: string): string {
+        const atIndex = username.indexOf('@');
+        if (atIndex === -1) return '';
+        const fullDomain = username.substring(atIndex + 1);
+        const dotIndex = fullDomain.indexOf('.');
+        if (dotIndex !== -1) {
+            return fullDomain.substring(0, dotIndex);
+        }
+        return fullDomain;
+    }
+
+    // Notification methods
+    private static _notifyBeforeSignIn(): void {
+        // Notify listeners BEFORE setting isLoggingIn — listeners lock the
+        // dev tree to return [] so stale items never flash when it becomes visible.
+        AuthenticationState._listeners.forEach(listener => {
+            if (listener.onBeforeSignIn) {
+                listener.onBeforeSignIn();
+            }
+        });
+        vscode.commands.executeCommand('setContext', 'spe:isLoggingIn', true);
+    }
+
+    private static async _notifySignIn(account: AuthenticatedAccount): Promise<void> {
+        const promises: (void | Promise<void>)[] = [];
+        for (const listener of AuthenticationState._listeners) {
+            if (listener.onSignIn) {
+                promises.push(listener.onSignIn(account));
+            }
+        }
+        await Promise.all(promises);
+    }
+
+    private static _notifySignInFailed(): void {
+        AuthenticationState._listeners.forEach(listener => {
+            if (listener.onSignInFailed) {
+                listener.onSignInFailed();
+            }
+        });
+    }
+
+    private static _notifySignOut(): void {
+        AuthenticationState._listeners.forEach(listener => {
+            if (listener.onSignOut) {
+                listener.onSignOut();
+            }
+        });
+    }
+}

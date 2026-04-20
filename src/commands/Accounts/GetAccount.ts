@@ -5,15 +5,15 @@
 
 import * as vscode from 'vscode';
 import { Command } from '../Command';
-import { Account } from '../../models/Account';
+import { AuthenticationState, AuthenticatedAccount } from '../../services/AuthenticationState';
 
 export class GetAccount extends Command {
     // Command name
     public static readonly COMMAND = 'Accounts.getAccount';
 
     // Command handler
-    public static async run(): Promise<Account | undefined> {
-        const account = Account.get();
+    public static async run(): Promise<AuthenticatedAccount | undefined> {
+        const account = AuthenticationState.getCurrentAccountSync();
         if (!account) {
             vscode.window.showErrorMessage(vscode.l10n.t('Please sign in first.'));
             return;

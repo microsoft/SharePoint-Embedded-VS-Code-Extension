@@ -5,21 +5,34 @@
 
 import * as vscode from "vscode";
 import { OwningAppTreeItem } from "./OwningAppTreeItem";
-import { ContainerType } from "../../../models/ContainerType";
+import { ContainerType, ContainerTypeRegistration } from "../../../models/schemas";
 import { IChildrenProvidingTreeItem } from "./IDataProvidingTreeItem";
-import { DevelopmentTreeViewProvider } from "./DevelopmentTreeViewProvider";
 import { LocalRegistrationTreeItem } from "./LocalRegistrationTreeItem";
 
 export class ContainerTypeTreeItem extends IChildrenProvidingTreeItem {
+    public readonly registration: ContainerTypeRegistration | null;
 
-    constructor(public readonly containerType: ContainerType) {
-        super(containerType.displayName, vscode.TreeItemCollapsibleState.Collapsed);
+    constructor(
+        public readonly containerType: ContainerType,
+        registration: ContainerTypeRegistration | null = null,
+        hasExtensionPermissions: boolean = false
+    ) {
+        super(containerType.name, vscode.TreeItemCollapsibleState.Collapsed);
+        this.id = `spe-ct-${containerType.id}`;
+        this.registration = registration;
         this.iconPath = new vscode.ThemeIcon("containertype-icon");
         this.contextValue = "spe:containerTypeTreeItem";
-        if (containerType.isTrial) {
+
+        // Check if it's a trial based on billing classification
+        const isTrial = containerType.billingClassification === 'trial';
+        if (isTrial) {
             let expirationString = '';
-            const daysLeft = containerType.trialDaysLeft;
-            if (daysLeft !== undefined) {
+            if (containerType.expirationDateTime) {
+                const expirationDate = new Date(containerType.expirationDateTime);
+                const now = new Date();
+                const diffTime = expirationDate.getTime() - now.getTime();
+                const daysLeft = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
                 if (daysLeft > 0) {
                     expirationString = ` expires in ${daysLeft} day`;
                     if (daysLeft !== 1) {
@@ -34,42 +47,33 @@ export class ContainerTypeTreeItem extends IChildrenProvidingTreeItem {
         } else {
             this.contextValue += "-paid";
         }
-        this.contextValue += containerType.configuration.isDiscoverablilityDisabled === true ? "-discoverabilityDisabled" : "-discoverabilityEnabled";
-        containerType.loadLocalRegistration()
-            .then((registration) => {
-                if (!registration || !registration.applications.includes(containerType.owningAppId)) {
-                    throw new Error();
-                }
-                this.contextValue += "-registered";
-            })
-            .catch((error) => {
-                this.contextValue += "-unregistered";
-            })
-            .finally(() => {
-                DevelopmentTreeViewProvider.instance.refresh(this);
-            });
-    }
-    
-    public async getChildren(): Promise<vscode.TreeItem[]> {
-        const children = [];
-        
-        let owningApp;
-        try {
-            owningApp = await this.containerType.loadOwningApp();
-            if (!owningApp) {
-                throw new Error(vscode.l10n.t('Owning app not found'));
-            }
-            children.push(new OwningAppTreeItem(this.containerType, this));
-        } catch (error) {
-            return children;
+
+        // Check discoverability status
+        const isDiscoverabilityEnabled = containerType.settings?.isDiscoverabilityEnabled === true;
+        this.contextValue += isDiscoverabilityEnabled ? "-discoverabilityEnabled" : "-discoverabilityDisabled";
+
+        // Set registration status based on passed registration
+        this.contextValue += registration ? "-registered" : "-unregistered";
+
+        // Set extension app permissions status (only relevant for registered types)
+        if (registration && hasExtensionPermissions) {
+            this.contextValue += "-extensionPermissionsGranted";
         }
-        
+    }
+
+    public async getChildren(): Promise<vscode.TreeItem[]> {
+        const children: vscode.TreeItem[] = [];
+
         try {
-            const localRegistration = await this.containerType.loadLocalRegistration();
-            if (localRegistration && localRegistration.applications.includes(owningApp.clientId)) {
-                children.push(new LocalRegistrationTreeItem(this.containerType));
+            // Add owning app tree item
+            children.push(new OwningAppTreeItem(this.containerType, this));
+
+            // Add registration tree item if registered
+            if (this.registration) {
+                children.push(new LocalRegistrationTreeItem(this.containerType, this.registration));
             }
         } catch (error) {
+            console.error('Error loading container type children:', error);
         }
 
         return children;

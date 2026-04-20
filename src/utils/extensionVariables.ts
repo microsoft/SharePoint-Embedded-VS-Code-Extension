@@ -8,4 +8,5 @@ import { ExtensionContext, LogOutputChannel } from "vscode";
 export namespace ext {
     export let context: ExtensionContext;
     export let outputChannel: LogOutputChannel;
+    export const enableDebugLogging = false;
 }

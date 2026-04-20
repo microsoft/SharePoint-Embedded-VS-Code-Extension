@@ -5,31 +5,41 @@
 
 import * as vscode from "vscode";
 import { ContainerTreeItem } from "./ContainerTreeItem";
-import { ContainerType } from "../../../models/ContainerType";
-import { Container } from "../../../models/Container";
 import { IChildrenProvidingTreeItem } from "./IDataProvidingTreeItem";
-import { ContainerTypeRegistration } from "../../../models/ContainerTypeRegistration";
 import { LocalRegistrationTreeItem } from "./LocalRegistrationTreeItem";
+import { GraphProvider } from "../../../services/Graph/GraphProvider";
+import { ensureExtensionAppPermissions } from "../../../utils/ExtensionAppPermissions";
 
 export class ContainersTreeItem extends IChildrenProvidingTreeItem {
 
-    public get containerType(): ContainerType {
-        return this.containerTypeRegistration.containerType;
-    }
-
-    constructor(public containerTypeRegistration: ContainerTypeRegistration, public reigstrationViewModel: LocalRegistrationTreeItem) {
+    constructor(public readonly containerTypeId: string, public registrationViewModel: LocalRegistrationTreeItem) {
         super(vscode.l10n.t('Containers'), vscode.TreeItemCollapsibleState.Collapsed);
         this.contextValue = "spe:containersTreeItem";
     }
 
     public async getChildren() {
         const children: vscode.TreeItem[] = [];
+
+        const hasPermissions = await ensureExtensionAppPermissions(this.containerTypeId);
+        if (!hasPermissions) {
+            return children;
+        }
+
+        // Informational node about post-registration propagation delay
+        const infoNode = new vscode.TreeItem(
+            vscode.l10n.t('Changes to containers may take up to 30 minutes to show up here'),
+            vscode.TreeItemCollapsibleState.None
+        );
+        infoNode.iconPath = new vscode.ThemeIcon('info');
+        children.push(infoNode);
+
         try {
-            const containers = await this.containerTypeRegistration.loadContainers();
-            containers?.map((container: Container) => {
-                children.push(new ContainerTreeItem(container, this.reigstrationViewModel));
+            const containers = await GraphProvider.getInstance().containers.list(this.containerTypeId);
+            containers?.map((container) => {
+                children.push(new ContainerTreeItem(container, this.registrationViewModel));
             });
         } catch (error) {
+            console.error('[ContainersTreeItem.getChildren]', error);
         }
         return children;
     }

@@ -4,20 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import jwt_decode from "jwt-decode";
-const globalAdminGuid = "62e90394-69f5-4237-9190-012177145e10";
-
-export function checkJwtForAdminClaim(decodedToken: any): boolean {
-  try {
-    // Check if 'wids' property exists and if its value is the desired string
-    if (decodedToken.wids && Array.isArray(decodedToken.wids) && decodedToken.wids.includes(globalAdminGuid)) {
-      return true;
-    } else {
-      return false;
-    }
-  } catch (error) {
-    throw error;
-  }
-}
 
 export function checkJwtForTenantAdminScope(decodedToken: any, scope: string): boolean {
   try {

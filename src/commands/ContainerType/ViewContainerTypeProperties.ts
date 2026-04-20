@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import { ContainerTypeTreeItem } from '../../views/treeview/development/ContainerTypeTreeItem';
 import { Command } from '../Command';
-import { ContainerType } from '../../models/ContainerType';
+import { GraphProvider } from '../../services/Graph/GraphProvider';
 
 // Static class that handles the view properties command
 export class ViewContainerTypeProperties extends Command {
@@ -18,9 +18,21 @@ export class ViewContainerTypeProperties extends Command {
         if (!containerTypeViewModel) {
             return;
         }
-        const containerType: ContainerType = containerTypeViewModel.containerType;
+
         try {
-            const containerTypeProperties = containerType.toString();
+            // Fetch latest container type data from API (with no-cache to get fresh data)
+            const graphProvider = GraphProvider.getInstance();
+            const containerType = await graphProvider.containerTypes.get(
+                containerTypeViewModel.containerType.id,
+                { noCache: true }
+            );
+
+            if (!containerType) {
+                vscode.window.showErrorMessage(vscode.l10n.t('Could not fetch container type properties'));
+                return;
+            }
+
+            const containerTypeProperties = JSON.stringify(containerType, null, 4);
             const provider = new (class implements vscode.TextDocumentContentProvider {
                 provideTextDocumentContent(uri: vscode.Uri): string {
                     return containerTypeProperties;
@@ -28,13 +40,15 @@ export class ViewContainerTypeProperties extends Command {
             })();
 
             const registration = vscode.workspace.registerTextDocumentContentProvider('virtual', provider);
-            let uri = vscode.Uri.parse(`virtual://${containerType.containerTypeId}/${containerType.displayName}.json`, true);
+            // Add timestamp to URI to prevent VS Code from caching the document content
+            let uri = vscode.Uri.parse(`virtual://${containerType.id}/${containerType.name}.json?t=${Date.now()}`, true);
             const doc = await vscode.workspace.openTextDocument(uri);
-            await vscode.window.showTextDocument(doc, { preview: true});
+            await vscode.window.showTextDocument(doc, { preview: true });
             await vscode.languages.setTextDocumentLanguage(doc, 'json');
             registration.dispose();
         } catch (error: any) {
             const message = vscode.l10n.t('Failed to open container type properties: {0}', error.message);
-            vscode.window.showErrorMessage(message);        }
+            vscode.window.showErrorMessage(message);
+        }
     }
 }

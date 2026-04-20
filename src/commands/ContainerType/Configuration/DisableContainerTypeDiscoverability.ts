@@ -6,10 +6,10 @@
 import { Command } from '../../Command';
 import * as vscode from 'vscode';
 import { ContainerTypeTreeItem } from '../../../views/treeview/development/ContainerTypeTreeItem';
+import { ContainerType } from '../../../models/schemas';
+import { GraphProvider } from '../../../services/Graph/GraphProvider';
 import { DevelopmentTreeViewProvider } from '../../../views/treeview/development/DevelopmentTreeViewProvider';
-import { ProgressWaitNotification, Timer } from '../../../views/notifications/ProgressWaitNotification';
-import { ContainerType } from '../../../models/ContainerType';
-import { GetAccount } from '../../Accounts/GetAccount';
+import { ProgressWaitNotification } from '../../../views/notifications/ProgressWaitNotification';
 
 // Static class that handles the disable discoverability command
 export class DisableContainerTypeDiscoverability extends Command {
@@ -19,11 +19,6 @@ export class DisableContainerTypeDiscoverability extends Command {
     // Command handler
     public static async run(commandProps?: DisableDiscoverabilityCommandProps): Promise<void> {
         if (!commandProps) {
-            return;
-        }
-
-        const account = await GetAccount.run();
-        if (!account) {
             return;
         }
 
@@ -37,43 +32,49 @@ export class DisableContainerTypeDiscoverability extends Command {
             return;
         }
 
-        const message = `Are you sure you want to disable Discoverability on the '${containerType.displayName}' Container Type?`;
-        const userChoice = await vscode.window.showInformationMessage(
-            message,
-            vscode.l10n.t('OK'), vscode.l10n.t('Cancel')
+        const progressWindow = new ProgressWaitNotification(
+            vscode.l10n.t('Disabling discoverability...')
         );
+        progressWindow.show();
 
-        if (userChoice !== vscode.l10n.t('OK')) {
-            return;
-        }
+        try {
+            const graphProvider = GraphProvider.getInstance();
 
-        const progressWindow = new ProgressWaitNotification('Disabling container type discoverability (make take a minute)...');
-        try {    
-            progressWindow.show();
-            const containerTypeProvider = account.containerTypeProvider;
-            await containerTypeProvider.disableDiscoverability(containerType);
-            const ctRefreshTimer = new Timer(60 * 1000);
-            const refreshCt = async (): Promise<void> => {
-                DevelopmentTreeViewProvider.instance.refresh();
-                do {
-                    const containerTypes = await containerTypeProvider.list();
-                    if (containerTypes.find(ct => 
-                        ct.containerTypeId === containerType.containerTypeId &&
-                        ct.configuration.isDiscoverablilityDisabled === true)
-                    ) {
-                        DevelopmentTreeViewProvider.instance.refresh();
-                        break;
-                    }
-                    // sleep for 5 seconds
-                    await new Promise(r => setTimeout(r, 5000));
-                } while (!ctRefreshTimer.finished);
-                progressWindow.hide();
-            };
-            refreshCt();
+            // Get the latest container type to ensure we have the current etag
+            const latestCT = await graphProvider.containerTypes.get(containerType.id);
+            if (!latestCT) {
+                throw new Error('Container type not found');
+            }
+
+            const etag = latestCT.etag;
+            if (!etag) {
+                throw new Error('Container type etag not available - cannot update');
+            }
+
+            // Update the container type settings
+            await graphProvider.containerTypes.update(
+                containerType.id,
+                { settings: { isDiscoverabilityEnabled: false } },
+                etag
+            );
+
+            progressWindow.hide();
+            vscode.window.showInformationMessage(
+                vscode.l10n.t('Discoverability has been disabled for "{0}".', containerType.name)
+            );
+
+            // Refresh the tree view
+            DevelopmentTreeViewProvider.getInstance().refresh();
         } catch (error: any) {
             progressWindow.hide();
-            const message = vscode.l10n.t('Unable to disable container type discoverability: {0}', error);
-            vscode.window.showErrorMessage(message);
+            console.error('[DisableContainerTypeDiscoverability] Error:', error);
+
+            let errorMessage = vscode.l10n.t('Failed to disable discoverability');
+            if (error.message) {
+                errorMessage += `: ${error.message}`;
+            }
+
+            vscode.window.showErrorMessage(errorMessage);
         }
     }
 }

@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { App } from '../../models/App';
 import { AppTreeItem } from '../../views/treeview/development/AppTreeItem';
 import { GuestApplicationTreeItem } from '../../views/treeview/development/GuestAppTreeItem';
 import { OwningAppTreeItem } from '../../views/treeview/development/OwningAppTreeItem';
@@ -21,23 +20,19 @@ export class CopyAppId extends Command {
             return;
         }
 
-        let app: App | undefined;
+        let appId: string | undefined;
+
         if (applicationTreeItem instanceof GuestApplicationTreeItem) {
-            app = applicationTreeItem.appPerms.app;
-        }
-        if (applicationTreeItem instanceof OwningAppTreeItem) {
-            app = applicationTreeItem.containerType.owningApp!;
-        }
-        if (!app) {
-            vscode.window.showErrorMessage(vscode.l10n.t('Could not find app'));
-            return;
+            appId = applicationTreeItem.grant.appId;
+        } else if (applicationTreeItem instanceof OwningAppTreeItem) {
+            appId = applicationTreeItem.containerType.owningAppId;
         }
 
-        const appId = app.clientId;
         if (!appId) {
             vscode.window.showErrorMessage(vscode.l10n.t('Could not find app id'));
             return;
         }
+
         try {
             await vscode.env.clipboard.writeText(appId);
             vscode.window.showInformationMessage(vscode.l10n.t('App Id copied to clipboard.'));

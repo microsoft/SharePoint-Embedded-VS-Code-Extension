@@ -5,10 +5,10 @@
 
 import { Command } from './../Command';
 import * as vscode from 'vscode';
-import { Account } from '../../models/Account';
 import { DevelopmentTreeViewProvider } from '../../views/treeview/development/DevelopmentTreeViewProvider';
 import { SignOutEvent, SignOutFailure } from '../../models/telemetry/telemetry';
 import { TelemetryProvider } from '../../services/TelemetryProvider';
+import { AuthenticationState } from '../../services/AuthenticationState';
 
 // Static class that handles the sign out command
 export class SignOut extends Command {
@@ -24,11 +24,11 @@ export class SignOut extends Command {
                 vscode.l10n.t('OK'), vscode.l10n.t('Cancel')
             );
 
-            if (userChoice === vscode.l10n.t('Cancel')) {
+            if (userChoice !== vscode.l10n.t('OK')) {
                 return;
             }
 
-            await Account.get()!.logout();
+            await AuthenticationState.signOut();
             DevelopmentTreeViewProvider.instance.refresh();
             TelemetryProvider.instance.send(new SignOutEvent());
         } catch (error: any) {

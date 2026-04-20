@@ -5,17 +5,13 @@
 
 import * as vscode from 'vscode';
 import { Command } from '../Command';
-import { ContainerType } from '../../models/ContainerType';
-import { GetAccount } from '../Accounts/GetAccount';
 import { GetOrCreateApp } from '../Apps/GetOrCreateApp';
-import { RegisterOnLocalTenant } from '../ContainerType/RegisterOnLocalTenant';
-import { App, AppType } from '../../models/App';
 import { GuestAppsTreeItem } from '../../views/treeview/development/GuestAppsTreeItem';
-import { ApplicationPermissions } from '../../models/ApplicationPermissions';
-import { ISpConsumingApplicationProperties } from '../../services/SPAdminProvider';
 import { ChooseAppPermissions } from './ChooseAppPermissions';
 import { ProgressWaitNotification } from '../../views/notifications/ProgressWaitNotification';
-import { ContainerTypeRegistration } from '../../models/ContainerTypeRegistration';
+import { GraphProvider } from '../../services/Graph/GraphProvider';
+import { DevelopmentTreeViewProvider } from '../../views/treeview/development/DevelopmentTreeViewProvider';
+import { Application, ContainerTypeAppPermission } from '../../models/schemas';
 
 // Static class that handles the create guest app command
 export class GetorCreateGuestApp extends Command {
@@ -23,61 +19,46 @@ export class GetorCreateGuestApp extends Command {
     public static readonly COMMAND = 'GuestApps.add';
 
     // Command handler
-    public static async run(guestAppsTreeItem?: GuestAppsTreeItem): Promise<App | undefined> {
+    public static async run(guestAppsTreeItem?: GuestAppsTreeItem): Promise<Application | undefined> {
         if (!guestAppsTreeItem) {
             return;
         }
 
-        const account = await GetAccount.run();
-        if (!account) {
+        const containerTypeId = guestAppsTreeItem.containerTypeId;
+        if (!containerTypeId) {
             return;
         }
 
-        const containerType: ContainerType = guestAppsTreeItem.containerType;
-        
-        if (!containerType) {
-            return;
-        }
-        
-        const app = await GetOrCreateApp.run(AppType.GuestApp);
+        const app = await GetOrCreateApp.run(false);
         if (!app) {
             return;
         }
 
-        const selectedPerms = await ChooseAppPermissions.run();
+        const selectedPerms = await ChooseAppPermissions.run(undefined, {
+            showCloseButton: true
+        });
         if (!selectedPerms) {
             return;
         }
 
-        const loadRegistrationProgress = new ProgressWaitNotification(vscode.l10n.t('Loading existing container type registration for update...'));
-        loadRegistrationProgress.show();
-        let containerTypeRegistration: ContainerTypeRegistration | undefined;
+        const progressWindow = new ProgressWaitNotification(vscode.l10n.t('Adding app permissions...'));
+        progressWindow.show();
         try {
-            containerTypeRegistration = await containerType.loadLocalRegistration();
-            loadRegistrationProgress.hide();
-            if (!containerTypeRegistration) {
-                throw new Error(vscode.l10n.t('Existing registration not found.'));
-            }
+            const graphProvider = GraphProvider.getInstance();
+            await graphProvider.appPermissionGrants.createOrReplace(containerTypeId, app.appId!, {
+                appId: app.appId!,
+                delegatedPermissions: selectedPerms.delegatedPerms as ContainerTypeAppPermission[],
+                applicationPermissions: selectedPerms.applicationPerms as ContainerTypeAppPermission[]
+            });
+            DevelopmentTreeViewProvider.getInstance().refresh(guestAppsTreeItem);
+            progressWindow.hide();
+            vscode.window.showInformationMessage(vscode.l10n.t('App permissions added successfully'));
+            return app;
         } catch (error: any) {
-            loadRegistrationProgress.hide();
-            const message = vscode.l10n.t('Error loading container type registration: {0}', error);
+            progressWindow.hide();
+            const message = vscode.l10n.t('Error adding app permissions: {0}', error.message);
             vscode.window.showErrorMessage(message);
             return;
         }
-
-        const newApplicationPermissions: ISpConsumingApplicationProperties = {
-            OwningApplicationId: containerType.owningApp!.clientId,
-            DelegatedPermissions: selectedPerms.delegatedPerms,
-            AppOnlyPermissions: selectedPerms.applicationPerms,
-            TenantId: account.tenantId,
-            ContainerTypeId: containerType.containerTypeId,
-            ApplicationId: app.clientId,
-            ApplicationName: app.displayName,
-            Applications: containerTypeRegistration!.applications,
-            OwningApplicationName:containerType.owningApp!.displayName,
-        };
-        const appPermissionsToRegister = new ApplicationPermissions(containerTypeRegistration!, newApplicationPermissions);
-        await RegisterOnLocalTenant.run(containerType, appPermissionsToRegister);
-        return app;
     }
 }

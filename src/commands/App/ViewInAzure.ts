@@ -5,12 +5,11 @@
 
 import * as vscode from 'vscode';
 import { Command } from '../Command';
-import { App } from '../../models/App';
-import { GetAccount } from '../Accounts/GetAccount';
 import { AppTreeItem } from '../../views/treeview/development/AppTreeItem';
 import { AzurePortalUrlProvider } from '../../utils/AzurePortalUrl';
 import { GuestApplicationTreeItem } from '../../views/treeview/development/GuestAppTreeItem';
 import { OwningAppTreeItem } from '../../views/treeview/development/OwningAppTreeItem';
+import { Application } from '../../models/schemas';
 
 // Static class that views app in Azure
 export class ViewInAzure extends Command {
@@ -19,29 +18,28 @@ export class ViewInAzure extends Command {
 
     // Command handler
     public static async run(commandProps?: ViewInAzureProps): Promise<void> {
-        const account = await GetAccount.run();
-        if (!account) {
+        if (!commandProps) {
             return;
         }
 
-        let app: App | undefined;
-        if (commandProps instanceof AppTreeItem) {
-            if (commandProps instanceof GuestApplicationTreeItem) {
-                app = commandProps.appPerms.app;
-            }
-            if (commandProps instanceof OwningAppTreeItem) {
-                app = commandProps.containerType.owningApp!;
-            }
-        } else {
-            app = commandProps;
+        let appId: string | undefined;
+
+        if (commandProps instanceof GuestApplicationTreeItem) {
+            appId = commandProps.grant.appId;
+        } else if (commandProps instanceof OwningAppTreeItem) {
+            appId = commandProps.containerType.owningAppId;
+        } else if ('appId' in commandProps) {
+            appId = commandProps.appId ?? undefined;
         }
-        if (!app) {
+
+        if (!appId) {
+            vscode.window.showErrorMessage(vscode.l10n.t('Could not find app'));
             return;
         }
 
-        const azureLink = AzurePortalUrlProvider.getAppRegistrationUrl(app.clientId);
+        const azureLink = AzurePortalUrlProvider.getAppRegistrationUrl(appId);
         vscode.env.openExternal(vscode.Uri.parse(azureLink));
     };
 }
 
-export type ViewInAzureProps = AppTreeItem | App;
+export type ViewInAzureProps = AppTreeItem | Application;

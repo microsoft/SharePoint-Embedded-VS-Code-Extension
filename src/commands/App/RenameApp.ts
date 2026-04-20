@@ -4,15 +4,14 @@
 *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { Account } from '../../models/Account';
 import { DevelopmentTreeViewProvider } from '../../views/treeview/development/DevelopmentTreeViewProvider';
 import { Command } from '../Command';
-import { ProgressWaitNotification, Timer } from '../../views/notifications/ProgressWaitNotification';
-import { App } from '../../models/App';
+import { ProgressWaitNotification } from '../../views/notifications/ProgressWaitNotification';
 import { AppTreeItem } from '../../views/treeview/development/AppTreeItem';
-import { GetAccount } from '../Accounts/GetAccount';
 import { GuestApplicationTreeItem } from '../../views/treeview/development/GuestAppTreeItem';
 import { OwningAppTreeItem } from '../../views/treeview/development/OwningAppTreeItem';
+import { GraphProvider } from '../../services/Graph/GraphProvider';
+import { Application } from '../../models/schemas';
 
 // Static class that handles the rename application command
 export class RenameApp extends Command {
@@ -21,69 +20,94 @@ export class RenameApp extends Command {
 
     // Command handler
     public static async run(commandProps?: RenameAppProps): Promise<void> {
-        const account = await GetAccount.run();
-        if (!account) {
+        if (!commandProps) {
             return;
         }
 
-        let app: App | undefined;
-        if (commandProps instanceof AppTreeItem) {
-            if (commandProps instanceof GuestApplicationTreeItem) {
-                app = commandProps.appPerms.app;
+        const graphProvider = GraphProvider.getInstance();
+
+        // Extract app info from command props
+        let objectId: string | undefined;
+        let currentName: string | undefined;
+
+        if (commandProps instanceof OwningAppTreeItem) {
+            const appId = commandProps.containerType.owningAppId;
+            const app = await graphProvider.applications.get(appId, { useAppId: true });
+            if (app) {
+                objectId = app.id;
+                currentName = app.displayName;
             }
-            if (commandProps instanceof OwningAppTreeItem) {
-                app = commandProps.containerType.owningApp!;
+        } else if (commandProps instanceof GuestApplicationTreeItem) {
+            const app = commandProps.application;
+            if (app) {
+                objectId = app.id;
+                currentName = app.displayName;
             }
-        } else {
-            app = commandProps;
+        } else if ('id' in commandProps && 'displayName' in commandProps) {
+            objectId = (commandProps as Application).id;
+            currentName = (commandProps as Application).displayName;
         }
-        if (!app) {
+
+        if (!objectId) {
+            vscode.window.showErrorMessage(vscode.l10n.t('Could not find application'));
             return;
         }
 
-        const appDisplayName = await vscode.window.showInputBox({
+        const newDisplayName = await vscode.window.showInputBox({
             title: vscode.l10n.t('New display name:'),
-            value: app.displayName,
+            value: currentName,
             prompt: vscode.l10n.t('Enter the new display name for the app:'),
             validateInput: (value: string): string | undefined => {
-                const maxLength = 50;
-                const alphanumericRegex = /^[a-zA-Z0-9\s-_]+$/;
-                if (!value) {
+                const maxLength = 120;
+                if (!value || value.trim().length === 0) {
                     return vscode.l10n.t('Display name cannot be empty');
                 }
                 if (value.length > maxLength) {
-                    return vscode.l10n.t(`Display name must be no more than {0} characters long`, maxLength);
+                    return vscode.l10n.t('Display name must be no more than {0} characters long', maxLength);
                 }
-                if (!alphanumericRegex.test(value)) {
-                    return vscode.l10n.t('Display name must only contain alphanumeric characters');
+                // Azure AD allows more characters than container types
+                const invalidChars = /[<>;&%]/;
+                if (invalidChars.test(value)) {
+                    return vscode.l10n.t('Display name cannot contain < > ; & %');
+                }
+                if (value === currentName) {
+                    return vscode.l10n.t('Please enter a different name');
                 }
                 return undefined;
             }
         });
 
-        if (appDisplayName === undefined) {
-            return;
+        if (!newDisplayName) {
+            return; // User cancelled
         }
 
         const progressWindow = new ProgressWaitNotification(vscode.l10n.t('Renaming application...'));
         progressWindow.show();
-        try {
-            const graphProvider = Account.graphProvider;
-            await graphProvider.renameApp(app.objectId, appDisplayName);
 
-            if (commandProps instanceof AppTreeItem) {
-                DevelopmentTreeViewProvider.getInstance().refresh(commandProps.parentView ? commandProps.parentView : commandProps);
-            } else {
-                DevelopmentTreeViewProvider.getInstance().refresh();
-            }
+        try {
+            await graphProvider.applications.update(objectId, {
+                displayName: newDisplayName.trim()
+            });
+
             progressWindow.hide();
+            vscode.window.showInformationMessage(
+                vscode.l10n.t('Application renamed to "{0}".', newDisplayName.trim())
+            );
+
+            // Refresh the tree view
+            DevelopmentTreeViewProvider.getInstance().refresh();
         } catch (error: any) {
             progressWindow.hide();
-            const message = vscode.l10n.t('Error renaming application: {0}', error);
-            vscode.window.showErrorMessage(message);
-            return;
+            console.error('[RenameApp] Error renaming application:', error);
+
+            let errorMessage = vscode.l10n.t('Failed to rename application');
+            if (error.message) {
+                errorMessage += `: ${error.message}`;
+            }
+
+            vscode.window.showErrorMessage(errorMessage);
         }
     }
 }
 
-export type RenameAppProps = AppTreeItem | App;
+export type RenameAppProps = AppTreeItem | Application;

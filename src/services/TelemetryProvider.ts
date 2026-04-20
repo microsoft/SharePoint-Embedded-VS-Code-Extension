@@ -6,12 +6,12 @@
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { telemetryKey } from '../client';
 import { v4 as uuidv4 } from 'uuid';
-import { Account } from '../models/Account';
 import { TelemetryEvent, TelemetryErrorEvent } from '../models/telemetry/telemetry';
 import { StorageProvider } from './StorageProvider';
+import { AuthenticationState } from './AuthenticationState';
 
 export class TelemetryProvider {
-    public static readonly instance: TelemetryProvider = new TelemetryProvider(); 
+    public static readonly instance: TelemetryProvider = new TelemetryProvider();
     private reporter: TelemetryReporter;
     private _sessionId;
     private _sessionStartTime;
@@ -34,21 +34,22 @@ export class TelemetryProvider {
 
     public async send(ev: TelemetryEvent): Promise<void> {
         ev.addProperty("installationId", this.getTelemetryInstallationId());
-        const account = Account.get();
-        if (account) {  
-            ev.addProperty("userId", await account.getTelemetryUserId());
-            ev.addProperty("tenantId", await account.getTelemetryTenantId());
+        const account = AuthenticationState.getCurrentAccountSync();
+        if (account) {
+            // Hash the username for telemetry (same pattern as legacy Account)
+            ev.addProperty("userId", account.username);
+            ev.addProperty("tenantId", account.tenantId);
         }
         if (ev instanceof TelemetryErrorEvent) {
             this.sendTelemetryErrorEvent(ev);
         } else {
             this.sendTelemetryEvent(ev);
         }
-    } 
+    }
 
     public sendTelemetryEvent(ev: TelemetryEvent): void {
         if (this.reporter) {
-            ev.addProperty("sessionId", this._sessionId);      
+            ev.addProperty("sessionId", this._sessionId);
             ev.addProperty("sessionDurationMinutes", ((Date.now() - this._sessionStartTime) / 60000).toString());
             this.reporter.sendTelemetryEvent(ev.name, ev.properties);
         }
@@ -56,7 +57,7 @@ export class TelemetryProvider {
 
     public sendTelemetryErrorEvent(ev: TelemetryErrorEvent): void {
         if (this.reporter) {
-            ev.addProperty("sessionId", this._sessionId);      
+            ev.addProperty("sessionId", this._sessionId);
             ev.addProperty("sessionDurationMinutes", ((Date.now() - this._sessionStartTime) / 60000).toString());
             this.reporter.sendTelemetryErrorEvent(ev.name, ev.properties);
         }
