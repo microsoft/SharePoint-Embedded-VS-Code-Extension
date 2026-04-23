@@ -206,7 +206,7 @@ export class CloneReactSampleApp extends Command {
 
             if (folders && folders.length > 0) {
                 const destinationPath = folders[0].fsPath;
-                const subfolder = 'SharePoint-Embedded-Samples/Samples/spe-typescript-react-azurefunction/';
+                const subfolder = 'SharePoint-Embedded-Samples/Custom Apps/boilerplate-typescript-react/';
 
                 const folderPathInRepository = path.join(destinationPath, subfolder);
                 await vscode.commands.executeCommand('git.clone', repoUrl, destinationPath);
@@ -241,7 +241,7 @@ const writeLocalSettingsJsonFile = (destinationPath: string, appId: string, cont
     };
 
     const localSettingsJson = JSON.stringify(localSettings, null, 2);
-    const localSettingsPath = path.join(destinationPath, 'SharePoint-Embedded-Samples', 'Samples', 'spe-typescript-react-azurefunction', 'function-api', 'local.settings.json');
+    const localSettingsPath = path.join(destinationPath, 'SharePoint-Embedded-Samples', 'Custom Apps', 'boilerplate-typescript-react', 'function-api', 'local.settings.json');
 
     fs.writeFileSync(localSettingsPath, localSettingsJson, 'utf8');
 };
@@ -258,7 +258,7 @@ REACT_APP_SAMPLE_API_URL=http://localhost:7072/api
 PORT=8080
 
 `;
-    const envFilePath = path.join(destinationPath, 'SharePoint-Embedded-Samples', 'Samples', 'spe-typescript-react-azurefunction', 'react-client', '.env');
+    const envFilePath = path.join(destinationPath, 'SharePoint-Embedded-Samples', 'Custom Apps', 'boilerplate-typescript-react', 'react-client', '.env');
 
     fs.writeFileSync(envFilePath, envContent, 'utf8');
 };

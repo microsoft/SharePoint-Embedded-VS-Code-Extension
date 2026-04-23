@@ -3,7 +3,7 @@
 The SharePoint Embedded Visual Studio Code extension helps developers get started for free with SharePoint Embedded application development. 
 
 > [!IMPORTANT]
-> To start building with SharePoint Embedded you will need administrative access to Microsoft 365 tenant.
+> To start building with SharePoint Embedded you will need a Microsoft 365 tenant.
 > If you do not already have a tenant, you can get your own tenant with the [Microsoft 365 Developer Program](https://developer.microsoft.com/microsoft-365/dev-program), [Microsoft Customer Digital Experience](https://cdx.transform.microsoft.com/), or create a free trial of an [Microsoft 365 E3 license](https://www.microsoft.com/microsoft-365/enterprise/microsoft365-plans-and-pricing).
 
 ## Install SharePoint Embedded for Visual Studio Code
@@ -13,18 +13,13 @@ The SharePoint Embedded Visual Studio Code extension helps developers get starte
 1. Select **"Install"** and the SharePoint Embedded icon will appear on the activity bar.
 1. Select the icon to open the SharePoint Embedded view and create a container type with trial configuration.
 
-### Sign in with admin credentials
+### Sign in
 
-To use the extension, you must sign into a Microsoft 365 tenant with an administrator account.
+To use the extension, you must sign into a Microsoft 365 tenant.
 
 If you don't already have a tenant, you can get a tenant through the [Microsoft 365 Developer Program](https://developer.microsoft.com/microsoft-365/dev-program), [Microsoft Customer Digital Experience](https://cdx.transform.microsoft.com/), or create a free trial of an [Microsoft 365 E3 license](https://www.microsoft.com/en-us/microsoft-365/enterprise/microsoft365-plans-and-pricing).
 
 ![Install](./readme-images/n2vsx-signin.png)
-
-- Authentication opens a new tab in an external browser to grant permissions
-- Select **Accept** on the pop-up window prompting admin consent
- 
-![consentperms](./readme-images/n3vsx-grant-admin-consent.png)
 
 ## Create a container type with a trial configuration
 
@@ -61,14 +56,6 @@ After creating your container type, you'll need to register that container type 
 - If you don't see the prompt, you can right-click on your `<container-type-name>` and select **Register** from the menu
 
 ![register](./readme-images/n7aregister-ct.png)
-
-#### Grant permissions
-
-When registering your container type you'll need to grant permissions to access your application
-
-An external browser window will pop open for you to sign-in and grant admin consent
-
-![login permissions](./readme-images/n9alogin-grant-permissions.png)
 
 ## Create your first container
 
