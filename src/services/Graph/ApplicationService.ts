@@ -216,6 +216,52 @@ export class ApplicationService {
     }
 
     /**
+     * Add a user as an owner of an application.
+     * POST /v1.0/applications/{objectId}/owners/$ref
+     *
+     * The `objectId` is the application's directory object id (Application.id),
+     * NOT the client/app id.
+     */
+    async addOwner(objectId: string, userId: string): Promise<void> {
+        try {
+            Logger.log(`[ApplicationService.addOwner] Adding user ${userId} as owner of application ${objectId}`);
+            await this._client
+                .api(`${ApplicationService.BASE_PATH}/${objectId}/owners/$ref`)
+                .version(ApplicationService.API_VERSION)
+                .post({
+                    // eslint-disable-next-line @typescript-eslint/naming-convention
+                    '@odata.id': `https://graph.microsoft.com/${ApplicationService.API_VERSION}/directoryObjects/${userId}`
+                });
+            Logger.log(`[ApplicationService.addOwner] User ${userId} added as owner of application ${objectId}`);
+        } catch (error: any) {
+            console.error(`[ApplicationService.addOwner] Error adding owner ${userId} to application ${objectId}:`, error);
+            throw new Error(`Failed to add owner: ${error.message || error}`);
+        }
+    }
+
+    /**
+     * Add multiple users as owners of an application. Calls `addOwner`
+     * sequentially and collects failures rather than aborting on the first
+     * error — a single already-owner 400 shouldn't kill the whole flow.
+     */
+    async addOwners(
+        objectId: string,
+        userIds: string[]
+    ): Promise<{ added: string[]; failed: { userId: string; error: any }[] }> {
+        const added: string[] = [];
+        const failed: { userId: string; error: any }[] = [];
+        for (const userId of userIds) {
+            try {
+                await this.addOwner(objectId, userId);
+                added.push(userId);
+            } catch (error) {
+                failed.push({ userId, error });
+            }
+        }
+        return { added, failed };
+    }
+
+    /**
      * Delete an application
      * DELETE /applications/{id}
      * DELETE /applications(appId='{appId}')

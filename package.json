@@ -106,7 +106,7 @@
       },
       {
         "view": "spe-development",
-        "contents": "Get started with SharePoint Embedded\n [Create Trial Container Type](command:spe.ContainerTypes.createTrial) \n",
+        "contents": "Get started with SharePoint Embedded\n [Create Container Type](command:spe.ContainerTypes.create) \n",
         "when": "spe:isLoggedIn && spe:showGettingStartedView"
       },
       {
@@ -228,7 +228,7 @@
         },
         {
           "when": "viewItem == spe:containerTypesTreeItem",
-          "command": "spe.ContainerTypes.createTrial",
+          "command": "spe.ContainerTypes.create",
           "group": "1@1"
         },
         {
@@ -250,6 +250,16 @@
           "when": "viewItem =~ /spe:containerTypeTreeItem.*-registered.*/ && !(viewItem =~ /.*-extensionPermissionsGranted.*/)",
           "command": "spe.ContainerType.grantExtensionAppPermissions",
           "group": "1@2"
+        },
+        {
+          "when": "viewItem =~ /spe:containerTypeTreeItem.*-billingInvalid.*/",
+          "command": "spe.ContainerType.attachBilling",
+          "group": "1@0"
+        },
+        {
+          "when": "viewItem =~ /spe:localRegistrationTreeItem.*-billingInvalid.*/",
+          "command": "spe.ContainerType.attachBilling",
+          "group": "1@0"
         },
         {
           "when": "viewItem =~ /spe:containerTypeTreeItem.*/",
@@ -464,6 +474,10 @@
         "icon": "$(chrome-close)"
       },
       {
+        "command": "spe.ContainerTypes.create",
+        "title": "%commands.spe.ContainerTypes.create%"
+      },
+      {
         "command": "spe.ContainerTypes.createTrial",
         "title": "%commands.spe.ContainerTypes.createTrial%"
       },
@@ -474,6 +488,10 @@
       {
         "command": "spe.ContainerType.grantExtensionAppPermissions",
         "title": "%commands.spe.ContainerType.grantExtensionAppPermissions%"
+      },
+      {
+        "command": "spe.ContainerType.attachBilling",
+        "title": "%commands.spe.ContainerType.attachBilling%"
       },
       {
         "command": "spe.ContainerType.rename",

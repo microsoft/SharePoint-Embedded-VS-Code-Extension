@@ -10,6 +10,7 @@ import { AuthenticationState } from "../../../services/AuthenticationState";
 import { ContainersTreeItem } from "./ContainersTreeItem";
 import { GuestAppsTreeItem } from "./GuestAppsTreeItem";
 import { RecycledContainersTreeItem } from "./RecycledContainersTreeItem";
+import { Logger } from "../../../utils/Logger";
 
 export class LocalRegistrationTreeItem extends IChildrenProvidingTreeItem {
     constructor(
@@ -17,13 +18,33 @@ export class LocalRegistrationTreeItem extends IChildrenProvidingTreeItem {
         private readonly _registration: ContainerTypeRegistration
     ) {
         super(vscode.l10n.t('Local tenant registration'), vscode.TreeItemCollapsibleState.Collapsed);
-        this.iconPath = new vscode.ThemeIcon("ctregistration-icon");
 
-        // Get domain from username
         const domain = this.getTenantDomain();
         this.description = `(${domain})`;
-
         this.contextValue = "spe:localRegistrationTreeItem";
+
+        // Flag registrations whose billing isn't set up. For direct-to-customer
+        // container types billing is per-consuming-tenant, so this is how a
+        // consumer admin sees "nothing here works yet, attach billing first."
+        // For standard CTs billing is owner-side, but a stale billingStatus on
+        // the registration still signals the CT is unusable in this tenant.
+        const billingInvalid = this._registration.billingStatus !== 'valid';
+        Logger.log(`[LocalRegistrationTreeItem] ${this._containerType.name} registration: classification=${this._registration.billingClassification ?? '(undef)'} billingStatus=${this._registration.billingStatus ?? '(undef)'} billingInvalid=${billingInvalid}`);
+        if (billingInvalid) {
+            this.description = `${this.description} — billing not set up`;
+            this.iconPath = new vscode.ThemeIcon(
+                "ctregistration-icon",
+                new vscode.ThemeColor("list.warningForeground")
+            );
+            this.tooltip = new vscode.MarkdownString(
+                vscode.l10n.t(
+                    '**Billing is not attached to this registration.**\n\nThe container type can\'t be used in this tenant until an Azure billing account is linked. Right-click and choose **Attach billing** to finish setup.'
+                )
+            );
+            this.contextValue += "-billingInvalid";
+        } else {
+            this.iconPath = new vscode.ThemeIcon("ctregistration-icon");
+        }
     }
 
     /**

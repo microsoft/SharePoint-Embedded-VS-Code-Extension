@@ -111,12 +111,16 @@ export class ContainerTypeService {
     }
 
     /**
-     * Create a new container type
-     * POST /storage/fileStorage/containerTypes
+     * Create a new container type.
+     * POST /v1.0/storage/fileStorage/containerTypes
+     *
+     * The caller controls `billingClassification` via the payload — the
+     * service no longer hardcodes 'trial'. `permissions` is not a navigation
+     * property on fileStorageContainerType, so $expand=permissions is not
+     * supported; use `patchOwners` separately to set permissions.
      */
     async create(containerType: ContainerTypeCreate): Promise<ContainerType> {
         try {
-            // Validate input data
             const validatedData = containerTypeCreateSchema.parse(containerType);
             Logger.log('[ContainerTypeService.create] Creating container type:', validatedData.name);
 
@@ -130,6 +134,38 @@ export class ContainerTypeService {
         } catch (error: any) {
             console.error('[ContainerTypeService.create] Error creating container type:', error);
             throw new Error(`Failed to create container type: ${error.message || error}`);
+        }
+    }
+
+    /**
+     * Add an owner permission for a single user on a container type.
+     *
+     * POST /beta/storage/fileStorage/containerTypes/{id}/permissions
+     *
+     * Permissions live only in the beta Graph surface (v1.0 exposes no
+     * relationship for them), so this method pins `beta` locally while the
+     * rest of the service stays on v1.0. Each owner is a separate POST;
+     * there is no bulk-replace endpoint. Re-POSTing an existing user is
+     * idempotent. A container type accepts at most 3 permissions.
+     */
+    async addOwner(id: string, userId: string): Promise<void> {
+        try {
+            const requestBody = {
+                roles: ['owner'],
+                grantedToV2: { user: { id: userId } }
+            };
+
+            Logger.log(`[ContainerTypeService.addOwner] Adding owner ${userId} to container type ${id}`);
+
+            await this._client
+                .api(`${ContainerTypeService.BASE_PATH}/${id}/permissions`)
+                .version('beta')
+                .post(requestBody);
+
+            Logger.log(`[ContainerTypeService.addOwner] Owner ${userId} added to container type ${id}`);
+        } catch (error: any) {
+            console.error(`[ContainerTypeService.addOwner] Error adding owner ${userId} to ${id}:`, error);
+            throw new Error(`Failed to add owner to container type: ${error.message || error}`);
         }
     }
 

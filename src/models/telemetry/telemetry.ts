@@ -75,6 +75,30 @@ export class CreateTrialContainerTypeEvent extends TelemetryEvent {
     }
 }
 
+export class CreateStandardContainerTypeEvent extends TelemetryEvent {
+    public constructor() {
+        const name = "CreateStandardContainerType";
+        const description = "Standard (paid) Container Type created successfully.";
+        super(name, description);
+        this._properties = {
+            ...super.properties,
+            language: vscode.env.language
+        };
+    }
+}
+
+export class CreateDirectToCustomerContainerTypeEvent extends TelemetryEvent {
+    public constructor() {
+        const name = "CreateDirectToCustomerContainerType";
+        const description = "Direct-to-customer Container Type created successfully.";
+        super(name, description);
+        this._properties = {
+            ...super.properties,
+            language: vscode.env.language
+        };
+    }
+}
+
 export class CreateContainerEvent extends TelemetryEvent {
     public constructor() {
         const name = "CreateContainer";
@@ -333,6 +357,58 @@ export class TrialContainerTypeCreationFailure extends TelemetryErrorEvent {
     public constructor(error: any) {
         const name = "TrialContainerTypeCreationFailure";
         const description = "Trial Container Type creation failed.";
+        super(name, description, error);
+        this._properties = {
+            ...super.properties,
+            UxError: "true",
+            language: vscode.env.language
+        };
+    }
+}
+
+export class StandardContainerTypeCreationFailure extends TelemetryErrorEvent {
+    public constructor(error: any) {
+        const name = "StandardContainerTypeCreationFailure";
+        const description = "Standard (paid) Container Type creation failed.";
+        super(name, description, error);
+        this._properties = {
+            ...super.properties,
+            UxError: "true",
+            language: vscode.env.language
+        };
+    }
+}
+
+export class DirectToCustomerContainerTypeCreationFailure extends TelemetryErrorEvent {
+    public constructor(error: any) {
+        const name = "DirectToCustomerContainerTypeCreationFailure";
+        const description = "Direct-to-customer Container Type creation failed.";
+        super(name, description, error);
+        this._properties = {
+            ...super.properties,
+            UxError: "true",
+            language: vscode.env.language
+        };
+    }
+}
+
+export class SyntexProviderRegistrationFailure extends TelemetryErrorEvent {
+    public constructor(error: any) {
+        const name = "SyntexProviderRegistrationFailure";
+        const description = "Failed to register Microsoft.Syntex resource provider.";
+        super(name, description, error);
+        this._properties = {
+            ...super.properties,
+            UxError: "true",
+            language: vscode.env.language
+        };
+    }
+}
+
+export class SyntexAccountProvisioningFailure extends TelemetryErrorEvent {
+    public constructor(error: any) {
+        const name = "SyntexAccountProvisioningFailure";
+        const description = "Failed to provision Syntex billing account.";
         super(name, description, error);
         this._properties = {
             ...super.properties,

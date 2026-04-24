@@ -17,6 +17,7 @@ import { DevelopmentTreeViewProvider } from '../../views/treeview/development/De
 import { AdminConsentHelper } from '../../utils/AdminConsentHelper';
 import { clientId } from '../../client';
 import { REQUIRED_DELEGATED_PERMISSIONS } from '../../utils/ExtensionAppPermissions';
+import { attachBillingToContainerType } from '../ContainerTypes/attachBillingToContainerType';
 
 /**
  * Command to register a container type on the local tenant
@@ -747,6 +748,30 @@ export class RegisterOnLocalTenant extends Command {
 
             // Refresh tree view
             DevelopmentTreeViewProvider.instance.refresh();
+
+            // Direct-to-customer billing is set up per consuming tenant *after*
+            // registration. Prompt the admin to attach billing in this tenant
+            // now, since the CT isn't usable here until they do.
+            if (containerType.billingClassification === 'directToCustomer') {
+                const setUpBilling = vscode.l10n.t('Set up billing...');
+                const later = vscode.l10n.t('Later');
+                const choice = await vscode.window.showInformationMessage(
+                    vscode.l10n.t(
+                        'Direct-to-customer container types need a billing profile set up in this tenant before they can be used. Set up pay-as-you-go billing now?'
+                    ),
+                    setUpBilling,
+                    later
+                );
+                if (choice === setUpBilling) {
+                    const result = await attachBillingToContainerType(containerType, containerType.name);
+                    if (result === 'succeeded') {
+                        DevelopmentTreeViewProvider.instance.refresh();
+                        vscode.window.showInformationMessage(
+                            vscode.l10n.t('Billing set up for container type "{0}".', containerType.name)
+                        );
+                    }
+                }
+            }
 
             return registration;
 

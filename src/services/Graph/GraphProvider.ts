@@ -10,6 +10,7 @@ import { ContainerTypeService } from './ContainerTypeService';
 import { ContainerTypeRegistrationService } from './ContainerTypeRegistrationService';
 import { ContainerTypeAppPermissionGrantService } from './ContainerTypeAppPermissionGrantService';
 import { ContainerService } from './ContainerService';
+import { UserService } from './UserService';
 
 /**
  * Singleton provider for Microsoft Graph API operations
@@ -24,6 +25,7 @@ export class GraphProvider {
     private _registrationService: ContainerTypeRegistrationService;
     private _appPermissionGrantService: ContainerTypeAppPermissionGrantService;
     private _containerService: ContainerService;
+    private _userService: UserService;
 
     private constructor(private _authProvider: GraphAuthProvider) {
         this._client = Graph.Client.init({
@@ -36,6 +38,7 @@ export class GraphProvider {
         this._registrationService = new ContainerTypeRegistrationService(this._client);
         this._appPermissionGrantService = new ContainerTypeAppPermissionGrantService(this._client);
         this._containerService = new ContainerService(this._client);
+        this._userService = new UserService(this._client);
     }
 
     /**
@@ -91,6 +94,13 @@ export class GraphProvider {
      */
     public get containers(): ContainerService {
         return this._containerService;
+    }
+
+    /**
+     * Tenant user lookups (v1.0 /users)
+     */
+    public get users(): UserService {
+        return this._userService;
     }
 
     /**
