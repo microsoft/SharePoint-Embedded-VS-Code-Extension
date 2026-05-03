@@ -18,9 +18,9 @@ import { runDirectToCustomerFlow } from './runDirectToCustomerFlow';
 /**
  * Unified "Create container type" entry point.
  *
- * Mirrors the SharePoint admin center flow: pick billing type → pick or
- * create an Entra app → pick app owners → name the container type → run
- * the billing-specific sub-flow.
+ * Mirrors the SharePoint admin center flow: pick billing type → name the
+ * container type → pick or create an Entra app → pick app owners → run the
+ * billing-specific sub-flow.
  *
  * Trial is wired end-to-end. Standard and Direct-to-customer are stubbed
  * with "coming soon" messages and will be wired up in later phases.
@@ -35,6 +35,11 @@ export class CreateContainerType extends Command {
             return;
         }
 
+        const choice = await pickBillingType();
+        if (!choice) {
+            return;
+        }
+
         const displayName = await promptForContainerTypeDisplayName();
         if (!displayName) {
             return;
@@ -42,11 +47,6 @@ export class CreateContainerType extends Command {
 
         const app = await GetOrCreateApp.run(true);
         if (!app) {
-            return;
-        }
-
-        const choice = await pickBillingType();
-        if (!choice) {
             return;
         }
 
@@ -72,9 +72,7 @@ export class CreateContainerType extends Command {
 }
 
 function describeChoice(choice: BillingChoice): string {
-    switch (choice) {
-        case 'standard': return vscode.l10n.t('Standard');
-        case 'directToCustomer': return vscode.l10n.t('Direct-to-customer');
-        case 'trial': return vscode.l10n.t('Trial');
-    }
+    // Returns the raw classification string so messages match the quickpick
+    // labels and the API enum (per PM review).
+    return choice;
 }

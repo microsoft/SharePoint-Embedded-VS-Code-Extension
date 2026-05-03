@@ -11,6 +11,13 @@ interface ResourceGroupQuickPickItem extends vscode.QuickPickItem {
     resourceGroup: ArmResourceGroupSummary;
 }
 
+const AZURE_PORTAL_RESOURCE_GROUPS_URL = 'https://portal.azure.com/#blade/HubsExtension/BrowseResourceGroups';
+
+// TODO(SPAC): consult Neha / Yogesh / Yashi for the correct client-side
+// filter to apply (e.g. limit to RGs in Syntex-supported regions). Today we
+// list everything and let the Syntex region check in
+// attachBillingToContainerType reject unsupported RG locations.
+
 /**
  * Prompts the user to pick an existing resource group in the given
  * subscription. Returns `undefined` if the user escapes or has no RGs.
@@ -32,9 +39,14 @@ export async function pickResourceGroup(subscriptionId: string): Promise<ArmReso
     }
 
     if (groups.length === 0) {
-        vscode.window.showErrorMessage(
-            vscode.l10n.t('No resource groups found in this subscription. Create one in the Azure Portal and try again.')
+        const openPortal = vscode.l10n.t('Open Azure portal');
+        const choice = await vscode.window.showErrorMessage(
+            vscode.l10n.t('No resource groups found in this subscription. Create a resource group in a SharePoint Embedded-supported region (e.g. East US, West Europe), then retry "Attach billing" from the container type\'s context menu.'),
+            openPortal
         );
+        if (choice === openPortal) {
+            vscode.env.openExternal(vscode.Uri.parse(AZURE_PORTAL_RESOURCE_GROUPS_URL));
+        }
         return undefined;
     }
 

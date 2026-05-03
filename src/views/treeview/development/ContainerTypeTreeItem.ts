@@ -9,9 +9,11 @@ import { ContainerType, ContainerTypeRegistration } from "../../../models/schema
 import { IChildrenProvidingTreeItem } from "./IDataProvidingTreeItem";
 import { LocalRegistrationTreeItem } from "./LocalRegistrationTreeItem";
 import { Logger } from "../../../utils/Logger";
+import { badgeBillingInvalid, blockBillingInvalid, tintBillingInvalid } from "./BillingDecorationProvider";
 
 export class ContainerTypeTreeItem extends IChildrenProvidingTreeItem {
     public readonly registration: ContainerTypeRegistration | null;
+    public readonly subtreeBillingInvalid: boolean;
 
     constructor(
         public readonly containerType: ContainerType,
@@ -25,7 +27,9 @@ export class ContainerTypeTreeItem extends IChildrenProvidingTreeItem {
 
         // Tag the contextValue with billing classification so the package.json
         // `when` clauses can gate menu items. `-paid` is kept as an alias for
-        // standard so existing predicates (e.g. copySubscriptionId) keep matching.
+        // standard so existing predicates (e.g. copySubscriptionId) keep
+        // matching. Per PM review only trial CTs get a description suffix —
+        // standard / DTC render with no annotation.
         const classification = containerType.billingClassification;
         switch (classification) {
             case 'trial': {
@@ -49,12 +53,10 @@ export class ContainerTypeTreeItem extends IChildrenProvidingTreeItem {
                 break;
             }
             case 'directToCustomer':
-                this.description = '(direct to customer)';
                 this.contextValue += "-directToCustomer";
                 break;
             case 'standard':
             default:
-                this.description = '(standard)';
                 this.contextValue += "-standard-paid";
                 break;
         }
@@ -67,18 +69,23 @@ export class ContainerTypeTreeItem extends IChildrenProvidingTreeItem {
         // the user org's sub.
         const isStandard = classification === 'standard' || classification === undefined;
         const isDirectToCustomer = classification === 'directToCustomer';
-        const billingInvalid = (isStandard || isDirectToCustomer) && containerType.billingStatus !== 'valid';
-        Logger.log(`[ContainerTypeTreeItem] ${containerType.name}: classification=${classification ?? '(undef)'} billingStatus=${containerType.billingStatus ?? '(undef)'} billingInvalid=${billingInvalid}`);
+        const ctBillingInvalid = (isStandard || isDirectToCustomer) && containerType.billingStatus !== 'valid';
+        const regBillingInvalid = !!registration && registration.billingStatus !== 'valid';
+        const billingInvalid = ctBillingInvalid;
+        this.subtreeBillingInvalid = ctBillingInvalid || regBillingInvalid;
+        Logger.log(`[ContainerTypeTreeItem] ${containerType.name}: classification=${classification ?? '(undef)'} billingStatus=${containerType.billingStatus ?? '(undef)'} ctBillingInvalid=${ctBillingInvalid} regBillingInvalid=${regBillingInvalid}`);
         if (billingInvalid) {
-            this.description = `${this.description ?? ''} — billing not set up`;
+            const existing = this.description ? `${this.description} ` : '';
+            this.description = `${existing}BILLING NOT SET UP`;
             this.iconPath = new vscode.ThemeIcon(
                 "containertype-icon",
                 new vscode.ThemeColor("list.warningForeground")
             );
+            badgeBillingInvalid(this, this.id);
             this.tooltip = new vscode.MarkdownString(
                 isDirectToCustomer
                     ? vscode.l10n.t(
-                        '**Billing is not attached to this container type.**\n\nApp usage is billed to the user organization. An admin in the user org needs to run **Attach billing** to link an Azure billing account in their tenant.'
+                        '**Billing is not set up for this container type.**\n\nDirect-to-customer container types are billed per consuming tenant. A Global Administrator in the user organization sets up pay-as-you-go billing for SharePoint Embedded in the Microsoft 365 admin center. Expand this container type and check the registration row for the most up-to-date billing status in this tenant.'
                     )
                     : vscode.l10n.t(
                         '**Billing is not attached to this container type.**\n\nIt can\'t be used until an Azure Syntex billing account is linked. Right-click and choose **Attach billing** to finish setup.'
@@ -107,11 +114,16 @@ export class ContainerTypeTreeItem extends IChildrenProvidingTreeItem {
 
         try {
             // Add owning app tree item
-            children.push(new OwningAppTreeItem(this.containerType, this));
+            const owningApp = new OwningAppTreeItem(this.containerType, this);
+            if (this.subtreeBillingInvalid) {
+                tintBillingInvalid(owningApp, `${this.containerType.id}-owning-app`);
+                blockBillingInvalid(owningApp);
+            }
+            children.push(owningApp);
 
             // Add registration tree item if registered
             if (this.registration) {
-                children.push(new LocalRegistrationTreeItem(this.containerType, this.registration));
+                children.push(new LocalRegistrationTreeItem(this.containerType, this.registration, this.subtreeBillingInvalid));
             }
         } catch (error) {
             console.error('Error loading container type children:', error);

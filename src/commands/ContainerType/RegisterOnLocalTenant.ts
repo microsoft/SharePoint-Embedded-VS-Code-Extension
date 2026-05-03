@@ -17,7 +17,7 @@ import { DevelopmentTreeViewProvider } from '../../views/treeview/development/De
 import { AdminConsentHelper } from '../../utils/AdminConsentHelper';
 import { clientId } from '../../client';
 import { REQUIRED_DELEGATED_PERMISSIONS } from '../../utils/ExtensionAppPermissions';
-import { attachBillingToContainerType } from '../ContainerTypes/attachBillingToContainerType';
+import { promptDirectToCustomerBillingSetup } from '../ContainerTypes/promptDirectToCustomerBillingSetup';
 
 /**
  * Command to register a container type on the local tenant
@@ -750,27 +750,15 @@ export class RegisterOnLocalTenant extends Command {
             DevelopmentTreeViewProvider.instance.refresh();
 
             // Direct-to-customer billing is set up per consuming tenant *after*
-            // registration. Prompt the admin to attach billing in this tenant
-            // now, since the CT isn't usable here until they do.
+            // registration. Per PM review the extension does not run an Azure
+            // ARM flow for DTC — billing is configured by the user-org admin
+            // in the M365 admin center. We refresh the registration to read
+            // the post-registration billingStatus, and only prompt when it is
+            // still invalid; if the tenant already has SPE billing configured
+            // (e.g. set up by a previous CT) the status flips to valid on
+            // first read and no prompt is shown.
             if (containerType.billingClassification === 'directToCustomer') {
-                const setUpBilling = vscode.l10n.t('Set up billing...');
-                const later = vscode.l10n.t('Later');
-                const choice = await vscode.window.showInformationMessage(
-                    vscode.l10n.t(
-                        'Direct-to-customer container types need a billing profile set up in this tenant before they can be used. Set up pay-as-you-go billing now?'
-                    ),
-                    setUpBilling,
-                    later
-                );
-                if (choice === setUpBilling) {
-                    const result = await attachBillingToContainerType(containerType, containerType.name);
-                    if (result === 'succeeded') {
-                        DevelopmentTreeViewProvider.instance.refresh();
-                        vscode.window.showInformationMessage(
-                            vscode.l10n.t('Billing set up for container type "{0}".', containerType.name)
-                        );
-                    }
-                }
+                await promptDirectToCustomerBillingSetup(registrationService, containerType);
             }
 
             return registration;

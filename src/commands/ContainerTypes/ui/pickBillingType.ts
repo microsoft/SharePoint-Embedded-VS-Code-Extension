@@ -18,23 +18,26 @@ interface BillingQuickPickItem extends vscode.QuickPickItem {
  * classification is chosen up front and drives the rest of the wizard.
  */
 export async function pickBillingType(): Promise<BillingChoice | undefined> {
+    // Labels are the raw API enum values (per PM review — keeps the UI close
+    // to the Graph contract and avoids translating two ways). The friendlier
+    // copy lives in the description / detail.
     const items: BillingQuickPickItem[] = [
         {
             choice: 'trial',
-            label: vscode.l10n.t('Trial'),
+            label: 'trial',
             description: vscode.l10n.t('Free, expires after 30 days'),
             detail: vscode.l10n.t('Best for evaluation and early development. No billing setup required.')
         },
         {
             choice: 'standard',
-            label: vscode.l10n.t('Standard (Owner org)'),
-            description: vscode.l10n.t('Billed to the org that owns the app'),
+            label: 'standard',
+            description: vscode.l10n.t('Owner org (App usage is billed to the org that owns the app)'),
             detail: vscode.l10n.t('Connect an Azure subscription now or set it up later. Use for line-of-business apps where the owner org pays.')
         },
         {
             choice: 'directToCustomer',
-            label: vscode.l10n.t('Direct to customer (User org)'),
-            description: vscode.l10n.t('Billed to the org using the app'),
+            label: 'directToCustomer',
+            description: vscode.l10n.t('User org (App usage is billed to the org using the app)'),
             detail: vscode.l10n.t('An admin in the user org must set up pay-as-you-go billing in the Microsoft 365 admin center.')
         }
     ];

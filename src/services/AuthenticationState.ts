@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { decodeJwt } from '../utils/token';
+import { decodeJwt, checkJwtForGlobalAdmin } from '../utils/token';
 import { GraphAuthProvider, ARMAuthProvider, AppAuthProviderFactory } from './Auth';
 
 /**
@@ -24,6 +24,10 @@ export interface AuthenticatedAccount {
     name?: string;
     tenantId: string;
     domain: string;
+    /** True when the signed-in user has the Global Administrator directory role
+     *  (derived from the `wids` claim on the Graph access token). Used to gate
+     *  M365 admin center deep-links for direct-to-customer billing setup. */
+    isGlobalAdmin?: boolean;
 }
 
 /**
@@ -117,7 +121,8 @@ export class AuthenticationState {
                 username: session.account.label,
                 name: decodedToken.name,
                 tenantId: decodedToken.tid || 'unknown',
-                domain: AuthenticationState._extractDomain(session.account.label)
+                domain: AuthenticationState._extractDomain(session.account.label),
+                isGlobalAdmin: checkJwtForGlobalAdmin(decodedToken)
             };
 
             AuthenticationState._currentAccount = account;
@@ -126,6 +131,16 @@ export class AuthenticationState {
             console.error('Failed to get current account:', error);
             return undefined;
         }
+    }
+
+    /**
+     * Returns true when the signed-in user has the Global Administrator
+     * directory role. Reads the cached account; if no account is cached yet,
+     * fetches one. Returns false on any error or when the user isn't signed in.
+     */
+    public static async isCurrentUserGlobalAdmin(): Promise<boolean> {
+        const account = await AuthenticationState.getCurrentAccount();
+        return account?.isGlobalAdmin === true;
     }
 
     /**
@@ -164,7 +179,8 @@ export class AuthenticationState {
                 username: session.account.label,
                 name: decodedToken.name,
                 tenantId: decodedToken.tid || 'unknown',
-                domain: AuthenticationState._extractDomain(session.account.label)
+                domain: AuthenticationState._extractDomain(session.account.label),
+                isGlobalAdmin: checkJwtForGlobalAdmin(decodedToken)
             };
 
             AuthenticationState._currentAccount = account;

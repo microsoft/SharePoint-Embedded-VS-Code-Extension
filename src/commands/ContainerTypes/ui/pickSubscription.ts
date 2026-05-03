@@ -11,6 +11,14 @@ interface SubscriptionQuickPickItem extends vscode.QuickPickItem {
     subscription: ArmSubscriptionSummary;
 }
 
+const AZURE_PORTAL_SUBSCRIPTIONS_URL = 'https://portal.azure.com/#blade/Microsoft_Azure_Billing/SubscriptionsBlade';
+
+// TODO(SPAC): consult Neha / Yogesh / Yashi for the correct client-side filter
+// to apply to the subscription list (e.g. exclude trial/EA subs that can't
+// host Microsoft.Syntex/accounts). Until then we surface every subscription
+// the user can see and let the RBAC pre-check in attachBillingToContainerType
+// catch insufficient access.
+
 /**
  * Prompts the user to pick an Azure subscription to bill a Standard
  * container type against. Returns `undefined` if the user escapes or has no
@@ -36,9 +44,19 @@ export async function pickSubscription(): Promise<ArmSubscriptionSummary | undef
     const pool = enabled.length > 0 ? enabled : subscriptions;
 
     if (pool.length === 0) {
-        vscode.window.showErrorMessage(
-            vscode.l10n.t('No Azure subscriptions were returned for your account. You need at least one active subscription to bill a Standard container type.')
+        const openPortal = vscode.l10n.t('Open Azure portal');
+        const choice = await vscode.window.showErrorMessage(
+            // Empty list usually means one of: (1) the directory has no
+            // subscriptions associated yet, or (2) the signed-in user has no
+            // role on any sub. Both resolve the same way — talk to your
+            // Azure admin or create a sub in the portal — so we keep one
+            // consolidated message rather than guessing.
+            vscode.l10n.t('No Azure subscriptions are visible to your account. To bill a Standard container type, you need access to at least one subscription. Ask your Azure admin to grant a role on a subscription, or create one in the Azure portal, then retry "Attach billing" from the container type\'s context menu.'),
+            openPortal
         );
+        if (choice === openPortal) {
+            vscode.env.openExternal(vscode.Uri.parse(AZURE_PORTAL_SUBSCRIPTIONS_URL));
+        }
         return undefined;
     }
 

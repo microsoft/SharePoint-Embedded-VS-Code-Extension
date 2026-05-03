@@ -227,7 +227,7 @@
           "group": "inline@1"
         },
         {
-          "when": "viewItem == spe:containerTypesTreeItem",
+          "when": "viewItem =~ /spe:containerTypesTreeItem.*/",
           "command": "spe.ContainerTypes.create",
           "group": "1@1"
         },
@@ -327,12 +327,12 @@
           "group": "1@2"
         },
         {
-          "when": "viewItem =~ /spe:appTreeItem.*/ && viewItem =~ /.*-local.*/",
+          "when": "viewItem =~ /spe:appTreeItem.*/ && viewItem =~ /.*-local.*/ && !(viewItem =~ /.*-billingInvalid.*/)",
           "submenu": "spe.App.Postman",
           "group": "2@1"
         },
         {
-          "when": "viewItem =~ /spe:appTreeItem.*/ && viewItem =~ /.*-local.*/",
+          "when": "viewItem =~ /spe:appTreeItem.*/ && viewItem =~ /.*-local.*/ && !(viewItem =~ /.*-billingInvalid.*/)",
           "submenu": "spe.App.SampleApps",
           "group": "2@2"
         },
@@ -392,12 +392,12 @@
           "group": "1@1"
         },
         {
-          "when": "viewItem == spe:containersTreeItem",
+          "when": "viewItem =~ /spe:containersTreeItem.*/",
           "command": "spe.refresh",
           "group": "2@1"
         },
         {
-          "when": "viewItem == spe:containersTreeItem",
+          "when": "viewItem =~ /spe:containersTreeItem.*/",
           "command": "spe.refresh",
           "group": "inline@1"
         },

@@ -9,16 +9,22 @@ import { ContainerTypeTreeItem } from '../../views/treeview/development/Containe
 import { LocalRegistrationTreeItem } from '../../views/treeview/development/LocalRegistrationTreeItem';
 import { DevelopmentTreeViewProvider } from '../../views/treeview/development/DevelopmentTreeViewProvider';
 import { attachBillingToContainerType } from '../ContainerTypes/attachBillingToContainerType';
+import { promptDirectToCustomerBillingSetup } from '../ContainerTypes/promptDirectToCustomerBillingSetup';
+import { GraphProvider } from '../../services/Graph/GraphProvider';
 
 /**
- * Attach Azure billing to a container type whose billing isn't set up yet.
- * Works on both levels of the tree:
- *   - `ContainerTypeTreeItem` — standard CT, owner-side billing attach
- *   - `LocalRegistrationTreeItem` — direct-to-customer, consumer-side billing
- *     attach against the signed-in consumer tenant's Azure subscription
- * The underlying ARM flow (pick sub/RG/region → register Syntex →
- * PUT Syntex account) is the same in both cases; what differs is which
- * tenant the caller is signed into.
+ * Attach billing to a container type whose billing isn't set up yet.
+ *
+ * Branches by classification:
+ *   - `standard` → run the Azure ARM flow (pick sub/RG → register Syntex →
+ *     PUT Syntex account). Owner-side billing.
+ *   - `directToCustomer` → no ARM flow. Per docs, billing is configured by
+ *     the user-org admin in the Microsoft 365 admin center, so we re-run
+ *     the post-registration prompt (deep-link for GAs, info toast for
+ *     non-admins).
+ *
+ * Wired on both `ContainerTypeTreeItem` and `LocalRegistrationTreeItem`
+ * (their context values gate the menu when billingStatus is invalid).
  */
 export class AttachBilling extends Command {
     public static readonly COMMAND = 'ContainerType.attachBilling';
@@ -34,8 +40,16 @@ export class AttachBilling extends Command {
         }
 
         const containerType = treeItem.containerType;
-        const result = await attachBillingToContainerType(containerType, containerType.name);
 
+        if (containerType.billingClassification === 'directToCustomer') {
+            await promptDirectToCustomerBillingSetup(
+                GraphProvider.getInstance().registrations,
+                containerType
+            );
+            return;
+        }
+
+        const result = await attachBillingToContainerType(containerType, containerType.name);
         if (result === 'succeeded') {
             DevelopmentTreeViewProvider.instance.refresh();
             vscode.window.showInformationMessage(

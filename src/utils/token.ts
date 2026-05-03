@@ -5,6 +5,21 @@
 
 import jwt_decode from "jwt-decode";
 
+// Entra ID built-in directory role template IDs surface as "wids" claims on
+// access tokens. Global Administrator is the role that gates SharePoint
+// Embedded billing setup in the M365 admin center.
+export const GLOBAL_ADMINISTRATOR_WID = "62e90394-69f5-4237-9190-012177145e10";
+
+export function checkJwtForGlobalAdmin(decodedToken: any): boolean {
+  const wids = decodedToken?.wids;
+  if (!Array.isArray(wids)) {
+    return false;
+  }
+  return wids.some((wid: unknown) =>
+    typeof wid === "string" && wid.toLowerCase() === GLOBAL_ADMINISTRATOR_WID
+  );
+}
+
 export function checkJwtForTenantAdminScope(decodedToken: any, scope: string): boolean {
   try {
     if (!decodedToken.scp) {
