@@ -38,7 +38,7 @@ export class LocalRegistrationTreeItem extends IChildrenProvidingTreeItem {
         Logger.log(`[LocalRegistrationTreeItem] ${this._containerType.name} registration: classification=${this._registration.billingClassification ?? '(undef)'} billingStatus=${this._registration.billingStatus ?? '(undef)'} parentBillingInvalid=${parentBillingInvalid} effective=${billingInvalid}`);
         const isDirectToCustomer = this._containerType.billingClassification === 'directToCustomer';
         if (billingInvalid) {
-            this.description = `${this.description} BILLING NOT SET UP`;
+            this.description = `${this.description} Billing not set up`;
             this.iconPath = new vscode.ThemeIcon(
                 "ctregistration-icon",
                 new vscode.ThemeColor("list.warningForeground")

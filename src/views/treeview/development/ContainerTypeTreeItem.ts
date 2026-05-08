@@ -69,14 +69,18 @@ export class ContainerTypeTreeItem extends IChildrenProvidingTreeItem {
         // the user org's sub.
         const isStandard = classification === 'standard' || classification === undefined;
         const isDirectToCustomer = classification === 'directToCustomer';
+        // For standard CTs the CT itself carries billingStatus; for direct-to-
+        // customer the CT is always 'valid' and billing lives on the per-tenant
+        // registration. Surface a warning if either side reports !valid so the
+        // CT row reflects DTC registration state too.
         const ctBillingInvalid = (isStandard || isDirectToCustomer) && containerType.billingStatus !== 'valid';
         const regBillingInvalid = !!registration && registration.billingStatus !== 'valid';
-        const billingInvalid = ctBillingInvalid;
         this.subtreeBillingInvalid = ctBillingInvalid || regBillingInvalid;
+        const billingInvalid = this.subtreeBillingInvalid;
         Logger.log(`[ContainerTypeTreeItem] ${containerType.name}: classification=${classification ?? '(undef)'} billingStatus=${containerType.billingStatus ?? '(undef)'} ctBillingInvalid=${ctBillingInvalid} regBillingInvalid=${regBillingInvalid}`);
         if (billingInvalid) {
             const existing = this.description ? `${this.description} ` : '';
-            this.description = `${existing}BILLING NOT SET UP`;
+            this.description = `${existing}Billing not set up`;
             this.iconPath = new vscode.ThemeIcon(
                 "containertype-icon",
                 new vscode.ThemeColor("list.warningForeground")
