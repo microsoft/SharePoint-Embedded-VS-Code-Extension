@@ -18,6 +18,8 @@
     "commands.spe.ContainerType.copyOwningTenantId": "Copy owning tenant Id",
     "commands.spe.ContainerType.browseGraphExplorer": "Browse in Graph Explorer",
     "commands.spe.ContainerType.viewProperties": "View properties",
+    "commands.spe.ContainerType.listPermissions": "List permissions",
+    "commands.spe.ContainerType.addOwners": "Add owners...",
     "commands.spe.ContainerType.viewSubscriptionInAzure": "View subscription in Azure",
     "commands.spe.Apps.getOrCreate": "Create or choose existing app",
     "commands.spe.App.clone": "Clone and configure",

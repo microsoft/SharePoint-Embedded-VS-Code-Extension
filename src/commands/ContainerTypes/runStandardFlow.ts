@@ -67,23 +67,7 @@ export async function runStandardFlow(input: StandardFlowInput): Promise<Contain
         return;
     }
 
-    // 2. Entra app owners (best-effort)
-    if (input.owners.length > 0 && input.app.id) {
-        try {
-            const { failed } = await graphProvider.applications.addOwners(input.app.id, input.owners.map(o => o.id));
-            if (failed.length > 0) {
-                vscode.window.showWarningMessage(
-                    vscode.l10n.t('{0} owner(s) could not be added to the Entra app.', failed.length)
-                );
-            }
-        } catch (error: any) {
-            vscode.window.showWarningMessage(
-                vscode.l10n.t('Failed to add owners to the Entra app: {0}', error?.message ?? String(error))
-            );
-        }
-    }
-
-    // 3. Add container-type owner permissions (best-effort, beta API).
+    // 2. Add container-type owner permissions (best-effort).
     //    Graph requires one POST per owner; max 3 per container type.
     if (input.owners.length > 0) {
         const failedOwners: string[] = [];
@@ -102,7 +86,7 @@ export async function runStandardFlow(input: StandardFlowInput): Promise<Contain
         }
     }
 
-    // 4. Refresh tree so the new (still-unbilled) CT is visible
+    // 3. Refresh tree so the new (still-unbilled) CT is visible
     const ctRefreshTimer = new Timer(60 * 1000);
     DevelopmentTreeViewProvider.instance.refresh();
     do {

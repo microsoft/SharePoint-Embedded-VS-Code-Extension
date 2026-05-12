@@ -13,19 +13,21 @@ interface UserQuickPickItem extends vscode.QuickPickItem {
 
 const DEFAULT_MAX = 3;
 const SEARCH_DEBOUNCE_MS = 250;
-const BASE_TITLE = 'Select app owners';
+const BASE_TITLE = 'Pick container type owners';
 
 /**
- * Multi-select user picker for assigning owners to the Entra app that backs
- * a container type. Members-only by default. Enforces a max cap (default 3)
- * to match the SharePoint admin center flow.
+ * Multi-select user picker for assigning container type owner permissions.
+ * Searches the tenant's users (members only by default) and writes the
+ * selection to `/storage/fileStorage/containerTypes/{id}/permissions` via
+ * `ContainerTypeService.addOwner`. Enforces a max cap (default 3) to match
+ * the SharePoint Embedded permission ceiling.
  *
  * Returns `undefined` if the user escapes (no selection made). Returns an
  * empty array if the user accepts with no selection — callers should decide
  * whether that's valid for their flow (optional for Trial, required for
  * Standard / D2C).
  */
-export async function pickAppOwners(options?: {
+export async function pickContainerTypeOwners(options?: {
     max?: number;
     initial?: User[];
     title?: string;

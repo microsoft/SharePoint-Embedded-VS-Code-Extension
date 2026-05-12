@@ -138,15 +138,38 @@ export class ContainerTypeService {
     }
 
     /**
+     * List all permission entries on a container type.
+     *
+     * GET /beta/storage/fileStorage/containerTypes/{id}/permissions
+     *
+     * Response shape per entry: `{ id, roles: string[], grantedToV2: { user: { id } } }`.
+     * Beta-only — v1.0 returns "Resource not found for the segment 'permissions'".
+     * Requires the calling user to be an owner on the CT or a SharePoint
+     * Embedded / Global Administrator (delegated `FileStorageContainerType.Manage.All`).
+     */
+    async listPermissions(id: string): Promise<any[]> {
+        try {
+            Logger.log(`[ContainerTypeService.listPermissions] Listing permissions for container type ${id}`);
+            const response = await this._client
+                .api(`${ContainerTypeService.BASE_PATH}/${id}/permissions`)
+                .version('beta')
+                .get();
+            return response?.value ?? [];
+        } catch (error: any) {
+            console.error(`[ContainerTypeService.listPermissions] Error listing permissions for ${id}:`, error);
+            throw new Error(`Failed to list permissions for container type: ${error.message || error}`);
+        }
+    }
+
+    /**
      * Add an owner permission for a single user on a container type.
      *
      * POST /beta/storage/fileStorage/containerTypes/{id}/permissions
      *
-     * Permissions live only in the beta Graph surface (v1.0 exposes no
-     * relationship for them), so this method pins `beta` locally while the
-     * rest of the service stays on v1.0. Each owner is a separate POST;
-     * there is no bulk-replace endpoint. Re-POSTing an existing user is
-     * idempotent. A container type accepts at most 3 permissions.
+     * Beta-only — v1.0 doesn't expose the `permissions` relationship yet.
+     * Each owner is a separate POST; there is no bulk-replace endpoint.
+     * Re-POSTing an existing user is idempotent. A container type accepts at
+     * most 3 permissions.
      */
     async addOwner(id: string, userId: string): Promise<void> {
         try {

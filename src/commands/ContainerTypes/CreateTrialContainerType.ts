@@ -105,19 +105,22 @@ export async function runTrialFlow(input?: TrialFlowInput): Promise<ContainerTyp
         return;
     }
 
-    // Assign tenant owners on the Entra app if the caller collected any.
-    // Failures here don't abort the flow — the container type is already created.
-    if (input?.owners && input.owners.length > 0 && app.id) {
-        try {
-            const { failed } = await graphProvider.applications.addOwners(app.id, input.owners.map(o => o.id));
-            if (failed.length > 0) {
-                vscode.window.showWarningMessage(
-                    vscode.l10n.t('Created container type, but {0} owner(s) could not be added to the app.', failed.length)
-                );
+    // Best-effort: add container-type owner permissions (one POST per owner;
+    // max 3 per container type). Failures here don't abort the flow — the
+    // container type is already created.
+    if (input?.owners && input.owners.length > 0) {
+        const failedOwners: string[] = [];
+        for (const owner of input.owners) {
+            try {
+                await graphProvider.containerTypes.addOwner(containerType.id, owner.id);
+            } catch (error: any) {
+                console.warn(`[runTrialFlow] Failed to add owner ${owner.id}:`, error);
+                failedOwners.push(owner.displayName ?? owner.id);
             }
-        } catch (error: any) {
+        }
+        if (failedOwners.length > 0) {
             vscode.window.showWarningMessage(
-                vscode.l10n.t('Created container type, but failed to add owners to the app: {0}', error?.message ?? String(error))
+                vscode.l10n.t('Could not add {0} as owner(s) on the container type.', failedOwners.join(', '))
             );
         }
     }

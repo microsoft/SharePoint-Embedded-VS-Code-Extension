@@ -78,24 +78,8 @@ export async function runDirectToCustomerFlow(input: DirectToCustomerFlowInput):
         return;
     }
 
-    // Best-effort: add users as owners of the Entra app
-    if (input.owners.length > 0 && input.app.id) {
-        try {
-            const { failed } = await graphProvider.applications.addOwners(input.app.id, input.owners.map(o => o.id));
-            if (failed.length > 0) {
-                vscode.window.showWarningMessage(
-                    vscode.l10n.t('{0} owner(s) could not be added to the Entra app.', failed.length)
-                );
-            }
-        } catch (error: any) {
-            vscode.window.showWarningMessage(
-                vscode.l10n.t('Failed to add owners to the Entra app: {0}', error?.message ?? String(error))
-            );
-        }
-    }
-
-    // Best-effort: add container-type owner permissions (beta API, one POST
-    // per owner; max 3 per container type).
+    // Best-effort: add container-type owner permissions (one POST per owner;
+    // max 3 per container type).
     if (input.owners.length > 0) {
         const failedOwners: string[] = [];
         for (const owner of input.owners) {
