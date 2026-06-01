@@ -6,8 +6,7 @@
 import * as vscode from 'vscode';
 import {
     Application,
-    ContainerType,
-    User
+    ContainerType
 } from '../../models/schemas';
 import { GraphProvider } from '../../services/Graph/GraphProvider';
 import { DevelopmentTreeViewProvider } from '../../views/treeview/development/DevelopmentTreeViewProvider';
@@ -22,7 +21,6 @@ import { attachBillingToContainerType } from './attachBillingToContainerType';
 export interface StandardFlowInput {
     displayName: string;
     app: Application;
-    owners: User[];
 }
 
 /**
@@ -67,26 +65,7 @@ export async function runStandardFlow(input: StandardFlowInput): Promise<Contain
         return;
     }
 
-    // 2. Add container-type owner permissions (best-effort).
-    //    Graph requires one POST per owner; max 3 per container type.
-    if (input.owners.length > 0) {
-        const failedOwners: string[] = [];
-        for (const owner of input.owners) {
-            try {
-                await graphProvider.containerTypes.addOwner(containerType.id, owner.id);
-            } catch (error: any) {
-                console.warn(`[runStandardFlow] Failed to add owner ${owner.id}:`, error);
-                failedOwners.push(owner.displayName ?? owner.id);
-            }
-        }
-        if (failedOwners.length > 0) {
-            vscode.window.showWarningMessage(
-                vscode.l10n.t('Could not add {0} as owner(s) on the container type.', failedOwners.join(', '))
-            );
-        }
-    }
-
-    // 3. Refresh tree so the new (still-unbilled) CT is visible
+    // 2. Refresh tree so the new (still-unbilled) CT is visible
     const ctRefreshTimer = new Timer(60 * 1000);
     DevelopmentTreeViewProvider.instance.refresh();
     do {
@@ -98,7 +77,7 @@ export async function runStandardFlow(input: StandardFlowInput): Promise<Contain
 
     TelemetryProvider.instance.send(new CreateStandardContainerTypeEvent());
 
-    // 4. Attempt Azure billing setup. Any failure keeps the CT; the user can
+    // 3. Attempt Azure billing setup. Any failure keeps the CT; the user can
     //    attach billing later from the tree context menu.
     const billingResult = await attachBillingToContainerType(containerType, input.displayName);
 

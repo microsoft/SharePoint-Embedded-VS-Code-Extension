@@ -31,8 +31,6 @@ import { SignIn as _SignIn } from './Accounts/SignIn';
 import { SignOut as _SignOut } from './Accounts/SignOut';
 import { ViewInAzure as _ViewInAzure } from './App/ViewInAzure';
 import { ViewContainerTypeProperties as _ViewContainerTypeProperties } from './ContainerType/ViewContainerTypeProperties';
-import { ListContainerTypePermissions as _ListContainerTypePermissions } from './ContainerType/ListContainerTypePermissions';
-import { AddContainerTypeOwners as _AddContainerTypeOwners } from './ContainerType/AddContainerTypeOwners';
 import { BrowseGraphExplorer as _BrowseGraphExplorer } from './ContainerType/BrowseGraphExplorer';
 import { RenameContainer as _RenameContainer } from './Container/RenameContainer';
 import { EditContainerDescription as _EditContainerDescription } from './Container/EditContainerDescription';
@@ -72,8 +70,6 @@ export namespace Commands {
   export const CopyOwningTenantId = _CopyOwningTenantId;
   export const CopySubscriptionId = _CopySubscriptionId;
   export const ViewContainerTypeProperties = _ViewContainerTypeProperties;
-  export const ListContainerTypePermissions = _ListContainerTypePermissions;
-  export const AddContainerTypeOwners = _AddContainerTypeOwners;
   export const BrowseGraphExplorer = _BrowseGraphExplorer;
   export const RegisterOnLocalTenant = _RegisterOnLocalTenant;
   export const GrantExtensionAppPermissions = _GrantExtensionAppPermissions;

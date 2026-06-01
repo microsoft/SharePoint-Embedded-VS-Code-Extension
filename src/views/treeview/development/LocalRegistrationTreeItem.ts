@@ -11,7 +11,6 @@ import { ContainersTreeItem } from "./ContainersTreeItem";
 import { GuestAppsTreeItem } from "./GuestAppsTreeItem";
 import { RecycledContainersTreeItem } from "./RecycledContainersTreeItem";
 import { Logger } from "../../../utils/Logger";
-import { badgeBillingInvalid, tintBillingInvalid } from "./BillingDecorationProvider";
 
 export class LocalRegistrationTreeItem extends IChildrenProvidingTreeItem {
     private readonly _effectiveBillingInvalid: boolean;
@@ -37,13 +36,16 @@ export class LocalRegistrationTreeItem extends IChildrenProvidingTreeItem {
         this._effectiveBillingInvalid = billingInvalid;
         Logger.log(`[LocalRegistrationTreeItem] ${this._containerType.name} registration: classification=${this._registration.billingClassification ?? '(undef)'} billingStatus=${this._registration.billingStatus ?? '(undef)'} parentBillingInvalid=${parentBillingInvalid} effective=${billingInvalid}`);
         const isDirectToCustomer = this._containerType.billingClassification === 'directToCustomer';
+        // Icon stays default-colored on the registration row — the yellow
+        // warning lives on the parent container type row only. The inline
+        // description annotation and the tooltip are preserved so the row
+        // still explains the billing state on hover.
+        this.iconPath = new vscode.ThemeIcon("ctregistration-icon");
         if (billingInvalid) {
-            this.description = `${this.description} Billing not set up`;
-            this.iconPath = new vscode.ThemeIcon(
-                "ctregistration-icon",
-                new vscode.ThemeColor("list.warningForeground")
-            );
-            badgeBillingInvalid(this, `${this._containerType.id}-registration`);
+            // No visible billing-invalid annotation on the registration row —
+            // the warning lives on the parent container type row only. The
+            // tooltip is kept for hover info and the contextValue suffix is
+            // kept for menu gating.
             this.tooltip = new vscode.MarkdownString(
                 isDirectToCustomer
                     ? vscode.l10n.t(
@@ -54,8 +56,6 @@ export class LocalRegistrationTreeItem extends IChildrenProvidingTreeItem {
                     )
             );
             this.contextValue += "-billingInvalid";
-        } else {
-            this.iconPath = new vscode.ThemeIcon("ctregistration-icon");
         }
     }
 
@@ -101,10 +101,9 @@ export class LocalRegistrationTreeItem extends IChildrenProvidingTreeItem {
     public async getChildren(): Promise<vscode.TreeItem[]> {
         const children: vscode.TreeItem[] = [];
 
+        // Don't tint guest apps yellow when billing is invalid — the warning
+        // stays on the registration row only, so descendants render normally.
         const guestApps = new GuestAppsTreeItem(this._containerType.id, this._containerType.owningAppId, this._effectiveBillingInvalid);
-        if (this._effectiveBillingInvalid) {
-            tintBillingInvalid(guestApps, `${this._containerType.id}-guest-apps`);
-        }
         children.push(guestApps);
 
         // Skip containers / recycled containers entirely when billing isn't

@@ -3,10 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import { ARMAuthProvider } from '../Auth';
+import { ARMAuthProvider, GraphAuthProvider } from '../Auth';
 import { Logger } from '../../utils/Logger';
-import { ext } from '../../utils/extensionVariables';
 
 // Node 18+ (VS Code 1.94+) provides global fetch at runtime; declare a
 // minimal typed shim here rather than pulling DOM types into tsconfig.
@@ -20,24 +18,6 @@ declare const fetch: (url: string, init?: {
     statusText: string;
     text(): Promise<string>;
 }>;
-
-function dumpArmAccessToken(label: string, token: string): void {
-    try {
-        const out = ext.outputChannel;
-        if (out) {
-            out.info(`${label} — ARM access token (length=${token.length}):`);
-            for (let i = 0; i < token.length; i += 500) {
-                out.info(token.slice(i, i + 500));
-            }
-            out.info(`${label} — end of token`);
-            out.show(true);
-        }
-        console.log(`${label} — ARM access token (length=${token.length}):`, token);
-        void vscode.env.clipboard.writeText(token);
-    } catch (err) {
-        console.error(`${label} — failed to dump ARM token:`, err);
-    }
-}
 
 export const ARM_BASE_URL = 'https://management.azure.com';
 
@@ -78,14 +58,30 @@ function buildUrl(path: string, apiVersion: string, query?: ArmRequestOptions['q
 }
 
 /**
+ * Acquire an ARM bearer token, preferring a silent cache hit. We pass the
+ * existing Graph account so MSAL skips the account picker and goes straight
+ * to silent acquisition for that identity; only the Entra consent screen
+ * (first time per user+app) can still surface a prompt.
+ */
+async function acquireArmToken(): Promise<string> {
+    const authProvider = ARMAuthProvider.getInstance();
+    const graphAccount = GraphAuthProvider.getInstance().getCurrentSession()?.account;
+
+    try {
+        return await authProvider.getToken([], false, graphAccount);
+    } catch {
+        return await authProvider.getToken([], true, graphAccount);
+    }
+}
+
+/**
  * Low-level ARM request helper. Uses ARMAuthProvider.getToken() to acquire
  * a bearer for management.azure.com/user_impersonation. Throws ArmError on
  * non-2xx responses.
  */
 export async function armRequest<T = unknown>(options: ArmRequestOptions): Promise<T> {
     const method = options.method ?? 'GET';
-    const authProvider = ARMAuthProvider.getInstance();
-    const token = await authProvider.getToken([], true);
+    const token = await acquireArmToken();
 
     const url = buildUrl(options.path, options.apiVersion, options.query);
     const headers: Record<string, string> = {
@@ -116,9 +112,6 @@ export async function armRequest<T = unknown>(options: ArmRequestOptions): Promi
     if (!response.ok) {
         const errCode = extractErrorCode(parsed);
         const errMessage = extractErrorMessage(parsed) ?? response.statusText;
-        if (response.status === 401 || response.status === 403) {
-            dumpArmAccessToken(`[armRequest ${method} ${options.path} → ${response.status}]`, token);
-        }
         throw new ArmError(
             `ARM request failed (${response.status} ${response.statusText}): ${errMessage}`,
             response.status,

@@ -11,7 +11,7 @@ import { AuthenticationState } from '../../services/AuthenticationState';
 import { GetOrCreateApp } from '../Apps/GetOrCreateApp';
 import { RegisterOnLocalTenant } from '../ContainerType/RegisterOnLocalTenant';
 import { ProgressWaitNotification, Timer } from '../../views/notifications/ProgressWaitNotification';
-import { Application, User } from '../../models/schemas';
+import { Application } from '../../models/schemas';
 import { CreateTrialContainerTypeEvent, TrialContainerTypeCreationFailure } from '../../models/telemetry/telemetry';
 import { TelemetryProvider } from '../../services/TelemetryProvider';
 import { GraphProvider } from '../../services/Graph/GraphProvider';
@@ -22,8 +22,6 @@ export interface TrialFlowInput {
     displayName?: string;
     /** Owning Entra app. If omitted, the app picker will be shown. */
     app?: Application;
-    /** Optional tenant users to add as owners of the Entra app after creation. */
-    owners?: User[];
 }
 
 /**
@@ -103,26 +101,6 @@ export async function runTrialFlow(input?: TrialFlowInput): Promise<ContainerTyp
         vscode.window.showErrorMessage(errorMessage);
         TelemetryProvider.instance.send(new TrialContainerTypeCreationFailure(errorMessage));
         return;
-    }
-
-    // Best-effort: add container-type owner permissions (one POST per owner;
-    // max 3 per container type). Failures here don't abort the flow — the
-    // container type is already created.
-    if (input?.owners && input.owners.length > 0) {
-        const failedOwners: string[] = [];
-        for (const owner of input.owners) {
-            try {
-                await graphProvider.containerTypes.addOwner(containerType.id, owner.id);
-            } catch (error: any) {
-                console.warn(`[runTrialFlow] Failed to add owner ${owner.id}:`, error);
-                failedOwners.push(owner.displayName ?? owner.id);
-            }
-        }
-        if (failedOwners.length > 0) {
-            vscode.window.showWarningMessage(
-                vscode.l10n.t('Could not add {0} as owner(s) on the container type.', failedOwners.join(', '))
-            );
-        }
     }
 
     const ctRefreshTimer = new Timer(60 * 1000);

@@ -6,8 +6,7 @@
 import * as vscode from 'vscode';
 import {
     Application,
-    ContainerType,
-    User
+    ContainerType
 } from '../../models/schemas';
 import { GraphProvider } from '../../services/Graph/GraphProvider';
 import { DevelopmentTreeViewProvider } from '../../views/treeview/development/DevelopmentTreeViewProvider';
@@ -23,7 +22,6 @@ const D2C_DOCS_URL = 'https://learn.microsoft.com/en-us/sharepoint/dev/embedded/
 export interface DirectToCustomerFlowInput {
     displayName: string;
     app: Application;
-    owners: User[];
 }
 
 /**
@@ -76,25 +74,6 @@ export async function runDirectToCustomerFlow(input: DirectToCustomerFlowInput):
             );
         }
         return;
-    }
-
-    // Best-effort: add container-type owner permissions (one POST per owner;
-    // max 3 per container type).
-    if (input.owners.length > 0) {
-        const failedOwners: string[] = [];
-        for (const owner of input.owners) {
-            try {
-                await graphProvider.containerTypes.addOwner(containerType.id, owner.id);
-            } catch (error: any) {
-                console.warn(`[runDirectToCustomerFlow] Failed to add owner ${owner.id}:`, error);
-                failedOwners.push(owner.displayName ?? owner.id);
-            }
-        }
-        if (failedOwners.length > 0) {
-            vscode.window.showWarningMessage(
-                vscode.l10n.t('Could not add {0} as owner(s) on the container type.', failedOwners.join(', '))
-            );
-        }
     }
 
     // Refresh tree

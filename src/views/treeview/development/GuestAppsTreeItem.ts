@@ -7,7 +7,7 @@ import * as vscode from "vscode";
 import { GuestApplicationTreeItem } from "./GuestAppTreeItem";
 import { IChildrenProvidingTreeItem } from "./IDataProvidingTreeItem";
 import { GraphProvider } from "../../../services/Graph/GraphProvider";
-import { blockBillingInvalid, tintBillingInvalid } from "./BillingDecorationProvider";
+import { blockBillingInvalid } from "./BillingDecorationProvider";
 
 export class GuestAppsTreeItem extends IChildrenProvidingTreeItem {
 
@@ -28,9 +28,9 @@ export class GuestAppsTreeItem extends IChildrenProvidingTreeItem {
             grants.map((grant) => {
                 const child = new GuestApplicationTreeItem(grant, this.containerTypeId, this);
                 if (this._billingInvalid) {
-                    tintBillingInvalid(child, `${this.containerTypeId}-guest-${grant.appId}`);
                     // Block sample apps + postman submenus on guest apps too —
                     // they don't work without containers, which need billing.
+                    // No yellow tint — the warning stays on the CT/registration row.
                     blockBillingInvalid(child);
                 }
                 children.push(child);

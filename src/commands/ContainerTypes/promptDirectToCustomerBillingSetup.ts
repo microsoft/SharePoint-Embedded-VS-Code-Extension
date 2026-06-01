@@ -6,28 +6,24 @@
 import * as vscode from 'vscode';
 import { ContainerType } from '../../models/schemas';
 import { ContainerTypeRegistrationService } from '../../services/Graph/ContainerTypeRegistrationService';
-import { AuthenticationState } from '../../services/AuthenticationState';
 import { DevelopmentTreeViewProvider } from '../../views/treeview/development/DevelopmentTreeViewProvider';
 
-const M365_ADMIN_BILLING_URL = 'https://admin.microsoft.com/Adminportal/Home#/BillingAccounts/billing-accounts';
-const D2C_DOCS_URL = 'https://learn.microsoft.com/en-us/sharepoint/dev/embedded/administration/billing/billing';
+const M365_ADMIN_PAYG_URL = 'https://admin.cloud.microsoft/?#/orgsettings/payasyougo';
+const D2C_DOCS_URL = 'https://learn.microsoft.com/en-us/sharepoint/dev/embedded/administration/consuming-tenant-admin/cta#set-up-billing-for-passthrough-container-type';
 
 /**
  * Run the post-registration billing prompt for a direct-to-customer container
  * type. The extension does not run an Azure/ARM flow for DTC — billing is set
- * up by the user-org admin in the Microsoft 365 admin center. This helper:
+ * up by the user-org admin per the SPE passthrough billing docs. This helper:
  *
  *   1. Re-reads the registration via Graph to get an authoritative
  *      billingStatus (the registration may have been created with no billing
  *      yet, or the tenant may already have SPE billing from a prior CT).
  *   2. If billingStatus is already 'valid', refreshes the tree and exits — no
  *      prompt needed, the tenant is already configured.
- *   3. Otherwise, branches on whether the signed-in user has the Global
- *      Administrator directory role:
- *      - GA: modal prompt with a primary action that deep-links to the M365
- *        admin center billing accounts page.
- *      - non-GA: info toast asking them to coordinate with their tenant GA,
- *        with a "Learn more" button to the SPE billing docs.
+ *   3. Otherwise, shows an info toast with "Set up billing" (deep-link to the
+ *      M365 admin Pay-As-You-Go page), "Learn more" (passthrough billing
+ *      docs), and "Cancel".
  *
  * Failures fetching the registration are logged and swallowed — we still
  * surface the prompt as a fallback, since a stale `billingStatus: 'invalid'`
@@ -56,39 +52,21 @@ export async function promptDirectToCustomerBillingSetup(
 
     DevelopmentTreeViewProvider.instance.refresh();
 
-    const isGlobalAdmin = await AuthenticationState.isCurrentUserGlobalAdmin();
-
-    if (isGlobalAdmin) {
-        const setUpBilling = vscode.l10n.t('Set up billing in admin center');
-        const learnMore = vscode.l10n.t('Learn more');
-        const later = vscode.l10n.t('Later');
-        const choice = await vscode.window.showInformationMessage(
-            vscode.l10n.t(
-                'Container type "{0}" is registered, but pay-as-you-go billing for SharePoint Embedded is not set up in this tenant. Set it up in the Microsoft 365 admin center to start using the container type.',
-                ctName
-            ),
-            { modal: true },
-            setUpBilling,
-            learnMore,
-            later
-        );
-        if (choice === setUpBilling) {
-            vscode.env.openExternal(vscode.Uri.parse(M365_ADMIN_BILLING_URL));
-        } else if (choice === learnMore) {
-            vscode.env.openExternal(vscode.Uri.parse(D2C_DOCS_URL));
-        }
-        return;
-    }
-
+    const setUpBilling = vscode.l10n.t('Set up billing');
     const learnMore = vscode.l10n.t('Learn more');
+    const cancel = vscode.l10n.t('Cancel');
     const choice = await vscode.window.showInformationMessage(
         vscode.l10n.t(
-            'Container type "{0}" is registered, but pay-as-you-go billing for SharePoint Embedded isn\'t set up in this tenant yet. Ask your tenant\'s Global Administrator to configure it in the Microsoft 365 admin center.',
+            'Container type "{0}" is registered, but pay-as-you-go billing for SharePoint Embedded is not set up in this tenant. Set it up in the Microsoft 365 admin center to start using the container type.',
             ctName
         ),
-        learnMore
+        setUpBilling,
+        learnMore,
+        cancel
     );
-    if (choice === learnMore) {
+    if (choice === setUpBilling) {
+        vscode.env.openExternal(vscode.Uri.parse(M365_ADMIN_PAYG_URL));
+    } else if (choice === learnMore) {
         vscode.env.openExternal(vscode.Uri.parse(D2C_DOCS_URL));
     }
 }

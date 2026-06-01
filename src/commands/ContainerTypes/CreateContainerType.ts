@@ -8,8 +8,7 @@ import { Command } from '../Command';
 import { ContainerType } from '../../models/schemas';
 import { AuthenticationState } from '../../services/AuthenticationState';
 import { GetOrCreateApp } from '../Apps/GetOrCreateApp';
-import { pickBillingType, BillingChoice } from './ui/pickBillingType';
-import { pickContainerTypeOwners } from './ui/pickContainerTypeOwners';
+import { pickBillingType } from './ui/pickBillingType';
 import { promptForContainerTypeDisplayName } from './ui/promptForContainerTypeDisplayName';
 import { runTrialFlow } from './CreateTrialContainerType';
 import { runStandardFlow } from './runStandardFlow';
@@ -19,11 +18,8 @@ import { runDirectToCustomerFlow } from './runDirectToCustomerFlow';
  * Unified "Create container type" entry point.
  *
  * Mirrors the SharePoint admin center flow: pick billing type → name the
- * container type → pick or create an Entra app → pick container type
- * owners → run the billing-specific sub-flow.
- *
- * Trial is wired end-to-end. Standard and Direct-to-customer are stubbed
- * with "coming soon" messages and will be wired up in later phases.
+ * container type → pick or create an Entra app → run the billing-specific
+ * sub-flow.
  */
 export class CreateContainerType extends Command {
     public static readonly COMMAND = 'ContainerTypes.create';
@@ -50,30 +46,13 @@ export class CreateContainerType extends Command {
             return;
         }
 
-        const owners = await pickContainerTypeOwners({ max: 3 });
-        if (!owners && choice !== 'trial') {
-            // Picker returned undefined (escape or permission failure) — continue
-            // without owners rather than aborting. The container type will be
-            // created; the caller can assign owners later via the container
-            // type's right-click menu.
-            vscode.window.showWarningMessage(
-                vscode.l10n.t('No owners selected for the {0} container type. You can add them later by right-clicking the container type and choosing "Add owners".', describeChoice(choice))
-            );
-        }
-
         switch (choice) {
             case 'trial':
-                return runTrialFlow({ displayName, app, owners });
+                return runTrialFlow({ displayName, app });
             case 'standard':
-                return runStandardFlow({ displayName, app, owners: owners ?? [] });
+                return runStandardFlow({ displayName, app });
             case 'directToCustomer':
-                return runDirectToCustomerFlow({ displayName, app, owners: owners ?? [] });
+                return runDirectToCustomerFlow({ displayName, app });
         }
     }
-}
-
-function describeChoice(choice: BillingChoice): string {
-    // Returns the raw classification string so messages match the quickpick
-    // labels and the API enum (per PM review).
-    return choice;
 }

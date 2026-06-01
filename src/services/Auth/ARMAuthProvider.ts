@@ -12,7 +12,7 @@ import { clientId } from '../../client';
  */
 export class ARMAuthProvider extends VSCodeAuthProvider {
     private static readonly ARM_SCOPES = [
-        'https://management.azure.com/user_impersonation'
+        'https://management.azure.com/.default'
     ];
 
     private static _instance: ARMAuthProvider | undefined;

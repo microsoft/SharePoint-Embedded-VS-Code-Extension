@@ -303,21 +303,6 @@
         },
         {
           "when": "viewItem =~ /spe:containerTypeTreeItem.*/",
-          "command": "spe.ContainerType.addOwners",
-          "group": "3@2"
-        },
-        {
-          "when": "viewItem =~ /spe:containerTypeTreeItem.*/",
-          "command": "spe.ContainerType.listPermissions",
-          "group": "5@3"
-        },
-        {
-          "when": "viewItem =~ /spe:containerTypeTreeItem.*-paid.*/",
-          "command": "spe.ContainerType.viewSubscriptionInAzure",
-          "group": "5@4"
-        },
-        {
-          "when": "viewItem =~ /spe:containerTypeTreeItem.*/",
           "command": "spe.refresh",
           "group": "5@5"
         },
@@ -542,18 +527,6 @@
       {
         "command": "spe.ContainerType.viewProperties",
         "title": "%commands.spe.ContainerType.viewProperties%"
-      },
-      {
-        "command": "spe.ContainerType.listPermissions",
-        "title": "%commands.spe.ContainerType.listPermissions%"
-      },
-      {
-        "command": "spe.ContainerType.addOwners",
-        "title": "%commands.spe.ContainerType.addOwners%"
-      },
-      {
-        "command": "spe.ContainerType.viewSubscriptionInAzure",
-        "title": "%commands.spe.ContainerType.viewSubscriptionInAzure%"
       },
       {
         "command": "spe.Apps.getOrCreate",

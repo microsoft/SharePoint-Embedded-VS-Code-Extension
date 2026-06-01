@@ -13,7 +13,10 @@ import {
 } from '../../models/telemetry/telemetry';
 import { pickSubscription } from './ui/pickSubscription';
 import { pickResourceGroup } from './ui/pickResourceGroup';
-import { isSyntexSupportedRegion } from './ui/pickRegion';
+// TEMP: client-side region gate disabled — let ARM surface the canonical
+// supported-region list via its 400 instead. Restore once SYNTEX_REGIONS
+// is reconciled with ARM's current allow-list.
+// import { isSyntexSupportedRegion } from './ui/pickRegion';
 import { diagnoseArmError } from '../../services/ARM/diagnoseArmError';
 
 export type AttachBillingResult = 'succeeded' | 'canceled' | 'failed';
@@ -84,20 +87,21 @@ export async function attachBillingToContainerType(
     if (!resourceGroup) { return 'canceled'; }
 
     // 3b. Billing account region. Microsoft.Syntex/accounts only supports a
-    //     subset of Azure regions. Per PM review we no longer prompt for an
-    //     override region — the resource group's location is used, and an
-    //     unsupported RG location is a hard failure with the supported-region
-    //     list shown so the user can pick a different RG.
-    if (!isSyntexSupportedRegion(resourceGroup.location)) {
-        vscode.window.showErrorMessage(
-            vscode.l10n.t(
-                'Resource group "{0}" is in {1}, which does not support SharePoint Embedded billing. Pick a different resource group, then retry "Attach billing" from the container type\'s context menu.',
-                resourceGroup.name,
-                resourceGroup.location
-            )
-        );
-        return 'failed';
-    }
+    //     subset of Azure regions. TEMP: client-side gate disabled — let ARM
+    //     surface the canonical supported-region list via its 400 response
+    //     instead. The PUT below will fail with LocationNotAvailableForResourceType
+    //     if the RG region is unsupported, and presentArmFailure will show
+    //     the raw ARM message (which enumerates valid regions).
+    // if (!isSyntexSupportedRegion(resourceGroup.location)) {
+    //     vscode.window.showErrorMessage(
+    //         vscode.l10n.t(
+    //             'Resource group "{0}" is in {1}, which does not support SharePoint Embedded billing. Pick a different resource group, then retry "Attach billing" from the container type\'s context menu.',
+    //             resourceGroup.name,
+    //             resourceGroup.location
+    //         )
+    //     );
+    //     return 'failed';
+    // }
     const region = resourceGroup.location.toLowerCase();
 
     // 4. Register Microsoft.Syntex

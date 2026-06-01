@@ -9,7 +9,7 @@ import { ContainerType, ContainerTypeRegistration } from "../../../models/schema
 import { IChildrenProvidingTreeItem } from "./IDataProvidingTreeItem";
 import { LocalRegistrationTreeItem } from "./LocalRegistrationTreeItem";
 import { Logger } from "../../../utils/Logger";
-import { badgeBillingInvalid, blockBillingInvalid, tintBillingInvalid } from "./BillingDecorationProvider";
+import { blockBillingInvalid, tintBillingInvalid } from "./BillingDecorationProvider";
 
 export class ContainerTypeTreeItem extends IChildrenProvidingTreeItem {
     public readonly registration: ContainerTypeRegistration | null;
@@ -80,12 +80,16 @@ export class ContainerTypeTreeItem extends IChildrenProvidingTreeItem {
         Logger.log(`[ContainerTypeTreeItem] ${containerType.name}: classification=${classification ?? '(undef)'} billingStatus=${containerType.billingStatus ?? '(undef)'} ctBillingInvalid=${ctBillingInvalid} regBillingInvalid=${regBillingInvalid}`);
         if (billingInvalid) {
             const existing = this.description ? `${this.description} ` : '';
-            this.description = `${existing}Billing not set up`;
+            // ⚠ is a Unicode warning glyph (U+26A0) — used here instead of a
+            // codicon because TreeItem.description doesn't render `$(name)`
+            // codicon syntax. It renders as an icon-style character and is
+            // naturally amber in most fonts.
+            this.description = `${existing}⚠ Billing not set up`;
             this.iconPath = new vscode.ThemeIcon(
                 "containertype-icon",
                 new vscode.ThemeColor("list.warningForeground")
             );
-            badgeBillingInvalid(this, this.id);
+            tintBillingInvalid(this, this.id);
             this.tooltip = new vscode.MarkdownString(
                 isDirectToCustomer
                     ? vscode.l10n.t(
@@ -117,10 +121,11 @@ export class ContainerTypeTreeItem extends IChildrenProvidingTreeItem {
         const children: vscode.TreeItem[] = [];
 
         try {
-            // Add owning app tree item
+            // Add owning app tree item. Don't tint it yellow — the warning is
+            // shown inline on the offending CT row only, to keep descendants
+            // visually neutral.
             const owningApp = new OwningAppTreeItem(this.containerType, this);
             if (this.subtreeBillingInvalid) {
-                tintBillingInvalid(owningApp, `${this.containerType.id}-owning-app`);
                 blockBillingInvalid(owningApp);
             }
             children.push(owningApp);

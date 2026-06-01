@@ -6,13 +6,9 @@
 import * as vscode from "vscode";
 
 /**
- * FileDecorationProvider that paints a "!" badge and a warning tint on
- * tree items whose resourceUri carries this provider's scheme. Tree items
- * opt in by setting `resourceUri = BillingDecorationProvider.buildUri(id)`.
- *
- * VS Code allows only one `iconPath` per TreeItem, so this provider is the
- * only way to render a second visible indicator (the badge, in the row's
- * right gutter) alongside the existing container/registration icon.
+ * FileDecorationProvider that paints a warning tint on tree items whose
+ * resourceUri carries this provider's scheme. Tree items opt in by setting
+ * `resourceUri = BillingDecorationProvider.buildUri(id)`.
  */
 export class BillingDecorationProvider implements vscode.FileDecorationProvider {
     public static readonly scheme = "spe-billing";
@@ -40,12 +36,7 @@ export class BillingDecorationProvider implements vscode.FileDecorationProvider 
         if (uri.query !== "billingInvalid=1") {
             return undefined;
         }
-        // Only the row that triggered the warning gets the "!" badge — sub-rows
-        // get the yellow tint (via the color) but no badge, to avoid stamping
-        // every descendant in the tree with the same exclamation mark.
-        const isBadgeRow = uri.fragment === "badge";
         return {
-            badge: isBadgeRow ? "!" : undefined,
             color: new vscode.ThemeColor("list.warningForeground"),
             tooltip: vscode.l10n.t("Billing is not set up"),
             propagate: false
@@ -54,24 +45,12 @@ export class BillingDecorationProvider implements vscode.FileDecorationProvider 
 }
 
 /**
- * Tints a tree row yellow (via FileDecorationProvider) without showing a "!"
- * badge — used to color descendants of a billing-invalid container type.
+ * Tints a tree row yellow (via FileDecorationProvider) — used on the
+ * offending row only. Descendants are left untinted so the warning stays
+ * localized to where the action is needed.
  */
 export function tintBillingInvalid(item: vscode.TreeItem, uniqueId: string): void {
     item.resourceUri = BillingDecorationProvider.buildUri(uniqueId);
-}
-
-/**
- * Same as `tintBillingInvalid` but additionally renders the "!" badge — used
- * on the actual offending rows (the container type and its registration).
- */
-export function badgeBillingInvalid(item: vscode.TreeItem, uniqueId: string): void {
-    item.resourceUri = vscode.Uri.from({
-        scheme: BillingDecorationProvider.scheme,
-        path: `/${encodeURIComponent(uniqueId)}`,
-        query: "billingInvalid=1",
-        fragment: "badge"
-    });
 }
 
 /**
