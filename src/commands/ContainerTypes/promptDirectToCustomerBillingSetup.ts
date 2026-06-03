@@ -7,6 +7,7 @@ import * as vscode from 'vscode';
 import { ContainerType } from '../../models/schemas';
 import { ContainerTypeRegistrationService } from '../../services/Graph/ContainerTypeRegistrationService';
 import { DevelopmentTreeViewProvider } from '../../views/treeview/development/DevelopmentTreeViewProvider';
+import { ProgressWaitNotification } from '../../views/notifications/ProgressWaitNotification';
 
 const M365_ADMIN_PAYG_URL = 'https://admin.cloud.microsoft/?#/orgsettings/payasyougo';
 const D2C_DOCS_URL = 'https://learn.microsoft.com/en-us/sharepoint/dev/embedded/administration/consuming-tenant-admin/cta#set-up-billing-for-passthrough-container-type';
@@ -35,11 +36,17 @@ export async function promptDirectToCustomerBillingSetup(
 ): Promise<void> {
     const ctName = containerType.name;
     let billingStatus: string | undefined;
+    const checkProgress = new ProgressWaitNotification(
+        vscode.l10n.t('Checking billing status for "{0}"...', ctName)
+    );
+    checkProgress.show();
     try {
         const fresh = await registrationService.get(containerType.id);
         billingStatus = fresh?.billingStatus;
     } catch (error: any) {
         console.warn('[promptDirectToCustomerBillingSetup] Failed to refresh registration billing status:', error);
+    } finally {
+        checkProgress.hide();
     }
 
     if (billingStatus === 'valid') {

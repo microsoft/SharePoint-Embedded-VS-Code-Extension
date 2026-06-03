@@ -13,15 +13,14 @@ Welcome to the team! This guide will get you up to speed on the codebase, the ar
 5. [Architecture Overview](#5-architecture-overview)
 6. [Extension Lifecycle](#6-extension-lifecycle)
 7. [Authentication Architecture](#7-authentication-architecture)
-8. [Service Layer (New Architecture)](#8-service-layer-new-architecture)
+8. [Service Layer](#8-service-layer)
 9. [Schema Models (Zod)](#9-schema-models-zod)
 10. [Commands — How They Work](#10-commands--how-they-work)
 11. [Tree Views — How the UI Works](#11-tree-views--how-the-ui-works)
-12. [The Refactor — What's Done and What's Left](#12-the-refactor--whats-done-and-whats-left)
-13. [Your Task: Container Operations](#13-your-task-container-operations)
-14. [Patterns & Conventions](#14-patterns--conventions)
-15. [Key File Reference](#15-key-file-reference)
-16. [Glossary](#16-glossary)
+12. [Container Type Creation Flow (trial / standard / direct-to-customer)](#12-container-type-creation-flow-trial--standard--direct-to-customer)
+13. [Patterns & Conventions](#13-patterns--conventions)
+14. [Key File Reference](#14-key-file-reference)
+15. [Glossary](#15-glossary)
 
 ---
 
@@ -40,21 +39,24 @@ The core concepts:
 ### What does this VS Code Extension do?
 
 This extension provides a developer tool for managing SharePoint Embedded resources directly from VS Code. Developers use it to:
-- Create and manage Container Types (trial and paid)
+- Create and manage Container Types across all three billing classifications: **trial**, **standard** (owner-org billed), and **direct-to-customer** (user-org billed)
+- For standard CTs, set up the Azure-side billing account (Microsoft.Syntex provider registration + `Microsoft.Syntex/accounts` resource) without leaving VS Code
+- Add up to three container-type owners by searching tenant users
 - Register Container Types on tenants
 - Create, rename, recycle, restore, and delete Containers
 - Manage application registrations (owning apps, guest apps, credentials)
 - Export Postman configurations for API testing
 - Manage permissions and discoverability settings
 
-### The Refactor in Progress
+### Architecture at a Glance
 
-The codebase is undergoing an architecture refactor. The old architecture had a monolithic provider pattern where class-based models (with methods) handled both data and API calls. The new architecture separates concerns into:
-- **Schema models** (pure data, Zod-validated)
-- **Services** (business logic, API calls)
-- **Commands** (thin UI wrappers)
+Active work happens on feature branches off `main` (current example: `aljordac/paid-container-type-support`, which adds paid container type support). The auth + service refactor that preceded the paid-CT work has fully landed — there are no legacy providers, no app-only auth, and no class-based models left in `src/`. Code follows three layers, end-to-end:
 
-The refactor is being done incrementally — some parts of the codebase use the new architecture, some still use the old. Your job is to migrate the container operations to the new architecture.
+- **Schema models** (pure data, Zod-validated) — `src/models/schemas/`
+- **Services** (business logic, API calls) — `src/services/Graph/` and `src/services/ARM/`, accessed via the `GraphProvider.getInstance()` / `ARMProvider.getInstance()` singleton hubs
+- **Commands** (thin UI wrappers) — `src/commands/`
+
+All Graph and ARM calls are **delegated** (on behalf of the signed-in user) and routed through VS Code's built-in Microsoft authentication API — no MSAL/PKCE, no client secrets, no app-only paths anywhere.
 
 ---
 
@@ -152,11 +154,14 @@ All `console.log` and `console.error` calls from the extension appear here.
 
 ### First-Time Setup
 
-1. **Clone the repo and switch to the refactor branch:**
+1. **Clone the repo and check out the branch you want to work on:**
    ```bash
    git clone https://github.com/microsoft/SharePoint-Embedded-VS-Code-Extension.git
    cd SharePoint-Embedded-VS-Code-Extension
-   git checkout auth-refactor-alex
+   # main is the stable branch. For active paid-CT work, the live feature
+   # branch is currently aljordac/paid-container-type-support — substitute
+   # whatever branch you're contributing to.
+   git checkout main
    ```
 
 2. **Install dependencies:**
@@ -229,50 +234,46 @@ npm run pretest
 ### Branch Structure
 
 ```
-main                          ← stable release branch (don't target PRs here)
-  └── auth-refactor-alex      ← the refactor branch (our base)
-        └── auth-refactor-alex-containers   ← your feature branch
-        └── auth-refactor-alex-<other>      ← other feature branches
+main                                       ← stable; PRs target here
+  ├── aljordac/paid-container-type-support ← live paid-CT feature branch (evolving)
+  └── <alias>/<feature>                    ← other in-flight feature branches
 ```
+
+Active paid-CT work lands on the `aljordac/paid-container-type-support` branch and gets PR'd into `main` in batches. The previous "refactor branch" model (everything off `auth-refactor-alex`) is gone — that refactor merged.
 
 ### Your Workflow
 
-1. **Create your feature branch off `auth-refactor-alex`:**
+1. **Create your feature branch off `main`:**
    ```bash
-   git checkout auth-refactor-alex
-   git pull origin auth-refactor-alex
-   git checkout -b auth-refactor-alex-containers
+   git checkout main
+   git pull origin main
+   git checkout -b <alias>/<feature>
    ```
+
+   If your work depends on in-flight paid-CT changes, branch from `aljordac/paid-container-type-support` instead and target that branch with your PR.
 
 2. **Do your work, commit regularly.**
 
-3. **Submit PRs into `auth-refactor-alex`** (not `main`).
+3. **Submit PRs into `main`** (or into the feature branch you forked from).
 
-4. **Stay in sync** — pull from `auth-refactor-alex` regularly:
+4. **Stay in sync** — pull from your base regularly:
    ```bash
-   git checkout auth-refactor-alex
-   git pull origin auth-refactor-alex
-   git checkout auth-refactor-alex-containers
-   git merge auth-refactor-alex
+   git checkout main
+   git pull origin main
+   git checkout <alias>/<feature>
+   git merge main
    ```
 
-### Areas That Are Safe to Work On
+### Areas to Touch Carefully
 
-**Go ahead** (your focus areas):
-- `src/commands/Container/` — container operation commands
-- `src/commands/Containers/` — container creation command
-- `src/commands/RecycledContainer/` — recycled container commands
-- `src/services/Graph/ContainerService.ts` — the new service you'll create
-- `src/views/treeview/development/ContainerTreeItem.ts` — updating tree items
-- `src/views/treeview/development/ContainersTreeItem.ts` — updating container list tree item
+These are load-bearing and easy to break — pair-review with a maintainer before non-trivial changes:
 
-**Avoid modifying** (unless discussed first):
-- `src/services/Auth/` — authentication providers
-- `src/services/AuthenticationState.ts` — auth state management
-- `src/commands/ContainerType/RegisterOnLocalTenant.ts` — recently migrated, don't touch
-- `src/commands/ContainerTypes/CreateTrialContainerType.ts` — reference implementation, don't change
-- `src/views/treeview/development/DevelopmentTreeViewProvider.ts` — main tree view orchestrator
-- `src/services/Graph/GraphProvider.ts` — you'll add one property here, but don't change existing code
+- `src/services/Auth/` — authentication providers (Graph + ARM).
+- `src/services/AuthenticationState.ts` — auth state singleton; UI visibility depends on its ordering.
+- `src/services/Graph/GraphProvider.ts` and `src/services/ARM/ARMProvider.ts` — service-hub singletons. Add new services here, don't restructure existing ones.
+- `src/views/treeview/development/DevelopmentTreeViewProvider.ts` — main tree orchestrator. Refresh semantics and root-fetch dedup are subtle.
+- `src/views/treeview/development/ContainerTypeTreeItem.ts` and `BillingDecorationProvider.ts` — contextValue composition and ⚠ decoration drive a lot of `when`-clause behavior in `package.json`.
+- `src/commands/ContainerTypes/CreateContainerType.ts` and the `runXxxFlow` / `attachBillingToContainerType` modules — paid-CT entry point. Preserve the "create CT first, then attach billing best-effort" ordering (§13).
 
 ---
 
@@ -285,21 +286,25 @@ main                          ← stable release branch (don't target PRs here)
 │              Commands (UI Actions)           │  src/commands/
 │  Thin wrappers: auth check → input →        │
 │  service call → error handling → UI update   │
-├─────────────────────────────────────────────┤
-│           Services (Business Logic)          │  src/services/Graph/
-│  API calls, validation, error handling       │
-│  e.g., ApplicationService, ContainerType-   │
-│  Service, (your) ContainerService            │
-├─────────────────────────────────────────────┤
+├──────────────────────┬──────────────────────┤
+│  Graph services      │  ARM services        │  src/services/Graph/, src/services/ARM/
+│  Microsoft Graph     │  Azure Resource Mgr  │
+│  CT, registration,   │  Subscriptions,      │
+│  app grants, users,  │  Microsoft.Syntex    │
+│  containers          │  provider + accounts │
+├──────────────────────┴──────────────────────┤
 │        Schema Models (Type-Safe Data)        │  src/models/schemas/
 │  Zod schemas for runtime validation          │
 │  Pure data types, no methods                 │
 ├─────────────────────────────────────────────┤
 │              APIs (External)                 │
-│  Microsoft Graph API, SharePoint Admin API   │
-│  Azure Resource Manager API                  │
+│  Microsoft Graph API (graph.microsoft.com)   │
+│  Azure Resource Manager (management.azure.com)│
+│  Microsoft.Syntex resource provider          │
 └─────────────────────────────────────────────┘
 ```
+
+Standard container types touch both service layers in a single command: the CT is created via Graph, then billing is attached via ARM. Trial and direct-to-customer CTs only touch Graph.
 
 ### Directory Structure
 
@@ -313,18 +318,36 @@ src/
 │   ├── Accounts/                   # SignIn, SignOut, CancelSignIn
 │   ├── App/                        # App operations (rename, credentials, Postman)
 │   ├── Apps/                       # App creation (GetOrCreateApp)
-│   ├── Container/                  # YOUR FOCUS: container operations
+│   ├── Container/                  # Container operations
 │   │   ├── RenameContainer.ts
 │   │   ├── EditContainerDescription.ts
 │   │   ├── RecycleContainer.ts
 │   │   ├── CopyContainerId.ts
 │   │   └── ViewContainerProperties.ts
-│   ├── Containers/                 # YOUR FOCUS: container creation
+│   ├── Containers/                 # Container creation
 │   │   └── CreateContainer.ts
-│   ├── ContainerType/              # Container type operations
-│   ├── ContainerTypes/             # Container type creation
+│   ├── ContainerType/              # Container type operations (per-CT)
+│   │   ├── AttachBilling.ts                 # Retry billing on a -billingInvalid CT
+│   │   ├── AddContainerTypeOwners.ts        # Multi-select user picker → add owners
+│   │   ├── ListContainerTypePermissions.ts  # Read current permissions
+│   │   ├── RegisterOnLocalTenant.ts         # Register CT + optional DTC billing prompt
+│   │   ├── GrantExtensionAppPermissions.ts  # Grant the 1P extension app on a CT
+│   │   └── ... (Rename/Delete/Discoverability, etc.)
+│   ├── ContainerTypes/             # Container type creation (entry points)
+│   │   ├── CreateContainerType.ts           # UNIFIED entry: pick billing → name → app → flow
+│   │   ├── CreateTrialContainerType.ts      # Exports runTrialFlow
+│   │   ├── runStandardFlow.ts               # Standard CT: Graph create + ARM billing attach
+│   │   ├── runDirectToCustomerFlow.ts       # DTC CT: Graph create only
+│   │   ├── attachBillingToContainerType.ts  # ARM orchestrator (shared by Create + AttachBilling)
+│   │   ├── promptDirectToCustomerBillingSetup.ts # Post-registration DTC prompt
+│   │   └── ui/                              # Quickpicks / inputs for the create flow
+│   │       ├── pickBillingType.ts
+│   │       ├── pickSubscription.ts
+│   │       ├── pickResourceGroup.ts
+│   │       ├── pickContainerTypeOwners.ts
+│   │       └── promptForContainerTypeDisplayName.ts
 │   ├── GuestApps/                  # Guest app permissions
-│   └── RecycledContainer/          # YOUR FOCUS: recycled container operations
+│   └── RecycledContainer/          # Recycled container operations
 │       ├── DeleteContainer.ts
 │       ├── RestoreContainer.ts
 │       └── CopyContainerId.ts
@@ -332,39 +355,51 @@ src/
 │   ├── Auth/                       # Authentication providers
 │   │   ├── VSCodeAuthProvider.ts   # Base: wraps VS Code's auth API
 │   │   ├── GraphAuthProvider.ts    # Graph-specific auth (extends VSCodeAuthProvider)
-│   │   └── ARMAuthProvider.ts      # Azure Resource Manager auth
-│   ├── Graph/                      # NEW: Graph API service layer
-│   │   ├── GraphProvider.ts        # Singleton hub — access point for all services
+│   │   ├── ARMAuthProvider.ts      # ARM auth — used by the Standard CT flow
+│   │   ├── AppAuthProviderFactory.ts # Per-3P-app delegated provider factory (Postman export, etc.)
+│   │   └── index.ts
+│   ├── Graph/                      # Graph API service layer
+│   │   ├── GraphProvider.ts        # Singleton hub — access point for all Graph services
 │   │   ├── ApplicationService.ts   # REFERENCE: Application CRUD & credentials
 │   │   ├── ContainerTypeService.ts # Container type management
 │   │   ├── ContainerTypeRegistrationService.ts
-│   │   └── ContainerTypeAppPermissionGrantService.ts
+│   │   ├── ContainerTypeAppPermissionGrantService.ts
+│   │   ├── ContainerService.ts     # Containers + recycled containers
+│   │   └── UserService.ts          # Tenant user search (owner picker)
+│   ├── ARM/                        # Azure Resource Manager service layer
+│   │   ├── ARMProvider.ts          # Singleton hub — access point for all ARM services
+│   │   ├── SubscriptionService.ts  # List subscriptions / resource groups
+│   │   ├── SyntexProviderService.ts # Register + poll Microsoft.Syntex on a sub
+│   │   ├── SyntexAccountService.ts # Create/get Microsoft.Syntex/accounts (billing account)
+│   │   ├── armFetch.ts             # Low-level ARM HTTP wrapper (armRequest, ArmError)
+│   │   └── diagnoseArmError.ts     # Classify ARM errors (policy/RBAC/region/dup account)
 │   ├── AuthenticationState.ts      # Centralized auth state singleton
-│   ├── GraphProvider.ts            # OLD LEGACY provider (being replaced)
 │   ├── StorageProvider.ts          # VS Code storage abstraction
-│   └── TelemetryProvider.ts        # Application Insights telemetry
+│   ├── TelemetryProvider.ts        # Application Insights telemetry
+│   └── UriHandler.ts               # vscode:// deep-link handler (tenant + CT targeting)
 ├── models/
-│   ├── schemas/                    # NEW: Zod schema models
+│   ├── index.ts                    # Barrel re-exports from schemas/ and telemetry/
+│   ├── schemas/                    # Zod schema models
 │   │   ├── index.ts                # Barrel exports
 │   │   ├── application.ts          # Application schema
-│   │   ├── containerType.ts        # Container type schema
-│   │   ├── container.ts            # Container schema (already exists!)
-│   │   ├── containerTypeRegistration.ts
+│   │   ├── containerType.ts        # Container type schema (includes billingClassification + billingStatus)
+│   │   ├── container.ts            # Container schema
+│   │   ├── containerTypeRegistration.ts # Registration schema (includes per-tenant billingStatus)
 │   │   ├── containerTypeAppPermissionGrant.ts
+│   │   ├── user.ts                 # Tenant user schema (owner picker)
+│   │   ├── arm.ts                  # ARM-side schemas (subscription, RG, Syntex account)
 │   │   └── shared.ts               # Shared schemas (BillingClassification, etc.)
-│   ├── App.ts                      # OLD: class-based App model
-│   ├── Container.ts                # OLD: class-based Container model
-│   ├── ContainerType.ts            # OLD: class-based ContainerType model
 │   └── telemetry/                  # Telemetry event definitions
 ├── views/
 │   ├── treeview/development/       # Development sidebar tree view
 │   │   ├── DevelopmentTreeViewProvider.ts   # Main tree data provider
 │   │   ├── ContainerTypesTreeItem.ts        # Root "Container Types" node
 │   │   ├── ContainerTypeTreeItem.ts         # Individual container type
+│   │   ├── BillingDecorationProvider.ts     # FileDecorationProvider — ⚠ tint for billingInvalid rows
 │   │   ├── OwningAppTreeItem.ts             # Owning app under a CT
-│   │   ├── LocalRegistrationTreeItem.ts     # Registration info
-│   │   ├── ContainersTreeItem.ts            # YOUR FOCUS: "Containers" folder
-│   │   ├── ContainerTreeItem.ts             # YOUR FOCUS: individual container
+│   │   ├── LocalRegistrationTreeItem.ts     # Registration info (per-tenant billing status)
+│   │   ├── ContainersTreeItem.ts            # "Containers" folder
+│   │   ├── ContainerTreeItem.ts             # Individual container
 │   │   ├── RecycledContainersTreeItem.ts    # Recycled containers folder
 │   │   ├── RecycledContainerTreeItem.ts     # Individual recycled container
 │   │   ├── GuestAppTreeItem.ts              # Guest app
@@ -377,14 +412,14 @@ src/
     └── constants.ts                # Application constants
 ```
 
-### New vs. Legacy Architecture
+### Architecture Summary
 
-| Aspect | New Architecture | Legacy Architecture |
-|--------|-----------------|-------------------|
-| **Data models** | Zod schemas in `models/schemas/` — pure data, no methods | Class-based models in `models/` — classes with methods that call APIs |
-| **API calls** | Service classes in `services/Graph/` | Provider classes (`GraphProvider`, `SPAdminProvider`) embedded in models |
-| **Auth** | `VSCodeAuthProvider` → `GraphAuthProvider` (VS Code native auth) | `BaseAuthProvider` → MSAL + PKCE (custom OAuth flow) |
-| **Service access** | `GraphProvider.getInstance()` singleton hub | `Account.get().appProvider`, `Account.get().containerTypeProvider` |
+| Aspect | How it works today |
+|--------|--------------------|
+| **Data models** | Zod schemas in `models/schemas/` — pure data, no methods. Runtime-validated at the service boundary. |
+| **API calls** | Stateless service classes in `services/Graph/` (Microsoft Graph) and `services/ARM/` (Azure Resource Manager). |
+| **Auth** | `VSCodeAuthProvider` base → `GraphAuthProvider` and `ARMAuthProvider`. All calls delegated; VS Code's built-in Microsoft auth handles token acquisition. No MSAL, no PKCE, no app-only auth, no client secrets. |
+| **Service access** | `GraphProvider.getInstance()` and `ARMProvider.getInstance()` singleton hubs. |
 | **Type safety** | Runtime-validated with Zod | TypeScript types only (no runtime checks) |
 
 ### Key Singletons
@@ -392,6 +427,7 @@ src/
 | Singleton | Access | Purpose |
 |-----------|--------|---------|
 | `GraphProvider` | `GraphProvider.getInstance()` | Hub for all Graph API services |
+| `ARMProvider` | `ARMProvider.getInstance()` | Hub for Azure Resource Manager services (subscriptions, Syntex provider, Syntex billing accounts). Used by the Standard CT billing flow. |
 | `AuthenticationState` | Static methods (e.g., `AuthenticationState.isSignedIn()`) | Manages sign-in state, account info |
 | `DevelopmentTreeViewProvider` | `DevelopmentTreeViewProvider.getInstance()` | The sidebar tree view — call `.refresh()` after mutations |
 | `StorageProvider` | Static methods (e.g., `StorageProvider.storeSecret()`) | Persistent storage for secrets, state |
@@ -494,7 +530,8 @@ This extension uses **VS Code's built-in Microsoft authentication provider** rat
 
 ```
 VSCodeAuthProvider                 (base — configurable client ID + scopes)
-  └── GraphAuthProvider            (Microsoft Graph scopes pre-configured)
+  ├── GraphAuthProvider            (Microsoft Graph — https://graph.microsoft.com/.default)
+  └── ARMAuthProvider              (Azure Resource Manager — https://management.azure.com/.default)
 ```
 
 **`VSCodeAuthProvider`** (`src/services/Auth/VSCodeAuthProvider.ts`):
@@ -503,14 +540,19 @@ VSCodeAuthProvider                 (base — configurable client ID + scopes)
 - Provides `getAuthHandler()` that returns a callback compatible with the Microsoft Graph SDK.
 
 **`GraphAuthProvider`** (`src/services/Auth/GraphAuthProvider.ts`):
-- Extends `VSCodeAuthProvider` with pre-configured Graph scopes:
+- Extends `VSCodeAuthProvider`, requests `https://graph.microsoft.com/.default` (i.e. all delegated scopes statically pre-authorized on the 1P app registration). Pre-authorized scopes include:
   - `Application.ReadWrite.All`
-  - `FileStorageContainer.Manage.All`
-  - `FileStorageContainer.Selected`
   - `FileStorageContainerType.Manage.All`
   - `FileStorageContainerTypeReg.Manage.All`
-  - `User.Read`
+  - `FileStorageContainer.Selected`
+  - `User.Read.All` — required by the owner picker (`UserService.search`)
 - Singleton pattern — `GraphAuthProvider.getInstance()`.
+
+**`ARMAuthProvider`** (`src/services/Auth/ARMAuthProvider.ts`):
+- Extends `VSCodeAuthProvider`, requests `https://management.azure.com/.default`.
+- Used only by `armRequest` (`src/services/ARM/armFetch.ts`), so only the Standard CT path (and the Attach Billing retry for standard CTs) trigger ARM token acquisition. Trial and direct-to-customer flows never touch ARM, so users on those paths never see an ARM consent prompt.
+- `armFetch.ts` passes the existing Graph account to the auth provider so the ARM acquisition goes straight to silent for that identity — only first-time Entra consent for the `management.azure.com` resource can surface a prompt.
+- Singleton pattern — `ARMAuthProvider.getInstance()`.
 
 ### How Tokens Flow to the Graph SDK
 
@@ -528,11 +570,13 @@ Admin status is determined by checking the JWT's `wids` claim for known admin ro
 
 ### Important: Delegated Auth
 
-All API calls are made **on behalf of the signed-in user** (delegated permissions). The 1P client app is a public client — there are no app secrets stored for the extension itself. The legacy container commands use a different pattern (app-only auth with `AppOnly3PAuthProvider`), which is part of what needs to change in the migration.
+All API calls are made **on behalf of the signed-in user** (delegated permissions). The 1P client app is a public client — there are no app secrets stored for the extension itself. There is no app-only auth anywhere in `src/`; everything routes through `GraphAuthProvider` or `ARMAuthProvider`.
+
+When a 3P app's own context is needed (e.g. exporting a Postman environment that calls SPE APIs as the developer's app, not the SPE 1P app), the helper is `AppAuthProviderFactory` in `src/services/Auth/`. It produces a delegated provider scoped to the 3P app's `appId` — still delegated, still no secrets.
 
 ---
 
-## 8. Service Layer (New Architecture)
+## 8. Service Layer
 
 ### GraphProvider — The Service Hub
 
@@ -542,11 +586,12 @@ All API calls are made **on behalf of the signed-in user** (delegated permission
 const graphProvider = GraphProvider.getInstance();
 
 // Access services:
-graphProvider.applications    // → ApplicationService
-graphProvider.containerTypes  // → ContainerTypeService
-graphProvider.registrations   // → ContainerTypeRegistrationService
+graphProvider.applications        // → ApplicationService
+graphProvider.containerTypes      // → ContainerTypeService (incl. listPermissions / addOwner)
+graphProvider.registrations       // → ContainerTypeRegistrationService
 graphProvider.appPermissionGrants // → ContainerTypeAppPermissionGrantService
-// graphProvider.containers   // → ContainerService (you'll add this!)
+graphProvider.containers          // → ContainerService
+graphProvider.users               // → UserService (tenant user search for the owner picker)
 ```
 
 It initializes the Graph SDK client with `GraphAuthProvider` for authentication, then passes the client to each service.
@@ -614,10 +659,38 @@ Key patterns:
 | Service | Property on GraphProvider | API Base | Version |
 |---------|--------------------------|----------|---------|
 | `ApplicationService` | `.applications` | `/applications` | `v1.0` |
-| `ContainerTypeService` | `.containerTypes` | `/storage/fileStorage/containerTypes` | `beta` |
-| `ContainerTypeRegistrationService` | `.registrations` | `.../containerTypes/{id}/...` | `beta` |
-| `ContainerTypeAppPermissionGrantService` | `.appPermissionGrants` | `.../appPermissionGrants` | `beta` |
-| **`ContainerService`** (your task!) | **`.containers`** | **`/storage/fileStorage/containers`** | **`beta`** |
+| `ContainerTypeService` | `.containerTypes` | `/storage/fileStorage/containerTypes` | `v1.0` |
+| `ContainerTypeRegistrationService` | `.registrations` | `.../containerTypes/{id}/...` | `v1.0` |
+| `ContainerTypeAppPermissionGrantService` | `.appPermissionGrants` | `/storage/fileStorage/containerTypeRegistrations/{id}/applicationPermissionGrants` | `v1.0` |
+| `ContainerService` | `.containers` | `/storage/fileStorage/containers` | `v1.0` |
+| `UserService` | `.users` | `/users` | `v1.0` |
+
+### ARMProvider — The ARM Service Hub
+
+`ARMProvider` (`src/services/ARM/ARMProvider.ts`) mirrors `GraphProvider` for Azure Resource Manager calls. It only exists for discoverability — each service is a thin wrapper over `armRequest` (`src/services/ARM/armFetch.ts`), so there's no Graph-SDK-equivalent shared client to inject.
+
+```typescript
+const armProvider = ARMProvider.getInstance();
+
+armProvider.subscriptions    // → SubscriptionService (list subs / resource groups, RBAC check)
+armProvider.syntexProviders  // → SyntexProviderService (register + poll Microsoft.Syntex on a sub)
+armProvider.syntexAccounts   // → SyntexAccountService (create/get Microsoft.Syntex/accounts billing resource)
+```
+
+#### Available ARM Services
+
+| Service | Property on ARMProvider | API base | Notes |
+|---------|------------------------|----------|-------|
+| `SubscriptionService` | `.subscriptions` | `/subscriptions`, `/subscriptions/{id}/resourcegroups`, `/subscriptions/{id}/providers/Microsoft.Authorization/permissions` | Lists subs (Microsoft.Resources api-version), enumerates RGs, and checks Owner/Contributor RBAC before billing. |
+| `SyntexProviderService` | `.syntexProviders` | `/subscriptions/{id}/providers/Microsoft.Syntex/register`, `/subscriptions/{id}/providers/Microsoft.Syntex` | Registers the `Microsoft.Syntex` resource provider and polls `registrationState` until `Registered`. |
+| `SyntexAccountService` | `.syntexAccounts` | `/subscriptions/{id}/resourceGroups/{rg}/providers/Microsoft.Syntex/accounts/{containerTypeId}` | PUT creates / replaces the Syntex billing account for a CT; GET reads its state. The resource name is the container type ID. |
+
+Each service passes its required `api-version` per call (via `ArmRequestOptions.apiVersion` in `armFetch.ts`); there isn't a single global ARM api-version. When adding a new ARM call, look up the current api-version in the [Azure REST docs](https://learn.microsoft.com/rest/api/azure/) and hard-code it next to the call.
+
+#### `armFetch.ts` and `diagnoseArmError.ts` — use them, don't reinvent
+
+- `armRequest<T>(options)` is the single ARM HTTP wrapper. It handles bearer-token acquisition (silent → interactive fallback), URL building with `api-version`, body serialization, and non-2xx → `ArmError` mapping. All ARM services go through it.
+- `diagnoseArmError(error)` is the single ARM error classifier. It pattern-matches `ArmError.code`, status, and body to map to user-actionable messages: policy block, RBAC 403, unsupported region, duplicate `Microsoft.Syntex/accounts` in another RG, SPO tenant already linked to a different Syntex account. Route every catch block in `services/ARM/*` and the paid-CT commands through it before surfacing a toast — and extend it (rather than adding a new classifier) when a new ARM error shape comes up.
 
 ---
 
@@ -765,9 +838,9 @@ To have a working command, four files must be in sync:
    }
    ```
 
-### Anatomy of a Migrated Command
+### Anatomy of a Command (single-step)
 
-Using `CreateTrialContainerType` as the reference (the cleanest example of the new pattern):
+Using `CreateTrialContainerType` (which exports `runTrialFlow`) as the reference — the cleanest example of the current single-step command pattern:
 
 ```typescript
 public static async run(): Promise<ContainerType | undefined> {
@@ -807,6 +880,33 @@ public static async run(): Promise<ContainerType | undefined> {
 }
 ```
 
+### Reference: Multi-step Flow with Branching
+
+For commands that branch into multiple sub-flows (today: the unified container-type create entry point), the convention is:
+
+- A top-level command file owns the **invariant** parts: auth check, top-level pickers (e.g. billing classification), shared inputs (display name), the owning-app picker.
+- One `runXxxFlow.ts` file per branch lives in the same directory and is invoked by the top-level command. Each `runXxxFlow` returns the same shape (`Promise<ContainerType | undefined>`) so the entry point can stay branch-agnostic.
+- Per-step UI lives in a sibling `ui/` directory as small, self-contained quickpicks / input boxes (one file per quickpick).
+
+Reference layout — `src/commands/ContainerTypes/`:
+
+```text
+CreateContainerType.ts          ← entry point, owns: auth → pickBillingType → displayName → GetOrCreateApp → switch
+  ├── runTrialFlow              (CreateTrialContainerType.ts)
+  ├── runStandardFlow           (runStandardFlow.ts)        ← Graph create + ARM billing attach
+  └── runDirectToCustomerFlow   (runDirectToCustomerFlow.ts) ← Graph create only
+ui/
+  pickBillingType.ts            ← trial / standard / directToCustomer quickpick
+  promptForContainerTypeDisplayName.ts
+  pickSubscription.ts           ← Azure subscription quickpick (used by runStandardFlow)
+  pickResourceGroup.ts          ← RG quickpick (used by runStandardFlow)
+  pickContainerTypeOwners.ts    ← multi-select user picker (used by AddContainerTypeOwners)
+```
+
+Key convention to preserve when extending this pattern:
+
+> **Create the container type in Graph first, then attempt billing best-effort.** If billing setup fails, leave the CT in place and mark the row `-billingInvalid` (see §11). Don't roll back the Graph create — the user can retry billing later via the `Attach billing…` context menu. This is the same pattern `AttachBilling.ts` re-enters on retry.
+
 ### How Commands Receive Props from Tree Items
 
 When a command is triggered by clicking a tree item's context menu, VS Code passes the tree item as the first argument to `run()`:
@@ -833,9 +933,9 @@ spe-development (tree view)
     └── ContainerTypeTreeItem (e.g., "My Trial CT")
         ├── OwningAppTreeItem ("Owning App: My App")
         ├── LocalRegistrationTreeItem ("Registration")
-        │   ├── ContainersTreeItem ("Containers")        ← YOUR FOCUS
-        │   │   ├── ContainerTreeItem ("Container A")    ← YOUR FOCUS
-        │   │   └── ContainerTreeItem ("Container B")    ← YOUR FOCUS
+        │   ├── ContainersTreeItem ("Containers")
+        │   │   ├── ContainerTreeItem ("Container A")
+        │   │   └── ContainerTreeItem ("Container B")
         │   └── RecycledContainersTreeItem ("Recycled Containers")
         │       ├── RecycledContainerTreeItem ("Old Container")
         │       └── ...
@@ -905,294 +1005,124 @@ spe:containerTypeTreeItem-trial-registered-discoverabilityEnabled
 
 The `when` clause uses regex matching (`=~`) to match against these.
 
----
+#### Container-type and registration suffix vocabulary
 
-## 12. The Refactor — What's Done and What's Left
+`ContainerTypeTreeItem.contextValue` composes the following suffixes in order. New menu items targeting paid CTs should match against these:
 
-### Phase 1: Display Layer (Complete)
+| Suffix | When it's added | What it gates |
+|--------|-----------------|---------------|
+| `-trial` | `billingClassification === 'trial'` | Trial-only menu items; tree row shows `(trial, expires in N days)` description suffix. |
+| `-standard-paid` | `billingClassification === 'standard'` (default) | Standard-CT menu items (Attach billing, copy subscription, etc.). `-paid` is kept as a back-compat alias so older `=~ /-paid/` predicates keep matching. |
+| `-directToCustomer` | `billingClassification === 'directToCustomer'` | DTC-only menu items (DTC billing prompt). |
+| `-billingInvalid` | `billingStatus !== 'valid'` on the CT, OR `billingStatus !== 'valid'` on its registration | Shows **Attach billing…** and hides Postman / sample-app submenus. |
+| `-discoverabilityEnabled` / `-discoverabilityDisabled` | From `containerType.settings.isDiscoverabilityEnabled` | Discoverability toggle menu items. |
+| `-registered` / `-unregistered` | Whether the CT is registered on the local tenant | Register / unregister menu items. |
+| `-extensionPermissionsGranted` | 1P extension app has the required delegated grants on the CT | Hides the "Grant extension app permissions" menu item once granted. |
 
-- New Zod schemas in `models/schemas/`
-- New services in `services/Graph/`
-- `GraphProvider` singleton hub
-- `DevelopmentTreeViewProvider` uses new schemas
-- Tree items display using new schema types
-- Commands accept both old and new model types (backward compatibility)
+The registration tree item (`LocalRegistrationTreeItem`) carries its own `-billingInvalid` suffix evaluated **per tenant** — DTC billing is set up per consuming tenant, so the same CT can be billing-valid in one tenant and billing-invalid in another.
 
-### Phase 2: Operations Layer (In Progress)
+#### `BillingDecorationProvider` — yellow ⚠ tint for billing-invalid rows
 
-Fully migrated to new services:
-- `CreateTrialContainerType` — creates container types via `graphProvider.containerTypes.create()`
-- `RegisterOnLocalTenant` — registers CTs via `graphProvider.registrations.create()`
-- `DeleteContainerType` — deletes via `graphProvider.containerTypes.delete()`
-- `RenameContainerType` — updates via `graphProvider.containerTypes.update()`
-- `EnableContainerTypeDiscoverability` / `DisableContainerTypeDiscoverability`
+`src/views/treeview/development/BillingDecorationProvider.ts` is a `vscode.FileDecorationProvider` that tints CT / registration rows yellow (`list.warningForeground`) when billing isn't set up. Two helpers are exported and used from the tree-item constructors:
 
-Still using legacy providers (your migration targets):
-- **Container commands**: `CreateContainer`, `RenameContainer`, `EditContainerDescription`, `RecycleContainer`
-- **Recycled container commands**: `DeleteContainer`, `RestoreContainer`
-- Guest app commands
+- `tintBillingInvalid(item, id)` — registers the item's resource URI with the provider so its label renders amber.
+- `blockBillingInvalid(item)` — sets the item's `contextValue` so child menu items (sample apps, Postman) are hidden until billing is valid. Used for the owning-app + guest-app subtrees of a billing-invalid CT — the visual tint stays on the parent CT row only, descendants stay neutral.
 
-### What the Legacy Container Commands Look Like
-
-The current container commands use the **old** `GraphProvider` (`src/services/GraphProvider.ts` — note: different from `src/services/Graph/GraphProvider.ts`!). They:
-
-1. Get the `owningApp` from the old class-based `ContainerType` model.
-2. Create an `AppOnly3PAuthProvider` (app-only auth with client secret).
-3. Instantiate the old `GraphProvider` with that auth provider.
-4. Call methods like `graphProvider.createContainer()`, `graphProvider.recycleContainer()`, etc.
-
-This pattern needs to change to use the new `GraphProvider.getInstance()` which uses delegated auth.
+The hover tooltip wording on the CT row is classification-specific (standard: "Right-click and choose **Attach billing**…"; DTC: "Direct-to-customer container types are billed per consuming tenant…"). Keep that copy in `ContainerTypeTreeItem` so the two messages stay close together.
 
 ---
 
-## 13. Your Task: Container Operations
+## 12. Container Type Creation Flow (trial / standard / direct-to-customer)
 
-### Overview
+This section walks through what the user sees and what the code does for each of the three billing classifications. Start here when extending paid-CT support — it points at the canonical files for each step.
 
-Your job is to:
-1. Create a `ContainerService` in `src/services/Graph/ContainerService.ts`
-2. Add it to `GraphProvider` as the `.containers` property
-3. Migrate all container commands to use the new service
-4. Update tree items to use new schema types
+### Entry point — `spe.ContainerTypes.create`
 
-### Step 1: Create `ContainerService`
+Exposed two ways:
 
-Create `src/services/Graph/ContainerService.ts`. Use `ApplicationService.ts` and `ContainerTypeService.ts` as templates.
+- The **"Create container type"** button in the Development view's welcome content (`spe-development`, when `spe:isLoggedIn && spe:showGettingStartedView`).
+- The Command Palette: **SharePoint Embedded: Create container type**.
 
-The container schema already exists at `src/models/schemas/container.ts` with all the types you need:
-- `Container`, `containerSchema` — full container resource
-- `ContainerCreate`, `containerCreateSchema` — for creating
-- `ContainerUpdate`, `containerUpdateSchema` — for updating
-- `DeletedContainer`, `deletedContainerSchema` — for recycled containers
+The handler is `src/commands/ContainerTypes/CreateContainerType.ts`. Its only job is to orchestrate the invariant prefix and dispatch:
 
-Here are the API endpoints (from the legacy `src/services/GraphProvider.ts`, lines 128-211):
-
-| Method | HTTP | Endpoint | Notes |
-|--------|------|----------|-------|
-| `list` | GET | `/storage/fileStorage/containers?$filter=containerTypeId eq {id}` | Filter by container type |
-| `get` | GET | `/storage/fileStorage/containers/{id}` | Select + expand permissions |
-| `create` | POST | `/storage/fileStorage/containers` | Body: `{ displayName, description, containerTypeId }` |
-| `update` | PATCH | `/storage/fileStorage/containers/{id}` | Body: `{ displayName, description }` |
-| `recycle` | DELETE | `/storage/fileStorage/containers/{id}` | Soft-delete (moves to recycle bin) |
-| `listRecycled` | GET | `/storage/fileStorage/deletedContainers?$filter=containerTypeId eq {id}` | List recycled containers |
-| `restore` | POST | `/storage/fileStorage/deletedContainers/{id}/restore` | Restore from recycle bin |
-| `delete` | DELETE | `/storage/fileStorage/deletedContainers/{id}` | Permanent delete |
-
-All endpoints use **beta** API version.
-
-Here's a skeleton to start with:
-
-```typescript
-import * as Graph from '@microsoft/microsoft-graph-client';
-import {
-    Container,
-    ContainerCreate,
-    ContainerUpdate,
-    DeletedContainer,
-    containerSchema,
-    containerCreateSchema,
-    containerUpdateSchema,
-    deletedContainerSchema
-} from '../../models/schemas';
-
-export class ContainerService {
-    private static readonly API_VERSION = 'beta';
-    private static readonly BASE_PATH = '/storage/fileStorage/containers';
-    private static readonly DELETED_BASE_PATH = '/storage/fileStorage/deletedContainers';
-
-    constructor(private _client: Graph.Client) {}
-
-    /**
-     * List containers for a specific container type
-     * GET /storage/fileStorage/containers?$filter=containerTypeId eq {containerTypeId}
-     */
-    async list(containerTypeId: string, options?: {
-        select?: string[];
-        top?: number;
-    }): Promise<Container[]> {
-        // TODO: implement
-    }
-
-    /**
-     * Get a specific container by ID
-     * GET /storage/fileStorage/containers/{id}
-     */
-    async get(id: string, options?: {
-        select?: string[];
-        expandPermissions?: boolean;
-    }): Promise<Container | null> {
-        // TODO: implement
-    }
-
-    /**
-     * Create a new container
-     * POST /storage/fileStorage/containers
-     */
-    async create(container: ContainerCreate): Promise<Container> {
-        // TODO: implement
-    }
-
-    /**
-     * Update a container
-     * PATCH /storage/fileStorage/containers/{id}
-     */
-    async update(id: string, updates: ContainerUpdate): Promise<Container> {
-        // TODO: implement
-    }
-
-    /**
-     * Recycle (soft-delete) a container
-     * DELETE /storage/fileStorage/containers/{id}
-     */
-    async recycle(id: string): Promise<void> {
-        // TODO: implement
-    }
-
-    /**
-     * List recycled (deleted) containers for a container type
-     * GET /storage/fileStorage/deletedContainers?$filter=containerTypeId eq {containerTypeId}
-     */
-    async listRecycled(containerTypeId: string): Promise<DeletedContainer[]> {
-        // TODO: implement
-    }
-
-    /**
-     * Restore a recycled container
-     * POST /storage/fileStorage/deletedContainers/{id}/restore
-     */
-    async restore(id: string): Promise<Container> {
-        // TODO: implement
-    }
-
-    /**
-     * Permanently delete a recycled container
-     * DELETE /storage/fileStorage/deletedContainers/{id}
-     */
-    async delete(id: string): Promise<void> {
-        // TODO: implement
-    }
-}
+```text
+1. AuthenticationState.isSignedIn check
+2. pickBillingType()                       → 'trial' | 'standard' | 'directToCustomer' | undefined
+3. promptForContainerTypeDisplayName()     → string | undefined
+4. GetOrCreateApp.run(true)                → owning Entra app (existing or newly created)
+5. switch (classification):
+     trial            → runTrialFlow({ displayName, app })
+     standard         → runStandardFlow({ displayName, app })
+     directToCustomer → runDirectToCustomerFlow({ displayName, app })
 ```
 
-### Step 2: Add `ContainerService` to `GraphProvider`
+All three `runXxxFlow` functions return `Promise<ContainerType | undefined>`, so the entry point stays branch-agnostic.
 
-In `src/services/Graph/GraphProvider.ts`, add:
+### Trial flow — `runTrialFlow` (in `CreateTrialContainerType.ts`)
 
-```typescript
-import { ContainerService } from './ContainerService';
+The simplest path:
 
-// In the class:
-private _containerService: ContainerService;
+1. `graphProvider.containerTypes.create({ name, owningAppId, billingClassification: 'trial' })`.
+2. Telemetry event, refresh `DevelopmentTreeViewProvider`, success toast.
 
-// In the constructor, after other service initializations:
-this._containerService = new ContainerService(this._client);
+No ARM, no per-tenant billing. The trial CT carries a description suffix on its tree row (`(trial, expires in N days)` or `(trial, expired)`) — set by `ContainerTypeTreeItem` from `expirationDateTime`.
 
-// Add the getter:
-public get containers(): ContainerService {
-    return this._containerService;
-}
-```
+### Standard flow — `runStandardFlow`
 
-### Step 3: Migrate Container Commands
+This is the most complex flow. The shape is "create the CT first, then attach billing best-effort." If the billing step fails, the CT is left in place with `-billingInvalid`, and the user can retry from the context menu.
 
-For each command, the migration pattern is:
+1. **Graph create** — `graphProvider.containerTypes.create({ name, owningAppId, billingClassification: 'standard' })`. The CT exists at this point regardless of what happens next.
+2. **Refresh tree** — `DevelopmentTreeViewProvider.getInstance().refresh()`. The new CT row appears (possibly with `⚠ Billing not set up` if step 3 doesn't complete).
+3. **Best-effort ARM billing setup** — runs `attachBillingToContainerType(containerType)`:
+   - `pickSubscription` (uses `armProvider.subscriptions.list()`).
+   - **RBAC precheck** — `armProvider.subscriptions.checkRbac()` confirms the signed-in user has Owner or Contributor on the chosen subscription. On 403, surface the Azure RBAC docs link.
+   - `pickResourceGroup` (uses `armProvider.subscriptions.listResourceGroups(subscriptionId)`).
+   - `armProvider.syntexProviders.registerAndAwait(subscriptionId)` — POSTs to `/providers/Microsoft.Syntex/register` then polls `registrationState` until `Registered`.
+   - `armProvider.syntexAccounts.createOrReplace(subscriptionId, rg, containerTypeId)` — PUTs the `Microsoft.Syntex/accounts` ARM resource whose name is the container-type ID. This is the billing account.
+4. **Error surface** — every catch in this flow routes through `diagnoseArmError(error)` so the toast tells the user the actionable cause (Azure Policy block, missing RBAC, unsupported region, duplicate Syntex account in another RG, SPO tenant already linked to a different Syntex account).
+5. **Outcome** — on success, refresh the tree; the CT row drops the `⚠`. On failure, the CT stays put with `-billingInvalid` and the user can retry via **Attach billing**.
 
-**Before (legacy)**:
-```typescript
-// Gets app-only auth provider from the old model
-const authProvider = await owningApp.getAppOnlyAuthProvider(containerTypeRegistration.tenantId);
-const graphProvider = new GraphProvider(authProvider);
-const container = await graphProvider.createContainer(containerTypeRegistration, displayName);
-```
+User prerequisites to surface in error messages: Owner/Contributor on the subscription; a resource group in a Syntex-supported Azure region; if Azure Policy is configured, it must allow `Microsoft.Syntex/accounts`.
 
-**After (new)**:
-```typescript
-// Uses the singleton GraphProvider with delegated auth
-const graphProvider = GraphProvider.getInstance();
-const container = await graphProvider.containers.create({
-    displayName: containerDisplayName,
-    containerTypeId: containerTypeRegistration.containerTypeId
-});
-```
+### Direct-to-customer flow — `runDirectToCustomerFlow`
 
-Here are the specific commands to migrate:
+Symmetric in shape to the trial flow at create time, plus a post-registration billing prompt.
 
-#### `CreateContainer` (`src/commands/Containers/CreateContainer.ts`)
+1. **Graph create** — `graphProvider.containerTypes.create({ name, owningAppId, billingClassification: 'directToCustomer' })`.
+   - If the tenant hasn't enabled the DTC billing flag, Graph rejects this with a 403/400 mentioning `directToCustomer` / "not enabled". Detect it, show an error toast, and offer a "Learn more" button linking to the passthrough-billing docs.
+2. **Refresh tree** — the DTC CT row has no description suffix when billing is valid in this tenant; otherwise the row shows `⚠ Billing not set up` with the DTC-flavored tooltip (per-consuming-tenant pay-as-you-go).
+3. **No ARM step at create time.** DTC billing lives per consuming tenant on the M365 admin center, not on Azure.
+4. **Post-registration** — `RegisterOnLocalTenant` calls `promptDirectToCustomerBillingSetup(containerType, registration)` *only when the registration's `billingStatus !== 'valid'`*. It shows a modal with three actions:
+   - **Set up billing** → opens `https://admin.microsoft.com` Pay-As-You-Go in the browser.
+   - **Learn more** → opens the passthrough-billing docs.
+   - **Cancel** — dismisses; the registration still exists, the registration row stays `-billingInvalid`.
 
-- Currently uses: old `GraphProvider`, `AppOnly3PAuthProvider`, `ContainerTypeRegistration` model
-- Change to: `GraphProvider.getInstance().containers.create()`
-- Note: The `containersViewModel` parameter provides `containerType` and `containerTypeRegistration` — you'll need the `containerTypeId` from the container type to pass to `create()`.
+### Retry via Attach Billing — `spe.ContainerType.attachBilling`
 
-#### `RenameContainer` (`src/commands/Container/RenameContainer.ts`)
+Lives in `src/commands/ContainerType/AttachBilling.ts`. Wired in `package.json` to context-menu items whose `viewItem` matches `-billingInvalid`. Branches on the target CT's classification:
 
-- Currently uses: old `GraphProvider.updateContainer()`
-- Change to: `GraphProvider.getInstance().containers.update(id, { displayName: newName })`
+- **Standard** → re-enters `attachBillingToContainerType(containerType)` (same orchestrator the create flow uses).
+- **Direct-to-customer** → re-shows `promptDirectToCustomerBillingSetup`.
 
-#### `EditContainerDescription` (`src/commands/Container/EditContainerDescription.ts`)
+This is also the recovery path when the create flow's billing step was canceled, denied, or failed for transient reasons — the CT exists, the user just needs to come back later.
 
-- Currently uses: old `GraphProvider.updateContainer()`
-- Change to: `GraphProvider.getInstance().containers.update(id, { description: newDescription })`
+### Owner management — `AddContainerTypeOwners`
 
-#### `RecycleContainer` (`src/commands/Container/RecycleContainer.ts`)
+Lives in `src/commands/ContainerType/AddContainerTypeOwners.ts`. Right-click a CT row to invoke.
 
-- Currently uses: old `GraphProvider.recycleContainer()`
-- Change to: `GraphProvider.getInstance().containers.recycle(id)`
+Flow:
 
-#### `RestoreContainer` (`src/commands/RecycledContainer/RestoreContainer.ts`)
+1. Open a multi-select user picker (`ui/pickContainerTypeOwners.ts`) backed by `graphProvider.users.search(query)`. The picker:
+   - Searches members only by default (name, email, UPN).
+   - Caps the selection at **3 owners total** (matches the SPE permission ceiling). When the cap is hit, the picker title shows a transient hint "Maximum 3 owners — unselect one to add another".
+2. For each selected user, call `graphProvider.containerTypes.addOwner(containerTypeId, userId)`.
+3. Refresh the tree.
 
-- Currently uses: old `GraphProvider.restoreContainer()`
-- Change to: `GraphProvider.getInstance().containers.restore(id)`
-
-#### `DeleteContainer` (`src/commands/RecycledContainer/DeleteContainer.ts`)
-
-- Currently uses: old `GraphProvider.deleteContainer()`
-- Change to: `GraphProvider.getInstance().containers.delete(id)`
-
-### Step 4: Update Tree Items
-
-The tree items `ContainerTreeItem` and `ContainersTreeItem` currently use the legacy `Container` model from `src/models/Container.ts`. They'll need to be updated to use the new schema type from `src/models/schemas/container.ts`.
-
-**`ContainerTreeItem`** (`src/views/treeview/development/ContainerTreeItem.ts`):
-- Currently imports `Container` from `../../../models/Container`
-- Change to import `Container` from `../../../models/schemas`
-- The `container` property type changes from the class-based model to the Zod-inferred type
-
-**`ContainersTreeItem`** (`src/views/treeview/development/ContainersTreeItem.ts`):
-- Currently uses `ContainerTypeRegistration.loadContainers()` (old model method)
-- Change to use `GraphProvider.getInstance().containers.list(containerTypeId)`
-- Will need the container type ID passed in or available from context
-
-### Implementation Order (Suggested)
-
-1. **Create `ContainerService`** — implement all methods
-2. **Add to `GraphProvider`** — one small change
-3. **Test the service** — add a temporary test call in a command to verify API calls work
-4. **Migrate `CreateContainer`** — simplest flow, good first test
-5. **Migrate `RenameContainer` and `EditContainerDescription`** — similar update pattern
-6. **Migrate `RecycleContainer`** — simple delete call
-7. **Migrate `RestoreContainer` and `DeleteContainer`** — recycled container operations
-8. **Update tree items** — change imports and data access patterns
-9. **Clean up** — remove unused legacy imports
-
-### Testing Your Changes
-
-1. `npm run compile` (or watch mode) — make sure it compiles
-2. Press **F5** → Extension Development Host
-3. Sign in with an SPE admin account
-4. Create a trial container type (if you don't have one)
-5. Register it on your tenant
-6. Test each container operation:
-   - Create a container
-   - Rename it
-   - Edit its description
-   - Recycle it
-   - Restore it
-   - Permanently delete it
-7. Check the Output panel ("SharePoint Embedded") for your `[ContainerService.xxx]` logs
+If the signed-in user's token doesn't include `User.Read.All`, `UserService.search` will 403. The picker surfaces a toast explaining the scope requirement.
 
 ---
 
-## 14. Patterns & Conventions
+## 13. Patterns & Conventions
 
 ### Error Handling in Services
 
@@ -1209,6 +1139,37 @@ async methodName(params): Promise<ReturnType> {
     }
 }
 ```
+
+### ARM error handling — go through `diagnoseArmError`
+
+Every catch block in `services/ARM/*` and the paid-CT commands that call ARM should route through `diagnoseArmError(error)` before surfacing a toast. It pattern-matches `ArmError.code`, status, and body to map the failure to a user-actionable cause (policy block, RBAC 403, unsupported region, duplicate `Microsoft.Syntex/accounts`, SPO tenant already linked) and returns the toast-ready message.
+
+Do not write per-call ad-hoc classifiers — when a new ARM error shape comes up, extend `diagnoseArmError` so the next caller gets the new mapping for free.
+
+```typescript
+import { armRequest, ArmError } from '../../services/ARM/armFetch';
+import { diagnoseArmError } from '../../services/ARM/diagnoseArmError';
+
+try {
+    await armRequest({ /* … */ });
+} catch (error) {
+    const diagnosis = diagnoseArmError(error);
+    vscode.window.showErrorMessage(diagnosis.message);
+    if (diagnosis.docsUrl) {
+        // optional: offer "Learn more" button that opens diagnosis.docsUrl
+    }
+}
+```
+
+### Best-effort post-create billing
+
+The paid-CT flows follow a specific ordering that callers should preserve:
+
+1. Create the container type via Graph **first**. From this point on the CT exists in the tenant — never silently roll it back.
+2. Attempt billing setup (ARM for Standard, M365 prompt for DTC) **best-effort**.
+3. If billing setup fails or is canceled, refresh the tree so the row picks up the `-billingInvalid` suffix (driven by `billingStatus !== 'valid'`). The user can retry via the **Attach billing…** context menu, which re-enters the same orchestrator.
+
+This is why `runStandardFlow` doesn't wrap the create + ARM steps in a single transaction-style try/catch — the two have different recovery stories. Any new paid-CT flow should keep this ordering so the Attach Billing retry continues to work.
 
 ### Progress Notifications
 
@@ -1277,11 +1238,14 @@ console.error('[ContainerService.create] Error:', error);
 ### Import Conventions
 
 ```typescript
-// New schemas — import from models/schemas
+// Schemas — import from models/schemas
 import { Container, ContainerCreate } from '../../models/schemas';
 
-// New services — import from services/Graph/
+// Graph services — import via the singleton hub
 import { GraphProvider } from '../../services/Graph/GraphProvider';
+
+// ARM services — import via the singleton hub (paid-CT flows)
+import { ARMProvider } from '../../services/ARM/ARMProvider';
 
 // Auth state
 import { AuthenticationState } from '../../services/AuthenticationState';
@@ -1303,58 +1267,100 @@ vscode.l10n.t('Display name must be no more than {0} characters long', maxLength
 
 ---
 
-## 15. Key File Reference
+## 14. Key File Reference
 
 | File | Purpose |
 |------|---------|
 | `src/extension.ts` | Extension entry point. Registers commands, tree views, auth listeners. |
 | `src/commands/Command.ts` | Abstract base class for all commands. |
 | `src/commands/index.ts` | Barrel export — all commands in one `Commands` namespace. |
-| `src/commands/ContainerTypes/CreateTrialContainerType.ts` | **Reference implementation** of a fully-migrated command. |
-| `src/commands/Containers/CreateContainer.ts` | **Your target**: Create container (legacy). |
-| `src/commands/Container/RenameContainer.ts` | **Your target**: Rename container (legacy). |
-| `src/commands/Container/EditContainerDescription.ts` | **Your target**: Edit description (legacy). |
-| `src/commands/Container/RecycleContainer.ts` | **Your target**: Recycle container (legacy). |
-| `src/commands/RecycledContainer/DeleteContainer.ts` | **Your target**: Permanently delete (legacy). |
-| `src/commands/RecycledContainer/RestoreContainer.ts` | **Your target**: Restore from recycle (legacy). |
-| `src/services/Graph/GraphProvider.ts` | **New** singleton service hub. You'll add `.containers` here. |
-| `src/services/Graph/ApplicationService.ts` | **Reference**: Service implementation template. |
-| `src/services/Graph/ContainerTypeService.ts` | **Reference**: Another service template. |
-| `src/services/GraphProvider.ts` | **Old legacy** provider — has the API endpoints you need to replicate. |
+| **Container type creation** | |
+| `src/commands/ContainerTypes/CreateContainerType.ts` | **Unified entry point.** Auth → billing-type fork → name → owning app → `runXxxFlow`. |
+| `src/commands/ContainerTypes/CreateTrialContainerType.ts` | Exports `runTrialFlow`. Reference for the simple single-step flow. |
+| `src/commands/ContainerTypes/runStandardFlow.ts` | Standard CT: Graph create + best-effort ARM billing attach. |
+| `src/commands/ContainerTypes/runDirectToCustomerFlow.ts` | DTC CT: Graph create only. Billing happens post-registration. |
+| `src/commands/ContainerTypes/attachBillingToContainerType.ts` | ARM billing orchestrator (sub → RBAC → RG → Syntex register → Syntex account). Shared by Create + Attach Billing. |
+| `src/commands/ContainerTypes/promptDirectToCustomerBillingSetup.ts` | Post-registration DTC modal (Set up billing / Learn more / Cancel). |
+| `src/commands/ContainerTypes/ui/pickBillingType.ts` | Trial / Standard / DTC quickpick. |
+| `src/commands/ContainerTypes/ui/pickSubscription.ts` | Azure subscription quickpick (Standard flow). |
+| `src/commands/ContainerTypes/ui/pickResourceGroup.ts` | Resource group quickpick (Standard flow). |
+| `src/commands/ContainerTypes/ui/pickContainerTypeOwners.ts` | Multi-select user picker for `AddContainerTypeOwners` (max 3). |
+| `src/commands/ContainerTypes/ui/promptForContainerTypeDisplayName.ts` | Display-name input box with validation. |
+| **Per-CT operations** | |
+| `src/commands/ContainerType/AttachBilling.ts` | Context-menu retry. Branches Standard vs. DTC. |
+| `src/commands/ContainerType/AddContainerTypeOwners.ts` | Adds owners via the owner picker. |
+| `src/commands/ContainerType/ListContainerTypePermissions.ts` | Reads current permissions for a CT. |
+| `src/commands/ContainerType/RegisterOnLocalTenant.ts` | Registers a CT; for DTC, triggers `promptDirectToCustomerBillingSetup`. |
+| `src/commands/ContainerType/GrantExtensionAppPermissions.ts` | Grants delegated perms to the 1P extension app on a CT. |
+| **Container operations** | |
+| `src/commands/Containers/CreateContainer.ts` | Create a container via `graphProvider.containers.create()`. |
+| `src/commands/Container/RenameContainer.ts`, `EditContainerDescription.ts`, `RecycleContainer.ts` | Single-container operations. |
+| `src/commands/RecycledContainer/RestoreContainer.ts`, `DeleteContainer.ts` | Recycled-container operations. |
+| **Services** | |
+| `src/services/Graph/GraphProvider.ts` | Singleton Graph service hub. |
+| `src/services/Graph/ApplicationService.ts` | Reference service implementation. |
+| `src/services/Graph/ContainerTypeService.ts` | Container type CRUD + `listPermissions` + `addOwner`. |
+| `src/services/Graph/ContainerService.ts` | Containers + recycled containers. |
+| `src/services/Graph/UserService.ts` | Tenant user search (owner picker). |
+| `src/services/ARM/ARMProvider.ts` | Singleton ARM service hub. |
+| `src/services/ARM/SubscriptionService.ts` | List subs / RGs + RBAC precheck. |
+| `src/services/ARM/SyntexProviderService.ts` | Register + poll `Microsoft.Syntex` provider. |
+| `src/services/ARM/SyntexAccountService.ts` | Create/get the per-CT `Microsoft.Syntex/accounts` billing resource. |
+| `src/services/ARM/armFetch.ts` | Low-level ARM HTTP wrapper (`armRequest`, `ArmError`, `ARM_BASE_URL`). |
+| `src/services/ARM/diagnoseArmError.ts` | ARM error classifier (policy / RBAC / region / duplicate account / SPO link). |
 | `src/services/Auth/VSCodeAuthProvider.ts` | Base auth provider using VS Code's auth API. |
-| `src/services/Auth/GraphAuthProvider.ts` | Graph-specific auth with pre-configured scopes. |
+| `src/services/Auth/GraphAuthProvider.ts` | Graph auth. `https://graph.microsoft.com/.default`. |
+| `src/services/Auth/ARMAuthProvider.ts` | ARM auth. `https://management.azure.com/.default`. Acquired lazily by `armFetch`. |
+| `src/services/Auth/AppAuthProviderFactory.ts` | Factory for per-3P-app delegated providers (Postman export, etc.). |
 | `src/services/AuthenticationState.ts` | Centralized auth state management. |
-| `src/models/schemas/container.ts` | **Already exists**: Container Zod schemas and types. |
+| `src/services/UriHandler.ts` | `vscode://` deep-link handler (tenant + container-type targeting). |
+| **Schemas** | |
+| `src/models/schemas/container.ts` | Container Zod schemas. |
+| `src/models/schemas/containerType.ts` | Container type schema — includes `billingClassification` (`trial`/`standard`/`directToCustomer`) and `billingStatus`. |
+| `src/models/schemas/containerTypeRegistration.ts` | Registration schema — per-tenant `billingStatus`. |
+| `src/models/schemas/user.ts` | Tenant user schema (owner picker). |
 | `src/models/schemas/index.ts` | Barrel exports for all schemas. |
+| **Tree views** | |
 | `src/views/treeview/development/DevelopmentTreeViewProvider.ts` | Main tree view — call `.refresh()` after data changes. |
-| `src/views/treeview/development/ContainerTreeItem.ts` | **Your target**: Update to use new schema. |
-| `src/views/treeview/development/ContainersTreeItem.ts` | **Your target**: Update to use new service. |
+| `src/views/treeview/development/ContainerTypeTreeItem.ts` | CT row — composes the contextValue suffixes (`-trial`, `-standard-paid`, `-directToCustomer`, `-billingInvalid`, etc.). |
+| `src/views/treeview/development/LocalRegistrationTreeItem.ts` | Registration row — per-tenant `-billingInvalid` evaluation. |
+| `src/views/treeview/development/BillingDecorationProvider.ts` | `FileDecorationProvider` for the yellow ⚠ tint + `blockBillingInvalid` helper. |
+| `src/views/treeview/development/ContainerTreeItem.ts` | Individual container row. |
+| `src/views/treeview/development/ContainersTreeItem.ts` | Containers folder. |
 | `src/views/treeview/development/IDataProvidingTreeItem.ts` | Base class for tree items with children. |
 | `src/views/notifications/ProgressWaitNotification.ts` | Progress notification helper. |
 | `package.json` | Extension manifest — command declarations, menu bindings, `when` clauses. |
 | `.vscode/launch.json` | Debug configurations (Run Extension, Extension Tests). |
-| `CLAUDE.md` | Detailed refactor notes and architecture documentation. |
+| `CLAUDE.md` | Project-wide architecture and convention notes for AI assistants and humans. |
 
 ---
 
-## 16. Glossary
+## 15. Glossary
 
 | Term | Definition |
 |------|-----------|
 | **SharePoint Embedded (SPE)** | A Microsoft 365 platform for building file/document management apps backed by SharePoint storage. |
-| **Container Type** | A template that defines a category of storage containers. Created by tenant admins. Has a billing classification (trial or standard). |
+| **Container Type** | A template that defines a category of storage containers. Created by tenant admins. Has a billing classification (`trial`, `standard`, or `directToCustomer`). |
+| **Billing Classification** | One of `trial`, `standard`, `directToCustomer`. Set at CT creation, immutable afterward. Drives which billing setup path applies. |
+| **Standard CT** | Owner-org-billed. Usage costs are charged to the org that owns the CT's owning app. Requires Azure billing setup (`Microsoft.Syntex/accounts`). |
+| **Direct-to-Customer (DTC) CT** | User-org-billed. Usage costs are charged per consuming tenant. A Global Admin in the user org sets up pay-as-you-go for SharePoint Embedded in the Microsoft 365 admin center. |
+| **Microsoft.Syntex** | Azure resource provider that backs SPE billing. Must be `Registered` on the subscription before a billing account can be created. |
+| **Syntex Billing Account** | A `Microsoft.Syntex/accounts` ARM resource whose **name is the container-type ID**. Ties a Standard CT to a subscription/resource group for billing. |
+| **ARM** | Azure Resource Manager. Base URL `https://management.azure.com`. Reached via the `https://management.azure.com/.default` delegated scope. |
+| **`-billingInvalid` suffix** | `contextValue` qualifier set when billing isn't usable for a CT (Standard: no Syntex account / not Registered; DTC: tenant pay-as-you-go not configured). Drives the ⚠ decoration, hides container ops, and exposes the **Attach billing…** menu item. |
+| **Attach Billing** | The retry path. Context-menu command on a `-billingInvalid` CT or registration; re-enters the appropriate billing flow based on classification. |
 | **Container** | An instance of a Container Type. Holds files and documents. Has permissions, custom properties, and versioning settings. |
 | **Owning App** | The Entra ID (Azure AD) application registration that owns a Container Type. Has full control. |
 | **Guest App** | An additional application registration granted permission to access a Container Type's containers. |
 | **Registration** | The act of registering a Container Type on a specific tenant, which enables creating containers of that type on that tenant. |
 | **Delegated Auth** | API calls made on behalf of the signed-in user. The user's permissions determine what the call can do. |
-| **App-Only Auth** | API calls made as the application itself (no user context). Uses a client secret or certificate. This is the old pattern we're moving away from. |
+| **App-Only Auth** | API calls made as the application itself (no user context). Uses a client secret or certificate. Not used anywhere in this extension — listed for context when reading external SPE docs that mention it. |
 | **1P App (First-Party)** | The extension's own Entra ID application registration. It's a public client (no secret). Used for sign-in. |
 | **3P App (Third-Party)** | The developer's application registration (owning app or guest app). May have secrets/certs. |
 | **Graph API** | Microsoft Graph — the unified API for Microsoft 365 services. Base URL: `https://graph.microsoft.com`. |
 | **Entra ID** | Microsoft's identity platform (formerly Azure Active Directory / Azure AD). |
-| **MSAL** | Microsoft Authentication Library — handles OAuth 2.0 flows. The old architecture used it directly; the new one uses VS Code's built-in auth. |
-| **PKCE** | Proof Key for Code Exchange — an OAuth 2.0 extension for public clients. Used by the auth flow. |
+| **MSAL** | Microsoft Authentication Library. This extension does **not** import MSAL directly — VS Code's built-in Microsoft authentication provider sits on top of MSAL and handles token acquisition for us. |
+| **PKCE** | Proof Key for Code Exchange — an OAuth 2.0 extension for public clients. Handled inside VS Code's auth provider; no PKCE code in this extension. |
 | **JWT** | JSON Web Token — the format of access tokens. Contains claims like `tid` (tenant), `wids` (roles). |
 | **Extension Host** | The VS Code process where extensions run. Separate from the VS Code UI process. |
 | **Extension Development Host** | A second VS Code window launched during debugging that has your extension loaded for testing. |

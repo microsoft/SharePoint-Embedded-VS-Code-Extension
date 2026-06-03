@@ -35,8 +35,11 @@ export class GuestAppsTreeItem extends IChildrenProvidingTreeItem {
                 }
                 children.push(child);
             });
-        } catch (error) {
+        } catch (error: any) {
             console.error('[GuestAppsTreeItem.getChildren]', error);
+            vscode.window.showErrorMessage(
+                vscode.l10n.t('Failed to load app permissions: {0}', error?.message || String(error))
+            );
         }
 
         return children;

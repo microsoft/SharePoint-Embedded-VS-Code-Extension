@@ -49,20 +49,20 @@ export class GrantExtensionAppPermissions extends Command {
         );
         grantProgress.show();
 
-        const success = await grantExtensionAppPermissions(containerTypeId);
-        grantProgress.hide();
-
-        if (success) {
+        try {
+            await grantExtensionAppPermissions(containerTypeId);
+            grantProgress.hide();
             DevelopmentTreeViewProvider.getInstance().refresh();
             vscode.window.showInformationMessage(
                 vscode.l10n.t('Extension app permissions granted successfully.')
             );
-        } else {
+            return true;
+        } catch (error: any) {
+            grantProgress.hide();
             vscode.window.showErrorMessage(
-                vscode.l10n.t('Failed to grant extension app permissions.')
+                vscode.l10n.t('Failed to grant extension app permissions: {0}', error?.message || String(error))
             );
+            return false;
         }
-
-        return success;
     }
 }

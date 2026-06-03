@@ -170,6 +170,11 @@ export class DevelopmentTreeViewProvider implements vscode.TreeDataProvider<IChi
     }
 
     private async _getChildren(): Promise<vscode.TreeItem[]> {
+        // Reset welcome-view flags so a previous outcome (e.g. failed view)
+        // doesn't linger and stack on top of the new one.
+        await vscode.commands.executeCommand('setContext', 'spe:showGettingStartedView', false);
+        await vscode.commands.executeCommand('setContext', 'spe:showFailedView', false);
+
         // Check if user is signed in using the new authentication system
         const isSignedIn = await AuthenticationState.isSignedIn();
         if (!isSignedIn) {
