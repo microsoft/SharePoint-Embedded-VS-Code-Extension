@@ -58,7 +58,7 @@ export class SyntexProviderService {
         subscriptionId: string,
         options?: { timeoutMs?: number; pollIntervalMs?: number; onStateChange?: (state: SyntexRegistrationState) => void }
     ): Promise<void> {
-        const timeoutMs = options?.timeoutMs ?? 180_000;
+        const timeoutMs = options?.timeoutMs ?? 300_000;
         const pollIntervalMs = options?.pollIntervalMs ?? 5_000;
         const deadline = Date.now() + timeoutMs;
         let lastState: SyntexRegistrationState | undefined;

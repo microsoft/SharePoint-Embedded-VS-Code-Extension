@@ -22,7 +22,7 @@ export const containerTypeSchema = baseResourceSchema.extend({
     id: z.string(),
     name: z.string(),
     owningAppId: guidSchema,
-    billingClassification: billingClassificationSchema.default('standard'),
+    billingClassification: billingClassificationSchema,
     billingStatus: billingStatusSchema,
     createdDateTime: dateTimeSchema.optional(),
     expirationDateTime: dateTimeSchema.nullable().optional(),

@@ -3,8 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as vscode from 'vscode';
 import { ARMAuthProvider, GraphAuthProvider } from '../Auth';
 import { Logger } from '../../utils/Logger';
+import { ProgressWaitNotification } from '../../views/notifications/ProgressWaitNotification';
 
 // Node 18+ (VS Code 1.94+) provides global fetch at runtime; declare a
 // minimal typed shim here rather than pulling DOM types into tsconfig.
@@ -58,19 +60,34 @@ function buildUrl(path: string, apiVersion: string, query?: ArmRequestOptions['q
 }
 
 /**
- * Acquire an ARM bearer token, preferring a silent cache hit. We pass the
- * existing Graph account so MSAL skips the account picker and goes straight
- * to silent acquisition for that identity; only the Entra consent screen
- * (first time per user+app) can still surface a prompt.
+ * Acquire an ARM bearer token, preferring a silent cache hit. The account
+ * the token is pinned to comes from AuthenticationState via the pin-account
+ * fallback in VSCodeAuthProvider.getToken — we don't need to pass one here.
+ *
+ * If silent fails (most often AADSTS50076 — the target tenant requires fresh
+ * MFA for Azure Resource Manager per its security policy), we show a
+ * progress notification explaining the re-auth before falling through to
+ * the interactive sign-in flow.
  */
 async function acquireArmToken(): Promise<string> {
     const authProvider = ARMAuthProvider.getInstance();
+    // Force ARM's first call to match whichever account Graph locked in,
+    // so ARM and Graph can never disagree on identity.
     const graphAccount = GraphAuthProvider.getInstance().getCurrentSession()?.account;
 
     try {
         return await authProvider.getToken([], false, graphAccount);
-    } catch {
+    } catch (silentError) {
+        const underlying = silentError instanceof Error ? silentError.message : String(silentError);
+        Logger.log(`[acquireArmToken] silent ARM token acquisition failed: ${underlying}`);
+    }
+
+    const progress = new ProgressWaitNotification(vscode.l10n.t('Azure re-authentication required...'));
+    progress.show();
+    try {
         return await authProvider.getToken([], true, graphAccount);
+    } finally {
+        progress.hide();
     }
 }
 

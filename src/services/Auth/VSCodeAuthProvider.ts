@@ -59,7 +59,6 @@ export class VSCodeAuthProvider {
                     return this.getToken(scopes, true);
                 })
                 .then(token => {
-                    //Logger.log(`[VSCodeAuthProvider.getAuthHandler] Token acquired (clientId=${this._config.clientId})`);
                     done(null, token);
                 })
                 .catch(err => done(err, null));
@@ -81,12 +80,20 @@ export class VSCodeAuthProvider {
                 ] : 
                 this._fullScopes;
 
+            // Lock subsequent calls to whichever account VS Code picked first.
+            // - First call: this._currentSession is undefined, so no account hint is sent.
+            //   VS Code's auth provider picks any matching account by its own preference.
+            // - Subsequent calls: pin to that same account so the session, the displayed
+            //   user, and every downstream token stay consistent for the rest of the
+            //   extension's lifetime
+            const resolvedAccount = account ?? this._currentSession?.account;
+
             const session = await vscode.authentication.getSession(
                 VSCodeAuthProvider.PROVIDER_ID,
                 scopes,
-                { createIfNone, account }
+                { createIfNone, account: resolvedAccount }
             );
-            
+
             if (session) {
                 this._currentSession = session;
                 return session.accessToken;

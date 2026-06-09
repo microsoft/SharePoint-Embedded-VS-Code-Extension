@@ -109,13 +109,11 @@ export async function attachBillingToContainerType(
         await vscode.window.withProgress(
             {
                 location: vscode.ProgressLocation.Notification,
-                title: vscode.l10n.t('Registering Microsoft.Syntex on the subscription...')
+                title: vscode.l10n.t('Preparing your Azure subscription for SPE billing (this may take up to 5 minutes)')
             },
-            async (progress) => {
+            async () => {
                 await arm.syntexProviders.register(subscription.subscriptionId);
-                await arm.syntexProviders.waitForRegistered(subscription.subscriptionId, {
-                    onStateChange: (state) => progress.report({ message: state })
-                });
+                await arm.syntexProviders.waitForRegistered(subscription.subscriptionId);
             }
         );
     } catch (error: any) {

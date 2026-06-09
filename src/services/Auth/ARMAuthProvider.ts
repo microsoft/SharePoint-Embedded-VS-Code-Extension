@@ -16,6 +16,7 @@ export class ARMAuthProvider extends VSCodeAuthProvider {
     ];
 
     private static _instance: ARMAuthProvider | undefined;
+    private static _instanceTenantId: string | undefined;
 
     constructor(tenantId?: string) {
         const config: VSCodeAuthConfig = {
@@ -27,11 +28,18 @@ export class ARMAuthProvider extends VSCodeAuthProvider {
     }
 
     /**
-     * Get or create the singleton instance of ARMAuthProvider
+     * Get or create the singleton instance of ARMAuthProvider.
+     * If tenantId changes, the instance is recreated so ARM tokens are never
+     * acquired against a stale (previous) tenant after a tenant switch.
      */
     public static getInstance(tenantId?: string): ARMAuthProvider {
+        if (ARMAuthProvider._instance && ARMAuthProvider._instanceTenantId !== tenantId) {
+            ARMAuthProvider._instance = undefined;
+        }
+
         if (!ARMAuthProvider._instance) {
             ARMAuthProvider._instance = new ARMAuthProvider(tenantId);
+            ARMAuthProvider._instanceTenantId = tenantId;
         }
         return ARMAuthProvider._instance;
     }
@@ -41,5 +49,6 @@ export class ARMAuthProvider extends VSCodeAuthProvider {
      */
     public static resetInstance(): void {
         ARMAuthProvider._instance = undefined;
+        ARMAuthProvider._instanceTenantId = undefined;
     }
 }

@@ -17,7 +17,6 @@ import { DevelopmentTreeViewProvider } from '../../views/treeview/development/De
 import { AdminConsentHelper } from '../../utils/AdminConsentHelper';
 import { clientId } from '../../client';
 import { REQUIRED_DELEGATED_PERMISSIONS } from '../../utils/ExtensionAppPermissions';
-import { promptDirectToCustomerBillingSetup } from '../ContainerTypes/promptDirectToCustomerBillingSetup';
 
 /**
  * Command to register a container type on the local tenant
@@ -748,18 +747,6 @@ export class RegisterOnLocalTenant extends Command {
 
             // Refresh tree view
             DevelopmentTreeViewProvider.instance.refresh();
-
-            // Direct-to-customer billing is set up per consuming tenant *after*
-            // registration. Per PM review the extension does not run an Azure
-            // ARM flow for DTC — billing is configured by the user-org admin
-            // in the M365 admin center. We refresh the registration to read
-            // the post-registration billingStatus, and only prompt when it is
-            // still invalid; if the tenant already has SPE billing configured
-            // (e.g. set up by a previous CT) the status flips to valid on
-            // first read and no prompt is shown.
-            if (containerType.billingClassification === 'directToCustomer') {
-                await promptDirectToCustomerBillingSetup(registrationService, containerType);
-            }
 
             return registration;
 

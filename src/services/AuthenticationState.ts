@@ -274,8 +274,14 @@ export class AuthenticationState {
      * then performs a normal sign-in flow.
      */
     public static async signInToTenant(tenantId: string): Promise<AuthenticatedAccount | undefined> {
+        // Reset every auth singleton so none keeps a session/config pinned to the
+        // previous tenant. Without this, ARM and per-app (FileStorageContainer)
+        // calls could continue against the old tenant after a deep-link switch.
         GraphAuthProvider.resetInstance();
+        ARMAuthProvider.resetInstance();
+        AppAuthProviderFactory.clearAll();
         GraphAuthProvider.getInstance(tenantId);
+        ARMAuthProvider.getInstance(tenantId);
         return await AuthenticationState.signIn();
     }
 

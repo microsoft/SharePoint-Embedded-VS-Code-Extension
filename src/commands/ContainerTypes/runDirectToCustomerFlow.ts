@@ -16,6 +16,8 @@ import {
     CreateDirectToCustomerContainerTypeEvent,
     DirectToCustomerContainerTypeCreationFailure
 } from '../../models/telemetry/telemetry';
+import { RegisterOnLocalTenant } from '../ContainerType/RegisterOnLocalTenant';
+import { promptDirectToCustomerBillingSetup } from './promptDirectToCustomerBillingSetup';
 
 const D2C_DOCS_URL = 'https://learn.microsoft.com/en-us/sharepoint/dev/embedded/administration/billing/billing';
 
@@ -88,9 +90,26 @@ export async function runDirectToCustomerFlow(input: DirectToCustomerFlowInput):
     progress.hide();
 
     TelemetryProvider.instance.send(new CreateDirectToCustomerContainerTypeEvent());
-    vscode.window.showInformationMessage(
-        vscode.l10n.t('Direct-to-customer container type "{0}" was created.', input.displayName)
+
+    // Offer registration on local tenant. Mirrors the trial flow's prompt.
+    // Errors are caught so the billing prompt still runs unconditionally.
+    const register = vscode.l10n.t('Register on local tenant');
+    const skip = vscode.l10n.t('Skip');
+    const registerSelection = await vscode.window.showInformationMessage(
+        vscode.l10n.t('Direct-to-customer container type "{0}" was created. Would you like to register it on your local tenant?', input.displayName),
+        register,
+        skip
     );
+    if (registerSelection === register) {
+        try {
+            await RegisterOnLocalTenant.run(containerType);
+        } catch (err) {
+            console.error('[runDirectToCustomerFlow] Registration threw:', err);
+        }
+    }
+    DevelopmentTreeViewProvider.instance.refresh();
+
+    await promptDirectToCustomerBillingSetup(graphProvider.registrations, containerType);
     return containerType;
 }
 

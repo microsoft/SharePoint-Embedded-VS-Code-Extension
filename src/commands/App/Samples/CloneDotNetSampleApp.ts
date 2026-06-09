@@ -185,9 +185,18 @@ export class CloneDotNetSampleApp extends Command {
 
                 const folderPathInRepository = path.join(destinationPath, subfolder);
                 await vscode.commands.executeCommand('git.clone', repoUrl, destinationPath);
-                await vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(folderPathInRepository));
 
-                writeAppSettingsJsonFile(destinationPath, appId, containerTypeId, tenantId);
+                // Write the config file BEFORE opening the folder: opening a
+                // folder reloads the window and tears down the extension host,
+                // so any writes after openFolder may never run. Verify the
+                // clone landed first.
+                if (fs.existsSync(folderPathInRepository)) {
+                    writeAppSettingsJsonFile(destinationPath, appId, containerTypeId, tenantId);
+                } else {
+                    console.warn(`[CloneDotNetSampleApp] Cloned path not found, skipping config write: ${folderPathInRepository}`);
+                }
+
+                await vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(folderPathInRepository));
             }
         } catch (error: any) {
             vscode.window.showErrorMessage(vscode.l10n.t('Failed to clone Git Repo'));
@@ -231,5 +240,6 @@ const writeAppSettingsJsonFile = (destinationPath: string, appId: string, contai
     const localSettingsJson = JSON.stringify(appSettings, null, 2);
     const localSettingsPath = path.join(destinationPath, 'SharePoint-Embedded-Samples', 'Samples', 'asp.net-webservice', 'appsettings.json');
 
+    fs.mkdirSync(path.dirname(localSettingsPath), { recursive: true });
     fs.writeFileSync(localSettingsPath, localSettingsJson, 'utf8');
 };

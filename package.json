@@ -533,10 +533,6 @@
         "title": "%commands.spe.Apps.getOrCreate%"
       },
       {
-        "command": "spe.App.clone",
-        "title": "%commands.spe.App.clone%"
-      },
-      {
         "command": "spe.App.Postman.exportEnvironmentFile",
         "title": "%commands.spe.App.Postman.exportEnvironmentFile%"
       },

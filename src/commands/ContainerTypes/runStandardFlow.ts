@@ -17,6 +17,7 @@ import {
     StandardContainerTypeCreationFailure
 } from '../../models/telemetry/telemetry';
 import { attachBillingToContainerType } from './attachBillingToContainerType';
+import { RegisterOnLocalTenant } from '../ContainerType/RegisterOnLocalTenant';
 
 export interface StandardFlowInput {
     displayName: string;
@@ -77,7 +78,25 @@ export async function runStandardFlow(input: StandardFlowInput): Promise<Contain
 
     TelemetryProvider.instance.send(new CreateStandardContainerTypeEvent());
 
-    // 3. Attempt Azure billing setup. Any failure keeps the CT; the user can
+    // 3. Offer registration on local tenant. Mirrors the trial flow's prompt.
+    //    Errors are caught so billing still runs unconditionally afterwards.
+    const register = vscode.l10n.t('Register on local tenant');
+    const skip = vscode.l10n.t('Skip');
+    const registerSelection = await vscode.window.showInformationMessage(
+        vscode.l10n.t('Standard container type "{0}" was created. Would you like to register it on your local tenant?', input.displayName),
+        register,
+        skip
+    );
+    if (registerSelection === register) {
+        try {
+            await RegisterOnLocalTenant.run(containerType);
+        } catch (err) {
+            console.error('[runStandardFlow] Registration threw:', err);
+        }
+    }
+    DevelopmentTreeViewProvider.instance.refresh();
+
+    // 4. Attempt Azure billing setup. Any failure keeps the CT; the user can
     //    attach billing later from the tree context menu.
     const billingResult = await attachBillingToContainerType(containerType, input.displayName);
 

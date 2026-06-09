@@ -210,10 +210,19 @@ export class CloneReactSampleApp extends Command {
 
                 const folderPathInRepository = path.join(destinationPath, subfolder);
                 await vscode.commands.executeCommand('git.clone', repoUrl, destinationPath);
-                await vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(folderPathInRepository));
 
-                writeLocalSettingsJsonFile(destinationPath, appId, containerTypeId, tenantId);
-                writeEnvFile(destinationPath, appId, tenantId, tenantDomain, containerTypeId);
+                // Write the config files BEFORE opening the folder: opening a
+                // folder reloads the window and tears down the extension host,
+                // so any writes after openFolder may never run. Verify the
+                // clone landed first.
+                if (fs.existsSync(folderPathInRepository)) {
+                    writeLocalSettingsJsonFile(destinationPath, appId, containerTypeId, tenantId);
+                    writeEnvFile(destinationPath, appId, tenantId, tenantDomain, containerTypeId);
+                } else {
+                    console.warn(`[CloneReactSampleApp] Cloned path not found, skipping config write: ${folderPathInRepository}`);
+                }
+
+                await vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(folderPathInRepository));
             }
         } catch (error: any) {
             vscode.window.showErrorMessage(vscode.l10n.t('Failed to clone Git Repo'));
@@ -243,6 +252,7 @@ const writeLocalSettingsJsonFile = (destinationPath: string, appId: string, cont
     const localSettingsJson = JSON.stringify(localSettings, null, 2);
     const localSettingsPath = path.join(destinationPath, 'SharePoint-Embedded-Samples', 'Custom Apps', 'boilerplate-typescript-react', 'function-api', 'local.settings.json');
 
+    fs.mkdirSync(path.dirname(localSettingsPath), { recursive: true });
     fs.writeFileSync(localSettingsPath, localSettingsJson, 'utf8');
 };
 
@@ -260,6 +270,7 @@ PORT=8080
 `;
     const envFilePath = path.join(destinationPath, 'SharePoint-Embedded-Samples', 'Custom Apps', 'boilerplate-typescript-react', 'react-client', '.env');
 
+    fs.mkdirSync(path.dirname(envFilePath), { recursive: true });
     fs.writeFileSync(envFilePath, envContent, 'utf8');
 };
 

@@ -4,49 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as Graph from '@microsoft/microsoft-graph-client';
-import * as vscode from 'vscode';
 import { User, userSchema } from '../../models/schemas';
 import { Logger } from '../../utils/Logger';
-import { GraphAuthProvider } from '../Auth';
-import { ext } from '../../utils/extensionVariables';
-
-async function dumpGraphAccessToken(label: string): Promise<void> {
-    try {
-        const token = await GraphAuthProvider.getInstance().getToken([], false);
-        const out = ext.outputChannel;
-        if (out) {
-            // Write in chunks so log-channel line-length limits don't truncate the middle of the token.
-            out.info(`${label} — Graph access token (length=${token.length}):`);
-            for (let i = 0; i < token.length; i += 500) {
-                out.info(token.slice(i, i + 500));
-            }
-            out.info(`${label} — end of token`);
-            out.show(true);
-        }
-        console.log(`${label} — Graph access token (length=${token.length}):`, token);
-        // Auto-copy so you don't have to hand-select from the output panel.
-        await vscode.env.clipboard.writeText(token);
-    } catch (err) {
-        console.error(`${label} — failed to acquire token for dump:`, err);
-    }
-}
-
-async function offerCopyAccessTokenOnError(_error: unknown, callLabel: string): Promise<void> {
-    try {
-        const token = await GraphAuthProvider.getInstance().getToken([], false);
-        const copy = vscode.l10n.t('Copy access token');
-        const pick = await vscode.window.showErrorMessage(
-            vscode.l10n.t('{0} failed. Copy the Graph access token to inspect on jwt.ms?', callLabel),
-            copy
-        );
-        if (pick === copy) {
-            await vscode.env.clipboard.writeText(token);
-            vscode.window.showInformationMessage(vscode.l10n.t('Access token copied to clipboard.'));
-        }
-    } catch {
-        // ignore — token acquisition failure is a separate problem
-    }
-}
 
 /**
  * Service for querying tenant users via Microsoft Graph.
@@ -80,8 +39,6 @@ export class UserService {
         const filter = options?.filter
             ?? (options?.includeGuests ? undefined : `userType eq 'Member'`);
 
-        await dumpGraphAccessToken('[UserService.list] before GET /users');
-
         try {
             let request = this._client
                 .api(UserService.BASE_PATH)
@@ -99,7 +56,6 @@ export class UserService {
             return (response?.value ?? []).map((u: any) => userSchema.parse(u));
         } catch (error: any) {
             console.error('[UserService.list] Error listing users:', error);
-            await offerCopyAccessTokenOnError(error, 'GET /users');
             throw new Error(`Failed to list users: ${error.message || error}`);
         }
     }
@@ -114,7 +70,6 @@ export class UserService {
         select?: string[];
         includeGuests?: boolean;
     }): Promise<User[]> {
-        await dumpGraphAccessToken('[UserService.search] before GET /users?$search');
         try {
             const trimmed = query.trim();
             if (!trimmed) {
@@ -144,7 +99,6 @@ export class UserService {
             return (response?.value ?? []).map((u: any) => userSchema.parse(u));
         } catch (error: any) {
             console.error(`[UserService.search] Error searching users for "${query}":`, error);
-            await offerCopyAccessTokenOnError(error, `GET /users?$search="${query}"`);
             throw new Error(`Failed to search users: ${error.message || error}`);
         }
     }

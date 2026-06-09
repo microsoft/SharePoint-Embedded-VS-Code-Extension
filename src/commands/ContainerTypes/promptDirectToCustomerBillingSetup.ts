@@ -36,12 +36,14 @@ export async function promptDirectToCustomerBillingSetup(
 ): Promise<void> {
     const ctName = containerType.name;
     let billingStatus: string | undefined;
+    let isRegistered = false;
     const checkProgress = new ProgressWaitNotification(
         vscode.l10n.t('Checking billing status for "{0}"...', ctName)
     );
     checkProgress.show();
     try {
         const fresh = await registrationService.get(containerType.id);
+        isRegistered = fresh !== null;
         billingStatus = fresh?.billingStatus;
     } catch (error: any) {
         console.warn('[promptDirectToCustomerBillingSetup] Failed to refresh registration billing status:', error);
@@ -62,11 +64,17 @@ export async function promptDirectToCustomerBillingSetup(
     const setUpBilling = vscode.l10n.t('Set up billing');
     const learnMore = vscode.l10n.t('Learn more');
     const cancel = vscode.l10n.t('Cancel');
-    const choice = await vscode.window.showInformationMessage(
-        vscode.l10n.t(
+    const promptMessage = isRegistered
+        ? vscode.l10n.t(
             'Container type "{0}" is registered, but pay-as-you-go billing for SharePoint Embedded is not set up in this tenant. Set it up in the Microsoft 365 admin center to start using the container type.',
             ctName
-        ),
+        )
+        : vscode.l10n.t(
+            'Container type "{0}" needs pay-as-you-go billing for SharePoint Embedded set up in this tenant. Set it up in the Microsoft 365 admin center to start using the container type.',
+            ctName
+        );
+    const choice = await vscode.window.showInformationMessage(
+        promptMessage,
         setUpBilling,
         learnMore,
         cancel

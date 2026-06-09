@@ -71,7 +71,6 @@ export class DeleteContainerType extends Command {
                     'The container type "{0}" couldn\'t be deleted because it is registered in at least one tenant. Do you want to unregister from the current tenant and retry deleting the container type?',
                     name || id
                 ),
-                { modal: true },
                 confirmUnregister
             );
 
