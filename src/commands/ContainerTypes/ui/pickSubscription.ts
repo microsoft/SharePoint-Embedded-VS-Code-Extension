@@ -13,7 +13,7 @@ interface SubscriptionQuickPickItem extends vscode.QuickPickItem {
 
 const AZURE_PORTAL_SUBSCRIPTIONS_URL = 'https://portal.azure.com/#blade/Microsoft_Azure_Billing/SubscriptionsBlade';
 
-// TODO(SPAC): consult Neha / Yogesh / Yashi for the correct client-side filter
+// TODO(SPAC): Determine correct client-side filter
 // to apply to the subscription list (e.g. exclude trial/EA subs that can't
 // host Microsoft.Syntex/accounts). Until then we surface every subscription
 // the user can see and let the RBAC pre-check in attachBillingToContainerType

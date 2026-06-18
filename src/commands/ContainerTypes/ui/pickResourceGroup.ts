@@ -13,11 +13,6 @@ interface ResourceGroupQuickPickItem extends vscode.QuickPickItem {
 
 const AZURE_PORTAL_RESOURCE_GROUPS_URL = 'https://portal.azure.com/#blade/HubsExtension/BrowseResourceGroups';
 
-// TODO(SPAC): consult Neha / Yogesh / Yashi for the correct client-side
-// filter to apply (e.g. limit to RGs in Syntex-supported regions). Today we
-// list everything and let the Syntex region check in
-// attachBillingToContainerType reject unsupported RG locations.
-
 /**
  * Prompts the user to pick an existing resource group in the given
  * subscription. Returns `undefined` if the user escapes or has no RGs.
