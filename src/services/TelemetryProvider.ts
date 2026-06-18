@@ -6,6 +6,7 @@
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { telemetryKey } from '../client';
 import { v4 as uuidv4 } from 'uuid';
+import { createHash } from 'crypto';
 import { TelemetryEvent, TelemetryErrorEvent } from '../models/telemetry/telemetry';
 import { StorageProvider } from './StorageProvider';
 import { AuthenticationState } from './AuthenticationState';
@@ -36,9 +37,10 @@ export class TelemetryProvider {
         ev.addProperty("installationId", this.getTelemetryInstallationId());
         const account = AuthenticationState.getCurrentAccountSync();
         if (account) {
-            // Hash the username for telemetry (same pattern as legacy Account)
-            ev.addProperty("userId", account.username);
-            ev.addProperty("tenantId", account.tenantId);
+            // Hash the UPN and tenant ID (both EUII) before sending so the raw
+            // identity never leaves the client.
+            ev.addProperty("userId", createHash('sha256').update(account.username).digest('hex'));
+            ev.addProperty("tenantId", createHash('sha256').update(account.tenantId).digest('hex'));
         }
         if (ev instanceof TelemetryErrorEvent) {
             this.sendTelemetryErrorEvent(ev);

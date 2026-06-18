@@ -44,25 +44,20 @@ export async function hasExtensionAppPermissions(containerTypeId: string): Promi
 
 /**
  * Grant the required delegated permissions to the 1P extension app.
- * Uses PUT (createOrReplace) so it is idempotent.
+ * Uses PUT (createOrReplace) so it is idempotent. Throws on failure so
+ * callers can surface the underlying server error to the user.
  */
-export async function grantExtensionAppPermissions(containerTypeId: string): Promise<boolean> {
-    try {
-        console.log(`[ExtensionAppPermissions] Granting delegated permissions to extension app (${clientId}) on container type ${containerTypeId}`);
+export async function grantExtensionAppPermissions(containerTypeId: string): Promise<void> {
+    console.log(`[ExtensionAppPermissions] Granting delegated permissions to extension app (${clientId}) on container type ${containerTypeId}`);
 
-        const graphProvider = GraphProvider.getInstance();
-        await graphProvider.appPermissionGrants.createOrReplace(containerTypeId, clientId, {
-            appId: clientId,
-            delegatedPermissions: REQUIRED_DELEGATED_PERMISSIONS,
-            applicationPermissions: []
-        });
+    const graphProvider = GraphProvider.getInstance();
+    await graphProvider.appPermissionGrants.createOrReplace(containerTypeId, clientId, {
+        appId: clientId,
+        delegatedPermissions: REQUIRED_DELEGATED_PERMISSIONS,
+        applicationPermissions: []
+    });
 
-        console.log('[ExtensionAppPermissions] Permissions granted successfully');
-        return true;
-    } catch (error: any) {
-        console.warn('[ExtensionAppPermissions] Failed to grant permissions:', error.message || error);
-        return false;
-    }
+    console.log('[ExtensionAppPermissions] Permissions granted successfully');
 }
 
 /**
@@ -89,9 +84,15 @@ export async function ensureExtensionAppPermissions(containerTypeId: string): Pr
         return false;
     }
 
-    const granted = await grantExtensionAppPermissions(containerTypeId);
-    if (granted) {
+    try {
+        await grantExtensionAppPermissions(containerTypeId);
         DevelopmentTreeViewProvider.getInstance().refresh();
+        return true;
+    } catch (error: any) {
+        console.warn('[ExtensionAppPermissions] Failed to grant permissions:', error?.message || error);
+        vscode.window.showErrorMessage(
+            vscode.l10n.t('Failed to grant extension app permissions: {0}', error?.message || String(error))
+        );
+        return false;
     }
-    return granted;
 }

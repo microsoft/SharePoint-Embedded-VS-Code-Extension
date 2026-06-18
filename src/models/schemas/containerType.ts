@@ -10,7 +10,8 @@ import {
     billingStatusSchema,
     dateTimeSchema,
     guidSchema,
-    containerTypeSettingsSchema
+    containerTypeSettingsSchema,
+    containerTypePermissionSchema
 } from './shared';
 
 /**
@@ -21,11 +22,13 @@ export const containerTypeSchema = baseResourceSchema.extend({
     id: z.string(),
     name: z.string(),
     owningAppId: guidSchema,
-    billingClassification: billingClassificationSchema.default('standard'),
+    billingClassification: billingClassificationSchema,
     billingStatus: billingStatusSchema,
     createdDateTime: dateTimeSchema.optional(),
     expirationDateTime: dateTimeSchema.nullable().optional(),
-    settings: containerTypeSettingsSchema.optional()
+    settings: containerTypeSettingsSchema.optional(),
+    // Populated when the request uses $expand=permissions
+    permissions: z.array(containerTypePermissionSchema).optional()
 });
 
 /**
@@ -37,10 +40,14 @@ export const containerTypeCreateSchema = containerTypeSchema.omit({
     createdDateTime: true,
     expirationDateTime: true,
     etag: true,
-    ['@odata.type']: true
+    ['@odata.type']: true,
+    permissions: true
 }).extend({
     // Override billing classification to be optional with default
-    billingClassification: billingClassificationSchema.default('standard').optional()
+    billingClassification: billingClassificationSchema.default('standard').optional(),
+    // Graph computes the real status from the Syntex account link; callers
+    // shouldn't need to send it.
+    billingStatus: billingStatusSchema.optional()
 });
 
 /**
@@ -52,7 +59,8 @@ export const containerTypeUpdateSchema = containerTypeSchema.omit({
     createdDateTime: true,
     expirationDateTime: true,
     etag: true,
-    ['@odata.type']: true
+    ['@odata.type']: true,
+    permissions: true
 }).partial();
 
 /**

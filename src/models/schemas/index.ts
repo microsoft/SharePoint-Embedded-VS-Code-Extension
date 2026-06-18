@@ -24,6 +24,9 @@ export * from './arm';
 // Re-export Container schemas and types
 export * from './container';
 
+// Re-export User schemas and types
+export * from './user';
+
 // Convenience re-exports for commonly used schemas
 export {
     applicationSchema,

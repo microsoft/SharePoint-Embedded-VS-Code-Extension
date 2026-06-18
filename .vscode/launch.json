@@ -15,7 +15,8 @@
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"
 			],
-			"preLaunchTask": "${defaultBuildTask}"
+			"sourceMaps": true,
+			"preLaunchTask": "build"
 		},
 		{
 			"name": "Extension Tests",

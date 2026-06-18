@@ -46,6 +46,39 @@ export class DeleteContainerType extends Command {
             return;
         }
 
+        const graphProvider = GraphProvider.getInstance();
+
+        // The CT delete API will succeed even when a registration exists on the
+        // current tenant, so we surface the "can't delete because registered"
+        // UX ourselves: check up front and require the user to opt in to also
+        // de-registering. The no-containers rule (including recycled) is still
+        // enforced server-side by the CT delete call below.
+        const registrationCheck = new ProgressWaitNotification(
+            vscode.l10n.t('Checking container type registration...')
+        );
+        registrationCheck.show();
+        let isRegistered: boolean;
+        try {
+            isRegistered = await graphProvider.registrations.isRegistered(id);
+        } finally {
+            registrationCheck.hide();
+        }
+
+        if (isRegistered) {
+            const confirmUnregister = vscode.l10n.t('Unregister and delete');
+            const followUp = await vscode.window.showWarningMessage(
+                vscode.l10n.t(
+                    'The container type "{0}" couldn\'t be deleted because it is registered in at least one tenant. Do you want to unregister from the current tenant and retry deleting the container type?',
+                    name || id
+                ),
+                confirmUnregister
+            );
+
+            if (followUp !== confirmUnregister) {
+                return;
+            }
+        }
+
         // Delete the container type
         const progressWindow = new ProgressWaitNotification(
             vscode.l10n.t('Deleting container type...')
@@ -53,10 +86,6 @@ export class DeleteContainerType extends Command {
         progressWindow.show();
 
         try {
-            const graphProvider = GraphProvider.getInstance();
-
-            // Clean up registration on local tenant if it exists
-            const isRegistered = await graphProvider.registrations.isRegistered(id);
             if (isRegistered) {
                 await graphProvider.registrations.unregister(id);
             }

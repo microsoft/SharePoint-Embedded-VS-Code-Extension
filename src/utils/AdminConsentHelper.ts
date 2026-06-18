@@ -9,6 +9,19 @@ import * as url from 'url';
 import { htmlString } from '../views/html/page';
 
 /**
+ * Escape a string for safe interpolation into HTML text/attribute content,
+ * preventing reflected XSS from attacker-influenced redirect parameters.
+ */
+function escapeHtml(value: string): string {
+    return value
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+/**
  * Utility class for handling admin consent flows
  */
 export class AdminConsentHelper {
@@ -35,7 +48,6 @@ export class AdminConsentHelper {
                 const adminConsent: boolean = responseParams.admin_consent === 'True' ? true : false;
                 const authError = responseParams.error;
                 const authErrorDescription = responseParams.error_description;
-
                 // Always respond to the browser to prevent hanging
                 if (!authError && !authErrorDescription) {
                     // Success case
@@ -53,7 +65,7 @@ export class AdminConsentHelper {
                     // Error case - still send response to browser
                     // eslint-disable-next-line @typescript-eslint/naming-convention
                     res.writeHead(200, { 'Content-Type': 'text/html' });
-                    res.end(`<html><body><h1>Consent Failed</h1><p>Error: ${authError}</p><p>${authErrorDescription}</p><p>You can close this window.</p></body></html>`);
+                    res.end(`<html><body><h1>Consent Failed</h1><p>Error: ${escapeHtml(authError ?? '')}</p><p>${escapeHtml(authErrorDescription ?? '')}</p><p>You can close this window.</p></body></html>`);
 
                     if (!resolved) {
                         resolved = true;

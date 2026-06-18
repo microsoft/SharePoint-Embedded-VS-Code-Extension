@@ -23,12 +23,13 @@ export class DeleteContainer extends Command {
         const container = containerViewModel.container;
 
         const message = vscode.l10n.t("Are you sure you want to permanently delete this container? This is an unrecoverable operation.");
-        const userChoice = await vscode.window.showInformationMessage(
+        const ok = vscode.l10n.t('OK');
+        const userChoice = await vscode.window.showWarningMessage(
             message,
-            vscode.l10n.t('OK'), vscode.l10n.t('Cancel')
+            ok
         );
 
-        if (userChoice === vscode.l10n.t('Cancel')) {
+        if (userChoice !== ok) {
             return;
         }
 

@@ -7,6 +7,7 @@ import * as vscode from 'vscode';
 import { ext } from './utils/extensionVariables';
 import { AccountTreeViewProvider } from './views/treeview/account/AccountTreeViewProvider';
 import { DevelopmentTreeViewProvider } from './views/treeview/development/DevelopmentTreeViewProvider';
+import { BillingDecorationProvider } from './views/treeview/development/BillingDecorationProvider';
 import { LocalStorageService, StorageProvider } from './services/StorageProvider';
 import { TelemetryProvider } from './services/TelemetryProvider';
 import { Commands } from './commands/';
@@ -54,6 +55,13 @@ export async function activate(context: vscode.ExtensionContext) {
     DevelopmentTreeViewProvider.getInstance().setTreeView(devTreeView);
     context.subscriptions.push(devTreeView);
 
+    // Paints a "!" badge and warning tint on tree rows whose resourceUri
+    // opts in via BillingDecorationProvider.buildUri — used to draw attention
+    // to container types / registrations whose billing isn't set up.
+    context.subscriptions.push(
+        vscode.window.registerFileDecorationProvider(BillingDecorationProvider.getInstance())
+    );
+
     // Register URI handler for deep links
     context.subscriptions.push(vscode.window.registerUriHandler(new SpeUriHandler()));
 
@@ -89,6 +97,7 @@ export async function activate(context: vscode.ExtensionContext) {
     Commands.SignIn.register(context);
     Commands.SignOut.register(context);
     Commands.SwitchAccount.register(context);
+    Commands.CreateContainerType.register(context);
     Commands.CreateTrialContainerType.register(context);
     Commands.CreatePaidContainerType.register(context);
     Commands.DeleteContainerType.register(context);
@@ -108,6 +117,7 @@ export async function activate(context: vscode.ExtensionContext) {
     Commands.EnableContainerTypeDiscoverability.register(context);
     Commands.DisableContainerTypeDiscoverability.register(context);
     Commands.GrantExtensionAppPermissions.register(context);
+    Commands.AttachBilling.register(context);
 
     // App Context Menu Commands
     Commands.CopyPostmanConfig.register(context);

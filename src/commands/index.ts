@@ -12,9 +12,11 @@ import { CopyPostmanConfig as _CopyPostmanConfig } from './App/Postman/CopyPostm
 import { CopySubscriptionId as _CopySubscriptionId } from './ContainerType/CopySubscriptionId';
 import { CreateContainer as _CreateContainer } from './Containers/CreateContainer';
 import { CreatePostmanConfig as _CreatePostmanConfig } from './App/Postman/CreatePostmanConfig';
+import { CreateContainerType as _CreateContainerType } from './ContainerTypes/CreateContainerType';
 import { CreateTrialContainerType as _CreateTrialContainerType } from './ContainerTypes/CreateTrialContainerType';
 import { CreatePaidContainerType as _CreatePaidContainerType } from './ContainerTypes/CreateStandardContainerType';
 import { DeleteContainerType as _DeleteContainerType } from './ContainerType/DeleteContainerType';
+import { AttachBilling as _AttachBilling } from './ContainerType/AttachBilling';
 import { LearnMoreDiscoverability as _LearnMoreDiscoverability } from './ContainerType/Configuration/LearnMoreDiscoverability';
 import { EnableContainerTypeDiscoverability as _EnableContainerTypeDiscoverability } from './ContainerType/Configuration/EnableContainerTypeDiscoverability';
 import { DisableContainerTypeDiscoverability as _DisableContainerTypeDiscoverability } from './ContainerType/Configuration/DisableContainerTypeDiscoverability';
@@ -55,6 +57,7 @@ export namespace Commands {
   export const SignOut = _SignOut;
   export const SwitchAccount = _SwitchAccount;
   export const CancelSignIn = _CancelSignIn;
+  export const CreateContainerType = _CreateContainerType;
   export const CreateTrialContainerType = _CreateTrialContainerType;
   export const CreatePaidContainerType = _CreatePaidContainerType;
   //export const RegisterContainerType = _RegisterContainerType;
@@ -74,6 +77,7 @@ export namespace Commands {
   export const LearnMoreDiscoverability = _LearnMoreDiscoverability;
   export const EnableContainerTypeDiscoverability = _EnableContainerTypeDiscoverability;
   export const DisableContainerTypeDiscoverability = _DisableContainerTypeDiscoverability;
+  export const AttachBilling = _AttachBilling;
 
   // Apps Commands
   export const GetOrCreateApp = _GetOrCreateApp;

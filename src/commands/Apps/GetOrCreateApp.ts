@@ -172,17 +172,26 @@ export class GetOrCreateApp extends Command {
                     const createAppProgressWindow = new ProgressWaitNotification(vscode.l10n.t('Creating Entra app...'));
                     createAppProgressWindow.show();
                     const creationTimer = new Timer(60 * 1000);
-                    
-                    // Create the application using the new service
-                    const app = await graphProvider.applications.create({
-                        displayName: appName
-                    });
-                    
-                    // Wait for propagation
-                    let propagatedApp = await graphProvider.applications.get(app.appId!, { useAppId: true });
-                    while (!propagatedApp && !creationTimer.finished) {
-                        await new Promise(r => setTimeout(r, 3000));
+
+                    let app: Application;
+                    let propagatedApp: Application | null;
+                    try {
+                        // Create the application using the new service
+                        app = await graphProvider.applications.create({
+                            displayName: appName
+                        });
+
+                        // Wait for propagation
                         propagatedApp = await graphProvider.applications.get(app.appId!, { useAppId: true });
+                        while (!propagatedApp && !creationTimer.finished) {
+                            await new Promise(r => setTimeout(r, 3000));
+                            propagatedApp = await graphProvider.applications.get(app.appId!, { useAppId: true });
+                        }
+                    } catch (error: any) {
+                        console.error('[GetOrCreateApp] Failed to create Entra app:', error);
+                        createAppProgressWindow.hide();
+                        vscode.window.showErrorMessage(vscode.l10n.t('Failed to create Entra app: {0}', error?.message || error));
+                        return resolve(undefined);
                     }
 
                     if (!propagatedApp) {
