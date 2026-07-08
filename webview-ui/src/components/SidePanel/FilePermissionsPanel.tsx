@@ -87,7 +87,7 @@ function RoleSelector({ value, onChange, options }: {
     return (
         <div>
             <label style={LBL}>Access level</label>
-            <select value={value} style={SELECT} onChange={e => onChange(e.target.value as DriveRole)}>
+            <select data-testid="perm-role-select" value={value} style={SELECT} onChange={e => onChange(e.target.value as DriveRole)}>
                 {options.map(r => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}
             </select>
         </div>
@@ -217,7 +217,7 @@ function PermissionRow({ perm, onEdit, onDelete, onCopyLink }: {
     }
 
     return (
-        <div style={{
+        <div data-testid={`perm-row-${perm.id ?? ''}`} style={{
             padding: '7px 0',
             borderBottom: '1px solid var(--vscode-panel-border)',
             opacity: inherited ? 0.65 : deleting ? 0.4 : 1,
@@ -253,6 +253,7 @@ function PermissionRow({ perm, onEdit, onDelete, onCopyLink }: {
                         className="icon-btn"
                         title={inherited ? 'Inherited — cannot delete' : deleting ? 'Deleting…' : 'Delete'}
                         style={{ fontSize: 13 }}
+                        data-testid={`perm-remove-${perm.id ?? ''}`}
                         disabled={inherited || deleting}
                         onClick={handleDelete}
                     >
@@ -637,7 +638,7 @@ export function FilePermissionsPanel({ item }: { item: StorageItem | null }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
             {/* Toolbar */}
             <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '4px 0 8px' }}>
-                <button className="action-btn" onClick={() => { setShowCreate(true); setActionError(null); }} disabled={loading}>
+                <button className="action-btn" data-testid="perm-add" onClick={() => { setShowCreate(true); setActionError(null); }} disabled={loading}>
                     <span className="codicon codicon-add" />
                     Add
                 </button>

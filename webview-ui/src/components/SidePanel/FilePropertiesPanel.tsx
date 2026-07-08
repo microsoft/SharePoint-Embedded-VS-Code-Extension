@@ -190,13 +190,13 @@ export function FilePropertiesPanel({ item }: FilePropertiesPanelProps) {
     }
 
     if (!item) {
-        return <p style={{ margin: 0, opacity: 0.5, fontSize: 12 }}>Select an item to view its properties.</p>;
+        return <p data-testid="properties-panel" style={{ margin: 0, opacity: 0.5, fontSize: 12 }}>Select an item to view its properties.</p>;
     }
 
     // ── Loading state ─────────────────────────────────────────────────────────
     if (loading) {
         return (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, opacity: 0.6, fontSize: 12, padding: '6px 0' }}>
+            <div data-testid="properties-panel" style={{ display: 'flex', alignItems: 'center', gap: 6, opacity: 0.6, fontSize: 12, padding: '6px 0' }}>
                 <span className="codicon codicon-loading codicon-modifier-spin" style={{ fontSize: 13 }} />
                 Loading…
             </div>
@@ -206,7 +206,7 @@ export function FilePropertiesPanel({ item }: FilePropertiesPanelProps) {
     // ── Error state — show error + basic fallback properties ──────────────────
     if (loadError || !details) {
         return (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+            <div data-testid="properties-panel" style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                 {loadError && (
                     <div style={{ fontSize: 11, color: 'var(--vscode-errorForeground)', marginBottom: 8 }}>
                         <span className="codicon codicon-warning" style={{ marginRight: 4 }} />
@@ -326,7 +326,7 @@ export function FilePropertiesPanel({ item }: FilePropertiesPanelProps) {
     }
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+        <div data-testid="properties-panel" style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
 
             {/* ── Badges ─────────────────────────────────────────────────── */}
             {hasBadges && (

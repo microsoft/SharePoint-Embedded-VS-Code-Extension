@@ -54,6 +54,7 @@ export function RecycledListRow({ item, isSelected, onSelect, colTemplate, isDel
     return (
         <>
             <div
+                data-testid={`recycled-row-${item.name}`}
                 style={{
                     display: 'grid',
                     gridTemplateColumns: colTemplate,

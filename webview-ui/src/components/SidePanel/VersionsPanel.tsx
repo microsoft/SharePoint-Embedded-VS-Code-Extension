@@ -92,6 +92,7 @@ function VersionRow({ version, isCurrent, driveId, itemId, onRestored, onDeleted
 
     return (
         <div
+            data-testid={`version-row-${versionId}`}
             style={{
                 padding: '8px 0',
                 borderBottom: '1px solid var(--vscode-panel-border)',
@@ -121,6 +122,7 @@ function VersionRow({ version, isCurrent, driveId, itemId, onRestored, onDeleted
                 {/* Download */}
                 <button
                     className="icon-btn"
+                    data-testid={`version-download-${versionId}`}
                     title={downloading ? 'Getting download URL…' : 'Download this version'}
                     style={{ fontSize: 13 }}
                     disabled={isBusy}
@@ -133,6 +135,7 @@ function VersionRow({ version, isCurrent, driveId, itemId, onRestored, onDeleted
                 {!isCurrent && (
                     <button
                         className="icon-btn"
+                        data-testid={`version-restore-${versionId}`}
                         title={restoring ? 'Restoring…' : 'Restore this version'}
                         style={{ fontSize: 13 }}
                         disabled={isBusy}
@@ -146,6 +149,7 @@ function VersionRow({ version, isCurrent, driveId, itemId, onRestored, onDeleted
                 {!isCurrent && (
                     <button
                         className="icon-btn"
+                        data-testid={`version-delete-${versionId}`}
                         title={deleting ? 'Deleting…' : 'Delete this version'}
                         style={{ fontSize: 13, color: deleting ? undefined : 'var(--vscode-errorForeground)' }}
                         disabled={isBusy}

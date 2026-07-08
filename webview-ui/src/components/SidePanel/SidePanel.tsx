@@ -58,6 +58,7 @@ export function SidePanel() {
 
     return (
         <div
+            data-testid="sidepanel"
             style={{
                 width: 320,
                 flexShrink: 0,
@@ -82,6 +83,7 @@ export function SidePanel() {
                 {visibleTabs.map(tab => (
                     <button
                         key={tab.key}
+                        data-testid={`sidepanel-tab-${tab.key}`}
                         className={`tab-btn${sidePanelTab === tab.key ? ' active' : ''}`}
                         title={tab.label}
                         onClick={() => setSidePanelTab(tab.key)}
@@ -90,7 +92,7 @@ export function SidePanel() {
                     </button>
                 ))}
                 <div style={{ flex: 1 }} />
-                <button className="icon-btn" title="Close panel" style={{ fontSize: 14 }} onClick={toggleSidePanel}>
+                <button className="icon-btn" data-testid="sidepanel-close" title="Close panel" style={{ fontSize: 14 }} onClick={toggleSidePanel}>
                     <span className="codicon codicon-close" />
                 </button>
             </div>

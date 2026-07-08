@@ -5,7 +5,7 @@ export function Breadcrumb() {
     const { path, navigateToBreadcrumb } = useStorageExplorer();
 
     return (
-        <nav style={{ display: 'flex', alignItems: 'center', gap: 2, overflow: 'hidden', minWidth: 0 }}>
+        <nav data-testid="breadcrumb" style={{ display: 'flex', alignItems: 'center', gap: 2, overflow: 'hidden', minWidth: 0 }}>
             {path.map((entry, i) => {
                 const isLast = i === path.length - 1;
                 return (
@@ -17,6 +17,7 @@ export function Breadcrumb() {
                             />
                         )}
                         <button
+                            data-testid={`breadcrumb-item-${i}`}
                             style={{
                                 background: 'none',
                                 border: 'none',

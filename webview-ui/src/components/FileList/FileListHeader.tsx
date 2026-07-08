@@ -25,6 +25,13 @@ const COLUMNS: ColDef[] = [
     { key: 'size', label: 'Size', align: 'right' },
 ];
 
+const SORT_TEST_IDS: Partial<Record<SortColumn, string>> = {
+    name: 'sort-name',
+    modified: 'sort-modified',
+    type: 'sort-type',
+    size: 'sort-size',
+};
+
 export function FileListHeader({ colTemplate, sortColumn, sortDirection, onSort, onColResize, onClick }: FileListHeaderProps) {
     const arrow = sortDirection === 'asc' ? 'codicon-arrow-up' : 'codicon-arrow-down';
 
@@ -49,6 +56,7 @@ export function FileListHeader({ colTemplate, sortColumn, sortDirection, onSort,
                 return (
                     <div
                         key={i}
+                        data-testid={col.key ? SORT_TEST_IDS[col.key] : undefined}
                         onClick={() => col.key && onSort(col.key)}
                         style={{
                             display: 'flex',

@@ -132,7 +132,7 @@ function FieldValueInput({ col, value, onChange }: {
     switch (getColumnTypeName(col)) {
         case 'boolean':
             return (
-                <div style={{ display: 'flex', gap: 16, padding: '4px 0' }}>
+                <div data-testid="metadata-value-input" style={{ display: 'flex', gap: 16, padding: '4px 0' }}>
                     {(['true', 'false'] as const).map(opt => (
                         <label key={opt} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, cursor: 'pointer' }}>
                             <input
@@ -156,6 +156,7 @@ function FieldValueInput({ col, value, onChange }: {
                 return (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                         <select
+                            data-testid="metadata-value-input"
                             style={SELECT}
                             value={isCustom ? '__custom__' : (value || '')}
                             onChange={e => {
@@ -169,6 +170,7 @@ function FieldValueInput({ col, value, onChange }: {
                         </select>
                         {isCustom && (
                             <input
+                                data-testid="metadata-value-input"
                                 autoFocus
                                 style={INPUT}
                                 placeholder="Enter custom value"
@@ -180,7 +182,7 @@ function FieldValueInput({ col, value, onChange }: {
                 );
             }
             return (
-                <select style={SELECT} value={value || ''} onChange={e => onChange(e.target.value)}>
+                <select data-testid="metadata-value-input" style={SELECT} value={value || ''} onChange={e => onChange(e.target.value)}>
                     <option value="">— Select —</option>
                     {choices.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
@@ -190,6 +192,7 @@ function FieldValueInput({ col, value, onChange }: {
         case 'dateTime':
             return (
                 <input
+                    data-testid="metadata-value-input"
                     type={col.dateTime?.format === 'dateTime' ? 'datetime-local' : 'date'}
                     style={INPUT}
                     value={value}
@@ -200,6 +203,7 @@ function FieldValueInput({ col, value, onChange }: {
         case 'currency':
             return (
                 <input
+                    data-testid="metadata-value-input"
                     type="number"
                     step="0.01"
                     style={INPUT}
@@ -213,6 +217,7 @@ function FieldValueInput({ col, value, onChange }: {
         case 'number': {
             return (
                 <input
+                    data-testid="metadata-value-input"
                     type="number"
                     style={INPUT}
                     placeholder="0"
@@ -228,6 +233,7 @@ function FieldValueInput({ col, value, onChange }: {
         case 'hyperlinkOrPicture':
             return (
                 <input
+                    data-testid="metadata-value-input"
                     type="url"
                     style={INPUT}
                     placeholder="https://…"
@@ -239,6 +245,7 @@ function FieldValueInput({ col, value, onChange }: {
         case 'personOrGroup':
             return (
                 <input
+                    data-testid="metadata-value-input"
                     style={INPUT}
                     placeholder="user@example.com or display name"
                     value={value}
@@ -249,6 +256,7 @@ function FieldValueInput({ col, value, onChange }: {
         default: // text
             return (
                 <input
+                    data-testid="metadata-value-input"
                     style={INPUT}
                     placeholder="Enter value"
                     value={value}
@@ -335,6 +343,7 @@ function FieldDialog({ columns, initialColumnId, initialValue, isEdit, onConfirm
                             Column <span style={{ color: 'var(--vscode-errorForeground)' }}>*</span>
                         </label>
                         <select
+                            data-testid="metadata-key-input"
                             style={SELECT}
                             value={selectedId}
                             onChange={e => handleColumnChange(e.target.value)}
@@ -500,6 +509,7 @@ export function FileMetadataPanel({ item }: { item: StorageItem | null }) {
             <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '4px 0 10px' }}>
                 <button
                     className="action-btn"
+                    data-testid="metadata-add"
                     disabled={isLoading || unsetColumns.length === 0}
                     title={unsetColumns.length === 0 ? 'All columns already have values' : 'Set a field value from a column'}
                     onClick={() => { setShowAdd(true); setActionError(null); }}
@@ -537,6 +547,7 @@ export function FileMetadataPanel({ item }: { item: StorageItem | null }) {
                 return (
                     <div
                         key={colName}
+                        data-testid={`metadata-row-${colName}`}
                         style={{
                             display: 'flex',
                             alignItems: 'center',
@@ -571,6 +582,7 @@ export function FileMetadataPanel({ item }: { item: StorageItem | null }) {
                             className="icon-btn"
                             title={isRemoving ? 'Removing…' : 'Remove'}
                             style={{ fontSize: 13, flexShrink: 0 }}
+                            data-testid={`metadata-delete-${colName}`}
                             disabled={isRemoving}
                             onClick={() => removeField(colName)}
                         >
@@ -594,6 +606,7 @@ export function FileMetadataPanel({ item }: { item: StorageItem | null }) {
                         return (
                             <div
                                 key={colName}
+                                data-testid={`metadata-row-${colName}`}
                                 style={{
                                     display: 'flex',
                                     alignItems: 'center',

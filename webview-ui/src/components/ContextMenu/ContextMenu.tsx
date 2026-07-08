@@ -126,6 +126,7 @@ export function ContextMenu({ item, x, y, onClose }: ContextMenuProps) {
     return ReactDOM.createPortal(
         <div
             ref={ref}
+            data-testid="context-menu"
             onClick={e => e.stopPropagation()}
             style={{
                 position: 'fixed',
@@ -147,6 +148,7 @@ export function ContextMenu({ item, x, y, onClose }: ContextMenuProps) {
                     )}
                     <button
                         className={`menu-item${action.danger ? ' danger' : ''}`}
+                        data-testid={`context-menu-item-${action.label.toLowerCase().replace(/\s+/g, '-')}`}
                         onClick={action.onClick}
                     >
                         <span className={`codicon ${action.icon}`} />

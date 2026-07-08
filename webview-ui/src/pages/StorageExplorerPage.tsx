@@ -179,6 +179,7 @@ function RenameModal({
                 {error && <p style={{ margin: 0, fontSize: 12, color: 'var(--vscode-errorForeground)' }}>{error}</p>}
                 <input
                     ref={inputRef}
+                    data-testid="rename-input"
                     autoFocus
                     value={value}
                     onChange={e => setValue(e.target.value)}
@@ -388,6 +389,7 @@ function NewContainerModal({
                     </label>
                     <input
                         id="container-name"
+                        data-testid="new-container-name-input"
                         autoFocus
                         value={name}
                         placeholder="My container"
@@ -474,6 +476,7 @@ function NewItemModal({
                 <div>
                     <input
                         ref={inputRef}
+                        data-testid="new-item-name-input"
                         autoFocus
                         value={value}
                         placeholder={placeholder}

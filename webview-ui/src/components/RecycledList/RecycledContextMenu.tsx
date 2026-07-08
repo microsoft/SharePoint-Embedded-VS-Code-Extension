@@ -50,6 +50,7 @@ export function RecycledContextMenu({ item, x, y, onClose }: RecycledContextMenu
     return ReactDOM.createPortal(
         <div
             ref={ref}
+            data-testid="recycled-context-menu"
             onClick={e => e.stopPropagation()}
             style={{
                 position: 'fixed',
@@ -71,6 +72,7 @@ export function RecycledContextMenu({ item, x, y, onClose }: RecycledContextMenu
                     )}
                     <button
                         className={`menu-item${action.danger ? ' danger' : ''}`}
+                        data-testid={`recycled-context-menu-item-${action.label.toLowerCase().replace(/\s+/g, '-')}`}
                         onClick={action.onClick}
                     >
                         <span className={`codicon ${action.icon}`} />

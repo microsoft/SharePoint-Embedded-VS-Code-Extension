@@ -185,7 +185,7 @@ export function ColumnsPanel({ item }: { item: StorageItem | null }) {
                     <p style={{ margin: 0, fontSize: 11, color: 'var(--vscode-errorForeground)', flex: 1 }}>{removeError}</p>
                 )}
                 <div style={{ flex: 1 }} />
-                <button className="action-btn" onClick={() => { setForm(DEFAULT_ADD); setAddError(null); setShowAdd(true); }} disabled={loading}>
+                <button className="action-btn" data-testid="column-add" onClick={() => { setForm(DEFAULT_ADD); setAddError(null); setShowAdd(true); }} disabled={loading}>
                     <span className="codicon codicon-add" />
                     Add
                 </button>
@@ -213,7 +213,7 @@ export function ColumnsPanel({ item }: { item: StorageItem | null }) {
 
                         {/* Custom (deletable) columns */}
                         {custom.map(col => (
-                            <div key={col.id ?? ''} style={{
+                            <div key={col.id ?? ''} data-testid={`column-row-${col.id ?? col.displayName ?? ''}`} style={{
                                 display: 'flex', alignItems: 'flex-start', gap: 8,
                                 padding: '7px 0',
                                 borderBottom: '1px solid var(--vscode-panel-border)',
@@ -259,6 +259,7 @@ export function ColumnsPanel({ item }: { item: StorageItem | null }) {
                                 </button>
                                 <button
                                     className="icon-btn" title="Remove column" style={{ fontSize: 13, flexShrink: 0 }}
+                                    data-testid={`column-delete-${col.id ?? col.displayName ?? ''}`}
                                     onClick={() => removeColumn(col.id ?? '')}
                                     disabled={removingId === col.id}
                                 >
@@ -280,7 +281,7 @@ export function ColumnsPanel({ item }: { item: StorageItem | null }) {
                                     Built-in
                                 </div>
                                 {builtin.map(col => (
-                                    <div key={col.id ?? ''} style={{
+                                    <div key={col.id ?? ''} data-testid={`column-row-${col.id ?? col.displayName ?? ''}`} style={{
                                         display: 'flex', alignItems: 'flex-start', gap: 8,
                                         padding: '7px 0',
                                         borderBottom: '1px solid var(--vscode-panel-border)',
@@ -412,7 +413,7 @@ function AddColumnForm({
             {/* Name */}
             <div>
                 <label style={labelStyle}>Name <span style={{ color: 'var(--vscode-errorForeground)' }}>*</span></label>
-                <input autoFocus style={inputStyle} placeholder="e.g. Project Code"
+                <input data-testid="column-name-input" autoFocus style={inputStyle} placeholder="e.g. Project Code"
                     value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
             </div>
 

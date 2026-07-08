@@ -358,7 +358,7 @@ export function NetworkDrawer() {
     }
 
     return (
-        <div style={{
+        <div data-testid="network-drawer" style={{
             height: drawerHeight,
             flexShrink: 0,
             display: 'flex',
@@ -400,10 +400,10 @@ export function NetworkDrawer() {
                     </span>
                 )}
                 <div style={{ flex: 1 }} />
-                <button className="icon-btn" title="Export as HAR" style={{ fontSize: 14 }} onClick={handleExport} disabled={networkRequests.length === 0}>
+                <button className="icon-btn" title="Export as HAR" data-testid="network-export-har" style={{ fontSize: 14 }} onClick={handleExport} disabled={networkRequests.length === 0}>
                     <span className="codicon codicon-export" />
                 </button>
-                <button className="icon-btn" title="Clear" style={{ fontSize: 14 }} onClick={() => { clearNetworkRequests(); setSelectedId(null); }} disabled={networkRequests.length === 0}>
+                <button className="icon-btn" title="Clear" data-testid="network-clear" style={{ fontSize: 14 }} onClick={() => { clearNetworkRequests(); setSelectedId(null); }} disabled={networkRequests.length === 0}>
                     <span className="codicon codicon-clear-all" />
                 </button>
                 <button className="icon-btn" title="Close" style={{ fontSize: 14 }} onClick={toggleNetworkDrawer}>
@@ -448,11 +448,12 @@ export function NetworkDrawer() {
                                 </tr>
                             </thead>
                             <tbody>
-                                {[...networkRequests].reverse().map(req => {
+                                {[...networkRequests].reverse().map((req, i) => {
                                     const isSelected = req.id === selectedId;
                                     return (
                                         <tr
                                             key={req.id}
+                                            data-testid={`network-row-${i}`}
                                             onClick={() => setSelectedId(isSelected ? null : req.id)}
                                             style={{
                                                 cursor: 'pointer',

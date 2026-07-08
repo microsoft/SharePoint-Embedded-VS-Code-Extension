@@ -37,6 +37,8 @@ interface StorageExplorerContextValue {
     viewMode: ViewMode;
     currentItems: StorageItem[];
     currentRecycledItems: StorageItem[];
+    filterText: string;
+    setFilterText: (text: string) => void;
     selectedItem: StorageItem | null;
     sortColumn: SortColumn;
     sortDirection: SortDirection;
@@ -57,6 +59,7 @@ interface StorageExplorerContextValue {
     setRetentionOverride: (containerId: string, days: number | null) => void;
     api: StorageExplorerApi;
     isLoading: boolean;
+    loadProgress: number;
     refresh: () => void;
     createContainer: (name: string, description?: string) => Promise<void>;
     renameContainer: (containerId: string, newName: string) => Promise<void>;
@@ -129,6 +132,10 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
     // Map of folderId/containerId → children (populated as user navigates)
     const [folderItems, setFolderItems] = useState<Record<string, StorageItem[]>>({});
     const [selectedItem, setSelectedItem] = useState<StorageItem | null>(null);
+    // Client-side name filter applied to the currently-listed items (containers / files / recycled).
+    const [filterText, setFilterText] = useState('');
+    // Number of drive items loaded so far during a multi-page listing (for the loading indicator).
+    const [loadProgress, setLoadProgress] = useState(0);
     const [sortColumn, setSortColumnState] = useState<SortColumn>('name');
     const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
     const [sidePanelOpen, setSidePanelOpen] = useState(true);
@@ -175,6 +182,7 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
     const loadCurrentView = useCallback((currentViewMode: ViewMode) => {
         const { containerTypeId } = panelState;
         setIsLoading(true);
+        setLoadProgress(0);
         if (currentViewMode.kind === 'normal') {
             if (!containerTypeId) { setIsLoading(false); return; }
             // Determine the current path state at call time by reading from path state
@@ -201,7 +209,12 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
     const loadDriveItems = useCallback((driveId: string, itemId?: string) => {
         const key = itemId ?? driveId;
         setIsLoading(true);
-        apiRef.current!.drive.listChildren(driveId, itemId)
+        setLoadProgress(0);
+        apiRef.current!.drive.listChildren(driveId, itemId, (soFar) => {
+            // Stream each page into the view and update the running count.
+            setFolderItems(prev => ({ ...prev, [key]: soFar }));
+            setLoadProgress(soFar.length);
+        })
             .then(items => setFolderItems(prev => ({ ...prev, [key]: items })))
             .catch(err => console.error('[StorageExplorer] Failed to load drive items:', err))
             .finally(() => setIsLoading(false));
@@ -278,7 +291,10 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
         }
         const kindOrder: Record<string, number> = { container: 0, folder: 1, file: 2 };
 
-        return [...raw].sort((a, b) => {
+        const filter = filterText.trim().toLowerCase();
+        const filtered = filter ? raw.filter(i => i.name.toLowerCase().includes(filter)) : raw;
+
+        return [...filtered].sort((a, b) => {
             // Containers and folders always sort before files
             const kindCmp = (kindOrder[a.kind] ?? 2) - (kindOrder[b.kind] ?? 2);
             if (kindCmp !== 0) return kindCmp;
@@ -292,14 +308,16 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
             }
             return sortDirection === 'asc' ? cmp : -cmp;
         });
-    }, [lastId, viewMode, rootItems, folderItems, sortColumn, sortDirection]);
+    }, [lastId, viewMode, rootItems, folderItems, sortColumn, sortDirection, filterText]);
 
     const currentRecycledItems = useMemo(() => {
         if (viewMode.kind === 'normal') return [];
         const raw = viewMode.kind === 'deleted-containers'
             ? deletedContainers
             : (folderItems[`recycle-${viewMode.containerId}`] ?? []);
-        return [...raw].sort((a, b) => {
+        const filter = filterText.trim().toLowerCase();
+        const filtered = filter ? raw.filter(i => i.name.toLowerCase().includes(filter)) : raw;
+        return [...filtered].sort((a, b) => {
             let cmp = 0;
             switch (sortColumn) {
                 case 'name': cmp = a.name.localeCompare(b.name); break;
@@ -309,7 +327,7 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
             }
             return sortDirection === 'asc' ? cmp : -cmp;
         });
-    }, [viewMode, deletedContainers, folderItems, sortColumn, sortDirection]);
+    }, [viewMode, deletedContainers, folderItems, sortColumn, sortDirection, filterText]);
 
     const restoreContainer = useCallback(async (containerId: string) => {
         await apiRef.current!.containers.restore(containerId);
@@ -414,21 +432,25 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
         if (viewMode.kind !== 'normal') return;
         setPath(prev => [...prev, { label: item.name, id: item.id }]);
         setSelectedItem(null);
+        setFilterText('');
     }
 
     function navigateToBreadcrumb(index: number) {
         setPath(prev => prev.slice(0, index + 1));
         setSelectedItem(null);
+        setFilterText('');
     }
 
     function navigateToDeletedContainers() {
         setPath([path[0], { label: 'Deleted containers', id: '__deleted_containers' }]);
         setSelectedItem(null);
+        setFilterText('');
     }
 
     function navigateToContainerRecycleBin(containerId: string, containerName: string) {
         setPath([path[0], { label: containerName, id: containerId }, { label: 'Recycle bin', id: '__recyclebin__' }]);
         setSelectedItem(null);
+        setFilterText('');
     }
 
     function selectItem(item: StorageItem | null) {
@@ -626,6 +648,7 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
         tenantDomain: panelState.tenantDomain,
         api: apiRef.current!,
         isLoading,
+        loadProgress,
         refresh,
         createContainer,
         renameContainer,
@@ -646,6 +669,8 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
         viewMode,
         currentItems,
         currentRecycledItems,
+        filterText,
+        setFilterText,
         selectedItem,
         sortColumn,
         sortDirection,

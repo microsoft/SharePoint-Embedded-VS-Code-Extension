@@ -41,6 +41,7 @@ export function Modal({
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="modal-title"
+                data-testid="modal"
                 onClick={e => e.stopPropagation()}
                 style={{
                     backgroundColor: 'var(--vscode-editor-background)',
@@ -72,12 +73,13 @@ export function Modal({
 
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
                     {cancelLabel && (
-                        <button className="action-btn" onClick={onCancel}>
+                        <button className="action-btn" data-testid="modal-cancel" onClick={onCancel}>
                             {cancelLabel}
                         </button>
                     )}
                     <button
                         className="action-btn"
+                        data-testid="modal-confirm"
                         disabled={confirmDisabled}
                         onClick={onConfirm}
                         style={

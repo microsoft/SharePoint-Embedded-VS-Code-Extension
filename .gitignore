@@ -4,3 +4,10 @@ node_modules
 .vscode-test/
 *.vsix
 src/client.ts
+
+# UI tests (Playwright)
+ui-tests/.env
+ui-tests/test-results/
+ui-tests/test-results-api/
+ui-tests/perf/results/
+ui-tests/playwright-report/

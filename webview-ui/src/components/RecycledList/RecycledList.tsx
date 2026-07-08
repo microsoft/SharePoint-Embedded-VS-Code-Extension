@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useRef } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { useStorageExplorer } from '../../context/StorageExplorerContext';
 import { RecycledListHeader } from './RecycledListHeader';
 import { RecycledListRow } from './RecycledListRow';
@@ -8,6 +9,7 @@ import { useResizableColumns } from '../../hooks/useResizableColumns';
 // Initial widths for deleted-containers: [Created, Deleted, Type]
 const INITIAL_COL_WIDTHS_RECYCLE = [150, 120];
 const INITIAL_COL_WIDTHS_DELETED = [140, 140, 120];
+const ESTIMATED_ROW_HEIGHT = 30;
 
 export function RecycledList() {
     const { currentRecycledItems, selectedItem, selectItem, setSort, sortColumn, sortDirection, viewMode } = useStorageExplorer();
@@ -22,6 +24,15 @@ export function RecycledList() {
         ? 'No deleted containers'
         : 'Recycle bin is empty';
 
+    const scrollRef = useRef<HTMLDivElement>(null);
+    const rowVirtualizer = useVirtualizer({
+        count: currentRecycledItems.length,
+        getScrollElement: () => scrollRef.current,
+        estimateSize: () => ESTIMATED_ROW_HEIGHT,
+        overscan: 12,
+        getItemKey: (index) => currentRecycledItems[index]?.id ?? index,
+    });
+
     return (
         <div
             style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}
@@ -35,20 +46,31 @@ export function RecycledList() {
                 isDeletedContainers={isDeletedContainers}
                 onClick={(e: React.MouseEvent) => e.stopPropagation()}
             />
-            <div style={{ flex: 1, overflowY: 'auto', padding: '0 4px' }}>
+            <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', padding: '0 4px' }}>
                 {currentRecycledItems.length === 0 ? (
                     <EmptyState message={emptyMessage} />
                 ) : (
-                    currentRecycledItems.map(item => (
-                        <RecycledListRow
-                            key={item.id}
-                            item={item}
-                            colTemplate={colTemplate}
-                            isDeletedContainers={isDeletedContainers}
-                            isSelected={selectedItem?.id === item.id}
-                            onSelect={selectItem}
-                        />
-                    ))
+                    <div style={{ height: rowVirtualizer.getTotalSize(), position: 'relative', width: '100%' }}>
+                        {rowVirtualizer.getVirtualItems().map(virtualRow => {
+                            const item = currentRecycledItems[virtualRow.index];
+                            return (
+                                <div
+                                    key={virtualRow.key}
+                                    data-index={virtualRow.index}
+                                    ref={rowVirtualizer.measureElement}
+                                    style={{ position: 'absolute', top: 0, left: 0, width: '100%', transform: `translateY(${virtualRow.start}px)` }}
+                                >
+                                    <RecycledListRow
+                                        item={item}
+                                        colTemplate={colTemplate}
+                                        isDeletedContainers={isDeletedContainers}
+                                        isSelected={selectedItem?.id === item.id}
+                                        onSelect={selectItem}
+                                    />
+                                </div>
+                            );
+                        })}
+                    </div>
                 )}
             </div>
         </div>

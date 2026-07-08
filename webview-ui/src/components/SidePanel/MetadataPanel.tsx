@@ -109,7 +109,7 @@ export function MetadataPanel({ item }: { item: StorageItem | null }) {
                     <p style={{ margin: 0, fontSize: 11, color: 'var(--vscode-errorForeground)', flex: 1 }}>{removeError}</p>
                 )}
                 <div style={{ flex: 1 }} />
-                <button className="action-btn" onClick={() => { setForm(DEFAULT_FORM); setAddError(null); setShowAdd(true); }} disabled={loading}>
+                <button className="action-btn" data-testid="metadata-add" onClick={() => { setForm(DEFAULT_FORM); setAddError(null); setShowAdd(true); }} disabled={loading}>
                     <span className="codicon codicon-add" />
                     Add
                 </button>
@@ -144,7 +144,7 @@ export function MetadataPanel({ item }: { item: StorageItem | null }) {
                     </div>
 
                     {properties.map(p => (
-                        <div key={p.key} style={{
+                        <div key={p.key} data-testid={`metadata-row-${p.key}`} style={{
                             display: 'grid', gridTemplateColumns: '1fr 1fr 20px 28px 28px',
                             alignItems: 'center', gap: 4,
                             padding: '6px 0',
@@ -169,6 +169,7 @@ export function MetadataPanel({ item }: { item: StorageItem | null }) {
                             </button>
                             <button
                                 className="icon-btn" title="Remove" style={{ fontSize: 13, padding: '2px 4px' }}
+                                data-testid={`metadata-delete-${p.key}`}
                                 onClick={() => removeProperty(p.key)}
                                 disabled={removingKey === p.key}
                             >
@@ -245,6 +246,7 @@ function AddMetadataForm({
                     </div>
                 ) : (
                     <input
+                        data-testid="metadata-key-input"
                         autoFocus
                         style={inputStyle}
                         placeholder="e.g. costCenter"
@@ -256,6 +258,7 @@ function AddMetadataForm({
             <div>
                 <label style={{ fontSize: 11, opacity: 0.7, display: 'block', marginBottom: 4 }}>Value</label>
                 <input
+                    data-testid="metadata-value-input"
                     autoFocus={lockKey}
                     style={inputStyle}
                     placeholder="Property value"
@@ -274,4 +277,3 @@ function AddMetadataForm({
         </div>
     );
 }
-

@@ -6,6 +6,10 @@ import { withAuthRetry } from '../GraphClient';
 import { NetworkLogger } from '../NetworkLoggingMiddleware';
 
 const SELECT = 'id,name,file,folder,size,lastModifiedDateTime,createdDateTime,webUrl,@microsoft.graph.downloadUrl';
+// List select deliberately OMITS `@microsoft.graph.downloadUrl`: it's an expensive per-item
+// computed property that makes Graph shrink the page size, and it's fetched lazily on download
+// (see getDownloadUrl). Keeping it out lets listing pages come back full-size and fast.
+const LIST_SELECT = 'id,name,file,folder,size,lastModifiedDateTime,createdDateTime,webUrl';
 
 function formatBytes(bytes: number | null | undefined): string {
     if (bytes == null) return '';
@@ -141,14 +145,34 @@ export class DriveGraphService {
      * List the children of a drive root (itemId undefined) or a specific folder.
      * driveId is the container ID (container.id === driveId).
      */
-    async listChildren(driveId: string, itemId?: string): Promise<StorageItem[]> {
+    async listChildren(driveId: string, itemId?: string, onPage?: (itemsSoFar: StorageItem[]) => void): Promise<StorageItem[]> {
         return withAuthRetry(this._authProvider, async () => {
-            const path = itemId
+            const firstPath = itemId
                 ? `/drives/${driveId}/items/${itemId}/children`
                 : `/drives/${driveId}/root/children`;
-            const resp = await this._client.api(path).select(SELECT).top(200).get();
-            const items: DriveItem[] = resp.value ?? [];
-            return items.map(toStorageItem);
+
+            // Follow @odata.nextLink to load EVERY page — a folder can hold far more items than a
+            // single Graph page (~200). The first request applies select+top; subsequent requests
+            // use the server-provided nextLink, which already encodes the query.
+            // `onPage` is invoked after each page with the cumulative items so the UI can stream
+            // rows in and show load progress.
+            const all: DriveItem[] = [];
+            let resp: { value?: DriveItem[]; '@odata.nextLink'?: string } =
+                await this._client.api(firstPath).select(LIST_SELECT).top(200).get();
+            all.push(...(resp.value ?? []));
+            onPage?.(all.map(toStorageItem));
+
+            let nextLink = resp['@odata.nextLink'];
+            let guard = 0;
+            while (nextLink && guard < 1000) {
+                resp = await this._client.api(nextLink).get();
+                all.push(...(resp.value ?? []));
+                onPage?.(all.map(toStorageItem));
+                nextLink = resp['@odata.nextLink'];
+                guard++;
+            }
+
+            return all.map(toStorageItem);
         });
     }
 

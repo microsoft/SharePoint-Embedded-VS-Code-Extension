@@ -8,6 +8,7 @@ export function NavBar() {
         toggleNetworkDrawer, networkDrawerOpen, networkRequests,
         uploads, uploadCardOpen, toggleUploadCard,
         refresh, isLoading,
+        filterText, setFilterText,
     } = useStorageExplorer();
     const hasRequests = networkRequests.length > 0;
 
@@ -37,6 +38,7 @@ export function NavBar() {
             {/* Tenant identity — far left */}
             <span className="codicon codicon-database" style={{ fontSize: 16, color: 'var(--vscode-symbolIcon-classForeground, #4ec9b0)', flexShrink: 0 }} />
             <span
+                data-testid="nav-tenant-domain"
                 style={{
                     fontSize: 11,
                     padding: '2px 7px',
@@ -57,8 +59,44 @@ export function NavBar() {
                 <Breadcrumb />
             </div>
 
+            {/* Filter / search box — filters the currently-listed items by name */}
+            <div style={{ position: 'relative', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                <span
+                    className="codicon codicon-search"
+                    style={{ position: 'absolute', left: 6, fontSize: 12, opacity: 0.6, pointerEvents: 'none' }}
+                />
+                <input
+                    data-testid="search-input"
+                    value={filterText}
+                    onChange={e => setFilterText(e.target.value)}
+                    placeholder="Filter by name…"
+                    aria-label="Filter by name"
+                    style={{
+                        width: 180,
+                        padding: '3px 22px 3px 24px',
+                        fontSize: 12,
+                        border: '1px solid var(--vscode-input-border, var(--vscode-panel-border))',
+                        borderRadius: 4,
+                        backgroundColor: 'var(--vscode-input-background)',
+                        color: 'var(--vscode-input-foreground)',
+                        outline: 'none',
+                    }}
+                />
+                {filterText && (
+                    <button
+                        data-testid="search-clear"
+                        className="icon-btn"
+                        title="Clear filter"
+                        onClick={() => setFilterText('')}
+                        style={{ position: 'absolute', right: 2, fontSize: 12, padding: '0 2px' }}
+                    >
+                        <span className="codicon codicon-close" />
+                    </button>
+                )}
+            </div>
+
             {/* Right-side actions */}
-            <button className="icon-btn" title="Refresh" onClick={refresh} disabled={isLoading}>
+            <button className="icon-btn" title="Refresh" data-testid="nav-refresh" onClick={refresh} disabled={isLoading}>
                 <span className={`codicon codicon-refresh${isLoading ? ' codicon-modifier-spin' : ''}`} />
             </button>
             {/* Network activity toggle */}
@@ -66,6 +104,7 @@ export function NavBar() {
                 <button
                     className={`icon-btn${networkDrawerOpen ? ' active' : ''}`}
                     title="Network activity"
+                    data-testid="nav-network-toggle"
                     onClick={toggleNetworkDrawer}
                 >
                     <span className="codicon codicon-pulse" />
@@ -88,6 +127,7 @@ export function NavBar() {
                 <div style={{ position: 'relative' }}>
                     <button
                         className={`icon-btn${uploadCardOpen ? ' active' : ''}`}
+                        data-testid="nav-uploads-toggle"
                         title={
                             failedUploads.length > 0
                                 ? `Uploads — ${failedUploads.length} failed`
@@ -113,7 +153,7 @@ export function NavBar() {
                     )}
                 </div>
             )}
-            <button className={`icon-btn${sidePanelOpen ? ' active' : ''}`} title="Toggle details panel" onClick={toggleSidePanel}>
+            <button className={`icon-btn${sidePanelOpen ? ' active' : ''}`} title="Toggle details panel" data-testid="nav-sidepanel-toggle" onClick={toggleSidePanel}>
                 <span className="codicon codicon-layout-sidebar-right" />
             </button>
         </div>

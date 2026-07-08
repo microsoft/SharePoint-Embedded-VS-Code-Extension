@@ -231,6 +231,7 @@ export function PermissionsPanel({ item }: { item: StorageItem | null }) {
                 <div style={{ flex: 1 }} />
                 <button
                     className="action-btn"
+                    data-testid="perm-add"
                     onClick={() => {
                         setAddDialog(DEFAULT_DIALOG);
                         setAddError(null);
@@ -283,7 +284,7 @@ export function PermissionsPanel({ item }: { item: StorageItem | null }) {
                             </div>
                         ) : (
                             members.map(m => (
-                                <div key={m.permissionId} style={{
+                                <div key={m.permissionId} data-testid={`perm-row-${m.permissionId}`} style={{
                                     display: 'flex', alignItems: 'center', gap: 8,
                                     padding: '5px 0',
                                     borderBottom: '1px solid var(--vscode-panel-border)',
@@ -310,6 +311,7 @@ export function PermissionsPanel({ item }: { item: StorageItem | null }) {
                                     </button>
                                     <button
                                         className="icon-btn" title="Remove" style={{ fontSize: 13 }}
+                                        data-testid={`perm-remove-${m.permissionId}`}
                                         onClick={() => removeMember(m.permissionId)}
                                         disabled={removingId === m.permissionId}
                                     >
@@ -427,6 +429,7 @@ function AddPermissionForm({
                 </label>
                 <div ref={wrapRef} style={{ position: 'relative' }}>
                     <input
+                        data-testid="people-search-input"
                         autoFocus={!isEdit}
                         readOnly={isEdit}
                         style={{ ...inputStyle, opacity: isEdit ? 0.7 : 1 }}
@@ -452,6 +455,7 @@ function AddPermissionForm({
                             {suggestions.map(m => (
                                 <button
                                     key={m.id}
+                                    data-testid={`people-suggestion-${m.id}`}
                                     onMouseDown={e => {
                                         e.preventDefault();
                                         setDialog(d => ({
@@ -490,6 +494,7 @@ function AddPermissionForm({
             <div>
                 <label style={{ fontSize: 11, opacity: 0.7, display: 'block', marginBottom: 4 }}>Role</label>
                 <select
+                    data-testid="perm-role-select"
                     autoFocus={isEdit}
                     value={dialog.role}
                     onChange={e => setDialog(d => ({ ...d, role: e.target.value as ContainerRole }))}
@@ -508,5 +513,4 @@ function AddPermissionForm({
         </div>
     );
 }
-
 

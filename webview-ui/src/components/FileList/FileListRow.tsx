@@ -55,6 +55,8 @@ export function FileListRow({ item, isSelected, onSelect, onNavigate, colTemplat
     return (
         <>
             <div
+                data-testid={`file-row-${item.name}`}
+                data-item-id={item.id}
                 style={{
                     display: 'grid',
                     gridTemplateColumns: colTemplate,
@@ -111,6 +113,7 @@ export function FileListRow({ item, isSelected, onSelect, onNavigate, colTemplat
                         <button
                             className="icon-btn"
                             title="More actions"
+                            data-testid="file-row-menu"
                             style={{ fontSize: 14, padding: '2px 4px' }}
                             onClick={handleContextMenuBtn}
                         >

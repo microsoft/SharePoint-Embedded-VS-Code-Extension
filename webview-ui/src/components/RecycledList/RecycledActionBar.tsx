@@ -9,15 +9,16 @@ function Separator() {
 }
 
 function ActionBtn({
-    icon, label, title, disabled, danger, onClick,
+    icon, label, title, disabled, danger, onClick, testId,
 }: {
     icon: string; label: string; title: string;
-    disabled?: boolean; danger?: boolean; onClick: () => void;
+    disabled?: boolean; danger?: boolean; onClick: () => void; testId?: string;
 }) {
     return (
         <button
             className="action-btn"
             title={title}
+            data-testid={testId}
             disabled={disabled}
             onClick={onClick}
             style={danger && !disabled ? { color: 'var(--vscode-errorForeground)' } : undefined}
@@ -75,6 +76,7 @@ export function RecycledActionBar() {
                 icon="codicon-redo"
                 label="Restore"
                 title="Restore selected item"
+                testId="recycled-restore"
                 disabled={!hasSelection}
                 onClick={handleRestore}
             />
@@ -82,6 +84,7 @@ export function RecycledActionBar() {
                 icon="codicon-trash"
                 label="Permanently delete"
                 title="Permanently delete selected item"
+                testId="recycled-permanent-delete"
                 disabled={!hasSelection}
                 danger
                 onClick={() => selectedItem && openModal({ kind: 'permanently-delete', item: selectedItem })}

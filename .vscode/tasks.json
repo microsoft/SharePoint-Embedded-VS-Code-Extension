@@ -26,8 +26,29 @@
 			"group": "build"
 		},
 		{
+			"label": "build:webview",
+			"type": "npm",
+			"script": "build:webview",
+			"problemMatcher": [],
+			"presentation": {
+				"reveal": "silent"
+			},
+			"group": "build"
+		},
+		{
+			"label": "watch:webview",
+			"type": "npm",
+			"script": "watch:webview",
+			"isBackground": true,
+			"problemMatcher": [],
+			"presentation": {
+				"reveal": "never"
+			},
+			"group": "build"
+		},
+		{
 			"label": "build",
-			"dependsOn": ["compile", "watch"],
+			"dependsOn": ["build:webview", "compile", "watch"],
 			"dependsOrder": "sequence",
 			"group": {
 				"kind": "build",

@@ -43,10 +43,10 @@ function Separator() {
 }
 
 function ActionBtn({
-    icon, label, title, disabled, danger, onClick,
+    icon, label, title, disabled, danger, onClick, testId,
 }: {
     icon: string; label: string; title: string;
-    disabled?: boolean; danger?: boolean; onClick: () => void;
+    disabled?: boolean; danger?: boolean; onClick: () => void; testId?: string;
 }) {
     return (
         <button
@@ -54,6 +54,7 @@ function ActionBtn({
             title={title}
             disabled={disabled}
             onClick={onClick}
+            data-testid={testId}
             style={danger && !disabled ? { color: 'var(--vscode-errorForeground)' } : undefined}
         >
             <span className={`codicon ${icon}`} />
@@ -66,11 +67,11 @@ function ContainerActions({ hasSelection }: { hasSelection: boolean }) {
     const { selectedItem, openModal, navigateToDeletedContainers } = useStorageExplorer();
     return (
         <>
-            <ActionBtn icon="codicon-add" label="New Container" title="Create a new container" onClick={() => openModal({ kind: 'new-container' })} />
-            <ActionBtn icon="codicon-trash" label="Deleted containers" title="View deleted containers" onClick={navigateToDeletedContainers} />
+            <ActionBtn icon="codicon-add" label="New Container" title="Create a new container" testId="action-new-container" onClick={() => openModal({ kind: 'new-container' })} />
+            <ActionBtn icon="codicon-trash" label="Deleted containers" title="View deleted containers" testId="action-deleted-containers" onClick={navigateToDeletedContainers} />
             <Separator />
-            <ActionBtn icon="codicon-edit" label="Rename" title="Rename selected container" disabled={!hasSelection} onClick={() => selectedItem && openModal({ kind: 'rename', item: selectedItem })} />
-            <ActionBtn icon="codicon-trash" label="Delete" title="Delete selected container" disabled={!hasSelection} danger onClick={() => selectedItem && openModal({ kind: 'delete', item: selectedItem })} />
+            <ActionBtn icon="codicon-edit" label="Rename" title="Rename selected container" testId="action-rename-container" disabled={!hasSelection} onClick={() => selectedItem && openModal({ kind: 'rename', item: selectedItem })} />
+            <ActionBtn icon="codicon-trash" label="Delete" title="Delete selected container" testId="action-delete-container" disabled={!hasSelection} danger onClick={() => selectedItem && openModal({ kind: 'delete', item: selectedItem })} />
         </>
     );
 }
@@ -99,21 +100,22 @@ function FileActions({
                 ref={fileInputRef}
                 type="file"
                 multiple
+                data-testid="action-upload-input"
                 style={{ display: 'none' }}
                 onChange={handleFilesSelected}
             />
             <NewDropdown />
-            <ActionBtn icon="codicon-cloud-upload" label="Upload" title="Upload files" onClick={() => fileInputRef.current?.click()} />
+            <ActionBtn icon="codicon-cloud-upload" label="Upload" title="Upload files" testId="action-upload" onClick={() => fileInputRef.current?.click()} />
             <Separator />
             <OpenDropdown
                 disabled={!canOpen}
                 onOpenInWeb={() => selectedItem?.webUrl && openUrl(selectedItem.webUrl)}
                 onOpenInDesktop={() => selectedItem && openInDesktopApp(selectedItem)}
             />
-            <ActionBtn icon="codicon-eye" label="Preview" title="Preview selected file" disabled={!canPreview} onClick={() => selectedItem && previewItem(selectedItem)} />
-            <ActionBtn icon="codicon-edit" label="Rename" title="Rename selected item" disabled={!hasSelection} onClick={() => selectedItem && openModal({ kind: 'rename', item: selectedItem })} />
-            <ActionBtn icon="codicon-trash" label="Delete" title="Delete selected item" disabled={!hasSelection} danger onClick={() => selectedItem && openModal({ kind: 'delete', item: selectedItem })} />
-            <ActionBtn icon="codicon-cloud-download" label="Download" title="Download selected file" disabled={!canDownload} onClick={() => selectedItem && downloadItem(selectedItem)} />
+            <ActionBtn icon="codicon-eye" label="Preview" title="Preview selected file" testId="action-preview" disabled={!canPreview} onClick={() => selectedItem && previewItem(selectedItem)} />
+            <ActionBtn icon="codicon-edit" label="Rename" title="Rename selected item" testId="action-rename-item" disabled={!hasSelection} onClick={() => selectedItem && openModal({ kind: 'rename', item: selectedItem })} />
+            <ActionBtn icon="codicon-trash" label="Delete" title="Delete selected item" testId="action-delete-item" disabled={!hasSelection} danger onClick={() => selectedItem && openModal({ kind: 'delete', item: selectedItem })} />
+            <ActionBtn icon="codicon-cloud-download" label="Download" title="Download selected file" testId="action-download" disabled={!canDownload} onClick={() => selectedItem && downloadItem(selectedItem)} />
         </>
     );
 }
@@ -166,6 +168,7 @@ function NewDropdown() {
             <button
                 className="action-btn"
                 title="Create a new item"
+                data-testid="action-new-dropdown"
                 onClick={() => setOpen(o => !o)}
             >
                 <span className="codicon codicon-add" />
@@ -188,24 +191,24 @@ function NewDropdown() {
                         padding: '4px 0',
                     }}
                 >
-                    <button className="menu-item" onClick={() => pick('new-word')}>
+                    <button className="menu-item" data-testid="action-new-word" onClick={() => pick('new-word')}>
                         <OfficeBadge letter="W" color="#2C5696" />
                         New Word document
                     </button>
-                    <button className="menu-item" onClick={() => pick('new-powerpoint')}>
+                    <button className="menu-item" data-testid="action-new-powerpoint" onClick={() => pick('new-powerpoint')}>
                         <OfficeBadge letter="P" color="#B7472A" />
                         New PowerPoint presentation
                     </button>
-                    <button className="menu-item" onClick={() => pick('new-excel')}>
+                    <button className="menu-item" data-testid="action-new-excel" onClick={() => pick('new-excel')}>
                         <OfficeBadge letter="X" color="#1F6B42" />
                         New Excel workbook
                     </button>
                     <div style={{ height: 1, backgroundColor: 'var(--vscode-menu-separatorBackground, var(--vscode-panel-border))', margin: '4px 0' }} />
-                    <button className="menu-item" onClick={() => pick('new-folder')}>
+                    <button className="menu-item" data-testid="action-new-folder" onClick={() => pick('new-folder')}>
                         <span className="codicon codicon-new-folder" />
                         New Folder
                     </button>
-                    <button className="menu-item" onClick={() => pick('new-file')}>
+                    <button className="menu-item" data-testid="action-new-file" onClick={() => pick('new-file')}>
                         <span className="codicon codicon-file-add" />
                         New File
                     </button>
@@ -243,6 +246,7 @@ function OpenDropdown({ disabled, onOpenInWeb, onOpenInDesktop }: { disabled: bo
                 className="action-btn"
                 disabled={disabled}
                 title="Open Office file"
+                data-testid="action-open-dropdown"
                 onClick={() => !disabled && setOpen(o => !o)}
             >
                 <span className="codicon codicon-link-external" />
@@ -265,11 +269,11 @@ function OpenDropdown({ disabled, onOpenInWeb, onOpenInDesktop }: { disabled: bo
                         padding: '4px 0',
                     }}
                 >
-                    <button className="menu-item" onClick={() => { setOpen(false); onOpenInWeb(); }}>
+                    <button className="menu-item" data-testid="action-open-web" onClick={() => { setOpen(false); onOpenInWeb(); }}>
                         <span className="codicon codicon-globe" />
                         Open in browser
                     </button>
-                    <button className="menu-item" onClick={() => { setOpen(false); onOpenInDesktop(); }}>
+                    <button className="menu-item" data-testid="action-open-desktop" onClick={() => { setOpen(false); onOpenInDesktop(); }}>
                         <span className="codicon codicon-desktop-download" />
                         Open in desktop
                     </button>

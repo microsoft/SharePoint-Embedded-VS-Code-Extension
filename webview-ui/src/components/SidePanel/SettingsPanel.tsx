@@ -95,6 +95,7 @@ export function SettingsPanel({ item }: { item: StorageItem | null }) {
                         <div style={descStyle}>Keep version history for files in this container.</div>
                     </div>
                     <Toggle
+                        testId="settings-field-isItemVersioningEnabled"
                         checked={draft.isItemVersioningEnabled ?? false}
                         busy={!!saving['isItemVersioningEnabled']}
                         onChange={val => {
@@ -116,6 +117,7 @@ export function SettingsPanel({ item }: { item: StorageItem | null }) {
                     Set to 0 to keep all versions.
                 </div>
                 <VersionLimitInput
+                    testId="settings-field-itemMajorVersionLimit"
                     value={draft.itemMajorVersionLimit ?? null}
                     busy={!!saving['itemMajorVersionLimit']}
                     onChange={val => {
@@ -138,6 +140,7 @@ export function SettingsPanel({ item }: { item: StorageItem | null }) {
                         </div>
                     </div>
                     <Toggle
+                        testId="settings-field-isOcrEnabled"
                         checked={draft.isOcrEnabled ?? false}
                         busy={!!saving['isOcrEnabled']}
                         onChange={val => {
@@ -161,10 +164,12 @@ function Toggle({
     checked,
     busy,
     onChange,
+    testId,
 }: {
     checked: boolean;
     busy: boolean;
     onChange: (val: boolean) => void;
+    testId?: string;
 }) {
     const track: React.CSSProperties = {
         position: 'relative',
@@ -193,6 +198,7 @@ function Toggle({
 
     return (
         <button
+            data-testid={testId}
             role="switch"
             aria-checked={checked}
             disabled={busy}
@@ -216,10 +222,12 @@ function VersionLimitInput({
     value,
     busy,
     onChange,
+    testId,
 }: {
     value: number | null;
     busy: boolean;
     onChange: (val: number | null) => void;
+    testId?: string;
 }) {
     const [local, setLocal] = useState(String(value ?? 0));
 
@@ -238,6 +246,7 @@ function VersionLimitInput({
     return (
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <input
+                data-testid={testId}
                 type="number"
                 min={0}
                 max={VERSIONING_LIMIT_MAX}

@@ -72,7 +72,7 @@ function UploadRow({ upload }: { upload: UploadFile }) {
     const color = STATUS_COLOR[upload.status];
 
     return (
-        <div style={{ padding: '8px 0', borderBottom: '1px solid var(--vscode-panel-border)' }}>
+        <div data-testid={`upload-item-${upload.name}`} style={{ padding: '8px 0', borderBottom: '1px solid var(--vscode-panel-border)' }}>
             {/* File name + status badge */}
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, minWidth: 0 }}>
                 <span
@@ -117,16 +117,16 @@ function UploadRow({ upload }: { upload: UploadFile }) {
             {/* Action buttons */}
             <div style={{ display: 'flex', gap: 4, marginTop: 5 }}>
                 {upload.status === 'uploading' && (
-                    <RowBtn icon="codicon-debug-pause" label="Pause" onClick={() => pauseUpload(upload.id)} />
+                    <RowBtn icon="codicon-debug-pause" label="Pause" testId="upload-pause" onClick={() => pauseUpload(upload.id)} />
                 )}
                 {upload.status === 'paused' && (
-                    <RowBtn icon="codicon-play" label="Resume" onClick={() => resumeUpload(upload.id)} />
+                    <RowBtn icon="codicon-play" label="Resume" testId="upload-resume" onClick={() => resumeUpload(upload.id)} />
                 )}
                 {upload.status === 'failed' && (
-                    <RowBtn icon="codicon-refresh" label="Retry" onClick={() => retryUpload(upload.id)} />
+                    <RowBtn icon="codicon-refresh" label="Retry" testId="upload-retry" onClick={() => retryUpload(upload.id)} />
                 )}
                 {(upload.status === 'uploading' || upload.status === 'paused' || upload.status === 'pending') && (
-                    <RowBtn icon="codicon-close" label="Cancel" onClick={() => cancelUpload(upload.id)} />
+                    <RowBtn icon="codicon-close" label="Cancel" testId="upload-cancel" onClick={() => cancelUpload(upload.id)} />
                 )}
                 {(upload.status === 'completed' || upload.status === 'failed') && (
                     <RowBtn icon="codicon-close" label="Dismiss" onClick={() => dismissUpload(upload.id)} />
@@ -136,10 +136,11 @@ function UploadRow({ upload }: { upload: UploadFile }) {
     );
 }
 
-function RowBtn({ icon, label, onClick }: { icon: string; label: string; onClick: () => void }) {
+function RowBtn({ icon, label, onClick, testId }: { icon: string; label: string; onClick: () => void; testId?: string }) {
     return (
         <button
             className="action-btn"
+            data-testid={testId}
             onClick={onClick}
             title={label}
             style={{ fontSize: 11, padding: '2px 6px', gap: 3 }}
@@ -180,6 +181,7 @@ export function UploadCard() {
 
     return (
         <div
+            data-testid="upload-card"
             style={{
                 position: 'fixed',
                 bottom: 16,
