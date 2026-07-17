@@ -108,8 +108,8 @@ export const appRoleSchema = z.object({
 export const certificationSchema = z.object({
     certificationDetailsUrl: z.string().optional(),
     certificationExpirationDateTime: z.string().optional(),
-    isCertifiedByMicrosoft: z.boolean().optional(),
-    isPublisherAttested: z.boolean().optional(),
+    isCertifiedByMicrosoft: z.boolean().nullish(),
+    isPublisherAttested: z.boolean().nullish(),
     lastCertificationDateTime: z.string().optional()
 });
 
@@ -144,19 +144,19 @@ export const keyCredentialSchema = z.object({
 export const optionalClaimsSchema = z.object({
     accessToken: z.array(z.object({
         additionalProperties: z.array(z.string()).optional(),
-        essential: z.boolean().optional(),
+        essential: z.boolean().nullish(),
         name: z.string(),
         source: z.string().optional()
     })).optional(),
     idToken: z.array(z.object({
         additionalProperties: z.array(z.string()).optional(),
-        essential: z.boolean().optional(),
+        essential: z.boolean().nullish(),
         name: z.string(),
         source: z.string().optional()
     })).optional(),
     saml2Token: z.array(z.object({
         additionalProperties: z.array(z.string()).optional(),
-        essential: z.boolean().optional(),
+        essential: z.boolean().nullish(),
         name: z.string(),
         source: z.string().optional()
     })).optional()
@@ -205,27 +205,27 @@ export const requiredResourceAccessSchema = z.object({
  * Request signature verification schema
  */
 export const requestSignatureVerificationSchema = z.object({
-    signedRequestsRequired: z.boolean().optional(),
-    isSignedRequestRequired: z.boolean().optional()
+    signedRequestsRequired: z.boolean().nullish(),
+    isSignedRequestRequired: z.boolean().nullish()
 });
 
 /**
  * Service principal lock configuration schema
  */
 export const servicePrincipalLockConfigurationSchema = z.object({
-    isEnabled: z.boolean().optional(),
-    allProperties: z.boolean().optional(),
-    credentialsWithUsageSign: z.boolean().optional(),
-    credentialsWithUsageVerify: z.boolean().optional(),
-    tokenEncryptionKeyId: z.boolean().optional()
+    isEnabled: z.boolean().nullish(),
+    allProperties: z.boolean().nullish(),
+    credentialsWithUsageSign: z.boolean().nullish(),
+    credentialsWithUsageVerify: z.boolean().nullish(),
+    tokenEncryptionKeyId: z.boolean().nullish()
 });
 
 /**
  * Implicit grant settings schema
  */
 export const implicitGrantSettingsSchema = z.object({
-    enableAccessTokenIssuance: z.boolean().optional(),
-    enableIdTokenIssuance: z.boolean().optional()
+    enableAccessTokenIssuance: z.boolean().nullish(),
+    enableIdTokenIssuance: z.boolean().nullish()
 });
 
 /**
@@ -275,7 +275,7 @@ export const applicationSchema = z.object({
     isFallbackPublicClient: z.boolean().nullable().optional(),
     nativeAuthenticationApisEnabled: nativeAuthenticationApisEnabledSchema.nullable().optional(),
     notes: z.string().nullable().optional(),
-    oauth2RequiredPostResponse: z.boolean().optional(),
+    oauth2RequiredPostResponse: z.boolean().nullable().optional(),
     publisherDomain: z.string().optional(),
     samlMetadataUrl: z.string().nullable().optional(),
     serviceManagementReference: z.string().nullable().optional(),
