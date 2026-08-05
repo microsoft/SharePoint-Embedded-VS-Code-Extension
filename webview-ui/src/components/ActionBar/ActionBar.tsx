@@ -1,9 +1,10 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { useStorageExplorer } from '../../context/StorageExplorerContext';
 import { openUrl } from '../../utils/openUrl';
+import { Modal } from '../Modal/Modal';
 
 export function ActionBar() {
-    const { path, selectedItem } = useStorageExplorer();
+    const { path, selectedItem, selectedIds, deleteSelected, clearSelected, deleteProgress, cancelDelete } = useStorageExplorer();
     const atRoot = path.length === 1;
     const isFile = selectedItem?.kind === 'file';
     const hasSelection = selectedItem !== null;
@@ -11,6 +12,11 @@ export function ActionBar() {
     const canOpen     = isFile && !!selectedItem?.webUrl;
     const canPreview  = isFile;   // preview is fetched on demand via POST /preview
     const canDownload = isFile;
+
+    const selectedCount = selectedIds.size;
+    const [confirmBulk, setConfirmBulk] = useState(false);
+    const [bulkBusy, setBulkBusy] = useState(false);
+    const [cancelling, setCancelling] = useState(false);
 
     return (
         <div
@@ -24,6 +30,16 @@ export function ActionBar() {
                 flexShrink: 0,
             }}
         >
+            {selectedCount > 0 && (
+                <>
+                    <span data-testid="selection-count" style={{ fontSize: 12, opacity: 0.8, padding: '0 6px', whiteSpace: 'nowrap' }}>
+                        {selectedCount} selected
+                    </span>
+                    <ActionBtn icon="codicon-trash" label={`Delete (${selectedCount})`} title="Delete selected items" testId="bulk-delete" danger onClick={() => setConfirmBulk(true)} />
+                    <ActionBtn icon="codicon-close" label="Clear" title="Clear selection" testId="bulk-clear" onClick={clearSelected} />
+                    <Separator />
+                </>
+            )}
             {atRoot ? (
                 <ContainerActions hasSelection={hasSelection} />
             ) : (
@@ -31,6 +47,48 @@ export function ActionBar() {
                     hasSelection={hasSelection} isFile={isFile}
                     canOpen={canOpen} canPreview={canPreview} canDownload={canDownload}
                 />
+            )}
+            {confirmBulk && (
+                <Modal
+                    title={`Delete ${selectedCount} item${selectedCount === 1 ? '' : 's'}?`}
+                    confirmLabel={deleteProgress ? `Deleting ${deleteProgress.current}/${deleteProgress.total}…` : 'Delete'}
+                    cancelLabel={bulkBusy ? (cancelling ? 'Cancelling…' : 'Cancel remaining') : 'Cancel'}
+                    danger
+                    confirmDisabled={bulkBusy}
+                    onConfirm={async () => {
+                        setBulkBusy(true);
+                        setCancelling(false);
+                        try {
+                            await deleteSelected();
+                        } finally {
+                            setBulkBusy(false);
+                            setCancelling(false);
+                            setConfirmBulk(false);
+                        }
+                    }}
+                    onCancel={() => {
+                        if (bulkBusy) {
+                            // A delete is running — abort the remaining items (the in-flight one still finishes).
+                            setCancelling(true);
+                            cancelDelete();
+                        } else {
+                            setConfirmBulk(false);
+                        }
+                    }}
+                >
+                    {deleteProgress ? (
+                        <p data-testid="delete-progress" style={{ margin: 0, fontSize: 13, display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span className="codicon codicon-loading codicon-modifier-spin" />
+                            {cancelling
+                                ? `Cancelling… (${deleteProgress.current} of ${deleteProgress.total} deleted)`
+                                : `Deleting ${deleteProgress.current} of ${deleteProgress.total}…`}
+                        </p>
+                    ) : (
+                        <p style={{ margin: 0, fontSize: 13, lineHeight: '1.5' }}>
+                            This will delete the {selectedCount} selected item{selectedCount === 1 ? '' : 's'}. This action cannot be undone from here.
+                        </p>
+                    )}
+                </Modal>
             )}
         </div>
     );

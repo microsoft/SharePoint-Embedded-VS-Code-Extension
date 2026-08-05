@@ -1,4 +1,43 @@
-.vscode
-node_modules
-src/
+# =============================================================================
+# .vscodeignore — files EXCLUDED from the packaged .vsix
+#
+# Only runtime assets should ship:
+#   out/ (bundled extension + built webview), media/, l10n/,
+#   package.json, package.nls.json, README.md + readme-images/, LICENSE
+# Everything below is source/tooling that is compiled or bundled at publish
+# time and is NOT needed inside the installed extension.
+# =============================================================================
+
+# --- Editor / CI / agent config ---
+.vscode/**
+.vscode-test/**
+.github/**
+.claude/**
+.gitignore
+.eslintrc.json
+
+# --- TypeScript / build-time source (compiled into out/ at publish) ---
+src/**
 tsconfig.json
+**/tsconfig.json
+**/*.map
+**/*.tsbuildinfo
+
+# --- Storage Explorer webview ---
+# Only the built output in out/webviewApp is shipped (see webview-ui/vite.config.ts,
+# outDir: ../out/webviewApp)
+webview-ui/**
+
+# --- Node dependencies ---
+# vsce prunes the root node_modules automatically; listed here for clarity.
+node_modules/**
+
+# --- Docs / tests / dev artifacts (not needed at runtime) ---
+docs/**
+ui-tests/**
+out/test/**
+CLAUDE.md
+storage-explorer-prd.md
+
+# --- Stray packaging artifacts (never nest a .vsix inside the .vsix) ---
+*.vsix

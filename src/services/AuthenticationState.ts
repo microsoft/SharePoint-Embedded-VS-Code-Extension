@@ -309,6 +309,8 @@ export class AuthenticationState {
             await vscode.commands.executeCommand('setContext', 'spe:isLoggedIn', false);
             // Compat: clear spe:isAdmin for stale cached package.json from <= 1.0.2
             vscode.commands.executeCommand('setContext', 'spe:isAdmin', false);
+            // Signed out — the welcome view should offer sign-in (not "Loading...").
+            AuthenticationState._setSignInReady(true);
 
         } catch (error) {
             console.error('Sign out failed:', error);
@@ -344,6 +346,10 @@ export class AuthenticationState {
      * Initialize authentication state (check if already signed in)
      */
     public static async initialize(): Promise<void> {
+        // Mark sign-in as in progress so a manual `signIn()` triggered during
+        // startup (e.g. an errant click) no-ops instead of running a second,
+        // conflicting sign-in flow. Reset in the finally below.
+        AuthenticationState._isSigningIn = true;
         try {
             const isSignedIn = await AuthenticationState.isSignedIn();
             if (isSignedIn) {
@@ -357,14 +363,25 @@ export class AuthenticationState {
                     AuthenticationState._notifyBeforeSignIn();
                     await AuthenticationState._notifySignIn(account);
                     vscode.commands.executeCommand('setContext', 'spe:isLoggingIn', false);
+                    // Signed in — the dev tree takes over; keep the sign-in prompt hidden.
+                    AuthenticationState._setSignInReady(false);
+                    return;
                 }
             }
+            // Concluded there is no usable account — now (and only now) reveal
+            // the sign-in prompt. Doing this only on a definitive "no account"
+            // result is what prevents the prompt from flashing during restore.
+            AuthenticationState._setSignInReady(true);
         } catch (error) {
             console.error('Failed to initialize authentication state:', error);
             vscode.commands.executeCommand('setContext', 'spe:isLoggedIn', false);
             vscode.commands.executeCommand('setContext', 'spe:isLoggingIn', false);
             // Compat: clear spe:isAdmin for stale cached package.json from <= 1.0.2
             vscode.commands.executeCommand('setContext', 'spe:isAdmin', false);
+            // Auth check failed — let the user sign in manually.
+            AuthenticationState._setSignInReady(true);
+        } finally {
+            AuthenticationState._isSigningIn = false;
         }
     }
 
@@ -391,6 +408,13 @@ export class AuthenticationState {
     }
 
     // Notification methods
+    private static _setSignInReady(ready: boolean): void {
+        // Reveal (true) or hide (false) the welcome sign-in prompt. Set true
+        // ONLY once we've concluded there is no signed-in account, so it never
+        // flashes while a session is still being restored at startup.
+        vscode.commands.executeCommand('setContext', 'spe:signInReady', ready);
+    }
+
     private static _notifyBeforeSignIn(): void {
         // Notify listeners BEFORE setting isLoggingIn — listeners lock the
         // dev tree to return [] so stale items never flash when it becomes visible.
@@ -399,6 +423,8 @@ export class AuthenticationState {
                 listener.onBeforeSignIn();
             }
         });
+        // A sign-in is starting — hide the sign-in prompt.
+        AuthenticationState._setSignInReady(false);
         vscode.commands.executeCommand('setContext', 'spe:isLoggingIn', true);
     }
 
@@ -418,6 +444,8 @@ export class AuthenticationState {
                 listener.onSignInFailed();
             }
         });
+        // Sign-in didn't complete — show the sign-in prompt.
+        AuthenticationState._setSignInReady(true);
     }
 
     private static _notifySignOut(): void {

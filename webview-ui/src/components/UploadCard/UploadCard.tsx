@@ -169,7 +169,7 @@ function summaryText(uploads: UploadFile[]): string {
 export function UploadCard() {
     const {
         uploads, uploadCardOpen, closeUploadCard,
-        dismissAllCompleted,
+        dismissAllCompleted, retryAllFailed,
     } = useStorageExplorer();
 
     const [collapsed, setCollapsed] = useState(false);
@@ -177,6 +177,7 @@ export function UploadCard() {
     if (!uploadCardOpen || uploads.length === 0) return null;
 
     const hasCompleted = uploads.some(u => u.status === 'completed');
+    const hasFailed = uploads.some(u => u.status === 'failed');
     const allDone = uploads.every(u => u.status === 'completed' || u.status === 'failed');
 
     return (
@@ -221,6 +222,17 @@ export function UploadCard() {
                     style={{ display: 'flex', gap: 2 }}
                     onClick={e => e.stopPropagation()} // don't toggle collapse
                 >
+                    {hasFailed && !collapsed && (
+                        <button
+                            className="icon-btn"
+                            data-testid="upload-retry-all"
+                            title="Retry all failed"
+                            style={{ fontSize: 13 }}
+                            onClick={retryAllFailed}
+                        >
+                            <span className="codicon codicon-refresh" />
+                        </button>
+                    )}
                     {hasCompleted && !collapsed && (
                         <button
                             className="icon-btn"

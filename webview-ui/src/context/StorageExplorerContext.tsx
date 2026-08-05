@@ -17,6 +17,22 @@ function officeDesktopScheme(fileName: string): string | null {
     return null;
 }
 
+const SIZE_UNIT_BYTES: Record<string, number> = {
+    B: 1, KB: 1024, MB: 1024 ** 2, GB: 1024 ** 3, TB: 1024 ** 4,
+};
+
+/**
+ * Numeric size (in bytes) for an item, for sorting. Prefers the raw `sizeBytes`;
+ * falls back to parsing the formatted `size` string (e.g. "1.2 MB") so items
+ * that only carry a display string still sort by real magnitude.
+ */
+function sizeToBytes(item: StorageItem): number {
+    if (typeof item.sizeBytes === 'number') return item.sizeBytes;
+    const m = /^([\d.]+)\s*(B|KB|MB|GB|TB)$/i.exec((item.size ?? '').trim());
+    if (!m) return 0;
+    return parseFloat(m[1]) * (SIZE_UNIT_BYTES[m[2].toUpperCase()] ?? 1);
+}
+
 // Window state injected by StorageExplorerPanel._buildHtml
 declare global {
     interface Window {
@@ -49,6 +65,13 @@ interface StorageExplorerContextValue {
     navigateToDeletedContainers: () => void;
     navigateToContainerRecycleBin: (containerId: string, containerName: string) => void;
     selectItem: (item: StorageItem | null) => void;
+    selectedIds: Set<string>;
+    toggleSelected: (id: string) => void;
+    selectAllCurrent: () => void;
+    clearSelected: () => void;
+    deleteSelected: () => Promise<void>;
+    deleteProgress: { current: number; total: number } | null;
+    cancelDelete: () => void;
     setSort: (col: SortColumn) => void;
     setSidePanelTab: (tab: SidePanelTab) => void;
     toggleSidePanel: () => void;
@@ -91,6 +114,7 @@ interface StorageExplorerContextValue {
     resumeUpload: (id: string) => void;
     cancelUpload: (id: string) => void;
     retryUpload: (id: string) => void;
+    retryAllFailed: () => void;
     dismissUpload: (id: string) => void;
     dismissAllCompleted: () => void;
     closeUploadCard: () => void;
@@ -136,6 +160,12 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
     const [filterText, setFilterText] = useState('');
     // Number of drive items loaded so far during a multi-page listing (for the loading indicator).
     const [loadProgress, setLoadProgress] = useState(0);
+    // Multi-selection (checkbox column + "select all"). Independent of `selectedItem`, which is
+    // the single row whose details show in the side panel.
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+    // Progress of an in-flight bulk delete (null when not deleting).
+    const [deleteProgress, setDeleteProgress] = useState<{ current: number; total: number } | null>(null);
+    const deleteCancelRef = useRef(false);
     const [sortColumn, setSortColumnState] = useState<SortColumn>('name');
     const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
     const [sidePanelOpen, setSidePanelOpen] = useState(true);
@@ -304,7 +334,7 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
                 case 'name': cmp = a.name.localeCompare(b.name); break;
                 case 'modified': cmp = a.modifiedAt.localeCompare(b.modifiedAt); break;
                 case 'type': cmp = a.type.localeCompare(b.type); break;
-                case 'size': cmp = a.size.localeCompare(b.size, undefined, { numeric: true }); break;
+                case 'size': cmp = sizeToBytes(a) - sizeToBytes(b); break;
             }
             return sortDirection === 'asc' ? cmp : -cmp;
         });
@@ -323,11 +353,17 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
                 case 'name': cmp = a.name.localeCompare(b.name); break;
                 case 'modified': cmp = a.modifiedAt.localeCompare(b.modifiedAt); break;
                 case 'type': cmp = a.type.localeCompare(b.type); break;
+                case 'size': cmp = sizeToBytes(a) - sizeToBytes(b); break;
                 default: break;
             }
             return sortDirection === 'asc' ? cmp : -cmp;
         });
     }, [viewMode, deletedContainers, folderItems, sortColumn, sortDirection, filterText]);
+
+    // Clear the multi-selection whenever the view/folder changes.
+    useEffect(() => {
+        setSelectedIds(new Set());
+    }, [lastId, viewMode.kind]);
 
     const restoreContainer = useCallback(async (containerId: string) => {
         await apiRef.current!.containers.restore(containerId);
@@ -455,6 +491,55 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
 
     function selectItem(item: StorageItem | null) {
         setSelectedItem(item);
+    }
+
+    function toggleSelected(id: string) {
+        setSelectedIds(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) { next.delete(id); } else { next.add(id); }
+            return next;
+        });
+    }
+
+    function selectAllCurrent() {
+        setSelectedIds(new Set(currentItems.map(i => i.id)));
+    }
+
+    function clearSelected() {
+        setSelectedIds(new Set());
+    }
+
+    async function deleteSelected() {
+        const items = currentItems.filter(i => selectedIds.has(i.id));
+        deleteCancelRef.current = false;
+        setDeleteProgress({ current: 0, total: items.length });
+        let done = 0;
+        for (const it of items) {
+            if (deleteCancelRef.current) {
+                console.log(`[StorageExplorer] bulk delete cancelled after ${done} of ${items.length}`);
+                break;
+            }
+            try {
+                if (it.kind === 'container') {
+                    await apiRef.current!.containers.delete(it.id);
+                } else if (currentDriveId) {
+                    await apiRef.current!.drive.delete(currentDriveId, it.id);
+                }
+            } catch (err) {
+                console.error('[StorageExplorer] bulk delete failed for', it.name, err);
+            }
+            done++;
+            setDeleteProgress({ current: done, total: items.length });
+        }
+        deleteCancelRef.current = false;
+        setDeleteProgress(null);
+        clearSelected();
+        setSelectedItem(null);
+        refresh();
+    }
+
+    function cancelDelete() {
+        deleteCancelRef.current = true;
     }
 
     function setSort(col: SortColumn) {
@@ -623,6 +708,13 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
         void runUpload(id);
     }
 
+    function retryAllFailed() {
+        // Restart every failed upload from the beginning.
+        for (const u of uploads.filter(u => u.status === 'failed')) {
+            retryUpload(u.id);
+        }
+    }
+
     function dismissUpload(id: string) {
         uploadStates.current.set(id, 'cancelled');
         const sessionUrl = uploadSessions.current.get(id);
@@ -681,6 +773,13 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
         navigateToDeletedContainers,
         navigateToContainerRecycleBin,
         selectItem,
+        selectedIds,
+        toggleSelected,
+        selectAllCurrent,
+        clearSelected,
+        deleteSelected,
+        deleteProgress,
+        cancelDelete,
         setSort,
         setSidePanelTab,
         toggleSidePanel,
@@ -701,6 +800,7 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
         resumeUpload,
         cancelUpload,
         retryUpload,
+        retryAllFailed,
         dismissUpload,
         dismissAllCompleted,
         closeUploadCard,

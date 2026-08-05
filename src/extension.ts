@@ -16,6 +16,13 @@ import { GraphAuthProvider } from './services/Auth';
 import { SpeUriHandler } from './services/UriHandler';
 
 export async function activate(context: vscode.ExtensionContext) {
+    // Keep the "Loading SharePoint Embedded..." view up until we've positively
+    // determined the auth state. The sign-in prompt is gated behind
+    // `spe:signInReady`, which AuthenticationState sets to true ONLY once it
+    // concludes there is no account — never on activation timing — so the
+    // prompt can't flash while session restore is still in flight.
+    await vscode.commands.executeCommand('setContext', 'spe:signInReady', false);
+
     // Reset view state so the welcome/sign-in view shows first.
     // initialize() will flip these if there's a valid session.
     await vscode.commands.executeCommand('setContext', 'spe:isLoggedIn', false);
@@ -164,7 +171,10 @@ export async function activate(context: vscode.ExtensionContext) {
         ]);
     } catch (error) {
         console.error('[extension] Auth initialization failed or timed out:', error);
-        // Ensure the welcome view shows so the user can sign in manually
+        // The awaited init timed out, but the real check is still running in the
+        // background and owns `spe:signInReady`. Leave the "Loading..." view up
+        // (don't reveal the sign-in prompt) — initialize() will conclude and set
+        // signInReady/isLoggedIn once the session check settles.
         vscode.commands.executeCommand('setContext', 'spe:isLoggedIn', false);
         vscode.commands.executeCommand('setContext', 'spe:isLoggingIn', false);
     }

@@ -9,6 +9,8 @@ interface FileListHeaderProps {
     onSort: (col: SortColumn) => void;
     onColResize?: (e: React.MouseEvent, idx: number, direction?: number) => void;
     onClick?: (e: React.MouseEvent) => void;
+    selectAllState?: 'none' | 'some' | 'all';
+    onToggleSelectAll?: () => void;
 }
 
 interface ColDef {
@@ -32,7 +34,7 @@ const SORT_TEST_IDS: Partial<Record<SortColumn, string>> = {
     size: 'sort-size',
 };
 
-export function FileListHeader({ colTemplate, sortColumn, sortDirection, onSort, onColResize, onClick }: FileListHeaderProps) {
+export function FileListHeader({ colTemplate, sortColumn, sortDirection, onSort, onColResize, onClick, selectAllState, onToggleSelectAll }: FileListHeaderProps) {
     const arrow = sortDirection === 'asc' ? 'codicon-arrow-up' : 'codicon-arrow-down';
 
     return (
@@ -72,12 +74,31 @@ export function FileListHeader({ colTemplate, sortColumn, sortDirection, onSort,
                             position: showHandle ? 'relative' : undefined,
                         }}
                     >
-                        {col.label}
-                        {col.key && sortColumn === col.key && (
-                            <span className={`codicon ${arrow}`} style={{ fontSize: 10 }} />
-                        )}
-                        {showHandle && (
-                            <ColResizeHandle side="left" onMouseDown={e => onColResize!(e, fixedIdx, -1)} />
+                        {i === 0 && onToggleSelectAll ? (
+                            <div
+                                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%' }}
+                                onClick={e => e.stopPropagation()}
+                            >
+                                <input
+                                    type="checkbox"
+                                    data-testid="select-all"
+                                    title="Select all"
+                                    checked={selectAllState === 'all'}
+                                    ref={el => { if (el) { el.indeterminate = selectAllState === 'some'; } }}
+                                    onChange={onToggleSelectAll}
+                                    style={{ cursor: 'pointer' }}
+                                />
+                            </div>
+                        ) : (
+                            <>
+                                {col.label}
+                                {col.key && sortColumn === col.key && (
+                                    <span className={`codicon ${arrow}`} style={{ fontSize: 10 }} />
+                                )}
+                                {showHandle && (
+                                    <ColResizeHandle side="left" onMouseDown={e => onColResize!(e, fixedIdx, -1)} />
+                                )}
+                            </>
                         )}
                     </div>
                 );

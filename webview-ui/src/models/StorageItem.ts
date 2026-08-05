@@ -10,6 +10,12 @@ export interface StorageItem {
     modifiedAt: string;
     type: string;
     size: string;
+    /**
+     * Raw size in bytes, used for correct numeric sorting.
+     * `size` is a pre-formatted display string (e.g. "2 MB") and must NOT be
+     * used for comparisons. 0 for folders/containers without a known size.
+     */
+    sizeBytes?: number;
     description?: string;
     mimeType?: string;
     // Container-specific fields

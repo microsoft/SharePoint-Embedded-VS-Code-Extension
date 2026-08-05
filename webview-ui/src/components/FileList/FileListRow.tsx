@@ -16,7 +16,7 @@ interface FileListRowProps {
 export function FileListRow({ item, isSelected, onSelect, onNavigate, colTemplate }: FileListRowProps) {
     const [isHovered, setIsHovered] = useState(false);
     const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
-    const { previewItem, downloadItem, openInDesktopApp } = useStorageExplorer();
+    const { previewItem, downloadItem, openInDesktopApp, selectedIds, toggleSelected } = useStorageExplorer();
 
     const icon = getItemIcon(item);
     const iconColor = getItemIconColor(item);
@@ -75,8 +75,9 @@ export function FileListRow({ item, isSelected, onSelect, onNavigate, colTemplat
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <input
                         type="checkbox"
-                        checked={isSelected}
-                        onChange={() => onSelect(item)}
+                        data-testid="file-row-checkbox"
+                        checked={selectedIds.has(item.id)}
+                        onChange={() => toggleSelected(item.id)}
                         onClick={e => e.stopPropagation()}
                         style={{ cursor: 'pointer' }}
                     />

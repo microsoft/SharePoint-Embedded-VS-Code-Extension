@@ -43,6 +43,7 @@ function toStorageItem(c: FileStorageContainer): StorageItem {
         modifiedAt: formatDate(c.createdDateTime),
         type: 'Container',
         size: formatBytes(quotaUsed),
+        sizeBytes: quotaUsed ?? 0,
         description: c.description ?? undefined,
         containerTypeId: c.containerTypeId ?? undefined,
         lockState: (c.lockState as StorageItem['lockState']) ?? null,

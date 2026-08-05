@@ -60,6 +60,7 @@ function toStorageItem(item: DriveItem): StorageItem {
         createdAt: formatDate(item.createdDateTime),
         type: getFileType(item),
         size: formatBytes(item.size),
+        sizeBytes: item.size ?? 0,
         mimeType: item.file?.mimeType ?? undefined,
         webUrl: item.webUrl ?? undefined,
         downloadUrl: raw['@microsoft.graph.downloadUrl'] ?? undefined,
@@ -91,6 +92,7 @@ function toRecycledStorageItem(item: RecycleBinItem): StorageItem {
         createdAt: '',
         type: kind === 'folder' ? 'Folder' : getFileType({ name, folder: undefined } as any),
         size: formatBytes(item.size),
+        sizeBytes: item.size ?? 0,
     };
 }
 

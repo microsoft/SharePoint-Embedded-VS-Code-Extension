@@ -11,9 +11,14 @@ const INITIAL_COL_WIDTHS = [150, 130, 80];
 const ESTIMATED_ROW_HEIGHT = 30;
 
 export function FileList() {
-    const { currentItems, selectedItem, selectItem, setSort, sortColumn, sortDirection, navigate, filterText, isLoading, loadProgress } = useStorageExplorer();
+    const { currentItems, selectedItem, selectItem, setSort, sortColumn, sortDirection, navigate, filterText, isLoading, loadProgress, selectedIds, selectAllCurrent, clearSelected } = useStorageExplorer();
     const { colWidths } = useResizableColumns(INITIAL_COL_WIDTHS);
     const colTemplate = `32px 1fr ${colWidths[0]}px ${colWidths[1]}px ${colWidths[2]}px`;
+
+    const allSelected = currentItems.length > 0 && currentItems.every(i => selectedIds.has(i.id));
+    const someSelected = !allSelected && currentItems.some(i => selectedIds.has(i.id));
+    const selectAllState: 'none' | 'some' | 'all' = allSelected ? 'all' : someSelected ? 'some' : 'none';
+    const onToggleSelectAll = () => (allSelected ? clearSelected() : selectAllCurrent());
 
     const scrollRef = useRef<HTMLDivElement>(null);
     const rowVirtualizer = useVirtualizer({
@@ -34,6 +39,8 @@ export function FileList() {
                 sortColumn={sortColumn}
                 sortDirection={sortDirection}
                 onSort={setSort}
+                selectAllState={selectAllState}
+                onToggleSelectAll={onToggleSelectAll}
                 onClick={(e: React.MouseEvent) => e.stopPropagation()}
             />
             {isLoading && (

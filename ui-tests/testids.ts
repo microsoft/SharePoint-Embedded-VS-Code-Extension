@@ -60,6 +60,12 @@ export const TID = {
     // ── FileList ─────────────────────────────────────────────────────────────
     fileRow: (name: string) => `file-row-${name}`,
     fileRowMenuBtn: 'file-row-menu',
+    fileRowCheckbox: 'file-row-checkbox',
+    selectAll: 'select-all',
+    selectionCount: 'selection-count',
+    bulkDelete: 'bulk-delete',
+    bulkClear: 'bulk-clear',
+    deleteProgress: 'delete-progress',
     sortName: 'sort-name',
     sortModified: 'sort-modified',
     sortType: 'sort-type',
@@ -83,6 +89,8 @@ export const TID = {
     uploadResume: 'upload-resume',
     uploadCancel: 'upload-cancel',
     uploadRetry: 'upload-retry',
+    uploadRetryAll: 'upload-retry-all',
+    actionUploadInputId: 'action-upload-input',
 
     // ── SidePanel (shell + tabs) ─────────────────────────────────────────────
     sidePanel: 'sidepanel',
