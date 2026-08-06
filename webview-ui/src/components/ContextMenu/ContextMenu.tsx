@@ -18,6 +18,7 @@ function getActions(
     openTab: (tab: SidePanelTab) => void,
     openModal: (state: ModalState) => void,
     navigateToContainerRecycleBin: (containerId: string, containerName: string) => void,
+    activateContainer: (containerId: string) => Promise<void>,
     previewItem: (item: StorageItem) => Promise<void>,
     downloadItem: (item: StorageItem) => Promise<void>,
     openInDesktopApp: (item: StorageItem) => Promise<void>
@@ -79,7 +80,12 @@ function getActions(
         icon: 'codicon-trash', label: 'Recycle bin', dividerBefore: true,
         onClick: () => { onClose(); navigateToContainerRecycleBin(item.id, item.name); },
     };
+    const activate: MenuAction = {
+        icon: 'codicon-play', label: 'Activate',
+        onClick: () => { onClose(); void activateContainer(item.id); },
+    };
     return [
+        ...(item.status === 'inactive' ? [activate] : []),
         rename,
         del,
         recycleBin,
@@ -99,7 +105,7 @@ interface ContextMenuProps {
 }
 
 export function ContextMenu({ item, x, y, onClose }: ContextMenuProps) {
-    const { setSidePanelTab, openModal, navigateToContainerRecycleBin, previewItem, downloadItem, openInDesktopApp } = useStorageExplorer();
+    const { setSidePanelTab, openModal, navigateToContainerRecycleBin, activateContainer, previewItem, downloadItem, openInDesktopApp } = useStorageExplorer();
     const ref = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -117,7 +123,7 @@ export function ContextMenu({ item, x, y, onClose }: ContextMenuProps) {
         };
     }, [onClose]);
 
-    const actions = getActions(item, onClose, setSidePanelTab, openModal, navigateToContainerRecycleBin, previewItem, downloadItem, openInDesktopApp);
+    const actions = getActions(item, onClose, setSidePanelTab, openModal, navigateToContainerRecycleBin, activateContainer, previewItem, downloadItem, openInDesktopApp);
 
     // Clamp to viewport
     const maxX = Math.min(x, window.innerWidth - 210);

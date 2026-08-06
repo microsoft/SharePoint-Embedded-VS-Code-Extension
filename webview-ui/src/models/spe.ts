@@ -3,7 +3,7 @@
  * the types provided by @microsoft/microsoft-graph-types.
  */
 
-import type { ColumnDefinition, DriveItem, FileStorageContainerCustomPropertyValue, Identity } from '@microsoft/microsoft-graph-types';
+import type { ColumnDefinition, DriveItem, Identity } from '@microsoft/microsoft-graph-types';
 
 // ── DriveItem augmentation ────────────────────────────────────────────────────
 
@@ -33,8 +33,11 @@ export type SpeIdentity = Identity & { userPrincipalName?: string | null; email?
 
 // ── Container permissions ─────────────────────────────────────────────────────
 
-/** SPE container permission roles (not modelled as an enum in graph-types). */
-export type ContainerRole = 'owner' | 'manager' | 'writer' | 'reader';
+/**
+ * SPE container permission roles and the people-picker suggestion shape are part
+ * of the host contract — re-exported so existing import sites keep working.
+ */
+export type { ContainerRole, PeopleSuggestion } from '../api/protocol';
 
 // ── Column type helpers ───────────────────────────────────────────────────────
 
@@ -75,27 +78,4 @@ export function getColumnTypeName(col: ColumnDefinition): ColumnTypeName {
  * Mirrors the shape returned by Graph API:
  *   GET /storage/fileStorage/containers/{id}/customProperties
  */
-export type ContainerCustomProperties = Record<string, FileStorageContainerCustomPropertyValue>;
-
-// ── People picker ─────────────────────────────────────────────────────────────
-
-/**
- * People-picker suggestion item for the UI autocomplete — a minimal
- * projection of a Graph User or Group resource.
- */
-export interface PeopleSuggestion {
-    id: string;
-    displayName: string;
-    /**
-     * Contact / invitation email address.  May differ from `userPrincipalName`
-     * in federated or multi-domain tenants.
-     */
-    email: string;
-    /**
-     * Azure AD user principal name (sign-in name).  Undefined for groups,
-     * which don't have a UPN.  This is the identifier the permissions APIs
-     * most commonly use to resolve identities.
-     */
-    userPrincipalName?: string;
-    kind: 'user' | 'group';
-}
+export type { ContainerCustomProperties } from '../api/protocol';

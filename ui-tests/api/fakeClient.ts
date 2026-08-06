@@ -72,9 +72,3 @@ export class FakeGraphClient {
         this.responder = () => ({ value: [] });
     }
 }
-
-/** Minimal auth-provider stub accepted by the services (only `invalidateCache` is used). */
-export const fakeAuthProvider = {
-    getAccessToken: async () => 'fake-token',
-    invalidateCache: () => { /* no-op */ },
-} as unknown as import('../../webview-ui/src/api/WebviewAuthProvider').WebviewAuthProvider;

@@ -5,14 +5,14 @@
 
 import { test, expect } from '@playwright/test';
 import { Client } from '@microsoft/microsoft-graph-client';
-import { PermissionGraphService } from '../../webview-ui/src/api/services/PermissionGraphService';
-import { FakeGraphClient, fakeAuthProvider } from './fakeClient';
+import { PermissionGraphService } from '../../src/services/StorageExplorer/PermissionGraphService';
+import { FakeGraphClient } from './fakeClient';
 
 const CBASE = '/storage/fileStorage/containers';
 
 function svc() {
     const fake = new FakeGraphClient();
-    return { fake, s: new PermissionGraphService(fake as unknown as Client, fakeAuthProvider) };
+    return { fake, s: new PermissionGraphService(fake as unknown as Client) };
 }
 
 test.describe('PermissionGraphService — item', () => {

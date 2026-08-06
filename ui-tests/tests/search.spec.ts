@@ -63,15 +63,6 @@ test.describe('Search / filter at scale', () => {
                 appName: 'Search', tenantDomain: 'contoso.onmicrosoft.com', containerTypeId: 'ct', registrationId: 'reg',
             };
             (window as unknown as Record<string, unknown>).__SPE_TEST_TOKEN__ = token;
-            (window as unknown as Record<string, unknown>).acquireVsCodeApi = () => ({
-                postMessage: (msg: { command?: string; requestId?: string }) => {
-                    if (msg && msg.command === 'getToken') {
-                        window.dispatchEvent(new MessageEvent('message', {
-                            data: { command: 'tokenResponse', token: (window as unknown as Record<string, unknown>).__SPE_TEST_TOKEN__, requestId: msg.requestId },
-                        }));
-                    }
-                },
-            });
         }, cfg.token);
         state.containerTypeId = 'ct';
         await installGraphMock(page, { state });

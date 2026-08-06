@@ -5,15 +5,15 @@
 
 import { test, expect } from '@playwright/test';
 import { Client } from '@microsoft/microsoft-graph-client';
-import { ContainerGraphService } from '../../webview-ui/src/api/services/ContainerGraphService';
-import { FakeGraphClient, fakeAuthProvider } from './fakeClient';
+import { ContainerGraphService } from '../../src/services/StorageExplorer/ContainerGraphService';
+import { FakeGraphClient } from './fakeClient';
 
 const BASE = '/storage/fileStorage/containers';
 const DELETED = '/storage/fileStorage/deletedContainers';
 
 function svc() {
     const fake = new FakeGraphClient();
-    return { fake, s: new ContainerGraphService(fake as unknown as Client, fakeAuthProvider) };
+    return { fake, s: new ContainerGraphService(fake as unknown as Client) };
 }
 
 test.describe('ContainerGraphService', () => {
@@ -38,6 +38,13 @@ test.describe('ContainerGraphService', () => {
         await s.create('ct-1', 'N', 'desc');
         expect(fake.last).toMatchObject({ method: 'POST', path: BASE, version: 'v1.0' });
         expect(fake.last.body).toMatchObject({ displayName: 'N', containerTypeId: 'ct-1', description: 'desc' });
+    });
+
+    test('activate()', async () => {
+        const { fake, s } = svc();
+        await s.activate('b!1');
+        expect(fake.last).toMatchObject({ method: 'POST', path: `${BASE}/b!1/activate`, version: 'v1.0' });
+        expect(fake.last.body).toEqual({});
     });
 
     test('rename()', async () => {

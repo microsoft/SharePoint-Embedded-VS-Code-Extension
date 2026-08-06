@@ -39,7 +39,7 @@ function loadDotEnvOnce(): void {
 export interface StandaloneConfig {
     /** true = Microsoft Graph is mocked (default, no tenant). false = hit the real Graph API. */
     mock: boolean;
-    /** Bearer token the webview will use (fake JWT in mock mode; real token in live mode). */
+    /** Bearer token used by the dev-only RPC emulator (fake JWT in mock mode; real token in live mode). */
     token: string;
     /** Container type the Storage Explorer targets. */
     containerTypeId: string;

@@ -1,35 +1,46 @@
-import { createGraphClient } from './GraphClient';
-import { WebviewAuthProvider } from './WebviewAuthProvider';
-import { NetworkLogger } from './NetworkLoggingMiddleware';
+import { onExtensionMessage } from '../utils/vsbridge';
+import { ColumnGraphService } from './services/ColumnGraphService';
 import { ContainerGraphService } from './services/ContainerGraphService';
 import { DriveGraphService } from './services/DriveGraphService';
-import { PermissionGraphService } from './services/PermissionGraphService';
-import { ColumnGraphService } from './services/ColumnGraphService';
-import { PeopleGraphService } from './services/PeopleGraphService';
 import { MeGraphService } from './services/MeGraphService';
+import { PeopleGraphService } from './services/PeopleGraphService';
+import { PermissionGraphService } from './services/PermissionGraphService';
+import type { NetworkLogger, NetworkRequest } from './protocol';
 
-export { WebviewAuthProvider };
+export { RpcError } from './rpc';
 export type { NetworkLogger };
 
 /**
  * Create a fully-wired StorageExplorerApi.
  *
- * Pass the `WebviewAuthProvider` singleton and a `NetworkLogger` callback.
- * The logger is called for every Graph request (without auth tokens).
+ * None of these services hold credentials: each one forwards a named operation to
+ * the extension host, which owns the delegated Microsoft Graph token.
+ *
+ * `onNetworkRequest` only receives entries for requests the *webview* issues itself
+ * (pre-authenticated upload-session chunks). Host-side Graph traffic arrives
+ * separately — see `onHostNetworkRequest`.
  */
-export function createStorageExplorerApi(
-    authProvider: WebviewAuthProvider,
-    onNetworkRequest: NetworkLogger,
-) {
-    const client = createGraphClient(authProvider, onNetworkRequest);
+export function createStorageExplorerApi(onNetworkRequest: NetworkLogger) {
     return {
-        containers: new ContainerGraphService(client, authProvider),
-        drive: new DriveGraphService(client, authProvider, onNetworkRequest),
-        permissions: new PermissionGraphService(client, authProvider),
-        columns: new ColumnGraphService(client, authProvider),
-        people: new PeopleGraphService(client, authProvider),
-        me: new MeGraphService(client, authProvider),
+        containers: new ContainerGraphService(),
+        drive: new DriveGraphService(onNetworkRequest),
+        permissions: new PermissionGraphService(),
+        columns: new ColumnGraphService(),
+        people: new PeopleGraphService(),
+        me: new MeGraphService(),
     };
 }
 
 export type StorageExplorerApi = ReturnType<typeof createStorageExplorerApi>;
+
+/**
+ * Subscribe to Graph traffic logged by the extension host so the Network drawer
+ * keeps showing every request. Authorization headers are stripped host-side.
+ * Returns an unsubscribe function.
+ */
+export function onHostNetworkRequest(handler: NetworkLogger): () => void {
+    return onExtensionMessage('networkLog', message => {
+        const req = message.request as NetworkRequest | undefined;
+        if (req) handler(req);
+    });
+}

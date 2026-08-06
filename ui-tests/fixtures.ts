@@ -17,29 +17,12 @@ export const test = base.extend<SpeFixtures>({
     storage: async ({ page }, use) => {
         const cfg = getStandaloneConfig();
 
-        // Inject panel state + a token bridge shim BEFORE the app's scripts run. This makes the
-        // webview believe it's inside VS Code and supplies the bearer token for Graph calls.
+        // Inject panel state + test token BEFORE the app's scripts run. In Vite dev,
+        // webview-ui/src/testHost.ts installs the VS Code RPC emulator that uses this token.
         await page.addInitScript(
             ({ state, token }) => {
                 (window as unknown as Record<string, unknown>).__STORAGE_EXPLORER_STATE__ = state;
                 (window as unknown as Record<string, unknown>).__SPE_TEST_TOKEN__ = token;
-                (window as unknown as Record<string, unknown>).acquireVsCodeApi = function () {
-                    return {
-                        postMessage: function (msg: { command?: string; requestId?: string }) {
-                            if (msg && msg.command === 'getToken') {
-                                window.dispatchEvent(
-                                    new MessageEvent('message', {
-                                        data: {
-                                            command: 'tokenResponse',
-                                            token: (window as unknown as Record<string, unknown>).__SPE_TEST_TOKEN__,
-                                            requestId: msg.requestId,
-                                        },
-                                    })
-                                );
-                            }
-                        },
-                    };
-                };
             },
             {
                 state: {

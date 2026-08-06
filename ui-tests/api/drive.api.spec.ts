@@ -5,12 +5,12 @@
 
 import { test, expect } from '@playwright/test';
 import { Client } from '@microsoft/microsoft-graph-client';
-import { DriveGraphService } from '../../webview-ui/src/api/services/DriveGraphService';
-import { FakeGraphClient, fakeAuthProvider } from './fakeClient';
+import { DriveGraphService } from '../../src/services/StorageExplorer/DriveGraphService';
+import { FakeGraphClient } from './fakeClient';
 
 function svc() {
     const fake = new FakeGraphClient();
-    return { fake, s: new DriveGraphService(fake as unknown as Client, fakeAuthProvider, () => { /* no-op logger */ }) };
+    return { fake, s: new DriveGraphService(fake as unknown as Client) };
 }
 
 test.describe('DriveGraphService', () => {
@@ -87,6 +87,30 @@ test.describe('DriveGraphService', () => {
         const { fake, s } = svc();
         await s.delete('d1', 'item1');
         expect(fake.last).toMatchObject({ method: 'DELETE', path: '/drives/d1/items/item1' });
+    });
+
+    test('uploadSmall() → PUT content with content type', async () => {
+        const { fake, s } = svc();
+        fake.responder = () => ({ id: 'file1' });
+        await s.uploadSmall(
+            'd1',
+            'parent1',
+            'Report.docx',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            new Uint8Array([1, 2, 3])
+        );
+        expect(fake.last).toMatchObject({ method: 'PUT', path: '/drives/d1/items/parent1:/Report.docx:/content' });
+        expect(fake.last.headers['Content-Type']).toBe('application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+        expect(fake.last.body).toBeInstanceOf(Uint8Array);
+    });
+
+    test('createUploadSession() → POST session request and returns upload URL', async () => {
+        const { fake, s } = svc();
+        fake.responder = () => ({ uploadUrl: 'https://contoso.sharepoint.com/upload-session' });
+        const uploadUrl = await s.createUploadSession('d1', null, 'Large.bin');
+        expect(fake.last).toMatchObject({ method: 'POST', path: '/drives/d1/root:/Large.bin:/createUploadSession' });
+        expect(fake.last.body).toMatchObject({ item: { '@microsoft.graph.conflictBehavior': 'rename' } });
+        expect(uploadUrl).toBe('https://contoso.sharepoint.com/upload-session');
     });
 
     test('listRecycleBin()', async () => {

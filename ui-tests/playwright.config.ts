@@ -10,9 +10,10 @@ import * as os from 'os';
 /**
  * Playwright config for driving the **standalone Storage Explorer webview**.
  *
- * The webview is a Vite React app whose only VS Code coupling is a token-passing bridge.
+ * The webview is a Vite React app whose VS Code coupling is an operation-specific RPC bridge.
  * We serve it with `npm run dev` (Vite) and drive it in a normal Chromium page — the tests
- * inject panel state + a token bridge shim (see fixtures.ts). No VS Code required.
+ * inject panel state + a test token; the dev-only test host installs the RPC emulator.
+ * No VS Code required.
  */
 const PORT = Number(process.env.SPE_TEST_WEB_PORT ?? 5178);
 const BASE_URL = `http://localhost:${PORT}`;

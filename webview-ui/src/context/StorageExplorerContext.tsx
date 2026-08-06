@@ -1,7 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState, useMemo } from 'react';
 import { StorageItem, BreadcrumbEntry, SortColumn, SortDirection, SidePanelTab, ModalState, ViewMode, NetworkRequest, UploadFile, UploadStatus } from '../models/StorageItem';
 import { DELETED_CONTAINERS, RECYCLED_ITEMS_BY_CONTAINER_ID } from '../data/dummyData';
-import { createStorageExplorerApi, StorageExplorerApi, WebviewAuthProvider } from '../api';
+import { createStorageExplorerApi, onHostNetworkRequest, StorageExplorerApi } from '../api';
 import { DriveGraphService } from '../api/services/DriveGraphService';
 import { openUrl } from '../utils/openUrl';
 
@@ -41,7 +41,6 @@ declare global {
             tenantDomain: string;
             containerTypeId: string;
             registrationId: string;
-            initialToken?: string;
         };
     }
 }
@@ -85,6 +84,7 @@ interface StorageExplorerContextValue {
     loadProgress: number;
     refresh: () => void;
     createContainer: (name: string, description?: string) => Promise<void>;
+    activateContainer: (containerId: string) => Promise<void>;
     renameContainer: (containerId: string, newName: string) => Promise<void>;
     deleteContainer: (containerId: string) => Promise<void>;
     restoreContainer: (containerId: string) => Promise<void>;
@@ -133,7 +133,8 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
     };
 
     // ── API instances (created once per session) ──────────────────────────────
-    const authProviderRef = useRef<WebviewAuthProvider | undefined>(undefined);
+    // No credentials live here: every service forwards a named operation to the
+    // extension host, which holds the delegated Graph token.
     const apiRef = useRef<StorageExplorerApi | undefined>(undefined);
 
     // Stable network logger — setNetworkRequests is stable across renders
@@ -141,12 +142,13 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
         setNetworkRequests(prev => [...prev, req]);
     }, []);
 
-    if (!authProviderRef.current) {
-        authProviderRef.current = new WebviewAuthProvider();
-    }
     if (!apiRef.current) {
-        apiRef.current = createStorageExplorerApi(authProviderRef.current, handleNetworkRequest);
+        apiRef.current = createStorageExplorerApi(handleNetworkRequest);
     }
+
+    // Graph traffic is issued by the extension host, so its network log entries
+    // arrive over postMessage rather than through a webview middleware.
+    useEffect(() => onHostNetworkRequest(handleNetworkRequest), [handleNetworkRequest]);
 
     const [path, setPath] = useState<BreadcrumbEntry[]>([
         { label: panelState.appName, id: null }
@@ -218,13 +220,13 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
             // Determine the current path state at call time by reading from path state
             // We receive viewMode but need the current lastId — capture it via closure
             // instead we'll re-read from path in a separate effect
-            apiRef.current!.containers.list(containerTypeId)
+            apiRef.current!.containers.list()
                 .then(items => setRootItems(items))
                 .catch(err => console.error('[StorageExplorer] Failed to load containers:', err))
                 .finally(() => setIsLoading(false));
         } else if (currentViewMode.kind === 'deleted-containers') {
             if (!containerTypeId) { setIsLoading(false); return; }
-            apiRef.current!.containers.listDeleted(containerTypeId)
+            apiRef.current!.containers.listDeleted()
                 .then(items => setDeletedContainers(items))
                 .catch(err => console.error('[StorageExplorer] Failed to load deleted containers:', err))
                 .finally(() => setIsLoading(false));
@@ -240,10 +242,15 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
         const key = itemId ?? driveId;
         setIsLoading(true);
         setLoadProgress(0);
-        apiRef.current!.drive.listChildren(driveId, itemId, (soFar) => {
+        // The host streams one page at a time; accumulate here so the message payload
+        // stays proportional to the page rather than to everything loaded so far.
+        const accumulated: StorageItem[] = [];
+        apiRef.current!.drive.listChildren(driveId, itemId, (page) => {
             // Stream each page into the view and update the running count.
-            setFolderItems(prev => ({ ...prev, [key]: soFar }));
-            setLoadProgress(soFar.length);
+            for (const item of page) { accumulated.push(item); }
+            const snapshot = accumulated.slice();
+            setFolderItems(prev => ({ ...prev, [key]: snapshot }));
+            setLoadProgress(snapshot.length);
         })
             .then(items => setFolderItems(prev => ({ ...prev, [key]: items })))
             .catch(err => console.error('[StorageExplorer] Failed to load drive items:', err))
@@ -292,10 +299,16 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
     }, [loadCurrentView, loadDriveItems, viewMode, lastId, path]);
 
     const createContainer = useCallback(async (name: string, description?: string) => {
-        const { containerTypeId } = panelState;
-        await apiRef.current!.containers.create(containerTypeId, name, description);
+        // containerTypeId is injected host-side; the webview cannot repoint it.
+        await apiRef.current!.containers.create(name, description);
         await loadCurrentView(viewMode);
     // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [loadCurrentView, viewMode]);
+
+    const activateContainer = useCallback(async (containerId: string) => {
+        await apiRef.current!.containers.activate(containerId);
+        setSelectedItem(prev => prev?.id === containerId ? { ...prev, status: 'active' } : prev);
+        await loadCurrentView(viewMode);
     }, [loadCurrentView, viewMode]);
 
     const renameContainer = useCallback(async (containerId: string, newName: string) => {
@@ -634,13 +647,19 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
                     if (state === 'cancelled') return;
                     if (state === 'paused') return; // resumeUpload() will call runUpload() again
 
-                    const result = await apiRef.current!.drive.uploadChunk(sessionUrl, file, offset);
+                    const result = await apiRef.current!.drive.uploadChunk(sessionUrl, file, offset, driveId);
                     offset = result.nextOffset;
                     uploadOffsets.current.set(id, offset);
                     setUploads(prev => prev.map(u => u.id === id ? { ...u, uploaded: Math.min(offset, file.size) } : u));
 
                     if (result.done) {
-                        if (result.item) addToFolderCache(driveId, parentId, result.item);
+                        if (result.item) {
+                            addToFolderCache(driveId, parentId, result.item);
+                        } else {
+                            // The upload committed but the follow-up metadata read failed.
+                            // Re-list the folder so the new file still shows up.
+                            loadDriveItems(driveId, parentId ?? undefined);
+                        }
                         setUploads(prev => prev.map(u => u.id === id ? { ...u, uploaded: file.size, status: 'completed' as UploadStatus } : u));
                         cleanupUploadRefs(id);
                         return;
@@ -743,6 +762,7 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
         loadProgress,
         refresh,
         createContainer,
+        activateContainer,
         renameContainer,
         deleteContainer,
         restoreContainer,

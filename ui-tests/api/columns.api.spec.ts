@@ -5,14 +5,14 @@
 
 import { test, expect } from '@playwright/test';
 import { Client } from '@microsoft/microsoft-graph-client';
-import { ColumnGraphService } from '../../webview-ui/src/api/services/ColumnGraphService';
-import { FakeGraphClient, fakeAuthProvider } from './fakeClient';
+import { ColumnGraphService } from '../../src/services/StorageExplorer/ColumnGraphService';
+import { FakeGraphClient } from './fakeClient';
 
 const CBASE = '/storage/fileStorage/containers';
 
 function svc() {
     const fake = new FakeGraphClient();
-    return { fake, s: new ColumnGraphService(fake as unknown as Client, fakeAuthProvider) };
+    return { fake, s: new ColumnGraphService(fake as unknown as Client) };
 }
 
 test.describe('ColumnGraphService', () => {

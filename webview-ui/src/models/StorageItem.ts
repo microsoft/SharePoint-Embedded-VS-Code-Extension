@@ -1,50 +1,12 @@
-export type ItemKind = 'container' | 'folder' | 'file';
+// Shapes shared with the extension host live in the protocol contract so both
+// sides stay in sync. Re-exported here to keep existing import paths working.
+export type { ItemKind, NetworkRequest, StorageItem } from '../api/protocol';
+
 export type SortColumn = 'name' | 'modified' | 'type' | 'size';
 export type SortDirection = 'asc' | 'desc';
 export type SidePanelTab = 'properties' | 'metadata' | 'versions' | 'permissions' | 'columns' | 'settings';
 
-export interface StorageItem {
-    id: string;
-    name: string;
-    kind: ItemKind;
-    modifiedAt: string;
-    type: string;
-    size: string;
-    /**
-     * Raw size in bytes, used for correct numeric sorting.
-     * `size` is a pre-formatted display string (e.g. "2 MB") and must NOT be
-     * used for comparisons. 0 for folders/containers without a known size.
-     */
-    sizeBytes?: number;
-    description?: string;
-    mimeType?: string;
-    // Container-specific fields
-    containerTypeId?: string;
-    createdAt?: string;
-    deletedAt?: string;
-    lockState?: 'unlocked' | 'lockedReadOnly' | null;
-    status?: 'active' | 'inactive' | null;
-    sensitivityLabel?: { id?: string; displayName?: string } | null;
-    /**
-     * Browser-facing URL for the item (`DriveItem.webUrl` / `BaseItem.webUrl`).
-     * Opens Office files in the browser viewer; acts as a direct link for
-     * other file types.
-     */
-    webUrl?: string;
-    /**
-     * Pre-authenticated temporary download URL.
-     * Sourced from the `@microsoft.graph.downloadUrl` OData annotation,
-     * which Graph returns when the field is explicitly `$select`-ed.
-     * Expires after a short time — do not cache long-term.
-     */
-    downloadUrl?: string;
-    /**
-     * Embedded preview / view URL returned by `POST /driveItem/preview`
-     * (`ItemPreviewInfo.getUrl`).  Populated on demand after a preview call;
-     * not available from a normal listing response.
-     */
-    previewUrl?: string;
-}
+import type { StorageItem } from '../api/protocol';
 
 export interface BreadcrumbEntry {
     label: string;
@@ -63,23 +25,6 @@ export type ModalState =
     | { kind: 'new-excel' }
     | { kind: 'new-folder' }
     | { kind: 'new-file' };
-
-export interface NetworkRequest {
-    id: string;
-    method: string;
-    url: string;
-    /** HTTP status code, or 0 if the request failed/is pending */
-    status: number;
-    statusText: string;
-    /** Duration in milliseconds */
-    durationMs: number;
-    timestamp: string; // ISO 8601
-    requestHeaders: Record<string, string>;
-    requestBody?: string;
-    responseHeaders: Record<string, string>;
-    responseBody?: string;
-    error?: string;
-}
 
 export type ViewMode =
     | { kind: 'normal' }

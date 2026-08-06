@@ -40,13 +40,15 @@ export function ActionBar() {
                     <Separator />
                 </>
             )}
-            {atRoot ? (
-                <ContainerActions hasSelection={hasSelection} />
-            ) : (
-                <FileActions
-                    hasSelection={hasSelection} isFile={isFile}
-                    canOpen={canOpen} canPreview={canPreview} canDownload={canDownload}
-                />
+            {selectedCount === 0 && (
+                atRoot ? (
+                    <ContainerActions hasSelection={hasSelection} />
+                ) : (
+                    <FileActions
+                        hasSelection={hasSelection} isFile={isFile}
+                        canOpen={canOpen} canPreview={canPreview} canDownload={canDownload}
+                    />
+                )
             )}
             {confirmBulk && (
                 <Modal
@@ -122,12 +124,16 @@ function ActionBtn({
 }
 
 function ContainerActions({ hasSelection }: { hasSelection: boolean }) {
-    const { selectedItem, openModal, navigateToDeletedContainers } = useStorageExplorer();
+    const { selectedItem, activateContainer, openModal, navigateToDeletedContainers } = useStorageExplorer();
+    const canActivate = selectedItem?.kind === 'container' && selectedItem.status === 'inactive';
     return (
         <>
             <ActionBtn icon="codicon-add" label="New Container" title="Create a new container" testId="action-new-container" onClick={() => openModal({ kind: 'new-container' })} />
             <ActionBtn icon="codicon-trash" label="Deleted containers" title="View deleted containers" testId="action-deleted-containers" onClick={navigateToDeletedContainers} />
             <Separator />
+            {canActivate && (
+                <ActionBtn icon="codicon-play" label="Activate" title="Activate selected container" testId="action-activate-container" onClick={() => activateContainer(selectedItem.id)} />
+            )}
             <ActionBtn icon="codicon-edit" label="Rename" title="Rename selected container" testId="action-rename-container" disabled={!hasSelection} onClick={() => selectedItem && openModal({ kind: 'rename', item: selectedItem })} />
             <ActionBtn icon="codicon-trash" label="Delete" title="Delete selected container" testId="action-delete-container" disabled={!hasSelection} danger onClick={() => selectedItem && openModal({ kind: 'delete', item: selectedItem })} />
         </>

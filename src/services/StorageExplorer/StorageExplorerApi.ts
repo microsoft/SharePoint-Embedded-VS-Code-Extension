@@ -1,0 +1,268 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import * as Graph from '@microsoft/microsoft-graph-client';
+import type { ColumnDefinition, FileStorageContainerSettings, Permission } from '@microsoft/microsoft-graph-types';
+import { ColumnGraphService } from './ColumnGraphService';
+import { ContainerGraphService } from './ContainerGraphService';
+import { DriveGraphService } from './DriveGraphService';
+import { MeGraphService } from './MeGraphService';
+import { PeopleGraphService } from './PeopleGraphService';
+import { PermissionGraphService } from './PermissionGraphService';
+import { isStorageExplorerOperation, OPERATION_SCHEMAS } from './operationSchemas';
+import {
+    OperationParams,
+    OperationResult,
+    SerializedError,
+    StorageExplorerOperation,
+    StorageItem,
+} from './protocol';
+
+/** Per-request facilities handed to an operation handler. */
+export interface OperationContext {
+    /** Emit an incremental payload while the operation is still running. */
+    onProgress: (data: unknown) => void;
+}
+
+type OperationHandlers = {
+    [K in StorageExplorerOperation]: (
+        params: OperationParams<K>,
+        context: OperationContext
+    ) => Promise<OperationResult<K>>;
+};
+
+/** Convert a thrown value into a structured-clone-safe envelope for the webview. */
+export function serializeError(error: unknown): SerializedError {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const err = error as any;
+    const statusCode = typeof err?.statusCode === 'number' ? err.statusCode : undefined;
+    const code = typeof err?.code === 'string' ? err.code : undefined;
+    const message = typeof err?.message === 'string' && err.message
+        ? err.message
+        : String(error);
+    return { message, statusCode, code };
+}
+
+/**
+ * Executes Storage Explorer Graph operations on the extension host.
+ *
+ * One instance is created per open panel and is bound to that panel's container
+ * type. The webview can only invoke the operations enumerated in
+ * `StorageExplorerOperations`; it never receives a bearer token, and it cannot
+ * influence which container type is queried.
+ *
+ * The Graph client is injected (see `createGraphClient`) so this class has no
+ * dependency on `vscode` and can be driven with a stub client in tests.
+ */
+export class StorageExplorerApi {
+    private readonly _containers: ContainerGraphService;
+    private readonly _drive: DriveGraphService;
+    private readonly _permissions: PermissionGraphService;
+    private readonly _columns: ColumnGraphService;
+    private readonly _people: PeopleGraphService;
+    private readonly _me: MeGraphService;
+    private readonly _handlers: OperationHandlers;
+
+    /**
+     * Containers already proven to belong to `_containerTypeId`.
+     *
+     * Populated from every container listing/creation this panel performs, so the common
+     * path costs nothing; ids the webview supplies out of the blue are verified lazily.
+     */
+    private readonly _containersInScope = new Set<string>();
+    private readonly _pendingScopeChecks = new Map<string, Promise<void>>();
+
+    /**
+     * @param _containerTypeId Container type this panel was opened for. Injected into every
+     *   container-type-scoped operation instead of being accepted from the webview.
+     * @param client Authenticated Graph client; its token stays in the host process.
+     */
+    public constructor(
+        private readonly _containerTypeId: string,
+        client: Graph.Client
+    ) {
+        this._containers = new ContainerGraphService(client);
+        this._drive = new DriveGraphService(client);
+        this._permissions = new PermissionGraphService(client);
+        this._columns = new ColumnGraphService(client);
+        this._people = new PeopleGraphService(client);
+        this._me = new MeGraphService(client);
+        this._handlers = this._buildHandlers();
+    }
+
+    /**
+     * Validate and run a single operation requested by the webview.
+     * Throws when the operation is unknown or its parameters fail validation.
+     */
+    public async execute(
+        operation: unknown,
+        rawParams: unknown,
+        context: OperationContext
+    ): Promise<unknown> {
+        if (!isStorageExplorerOperation(operation)) {
+            throw new Error(`Unsupported Storage Explorer operation: ${String(operation)}`);
+        }
+
+        const schema = OPERATION_SCHEMAS[operation];
+        const params = schema.parse(rawParams ?? {});
+
+        // Every container-scoped operation names its target with `containerId` or `driveId`
+        // (in SPE these are the same value). Confirm the target belongs to this panel's
+        // container type before touching Graph, so a compromised webview cannot use the
+        // panel as a proxy into containers the user opened elsewhere.
+        const scoped = params as { containerId?: unknown; driveId?: unknown };
+        if (typeof scoped.containerId === 'string') {
+            await this._assertContainerInScope(scoped.containerId);
+        }
+        if (typeof scoped.driveId === 'string' && scoped.driveId !== scoped.containerId) {
+            await this._assertContainerInScope(scoped.driveId);
+        }
+
+        const handler = this._handlers[operation] as unknown as (
+            p: unknown,
+            c: OperationContext
+        ) => Promise<unknown>;
+        return handler(params, context);
+    }
+
+    /** Record containers this panel legitimately surfaced, then pass the value through. */
+    private _trackInScope<T extends StorageItem | StorageItem[] | null>(result: T): T {
+        if (Array.isArray(result)) {
+            for (const item of result) {
+                if (item?.id) { this._containersInScope.add(item.id); }
+            }
+        } else if (result?.id) {
+            this._containersInScope.add(result.id);
+        }
+        return result;
+    }
+
+    /** Throw unless `containerId` belongs to the container type this panel is bound to. */
+    private async _assertContainerInScope(containerId: string): Promise<void> {
+        if (this._containersInScope.has(containerId)) { return; }
+
+        let pending = this._pendingScopeChecks.get(containerId);
+        if (!pending) {
+            pending = this._verifyContainerScope(containerId);
+            this._pendingScopeChecks.set(containerId, pending);
+            // Clear the cache entry either way; a rejected check must not be memoized.
+            const clear = (): void => { this._pendingScopeChecks.delete(containerId); };
+            pending.then(clear, clear);
+        }
+        await pending;
+    }
+
+    private async _verifyContainerScope(containerId: string): Promise<void> {
+        const container = await this._containers.get(containerId);
+        if (!container || container.containerTypeId !== this._containerTypeId) {
+            throw new Error(
+                `Container ${containerId} is not part of container type ${this._containerTypeId}.`
+            );
+        }
+        this._containersInScope.add(containerId);
+    }
+
+    /* eslint-disable @typescript-eslint/naming-convention -- keys are dotted operation ids, not identifiers */
+    private _buildHandlers(): OperationHandlers {
+        const containers = this._containers;
+        const drive = this._drive;
+        const permissions = this._permissions;
+        const columns = this._columns;
+        const people = this._people;
+        const me = this._me;
+
+        return {
+            // ── containers ────────────────────────────────────────────────────
+            'containers.list': async () => this._trackInScope(await containers.list(this._containerTypeId)),
+            'containers.get': p => containers.get(p.containerId),
+            'containers.create': async p =>
+                this._trackInScope(await containers.create(this._containerTypeId, p.displayName, p.description)),
+            'containers.activate': p => containers.activate(p.containerId),
+            'containers.rename': p => containers.rename(p.containerId, p.displayName),
+            'containers.updateDescription': p => containers.updateDescription(p.containerId, p.description),
+            'containers.delete': p => containers.delete(p.containerId),
+            'containers.listDeleted': async () =>
+                this._trackInScope(await containers.listDeleted(this._containerTypeId)),
+            'containers.restore': p => containers.restore(p.containerId),
+            'containers.permanentlyDelete': p => containers.permanentlyDelete(p.containerId),
+            'containers.getSettings': p => containers.getSettings(p.containerId),
+            'containers.updateSettings': p =>
+                containers.updateSettings(p.containerId, p.settings as Partial<FileStorageContainerSettings>),
+            'containers.getCustomProperties': p => containers.getCustomProperties(p.containerId),
+            'containers.setCustomProperty': p =>
+                containers.setCustomProperty(p.containerId, p.key, p.value, p.isSearchable),
+            'containers.deleteCustomProperty': p => containers.deleteCustomProperty(p.containerId, p.key),
+
+            // ── drive ─────────────────────────────────────────────────────────
+            'drive.listChildren': (p, ctx) =>
+                drive.listChildren(p.driveId, p.itemId, itemsSoFar => ctx.onProgress(itemsSoFar)),
+            'drive.get': p => drive.get(p.driveId, p.itemId),
+            'drive.getDetailedDriveItem': p => drive.getDetailedDriveItem(p.driveId, p.itemId),
+            'drive.createFolder': p => drive.createFolder(p.driveId, p.parentId, p.name),
+            'drive.createFile': p => drive.createFile(p.driveId, p.parentId, p.name),
+            'drive.rename': p => drive.rename(p.driveId, p.itemId, p.newName),
+            'drive.delete': p => drive.delete(p.driveId, p.itemId),
+            'drive.uploadSmall': p =>
+                drive.uploadSmall(p.driveId, p.parentId, p.fileName, p.contentType, p.bytes),
+            'drive.createUploadSession': p => drive.createUploadSession(p.driveId, p.parentId, p.fileName),
+            'drive.listRecycleBin': p => drive.listRecycleBin(p.containerId),
+            'drive.restoreFromRecycleBin': p => drive.restoreFromRecycleBin(p.containerId, p.itemId),
+            'drive.permanentlyDelete': p => drive.permanentlyDelete(p.containerId, p.itemId),
+            'drive.getFields': p => drive.getFields(p.driveId, p.itemId),
+            'drive.updateFields': p => drive.updateFields(p.driveId, p.itemId, p.fields),
+            'drive.listVersions': p => drive.listVersions(p.driveId, p.itemId),
+            'drive.getVersionDownloadUrl': p =>
+                drive.getVersionDownloadUrl(p.driveId, p.itemId, p.versionId),
+            'drive.restoreVersion': p => drive.restoreVersion(p.driveId, p.itemId, p.versionId),
+            'drive.deleteVersion': p => drive.deleteVersion(p.driveId, p.itemId, p.versionId),
+            'drive.getItemWebUrl': p => drive.getItemWebUrl(p.driveId, p.itemId),
+            'drive.getDownloadUrl': p => drive.getDownloadUrl(p.driveId, p.itemId),
+            'drive.getPreviewUrl': p => drive.getPreviewUrl(p.driveId, p.itemId),
+
+            // ── permissions ───────────────────────────────────────────────────
+            'permissions.listItemPermissions': p => permissions.listItemPermissions(p.driveId, p.itemId),
+            'permissions.createSharingLink': p =>
+                permissions.createSharingLink(
+                    p.driveId, p.itemId, p.type, p.scope, p.expirationDate, p.preventDownload
+                ),
+            'permissions.inviteToItem': p =>
+                permissions.inviteToItem(
+                    p.driveId, p.itemId, p.emails, p.role, p.requireSignIn, p.sendInvitation, p.expirationDate
+                ),
+            'permissions.updateItemPermission': p =>
+                permissions.updateItemPermission(
+                    p.driveId, p.itemId, p.permissionId, p.patch as Partial<Permission>
+                ),
+            'permissions.deleteItemPermission': p =>
+                permissions.deleteItemPermission(p.driveId, p.itemId, p.permissionId),
+            'permissions.listContainerPermissions': p => permissions.listContainerPermissions(p.containerId),
+            'permissions.addContainerPermission': p =>
+                permissions.addContainerPermission(p.containerId, p.member, p.role),
+            'permissions.updateContainerPermission': p =>
+                permissions.updateContainerPermission(p.containerId, p.permissionId, p.role),
+            'permissions.deleteContainerPermission': p =>
+                permissions.deleteContainerPermission(p.containerId, p.permissionId),
+
+            // ── columns ───────────────────────────────────────────────────────
+            'columns.listContainerColumns': p => columns.listContainerColumns(p.containerId),
+            'columns.createContainerColumn': p =>
+                columns.createContainerColumn(p.containerId, p.column as Partial<ColumnDefinition>),
+            'columns.updateContainerColumn': p =>
+                columns.updateContainerColumn(p.containerId, p.columnId, p.column as Partial<ColumnDefinition>),
+            'columns.deleteContainerColumn': p => columns.deleteContainerColumn(p.containerId, p.columnId),
+            'columns.getItemFields': p => columns.getItemFields(p.driveId, p.itemId),
+            'columns.updateItemFields': p => columns.updateItemFields(p.driveId, p.itemId, p.fields),
+
+            // ── people ────────────────────────────────────────────────────────
+            'people.searchUsers': p => people.searchUsers(p.query),
+            'people.searchGroups': p => people.searchGroups(p.query),
+            'people.search': p => people.search(p.query),
+
+            // ── me ────────────────────────────────────────────────────────────
+            'me.get': () => me.get(),
+        };
+    }
+    /* eslint-enable @typescript-eslint/naming-convention */
+}

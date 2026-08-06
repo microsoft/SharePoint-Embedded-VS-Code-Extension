@@ -2,6 +2,7 @@ import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { NetworkRequest } from '../../models/StorageItem';
 import { useStorageExplorer } from '../../context/StorageExplorerContext';
 import { useResizableColumns, ColResizeHandle } from '../../hooks/useResizableColumns';
+import { redactNetworkRequest } from '../../../../src/services/StorageExplorer/networkRedaction';
 
 const METHOD_COLORS: Record<string, string> = {
     GET:    'var(--vscode-symbolIcon-classForeground, #4ec9b0)',
@@ -27,8 +28,16 @@ function formatTimestamp(iso: string): string {
     return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 }
 
+/**
+ * Serialize captured requests as a HAR 1.2 log.
+ *
+ * Entries are already redacted at capture time (host middleware / chunk-upload logger).
+ * `redactNetworkRequest` is applied again here because a HAR is an export artifact that
+ * routinely gets attached to bug reports — if any future capture path forgets to redact,
+ * the leak must not reach a file the user shares.
+ */
 function buildHar(requests: NetworkRequest[]): string {
-    const entries = requests.map(r => ({
+    const entries = requests.map(redactNetworkRequest).map(r => ({
         startedDateTime: r.timestamp,
         time: r.durationMs,
         request: {

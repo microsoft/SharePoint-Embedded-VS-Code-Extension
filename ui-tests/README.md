@@ -9,9 +9,11 @@ against a mocked Microsoft Graph (deterministic, no tenant) — plus an optional
 | **API-layer** | `npm run test:api` | Every `*GraphService` method's request shaping, in Node, against a fake Graph client (no browser) | ~2 s |
 | **Perf** | `npm run test:perf` | Enumeration-list render benchmark at 100/500/1000/5000 against a **production** build | ~30 s |
 
-> The webview's only VS Code coupling is a token bridge, so the tests inject panel state + a token
-> bridge shim and drive the real app — no VS Code needed. (Driving the *real VS Code app* with
-> Playwright is blocked on Windows by VS Code's self-relaunch; that's a separate, later phase.)
+> The webview talks to VS Code through an operation-specific RPC bridge. The tests inject panel
+> state + a test token; in Vite dev the app installs the dev-only RPC emulator, which runs the
+> host Storage Explorer API in-page and keeps Graph traffic interceptable by Playwright. No VS Code
+> needed. (Driving the *real VS Code app* with Playwright is blocked on Windows by VS Code's
+> self-relaunch; that's a separate, later phase.)
 
 ## Prerequisites
 
@@ -23,8 +25,8 @@ npx playwright install chromium   # one-time browser download
 ## UI / E2E suite (`npm run test:ui`)
 
 Drives the standalone webview (Vite dev server auto-started by Playwright). Specs live in
-`ui-tests/tests/` and use the `storage` fixture (injects state + token, installs the Graph mock,
-navigates). Coverage:
+`ui-tests/tests/` and use the `storage` fixture (injects state + test token, lets the dev-only
+RPC emulator start, installs the Graph mock, navigates). Coverage:
 
 - **containers** — create / rename / delete → deleted-containers → restore
 - **files-folders** — navigate in, new folder, new Word doc, rename, delete, breadcrumb
@@ -57,11 +59,11 @@ to `FileStorageContainer.Selected`, copy the Access token). Tokens expire in ~1 
 
 ## API-layer suite (`npm run test:api`)
 
-Fast Node tests (no browser) that import the real `webview-ui` `*GraphService` classes and assert
+Fast Node tests (no browser) that import the real extension-host `*GraphService` classes and assert
 the exact request each method shapes — path, HTTP verb, `v1.0`, `$filter`/`$select`/`$expand`,
 and body — via a fake fluent Graph client (`ui-tests/api/fakeClient.ts`). Covers
-`ContainerGraphService` (14), `DriveGraphService` (18), `PermissionGraphService` (8),
-`ColumnGraphService` (6), `PeopleGraphService` (3), `MeGraphService` (1).
+`ContainerGraphService` (14), `DriveGraphService` (21), `PermissionGraphService` (9),
+`ColumnGraphService` (6), `PeopleGraphService` (4), `MeGraphService` (1).
 
 ## Perf suite (`npm run test:perf`)
 
@@ -86,7 +88,7 @@ ui-tests/
   playwright.api.config.ts   # API-layer: node, no browser
   playwright.perf.config.ts  # Perf: prod build + vite preview
   config.ts                  # UI/E2E mock-vs-live config
-  fixtures.ts                # `storage` fixture (inject state/token, mock, navigate)
+  fixtures.ts                # `storage` fixture (inject state/token, emulator, mock, navigate)
   global.d.ts                # ambient window globals for the type-check
   helpers/
     token.ts                 # fake Graph JWT

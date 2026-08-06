@@ -22,6 +22,7 @@ export const TID = {
     // ── ActionBar — container view ───────────────────────────────────────────
     actionNewContainer: 'action-new-container',
     actionDeletedContainers: 'action-deleted-containers',
+    actionActivateContainer: 'action-activate-container',
     actionRenameContainer: 'action-rename-container',
     actionDeleteContainer: 'action-delete-container',
 

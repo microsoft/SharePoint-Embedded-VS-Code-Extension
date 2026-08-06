@@ -15,7 +15,6 @@ interface Window {
         tenantDomain: string;
         containerTypeId: string;
         registrationId: string;
-        initialToken?: string;
     };
     __SPE_TEST_TOKEN__?: string;
     acquireVsCodeApi?: () => { postMessage: (message: unknown) => void };

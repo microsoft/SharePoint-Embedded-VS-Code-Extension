@@ -213,6 +213,15 @@ const routes: Route[] = [
 
     // ── Containers ───────────────────────────────────────────────────────────
     {
+        method: 'POST',
+        re: /^\/storage\/fileStorage\/containers\/([^/]+)\/activate$/,
+        handler: ({ m, state }) => {
+            const c = state.findContainer(m[1]);
+            if (c) { c.status = 'active'; }
+            return ok(c ? serializeContainer(c) : {});
+        },
+    },
+    {
         method: 'GET',
         re: /^\/storage\/fileStorage\/containers$/,
         handler: ({ state }) => list(state.containers.map(serializeContainer)),

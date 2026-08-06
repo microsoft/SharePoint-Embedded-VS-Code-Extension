@@ -6,7 +6,7 @@
 /** Build a syntactically-valid (unsigned) JWT with Microsoft Graph claims. */
 export function makeFakeGraphJwt(): string {
     const now = Math.floor(Date.now() / 1000);
-    // Standard base64 (atob-decodable, which the webview's token validator uses).
+    // Standard base64 for a syntactically valid bearer token in the dev-only RPC emulator.
     const b64 = (o: object): string => Buffer.from(JSON.stringify(o)).toString('base64');
     const header = { alg: 'none', typ: 'JWT' };
     const payload = {

@@ -35,15 +35,6 @@ async function newInjectedPage(browser: Browser, n: number) {
             appName: 'Perf', tenantDomain: 'contoso.onmicrosoft.com', containerTypeId: ctId, registrationId: 'reg',
         };
         (window as unknown as Record<string, unknown>).__SPE_TEST_TOKEN__ = token;
-        (window as unknown as Record<string, unknown>).acquireVsCodeApi = () => ({
-            postMessage: (msg: { command?: string; requestId?: string }) => {
-                if (msg && msg.command === 'getToken') {
-                    window.dispatchEvent(new MessageEvent('message', {
-                        data: { command: 'tokenResponse', token: (window as unknown as Record<string, unknown>).__SPE_TEST_TOKEN__, requestId: msg.requestId },
-                    }));
-                }
-            },
-        });
     }, { token: makeFakeGraphJwt(), ctId: CONTAINER_TYPE_ID });
 
     const state = await installGraphMock(page, { containers: n });
