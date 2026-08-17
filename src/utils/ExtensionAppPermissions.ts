@@ -6,40 +6,45 @@
 import * as vscode from 'vscode';
 import { clientId } from '../client';
 import { GraphProvider } from '../services/Graph/GraphProvider';
-import { ContainerTypeAppPermission } from '../models/schemas';
 import { DevelopmentTreeViewProvider } from '../views/treeview/development/DevelopmentTreeViewProvider';
+import { REQUIRED_DELEGATED_PERMISSIONS } from './ExtensionAppPermissionScopes';
 
-/**
- * Required delegated permissions for the 1P extension app to perform
- * container operations (create, list, read, write, delete).
- */
-export const REQUIRED_DELEGATED_PERMISSIONS: ContainerTypeAppPermission[] = [
-    'readContent',
-    'writeContent',
-    'create',
-    'delete',
-    'read',
-    'write'
-];
+export { REQUIRED_DELEGATED_PERMISSIONS };
 
 /**
  * Check whether the 1P extension app already has the required delegated
  * permissions on the given container type.
+ *
+ * Returns `false` when the lookup itself fails, so callers that only need a
+ * yes/no answer stay simple. Use {@link checkExtensionAppPermissions} when
+ * "couldn't tell" must be distinguishable from "not granted".
  */
 export async function hasExtensionAppPermissions(containerTypeId: string): Promise<boolean> {
     try {
-        const graphProvider = GraphProvider.getInstance();
-        const result = await graphProvider.appPermissionGrants.hasPermissions(
-            containerTypeId,
-            clientId,
-            [],                             // no application permissions required
-            REQUIRED_DELEGATED_PERMISSIONS
-        );
-        return result.hasDelegated;
+        return await checkExtensionAppPermissions(containerTypeId);
     } catch (error: any) {
         console.warn('[ExtensionAppPermissions] Error checking permissions:', error.message || error);
         return false;
     }
+}
+
+/**
+ * Strict form of {@link hasExtensionAppPermissions}: **throws** if the grant cannot be
+ * read, instead of reporting it as "not granted".
+ *
+ * Callers that turn a negative answer into a user-facing diagnosis need this distinction —
+ * telling someone their extension app lacks permissions when the lookup merely failed
+ * sends them down the wrong path.
+ */
+export async function checkExtensionAppPermissions(containerTypeId: string): Promise<boolean> {
+    const graphProvider = GraphProvider.getInstance();
+    const result = await graphProvider.appPermissionGrants.hasPermissions(
+        containerTypeId,
+        clientId,
+        [],                             // no application permissions required
+        REQUIRED_DELEGATED_PERMISSIONS
+    );
+    return result.hasDelegated;
 }
 
 /**
@@ -64,6 +69,10 @@ export async function grantExtensionAppPermissions(containerTypeId: string): Pro
  * Ensure the 1P extension app has the required delegated permissions on a
  * container type.  If permissions are missing the user is prompted; if they
  * accept, the permissions are granted automatically.
+ *
+ * This is the single prompt for the grant — the Development tree view, a denied
+ * Storage Explorer call, and the Storage Explorer's "Grant permissions" button all
+ * route through here so the user sees the same dialog wherever they hit it.
  *
  * @returns `true` if permissions are present (or were just granted), `false`
  *          if the user declined or the grant failed.

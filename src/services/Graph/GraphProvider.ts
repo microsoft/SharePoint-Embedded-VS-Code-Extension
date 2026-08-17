@@ -11,6 +11,7 @@ import { ContainerTypeRegistrationService } from './ContainerTypeRegistrationSer
 import { ContainerTypeAppPermissionGrantService } from './ContainerTypeAppPermissionGrantService';
 import { ContainerService } from './ContainerService';
 import { UserService } from './UserService';
+import { GraphPerfMiddleware } from './GraphPerfMiddleware';
 
 /**
  * Singleton provider for Microsoft Graph API operations
@@ -28,8 +29,8 @@ export class GraphProvider {
     private _userService: UserService;
 
     private constructor(private _authProvider: GraphAuthProvider) {
-        this._client = Graph.Client.init({
-            authProvider: _authProvider.getAuthHandler()
+        this._client = Graph.Client.initWithMiddleware({
+            middleware: GraphProvider._buildMiddlewareChain(_authProvider)
         });
 
         // Initialize services
@@ -39,6 +40,18 @@ export class GraphProvider {
         this._appPermissionGrantService = new ContainerTypeAppPermissionGrantService(this._client);
         this._containerService = new ContainerService(this._client);
         this._userService = new UserService(this._client);
+    }
+
+    /**
+     * The SDK's default chain (auth → retry → redirect → telemetry → http) with a
+     * timing middleware in front, so `Perf` sees the full wall time of every request
+     * including retries. Built explicitly because `Client.init({ authProvider })`
+     * rejects a client that supplies both an auth provider and a custom chain.
+     */
+    private static _buildMiddlewareChain(authProvider: GraphAuthProvider): Graph.Middleware[] {
+        const sdkAuthProvider = new Graph.CustomAuthenticationProvider(authProvider.getAuthHandler());
+        const chain = Graph.MiddlewareFactory.getDefaultMiddlewareChain(sdkAuthProvider);
+        return [new GraphPerfMiddleware(), ...chain];
     }
 
     /**

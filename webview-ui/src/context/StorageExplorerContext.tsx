@@ -2,8 +2,29 @@ import React, { createContext, useCallback, useContext, useEffect, useRef, useSt
 import { StorageItem, BreadcrumbEntry, SortColumn, SortDirection, SidePanelTab, ModalState, ViewMode, NetworkRequest, UploadFile, UploadStatus } from '../models/StorageItem';
 import { DELETED_CONTAINERS, RECYCLED_ITEMS_BY_CONTAINER_ID } from '../data/dummyData';
 import { createStorageExplorerApi, onHostNetworkRequest, StorageExplorerApi } from '../api';
+import type { MissingExtensionPermissionsCode } from '../api/protocol';
 import { DriveGraphService } from '../api/services/DriveGraphService';
 import { openUrl } from '../utils/openUrl';
+import { onExtensionMessage, postToExtension } from '../utils/vsbridge';
+
+/** See `MissingExtensionPermissionsCode` in the host protocol — kept in sync by the annotation. */
+const MISSING_EXTENSION_PERMISSIONS_CODE: MissingExtensionPermissionsCode = 'missingExtensionAppPermissions';
+
+/** Why the current view has no data. Distinguishes "nothing here" from "the load failed". */
+export interface LoadFailure {
+    /** `permissions` renders a call to action; `generic` renders a plain failure state. */
+    kind: 'permissions' | 'generic';
+    message: string;
+}
+
+/** Classify a rejected load so the list can render the right failure state. */
+function toLoadFailure(error: unknown): LoadFailure {
+    const err = error as { message?: string; code?: string } | null | undefined;
+    const message = err?.message || 'The request could not be completed.';
+    return err?.code === MISSING_EXTENSION_PERMISSIONS_CODE
+        ? { kind: 'permissions', message }
+        : { kind: 'generic', message };
+}
 
 /**
  * Maps a filename extension to the Office desktop URI scheme name.
@@ -82,6 +103,12 @@ interface StorageExplorerContextValue {
     api: StorageExplorerApi;
     isLoading: boolean;
     loadProgress: number;
+    /** Set when the current view failed to load; null when the view simply has no items. */
+    loadError: LoadFailure | null;
+    /** Ask the host to raise the extension-app permission prompt for this container type. */
+    grantPermissions: () => void;
+    /** True while that prompt is open, so the button can show it is waiting on the user. */
+    isGrantingPermissions: boolean;
     refresh: () => void;
     createContainer: (name: string, description?: string) => Promise<void>;
     activateContainer: (containerId: string) => Promise<void>;
@@ -122,7 +149,6 @@ interface StorageExplorerContextValue {
 }
 
 const StorageExplorerContext = createContext<StorageExplorerContextValue | null>(null);
-
 export function StorageExplorerProvider({ children }: { children: React.ReactNode }) {
     // Panel state injected by the extension host (immutable for this session)
     const panelState = window.__STORAGE_EXPLORER_STATE__ ?? {
@@ -175,6 +201,9 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
     const [modal, setModal] = useState<ModalState | null>(null);
     const [retentionOverrides, setRetentionOverridesState] = useState<Record<string, number | null>>({});
     const [isLoading, setIsLoading] = useState(false);
+    const [loadError, setLoadError] = useState<LoadFailure | null>(null);
+    // True while the host is showing the extension-app grant prompt on our behalf.
+    const [isGrantingPermissions, setIsGrantingPermissions] = useState(false);
     const [networkRequests, setNetworkRequests] = useState<NetworkRequest[]>([]);
     const [networkDrawerOpen, setNetworkDrawerOpen] = useState(false);
     // ── upload state ──
@@ -211,37 +240,79 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
     }, [lastId, path]);
 
     // ── Refresh / data loading ────────────────────────────────────────────────
-    const loadCurrentView = useCallback((currentViewMode: ViewMode) => {
-        const { containerTypeId } = panelState;
+
+    /**
+     * Guards the shared listing state (`isLoading`, `loadProgress`, `loadError`).
+     *
+     * All four load paths write to the same three pieces of state, and nothing cancels an
+     * in-flight RPC when the user navigates. Without a guard, a rejection from a listing the
+     * user has already left surfaces as an error on the view they are looking at now — and a
+     * late success clears an error that is still valid. Each load takes a token and only
+     * writes back while it is still the newest one.
+     */
+    const loadSeqRef = useRef(0);
+
+    /** Begin a load: reset the shared state and return a "still the current load" predicate. */
+    const beginLoad = useCallback((): (() => boolean) => {
+        const token = ++loadSeqRef.current;
         setIsLoading(true);
         setLoadProgress(0);
+        setLoadError(null);
+        return () => loadSeqRef.current === token;
+    }, []);
+
+    /** Invalidate any in-flight load without starting one (used when a view needs no fetch). */
+    const cancelLoad = useCallback(() => {
+        loadSeqRef.current++;
+        setIsLoading(false);
+        setLoadError(null);
+    }, []);
+
+    const loadCurrentView = useCallback((currentViewMode: ViewMode) => {
+        const { containerTypeId } = panelState;
+        const isCurrent = beginLoad();
         if (currentViewMode.kind === 'normal') {
             if (!containerTypeId) { setIsLoading(false); return; }
             // Determine the current path state at call time by reading from path state
             // We receive viewMode but need the current lastId — capture it via closure
             // instead we'll re-read from path in a separate effect
             apiRef.current!.containers.list()
-                .then(items => setRootItems(items))
-                .catch(err => console.error('[StorageExplorer] Failed to load containers:', err))
-                .finally(() => setIsLoading(false));
+                .then(items => { if (isCurrent()) { setRootItems(items); } })
+                .catch(err => {
+                    console.error('[StorageExplorer] Failed to load containers:', err);
+                    if (!isCurrent()) { return; }
+                    setRootItems([]);
+                    setLoadError(toLoadFailure(err));
+                })
+                .finally(() => { if (isCurrent()) { setIsLoading(false); } });
         } else if (currentViewMode.kind === 'deleted-containers') {
             if (!containerTypeId) { setIsLoading(false); return; }
             apiRef.current!.containers.listDeleted()
-                .then(items => setDeletedContainers(items))
-                .catch(err => console.error('[StorageExplorer] Failed to load deleted containers:', err))
-                .finally(() => setIsLoading(false));
+                .then(items => { if (isCurrent()) { setDeletedContainers(items); } })
+                .catch(err => {
+                    console.error('[StorageExplorer] Failed to load deleted containers:', err);
+                    if (!isCurrent()) { return; }
+                    setDeletedContainers([]);
+                    setLoadError(toLoadFailure(err));
+                })
+                .finally(() => { if (isCurrent()) { setIsLoading(false); } });
         } else {
             setIsLoading(false);
         }
     // panelState is stable (injected once at mount)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    }, [beginLoad]);
 
-    // Load drive items whenever we navigate into a container/folder
-    const loadDriveItems = useCallback((driveId: string, itemId?: string) => {
+    /**
+     * Load drive items whenever we navigate into a container/folder.
+     *
+     * `silent` re-lists a folder in the background (after an upload) without touching the
+     * shared loading/error state — that folder may not be the one on screen any more.
+     */
+    const loadDriveItems = useCallback((driveId: string, itemId?: string, opts?: { silent?: boolean }) => {
         const key = itemId ?? driveId;
-        setIsLoading(true);
-        setLoadProgress(0);
+        const silent = opts?.silent === true;
+        const isCurrent = silent ? () => false : beginLoad();
         // The host streams one page at a time; accumulate here so the message payload
         // stays proportional to the page rather than to everything loaded so far.
         const accumulated: StorageItem[] = [];
@@ -250,12 +321,17 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
             for (const item of page) { accumulated.push(item); }
             const snapshot = accumulated.slice();
             setFolderItems(prev => ({ ...prev, [key]: snapshot }));
-            setLoadProgress(snapshot.length);
+            if (isCurrent()) { setLoadProgress(snapshot.length); }
         })
             .then(items => setFolderItems(prev => ({ ...prev, [key]: items })))
-            .catch(err => console.error('[StorageExplorer] Failed to load drive items:', err))
-            .finally(() => setIsLoading(false));
-    }, []);
+            .catch(err => {
+                console.error('[StorageExplorer] Failed to load drive items:', err);
+                // Drop any partial pages: a half-listed folder reads as a complete one.
+                setFolderItems(prev => ({ ...prev, [key]: [] }));
+                if (isCurrent()) { setLoadError(toLoadFailure(err)); }
+            })
+            .finally(() => { if (isCurrent()) { setIsLoading(false); } });
+    }, [beginLoad]);
 
     // Load whenever the view mode changes (includes initial mount)
     useEffect(() => {
@@ -264,10 +340,25 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [viewMode.kind]);
 
+    /**
+     * The previous `lastId`, so we can tell "navigated back out of a folder" from "mounted at
+     * the root". Both see `lastId === null`, but only the former should cancel a load — on
+     * mount the root listing started by the `viewMode.kind` effect is still in flight, and
+     * cancelling it would discard its result (including a legitimate error).
+     */
+    const prevLastIdRef = useRef<string | null>(null);
+
     // Load drive children whenever we navigate into a container or subfolder
     useEffect(() => {
         if (viewMode.kind !== 'normal') return;
-        if (lastId === null) return; // at root — handled by containers.list
+        const cameFromFolder = prevLastIdRef.current !== null;
+        prevLastIdRef.current = lastId;
+        if (lastId === null) {
+            // Back at the root list, which is already cached, so no load runs here. Drop any
+            // error left behind by the folder we came from — it does not describe this view.
+            if (cameFromFolder) { cancelLoad(); }
+            return;
+        }
         const driveId = path[1]?.id;
         if (!driveId) return;
         const itemId = lastId !== driveId ? lastId : undefined;
@@ -279,11 +370,15 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
     useEffect(() => {
         if (viewMode.kind !== 'container-recycle-bin') return;
         const { containerId } = viewMode;
-        setIsLoading(true);
+        const isCurrent = beginLoad();
         apiRef.current!.drive.listRecycleBin(containerId)
             .then(items => setFolderItems(prev => ({ ...prev, [`recycle-${containerId}`]: items })))
-            .catch(err => console.error('[StorageExplorer] Failed to load recycle bin:', err))
-            .finally(() => setIsLoading(false));
+            .catch(err => {
+                console.error('[StorageExplorer] Failed to load recycle bin:', err);
+                setFolderItems(prev => ({ ...prev, [`recycle-${containerId}`]: [] }));
+                if (isCurrent()) { setLoadError(toLoadFailure(err)); }
+            })
+            .finally(() => { if (isCurrent()) { setIsLoading(false); } });
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [viewMode.kind === 'container-recycle-bin' ? (viewMode as any).containerId : null]);
 
@@ -297,6 +392,26 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
         const itemId = lastId !== driveId ? lastId : undefined;
         loadDriveItems(driveId, itemId);
     }, [loadCurrentView, loadDriveItems, viewMode, lastId, path]);
+
+    /**
+     * Ask the host to raise the extension-app grant prompt.
+     *
+     * This is *not* a retry: re-running the denied call to make the host re-diagnose it
+     * would do nothing visible whenever the automatic prompt is still open, and would raise
+     * no prompt at all if the retry happened to fail some other way. The host owns the
+     * consent dialog and the grant; the webview only asks for it and waits for the verdict.
+     */
+    const grantPermissions = useCallback(() => {
+        setIsGrantingPermissions(true);
+        postToExtension({ command: 'grantPermissions' });
+    }, []);
+
+    // Sent for every prompt — the automatic one raised by a denied call as well as the one
+    // behind the button — so the button always stops spinning, granted or not.
+    useEffect(() => onExtensionMessage('permissionsGrantResult', message => {
+        setIsGrantingPermissions(false);
+        if (message.granted) { refresh(); }
+    }), [refresh]);
 
     const createContainer = useCallback(async (name: string, description?: string) => {
         // containerTypeId is injected host-side; the webview cannot repoint it.
@@ -502,8 +617,27 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
         setFilterText('');
     }
 
+    /**
+     * Fill in a container's single-item-only properties (notably `status`).
+     *
+     * Graph's container *collection* endpoint returns a subset of properties, so containers
+     * coming from a list carry no `status` and status-gated actions such as "Activate" would
+     * never appear. Both selection paths — clicking a row and ticking its checkbox — route
+     * through here. The merges match on id, so a response that lands after the user has moved
+     * on can only ever refresh the item it describes.
+     */
+    function enrichContainer(item: StorageItem | null | undefined) {
+        if (item?.kind !== 'container' || item.status) { return; }
+        apiRef.current?.containers.get(item.id).then(fresh => {
+            if (!fresh) { return; }
+            setSelectedItem(prev => prev?.id === fresh.id ? { ...prev, ...fresh } : prev);
+            setRootItems(prev => prev.map(i => i.id === fresh.id ? { ...i, ...fresh } : i));
+        }).catch(() => { /* keep list data; status-gated actions stay hidden */ });
+    }
+
     function selectItem(item: StorageItem | null) {
         setSelectedItem(item);
+        enrichContainer(item);
     }
 
     function toggleSelected(id: string) {
@@ -512,10 +646,15 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
             if (next.has(id)) { next.delete(id); } else { next.add(id); }
             return next;
         });
+        // Ticking a checkbox is a selection too — the action bar gates "Activate" on `status`.
+        enrichContainer(currentItems.find(i => i.id === id));
     }
 
     function selectAllCurrent() {
         setSelectedIds(new Set(currentItems.map(i => i.id)));
+        // Only enrich when select-all yields the single-selection the Activate button needs;
+        // firing one request per row would be pathological on a large list.
+        if (currentItems.length === 1) { enrichContainer(currentItems[0]); }
     }
 
     function clearSelected() {
@@ -657,8 +796,9 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
                             addToFolderCache(driveId, parentId, result.item);
                         } else {
                             // The upload committed but the follow-up metadata read failed.
-                            // Re-list the folder so the new file still shows up.
-                            loadDriveItems(driveId, parentId ?? undefined);
+                            // Re-list the folder so the new file still shows up. Silent: the
+                            // user may have navigated elsewhere while the upload ran.
+                            loadDriveItems(driveId, parentId ?? undefined, { silent: true });
                         }
                         setUploads(prev => prev.map(u => u.id === id ? { ...u, uploaded: file.size, status: 'completed' as UploadStatus } : u));
                         cleanupUploadRefs(id);
@@ -760,6 +900,9 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
         api: apiRef.current!,
         isLoading,
         loadProgress,
+        loadError,
+        grantPermissions,
+        isGrantingPermissions,
         refresh,
         createContainer,
         activateContainer,

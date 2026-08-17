@@ -19,10 +19,19 @@ function svc() {
 test.describe('ContainerGraphService', () => {
     test('list()', async () => {
         const { fake, s } = svc();
-        await s.list('ct-1');
+        fake.responder = () => ({
+            value: [{
+                id: 'b!1',
+                displayName: 'Inactive',
+                containerTypeId: 'ct-1',
+                status: 'Inactive',
+            }],
+        });
+        const containers = await s.list('ct-1');
         expect(fake.last).toMatchObject({ method: 'GET', path: BASE, version: 'v1.0' });
         expect(fake.last.filter).toContain('containerTypeId eq ct-1');
         expect(fake.last.expand).toContain('drive');
+        expect(containers[0].status).toBe('inactive');
     });
 
     test('get()', async () => {

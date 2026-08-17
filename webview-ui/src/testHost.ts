@@ -21,6 +21,9 @@
 import * as Graph from '@microsoft/microsoft-graph-client';
 import { NetworkLoggingMiddleware } from '../../src/services/StorageExplorer/NetworkLoggingMiddleware';
 import { serializeError, StorageExplorerApi } from '../../src/services/StorageExplorer/StorageExplorerApi';
+import { diagnoseAccessDenied } from '../../src/services/StorageExplorer/accessDenied';
+import { clientId } from '../../src/client';
+import { REQUIRED_DELEGATED_PERMISSIONS } from '../../src/utils/ExtensionAppPermissionScopes';
 
 export interface TestHostOptions {
     /** Container type the emulated panel is bound to (injected into scoped operations). */
@@ -67,6 +70,49 @@ export function installTestHost(options: TestHostOptions): void {
 
     const api = new StorageExplorerApi(options.containerTypeId, client);
 
+    /**
+     * Mirror of `hasExtensionAppPermissions()` from the extension host, which cannot be
+     * imported here because it pulls in `vscode`. Kept faithful so the harness reproduces
+     * the host's access-denied diagnosis rather than a more forgiving version of it.
+     */
+    const hasExtensionPermissions = async (): Promise<boolean> => {
+        // Mirrors `ContainerTypeAppPermissionGrantService.get()`: a 404 means "no grant"
+        // (a definitive negative), while any other failure propagates so the diagnosis is
+        // skipped rather than reported as a permissions problem.
+        let grant: { delegatedPermissions?: string[] } | null;
+        try {
+            grant = await client
+                .api(`/storage/fileStorage/containerTypeRegistrations/${options.containerTypeId}/applicationPermissionGrants/${clientId}`)
+                .get() as { delegatedPermissions?: string[] } | null;
+        } catch (error) {
+            if ((error as { statusCode?: number })?.statusCode !== 404) { throw error; }
+            grant = null;
+        }
+        const granted = new Set(grant?.delegatedPermissions ?? []);
+        return REQUIRED_DELEGATED_PERMISSIONS.every(p => granted.has(p));
+    };
+
+    /**
+     * Mirror of the host's `grantPermissions` handler. The real host confirms with the user
+     * first; there is nobody to ask here, so the harness goes straight to the grant — the
+     * point of the emulation is the message round-trip and the resulting reload, not the
+     * dialog. Always answers, including on failure, exactly as the host does.
+     */
+    const grantPermissions = async (): Promise<void> => {
+        try {
+            await client
+                .api(`/storage/fileStorage/containerTypeRegistrations/${options.containerTypeId}/applicationPermissionGrants/${clientId}`)
+                .put({
+                    appId: clientId,
+                    delegatedPermissions: REQUIRED_DELEGATED_PERMISSIONS,
+                    applicationPermissions: [],
+                });
+            toWebview({ command: 'permissionsGrantResult', granted: true });
+        } catch {
+            toWebview({ command: 'permissionsGrantResult', granted: false });
+        }
+    };
+
     const handle = async (message: PostedMessage): Promise<void> => {
         const requestId = typeof message.requestId === 'string' ? message.requestId : undefined;
         if (!requestId) return;
@@ -76,7 +122,11 @@ export function installTestHost(options: TestHostOptions): void {
             });
             toWebview({ command: 'rpc/response', requestId, ok: true, result });
         } catch (error) {
-            toWebview({ command: 'rpc/response', requestId, ok: false, error: serializeError(error) });
+            const { error: diagnosed } = await diagnoseAccessDenied(
+                serializeError(error),
+                hasExtensionPermissions,
+            );
+            toWebview({ command: 'rpc/response', requestId, ok: false, error: diagnosed });
         }
     };
 
@@ -85,6 +135,8 @@ export function installTestHost(options: TestHostOptions): void {
             posted.push(message);
             if (message?.command === 'rpc/request') {
                 void handle(message);
+            } else if (message?.command === 'grantPermissions') {
+                void grantPermissions();
             }
         },
     });

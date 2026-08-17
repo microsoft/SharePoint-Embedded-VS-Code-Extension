@@ -45,15 +45,19 @@ export class ContainerTypesTreeItem extends IChildrenProvidingTreeItem {
         }
 
         const graphProvider = GraphProvider.getInstance();
+        const registrationsByContainerTypeId = await this._loadRegistrations();
 
-        // Check registration status for each container type
         const treeItems = await Promise.all(
             this._containerTypes.map(async (ct) => {
-                let registration: ContainerTypeRegistration | null = null;
-                try {
-                    registration = await graphProvider.registrations.get(ct.id);
-                } catch (error) {
-                    console.log(`[ContainerTypesTreeItem] Could not get registration for ${ct.id}:`, error);
+                // `null` means "known to be unregistered"; `undefined` means the bulk
+                // list didn't run, so fall back to a per-container-type read.
+                let registration = registrationsByContainerTypeId?.get(ct.id) ?? null;
+                if (!registrationsByContainerTypeId) {
+                    try {
+                        registration = await graphProvider.registrations.get(ct.id);
+                    } catch (error) {
+                        console.log(`[ContainerTypesTreeItem] Could not get registration for ${ct.id}:`, error);
+                    }
                 }
 
                 // Check extension app permissions for registered container types
@@ -72,5 +76,24 @@ export class ContainerTypesTreeItem extends IChildrenProvidingTreeItem {
 
         this._cachedChildren = treeItems;
         return treeItems;
+    }
+
+    /**
+     * Fetch every registration in the tenant with a single request instead of one
+     * `GET .../containerTypeRegistrations/{id}` per container type. The registration id
+     * is the container type id, so the result maps straight onto the container types.
+     *
+     * Returns `undefined` if the bulk read fails, which tells the caller to fall back
+     * to the per-container-type reads so a partial outage still renders the tree.
+     */
+    private async _loadRegistrations(): Promise<Map<string, ContainerTypeRegistration> | undefined> {
+        try {
+            const graphProvider = GraphProvider.getInstance();
+            const registrations = await graphProvider.registrations.list();
+            return new Map(registrations.map(reg => [reg.id, reg]));
+        } catch (error) {
+            console.log('[ContainerTypesTreeItem] Bulk registration list failed, falling back to per-container-type reads:', error);
+            return undefined;
+        }
     }
 }

@@ -4,7 +4,7 @@ import { openUrl } from '../../utils/openUrl';
 import { Modal } from '../Modal/Modal';
 
 export function ActionBar() {
-    const { path, selectedItem, selectedIds, deleteSelected, clearSelected, deleteProgress, cancelDelete } = useStorageExplorer();
+    const { path, currentItems, selectedItem, selectedIds, activateContainer, deleteSelected, clearSelected, deleteProgress, cancelDelete } = useStorageExplorer();
     const atRoot = path.length === 1;
     const isFile = selectedItem?.kind === 'file';
     const hasSelection = selectedItem !== null;
@@ -14,6 +14,13 @@ export function ActionBar() {
     const canDownload = isFile;
 
     const selectedCount = selectedIds.size;
+    const checkedInactiveContainer = atRoot && selectedCount === 1
+        ? currentItems.find(item =>
+            selectedIds.has(item.id)
+            && item.kind === 'container'
+            && item.status === 'inactive'
+        )
+        : undefined;
     const [confirmBulk, setConfirmBulk] = useState(false);
     const [bulkBusy, setBulkBusy] = useState(false);
     const [cancelling, setCancelling] = useState(false);
@@ -35,6 +42,18 @@ export function ActionBar() {
                     <span data-testid="selection-count" style={{ fontSize: 12, opacity: 0.8, padding: '0 6px', whiteSpace: 'nowrap' }}>
                         {selectedCount} selected
                     </span>
+                    {checkedInactiveContainer && (
+                        <ActionBtn
+                            icon="codicon-play"
+                            label="Activate"
+                            title="Activate selected container"
+                            testId="bulk-activate-container"
+                            onClick={async () => {
+                                await activateContainer(checkedInactiveContainer.id);
+                                clearSelected();
+                            }}
+                        />
+                    )}
                     <ActionBtn icon="codicon-trash" label={`Delete (${selectedCount})`} title="Delete selected items" testId="bulk-delete" danger onClick={() => setConfirmBulk(true)} />
                     <ActionBtn icon="codicon-close" label="Clear" title="Clear selection" testId="bulk-clear" onClick={clearSelected} />
                     <Separator />
@@ -146,8 +165,11 @@ function FileActions({
     hasSelection: boolean; isFile: boolean;
     canOpen: boolean; canPreview: boolean; canDownload: boolean;
 }) {
-    const { selectedItem, openModal, enqueueUploads, previewItem, downloadItem, openInDesktopApp } = useStorageExplorer();
+    const { path, selectedItem, openModal, enqueueUploads, previewItem, downloadItem, openInDesktopApp, navigateToContainerRecycleBin } = useStorageExplorer();
     const fileInputRef = useRef<HTMLInputElement>(null);
+    // The recycle bin is scoped to the container, not the folder we happen to be in, so it
+    // always comes from path[1] — the entry directly under the root.
+    const container = path[1];
 
     function handleFilesSelected(e: React.ChangeEvent<HTMLInputElement>) {
         if (e.target.files && e.target.files.length > 0) {
@@ -170,6 +192,17 @@ function FileActions({
             />
             <NewDropdown />
             <ActionBtn icon="codicon-cloud-upload" label="Upload" title="Upload files" testId="action-upload" onClick={() => fileInputRef.current?.click()} />
+            {container && (
+                <ActionBtn
+                    // Not `codicon-trash`: Delete sits a few buttons away and already uses it.
+                    // Two trash cans in one toolbar is the ambiguity this button is meant to remove.
+                    icon="codicon-archive"
+                    label="Recycle bin"
+                    title="View this container's recycle bin"
+                    testId="action-recycle-bin"
+                    onClick={() => navigateToContainerRecycleBin(container.id, container.label)}
+                />
+            )}
             <Separator />
             <OpenDropdown
                 disabled={!canOpen}

@@ -28,6 +28,15 @@ export class StorageExplorerWebview {
         await this.row(name).click();
     }
 
+    /**
+     * Tick a row's checkbox. This is a different selection path from {@link select}: it feeds
+     * `selectedIds` (bulk actions) rather than `selectedItem` (the detail panel), and
+     * deliberately does not click the row.
+     */
+    async check(name: string): Promise<void> {
+        await this.row(name).locator(`[data-testid="${TID.fileRowCheckbox}"]`).check();
+    }
+
     async confirmModal(): Promise<void> {
         await this.tid(TID.modalConfirm).click();
         await expect(this.tid(TID.modal)).toHaveCount(0, { timeout: 30_000 });
@@ -74,6 +83,11 @@ export class StorageExplorerWebview {
         await this.tid(TID.actionDeletedContainers).click();
     }
 
+    /** Open the current container's recycle bin from the action bar (must be inside it). */
+    async openRecycleBin(): Promise<void> {
+        await this.tid(TID.actionRecycleBin).click();
+    }
+
     /** Double-click a container to navigate into its drive. */
     async openContainer(name: string): Promise<void> {
         await this.row(name).dblclick();
@@ -88,6 +102,13 @@ export class StorageExplorerWebview {
     }
 
     // ── Drive (files/folders) view ───────────────────────────────────────────
+
+    /** Double-click a folder to navigate into it. */
+    async openFolder(name: string): Promise<void> {
+        await this.row(name).dblclick();
+        await expect(this.tid(TID.breadcrumbItem(2))).toBeVisible({ timeout: 30_000 });
+    }
+
     async newFolder(name: string): Promise<void> {
         await this.tid(TID.actionNewDropdown).click();
         await this.tid(TID.actionNewFolder).click();

@@ -301,6 +301,17 @@ export interface SerializedError {
     code?: string;
 }
 
+/**
+ * `SerializedError.code` value meaning the call was rejected because the 1P extension
+ * app has no delegated permissions on this container type — the same condition the
+ * Development tree view checks via `hasExtensionAppPermissions()`.
+ *
+ * Declared as a type (not a runtime constant) to keep this file free of runtime code.
+ * Both sides declare the literal locally and annotate it with this type, so a rename
+ * on one side fails to compile on the other.
+ */
+export type MissingExtensionPermissionsCode = 'missingExtensionAppPermissions';
+
 export interface RpcRequestMessage {
     command: 'rpc/request';
     requestId: string;
@@ -329,10 +340,37 @@ export interface NetworkLogMessage {
     request: NetworkRequest;
 }
 
+/**
+ * Webview → host: the user clicked "Grant permissions" on the failed-listing state.
+ *
+ * Carries no parameters — the host grants only the permissions this feature requires, and
+ * only on the container type the panel was opened for. The host still confirms with the
+ * user before granting: the webview is semi-trusted, so a message from it is a *request*
+ * to raise the prompt, never consent on the user's behalf. It raises the same prompt a
+ * denied call raises, so every path to the grant looks the same to the user.
+ */
+export interface GrantPermissionsMessage {
+    command: 'grantPermissions';
+}
+
+/**
+ * Host → webview: the outcome of a grant prompt, whether it was raised automatically by a
+ * diagnosed access-denied failure or by {@link GrantPermissionsMessage}.
+ *
+ * Always sent, including when the user declines, so the webview can drop the pending state
+ * on its button instead of appearing to hang.
+ */
+export interface PermissionsGrantResultMessage {
+    command: 'permissionsGrantResult';
+    /** `true` if the permissions are now in place; the webview reloads the failed view. */
+    granted: boolean;
+}
+
 export type HostToWebviewMessage =
     | RpcResponseMessage
     | RpcProgressMessage
-    | NetworkLogMessage;
+    | NetworkLogMessage
+    | PermissionsGrantResultMessage;
 
 /** Immutable panel state injected into the webview at creation time. Contains no credentials. */
 export interface StorageExplorerPanelState {

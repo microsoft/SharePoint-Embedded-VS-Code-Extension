@@ -35,6 +35,8 @@ export const TID = {
     actionNewFile: 'action-new-file',
     actionUpload: 'action-upload',
     actionUploadInput: 'action-upload-input',
+    /** Opens the current container's recycle bin from inside the container. */
+    actionRecycleBin: 'action-recycle-bin',
     actionOpenDropdown: 'action-open-dropdown',
     actionOpenWeb: 'action-open-web',
     actionOpenDesktop: 'action-open-desktop',
@@ -66,6 +68,8 @@ export const TID = {
     selectionCount: 'selection-count',
     bulkDelete: 'bulk-delete',
     bulkClear: 'bulk-clear',
+    /** Activate, offered from a checkbox selection of exactly one inactive container. */
+    bulkActivateContainer: 'bulk-activate-container',
     deleteProgress: 'delete-progress',
     sortName: 'sort-name',
     sortModified: 'sort-modified',

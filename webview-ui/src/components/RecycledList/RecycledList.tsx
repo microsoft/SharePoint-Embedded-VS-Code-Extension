@@ -4,6 +4,7 @@ import { useStorageExplorer } from '../../context/StorageExplorerContext';
 import { RecycledListHeader } from './RecycledListHeader';
 import { RecycledListRow } from './RecycledListRow';
 import { useResizableColumns } from '../../hooks/useResizableColumns';
+import { ListErrorState } from '../common/ListErrorState';
 
 // Initial widths for container-recycle-bin: [Date Deleted, Type]
 // Initial widths for deleted-containers: [Created, Deleted, Type]
@@ -12,7 +13,7 @@ const INITIAL_COL_WIDTHS_DELETED = [140, 140, 120];
 const ESTIMATED_ROW_HEIGHT = 30;
 
 export function RecycledList() {
-    const { currentRecycledItems, selectedItem, selectItem, setSort, sortColumn, sortDirection, viewMode } = useStorageExplorer();
+    const { currentRecycledItems, selectedItem, selectItem, setSort, sortColumn, sortDirection, viewMode, loadError, refresh } = useStorageExplorer();
     const isDeletedContainers = viewMode.kind === 'deleted-containers';
     const { colWidths: colWidthsRecycle } = useResizableColumns(INITIAL_COL_WIDTHS_RECYCLE);
     const { colWidths: colWidthsDeleted } = useResizableColumns(INITIAL_COL_WIDTHS_DELETED);
@@ -48,7 +49,9 @@ export function RecycledList() {
             />
             <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', padding: '0 4px' }}>
                 {currentRecycledItems.length === 0 ? (
-                    <EmptyState message={emptyMessage} />
+                    // A failed load must not masquerade as an empty recycle bin.
+                    loadError ? <ListErrorState error={loadError} onRetry={refresh} />
+                        : <EmptyState message={emptyMessage} />
                 ) : (
                     <div style={{ height: rowVirtualizer.getTotalSize(), position: 'relative', width: '100%' }}>
                         {rowVirtualizer.getVirtualItems().map(virtualRow => {

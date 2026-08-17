@@ -13,6 +13,7 @@ export type {
     DriveItemVersion,
     HostToWebviewMessage,
     ItemKind,
+    MissingExtensionPermissionsCode,
     NetworkRequest,
     OperationParams,
     OperationResult,

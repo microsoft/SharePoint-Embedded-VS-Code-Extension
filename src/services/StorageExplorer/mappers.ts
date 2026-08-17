@@ -79,6 +79,9 @@ export function containerToStorageItem(c: FileStorageContainer): StorageItem {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const raw = c as any;
     const quotaUsed: number | null | undefined = raw.drive?.quota?.used;
+    const rawStatus = typeof c.status === 'string' ? c.status.toLowerCase() : null;
+    const status: StorageItem['status'] =
+        rawStatus === 'active' || rawStatus === 'inactive' ? rawStatus : null;
     return {
         id: c.id ?? '',
         name: c.displayName ?? '(unnamed)',
@@ -91,7 +94,7 @@ export function containerToStorageItem(c: FileStorageContainer): StorageItem {
         description: c.description ?? undefined,
         containerTypeId: c.containerTypeId ?? undefined,
         lockState: (c.lockState as StorageItem['lockState']) ?? null,
-        status: (c.status as StorageItem['status']) ?? null,
+        status,
         sensitivityLabel: raw.assignedSensitivityLabel ?? null,
     };
 }

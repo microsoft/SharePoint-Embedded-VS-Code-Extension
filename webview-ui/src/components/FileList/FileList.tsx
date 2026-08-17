@@ -4,6 +4,7 @@ import { useStorageExplorer } from '../../context/StorageExplorerContext';
 import { FileListHeader } from './FileListHeader';
 import { FileListRow } from './FileListRow';
 import { useResizableColumns } from '../../hooks/useResizableColumns';
+import { ListErrorState } from '../common/ListErrorState';
 
 // Initial widths for: Date Modified, Type, Size (Name stays 1fr)
 const INITIAL_COL_WIDTHS = [150, 130, 80];
@@ -11,7 +12,7 @@ const INITIAL_COL_WIDTHS = [150, 130, 80];
 const ESTIMATED_ROW_HEIGHT = 30;
 
 export function FileList() {
-    const { currentItems, selectedItem, selectItem, setSort, sortColumn, sortDirection, navigate, filterText, isLoading, loadProgress, selectedIds, selectAllCurrent, clearSelected } = useStorageExplorer();
+    const { currentItems, selectedItem, selectItem, setSort, sortColumn, sortDirection, navigate, filterText, isLoading, loadProgress, loadError, refresh, selectedIds, selectAllCurrent, clearSelected } = useStorageExplorer();
     const { colWidths } = useResizableColumns(INITIAL_COL_WIDTHS);
     const colTemplate = `32px 1fr ${colWidths[0]}px ${colWidths[1]}px ${colWidths[2]}px`;
 
@@ -65,7 +66,9 @@ export function FileList() {
             )}
             <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', padding: '0 4px' }}>
                 {currentItems.length === 0 ? (
-                    <EmptyState filtered={!!filterText.trim()} />
+                    // A failed load must not masquerade as an empty folder.
+                    loadError ? <ListErrorState error={loadError} onRetry={refresh} />
+                        : <EmptyState filtered={!!filterText.trim()} />
                 ) : (
                     // Virtualized: only the rows in (and near) the viewport are mounted, so the DOM
                     // stays O(viewport) regardless of how many items the enumeration returns.

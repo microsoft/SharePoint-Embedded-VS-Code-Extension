@@ -4,10 +4,48 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { test, expect } from '../fixtures';
+import { TID } from '../testids';
 
 const SEED_CONTAINER = 'Seed Container';
 
 test.describe('Recycle bin', () => {
+    test('opens from the action bar without leaving the container', async ({ storage }) => {
+        await storage.openContainer(SEED_CONTAINER);
+        const folder = `Bar-${Date.now()}`;
+        await storage.newFolder(folder);
+        await storage.deleteItem(folder);
+
+        // Straight from the toolbar — no trip back to the root and no context menu.
+        await storage.openRecycleBin();
+        await expect(storage.recycledRow(folder)).toBeVisible({ timeout: 30_000 });
+
+        // The breadcrumb still shows the container, so the way back is obvious.
+        await storage.breadcrumbTo(1);
+        await expect(storage.tid(TID.actionRecycleBin)).toBeVisible({ timeout: 30_000 });
+    });
+
+    test('the recycle bin button targets the container even from a subfolder', async ({ storage }) => {
+        await storage.openContainer(SEED_CONTAINER);
+        const parent = `Sub-${Date.now()}`;
+        await storage.newFolder(parent);
+        await storage.openFolder(parent);
+
+        const child = `Child-${Date.now()}`;
+        await storage.newFolder(child);
+        await storage.deleteItem(child);
+
+        // The recycle bin is container-scoped, so it must resolve to the container rather
+        // than the folder we happen to be standing in.
+        await storage.openRecycleBin();
+        await expect(storage.recycledRow(child)).toBeVisible({ timeout: 30_000 });
+    });
+
+    test('the recycle bin button is not offered in the container list', async ({ storage }) => {
+        // At the root there is no container in scope; deleted *containers* is the action there.
+        await expect(storage.tid(TID.actionRecycleBin)).toHaveCount(0);
+        await expect(storage.tid(TID.actionDeletedContainers)).toBeVisible();
+    });
+
     test('deleted item lands in the container recycle bin and can be restored', async ({ storage }) => {
         // Create + delete an item inside the container.
         await storage.openContainer(SEED_CONTAINER);

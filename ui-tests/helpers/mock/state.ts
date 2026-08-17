@@ -8,6 +8,9 @@
  * return shapes the webview services consume. State is seedable and mutated by the route handlers.
  */
 
+import { clientId } from '../../../src/client';
+import { REQUIRED_DELEGATED_PERMISSIONS } from '../../../src/utils/ExtensionAppPermissionScopes';
+
 export interface MockContainer {
     id: string;
     displayName: string;
@@ -100,6 +103,14 @@ export class GraphState {
     users: MockPerson[] = [];
     groups: MockPerson[] = [];
     me = { id: 'me-1', displayName: 'Test User', mail: 'testuser@contoso.onmicrosoft.com', userPrincipalName: 'testuser@contoso.onmicrosoft.com' };
+
+    /**
+     * Application permission grants on the container type, keyed by appId.
+     *
+     * Real SPE returns a bare `403 Access denied` for container calls when the calling
+     * app has no grant here, so specs clear this to reproduce that state.
+     */
+    appPermissionGrants = new Map<string, { delegatedPermissions: string[]; applicationPermissions: string[] }>();
 
     // ── Factories ─────────────────────────────────────────────────────────────
 
@@ -209,5 +220,12 @@ export function seedState(opts?: { containers?: number; itemsPerContainer?: numb
     state.groups = [
         { id: 'g-1', displayName: 'Engineering', mail: 'eng@contoso.onmicrosoft.com', kind: 'group' },
     ];
+
+    // The extension app is granted on the container type by default — the normal state.
+    // Specs clear `appPermissionGrants` to reproduce an ungranted tenant.
+    state.appPermissionGrants.set(clientId, {
+        delegatedPermissions: [...REQUIRED_DELEGATED_PERMISSIONS],
+        applicationPermissions: [],
+    });
     return state;
 }

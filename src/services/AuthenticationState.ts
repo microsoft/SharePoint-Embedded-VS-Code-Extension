@@ -5,6 +5,7 @@
 
 import * as vscode from 'vscode';
 import { decodeJwt, checkJwtForGlobalAdmin } from '../utils/token';
+import { Perf } from '../utils/Perf';
 import { GraphAuthProvider, ARMAuthProvider, AppAuthProviderFactory } from './Auth';
 
 /**
@@ -156,6 +157,7 @@ export class AuthenticationState {
         try {
             AuthenticationState._isSigningIn = true;
             AuthenticationState._signInAbortController = new AbortController();
+            Perf.beginSession('interactive sign-in');
             AuthenticationState._notifyBeforeSignIn();
 
             const graphAuth = GraphAuthProvider.getInstance();
@@ -199,6 +201,10 @@ export class AuthenticationState {
         } finally {
             AuthenticationState._isSigningIn = false;
             AuthenticationState._signInAbortController = undefined;
+            // The dev tree keeps fetching after this point (VS Code asks for the
+            // container-type children once the view is visible), so close the perf
+            // session on an idle window rather than here.
+            Perf.endSessionWhenIdle();
         }
     }
 
@@ -350,6 +356,7 @@ export class AuthenticationState {
         // startup (e.g. an errant click) no-ops instead of running a second,
         // conflicting sign-in flow. Reset in the finally below.
         AuthenticationState._isSigningIn = true;
+        Perf.beginSession('startup session restore');
         try {
             const isSignedIn = await AuthenticationState.isSignedIn();
             if (isSignedIn) {
@@ -382,6 +389,9 @@ export class AuthenticationState {
             AuthenticationState._setSignInReady(true);
         } finally {
             AuthenticationState._isSigningIn = false;
+            // Tree loading continues past this point — close on an idle window so the
+            // summary covers the whole restore-to-populated-tree path.
+            Perf.endSessionWhenIdle();
         }
     }
 

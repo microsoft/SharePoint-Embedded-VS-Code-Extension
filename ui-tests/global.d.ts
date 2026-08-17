@@ -17,5 +17,7 @@ interface Window {
         registrationId: string;
     };
     __SPE_TEST_TOKEN__?: string;
+    /** Every message the app posted "to the host" — see `webview-ui/src/testHost.ts`. */
+    __SPE_TEST_POSTED__?: Array<{ command?: string; [key: string]: unknown }>;
     acquireVsCodeApi?: () => { postMessage: (message: unknown) => void };
 }

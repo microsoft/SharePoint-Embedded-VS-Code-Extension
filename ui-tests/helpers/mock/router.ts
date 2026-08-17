@@ -224,13 +224,22 @@ const routes: Route[] = [
     {
         method: 'GET',
         re: /^\/storage\/fileStorage\/containers$/,
-        handler: ({ state }) => list(state.containers.map(serializeContainer)),
+        // Real Graph's container *collection* omits `status`; only the single-container
+        // read returns it. Mirror that so the UI is exercised against the real shape.
+        handler: ({ state }) => list(state.containers.map(c => {
+            const serialized = serializeContainer(c);
+            delete serialized.status;
+            return serialized;
+        })),
     },
     {
         method: 'POST',
         re: /^\/storage\/fileStorage\/containers$/,
         handler: ({ body, state }) => {
             const c = state.addContainer((body.displayName as string) ?? 'container', (body.description as string) ?? null);
+            // Real SPE creates containers in the inactive state until they are activated
+            // (explicitly, or implicitly by the first upload).
+            c.status = 'inactive';
             return created(serializeContainer(c));
         },
     },
@@ -462,6 +471,38 @@ const routes: Route[] = [
         method: 'GET',
         re: /^\/me$/,
         handler: ({ state }) => ok(state.me),
+    },
+
+    // ── Container type application permission grants ─────────────────────────
+    {
+        method: 'GET',
+        re: /^\/storage\/fileStorage\/containerTypeRegistrations\/([^/]+)\/applicationPermissionGrants\/([^/]+)$/,
+        handler: ({ m, state }) => {
+            const grant = state.appPermissionGrants.get(m[2]);
+            // Graph 404s an app with no grant on the container type.
+            return grant
+                ? ok({ id: m[2], appId: m[2], ...grant })
+                : { status: 404, body: { error: { code: 'itemNotFound', message: 'Item not found' } } };
+        },
+    },
+    {
+        method: 'GET',
+        re: /^\/storage\/fileStorage\/containerTypeRegistrations\/([^/]+)\/applicationPermissionGrants$/,
+        handler: ({ state }) => list(
+            [...state.appPermissionGrants.entries()].map(([appId, grant]) => ({ id: appId, appId, ...grant }))
+        ),
+    },
+    {
+        method: 'PUT',
+        re: /^\/storage\/fileStorage\/containerTypeRegistrations\/([^/]+)\/applicationPermissionGrants\/([^/]+)$/,
+        handler: ({ m, body, state }) => {
+            const grant = {
+                delegatedPermissions: (body.delegatedPermissions as string[]) ?? [],
+                applicationPermissions: (body.applicationPermissions as string[]) ?? [],
+            };
+            state.appPermissionGrants.set(m[2], grant);
+            return ok({ id: m[2], appId: m[2], ...grant });
+        },
     },
 ];
 

@@ -6,6 +6,7 @@
 import * as vscode from 'vscode';
 import { ext } from '../../utils/extensionVariables';
 import { Logger } from '../../utils/Logger';
+import { Perf } from '../../utils/Perf';
 
 export interface AuthHandler {
     (done: AuthHandlerCallback): void;
@@ -32,31 +33,51 @@ export class VSCodeAuthProvider {
     private readonly _fullScopes: string[];
     private _currentSession: vscode.AuthenticationSession | undefined;
 
+    /**
+     * Coalesces concurrent `getSession` calls for the same scope set. Loading the
+     * development tree fires many Graph requests at once and each one asks the auth
+     * handler for a token; without this they would each make a separate round-trip
+     * to the Microsoft authentication provider.
+     */
+    private readonly _inFlight = new Map<string, Promise<string>>();
+
     constructor(config: VSCodeAuthConfig) {
         this._config = config;
-        
-        // Build full scopes including VS Code specific prefixes
-        this._fullScopes = [
-            `VSCODE_CLIENT_ID:${config.clientId}`,
-            config.tenantId ? `VSCODE_TENANT:${config.tenantId}` : 'VSCODE_TENANT:organizations',
+        this._fullScopes = this._buildScopes();
+    }
+
+    /**
+     * Build the VS Code scope list: the required `VSCODE_*` directives plus the
+     * configured scopes and any extras.
+     *
+     * Scopes are de-duplicated because VS Code's Microsoft provider keys its session
+     * cache on the exact scope set. A repeated scope produces a *different* key, which
+     * misses the session established at start-up and forces a fresh token acquisition
+     * against Entra ID on the first Graph call.
+     */
+    private _buildScopes(additionalScopes?: string[]): string[] {
+        const scopes = [
+            `VSCODE_CLIENT_ID:${this._config.clientId}`,
+            this._config.tenantId ? `VSCODE_TENANT:${this._config.tenantId}` : 'VSCODE_TENANT:organizations',
             'offline_access',
-            ...config.scopes
+            ...this._config.scopes,
+            ...(additionalScopes ?? [])
         ];
+        return [...new Set(scopes)];
     }
 
     /**
      * Get an authentication handler compatible with Microsoft Graph SDK
      */
     public getAuthHandler(additionalScopes?: string[]): AuthHandler {
-        const scopes = additionalScopes ? [...this._config.scopes, ...additionalScopes] : this._config.scopes;
         return (done: AuthHandlerCallback) => {
             // First try to get existing session, then create if needed
-            this.getToken(scopes, false)
+            this.getToken(additionalScopes, false)
                 .catch(() => {
                     // If no existing session, try to create one
                     // This handles the case where AuthenticationState has signed in
                     // but this provider doesn't have a session yet
-                    return this.getToken(scopes, true);
+                    return this.getToken(additionalScopes, true);
                 })
                 .then(token => {
                     done(null, token);
@@ -69,36 +90,47 @@ export class VSCodeAuthProvider {
      * Get an access token for the specified scopes
      */
     public async getToken(additionalScopes?: string[], createIfNone: boolean = false, account?: vscode.AuthenticationSessionAccountInformation): Promise<string> {
+        const scopes = additionalScopes?.length ? this._buildScopes(additionalScopes) : this._fullScopes;
+
+        // Lock subsequent calls to whichever account VS Code picked first.
+        // - First call: this._currentSession is undefined, so no account hint is sent.
+        //   VS Code's auth provider picks any matching account by its own preference.
+        // - Subsequent calls: pin to that same account so the session, the displayed
+        //   user, and every downstream token stay consistent for the rest of the
+        //   extension's lifetime
+        const resolvedAccount = account ?? this._currentSession?.account;
+
+        const key = `${createIfNone ? 'create' : 'silent'}|${resolvedAccount?.id ?? ''}|${scopes.join(' ')}`;
+        const existing = this._inFlight.get(key);
+        if (existing) {
+            return existing;
+        }
+
+        const pending = this._acquireToken(scopes, createIfNone, resolvedAccount)
+            .finally(() => this._inFlight.delete(key));
+        this._inFlight.set(key, pending);
+        return pending;
+    }
+
+    private async _acquireToken(
+        scopes: string[],
+        createIfNone: boolean,
+        account: vscode.AuthenticationSessionAccountInformation | undefined
+    ): Promise<string> {
         try {
-            const scopes = additionalScopes ? 
-                [
-                    `VSCODE_CLIENT_ID:${this._config.clientId}`,
-                    this._config.tenantId ? `VSCODE_TENANT:${this._config.tenantId}` : 'VSCODE_TENANT:organizations',
-                    'offline_access',
-                    ...this._config.scopes,
-                    ...additionalScopes
-                ] : 
-                this._fullScopes;
-
-            // Lock subsequent calls to whichever account VS Code picked first.
-            // - First call: this._currentSession is undefined, so no account hint is sent.
-            //   VS Code's auth provider picks any matching account by its own preference.
-            // - Subsequent calls: pin to that same account so the session, the displayed
-            //   user, and every downstream token stay consistent for the rest of the
-            //   extension's lifetime
-            const resolvedAccount = account ?? this._currentSession?.account;
-
-            const session = await vscode.authentication.getSession(
-                VSCodeAuthProvider.PROVIDER_ID,
-                scopes,
-                { createIfNone, account: resolvedAccount }
+            const session = await Perf.track('auth', `getSession (${createIfNone ? 'interactive' : 'silent'})`, () =>
+                Promise.resolve(vscode.authentication.getSession(
+                    VSCodeAuthProvider.PROVIDER_ID,
+                    scopes,
+                    { createIfNone, account }
+                ))
             );
 
             if (session) {
                 this._currentSession = session;
                 return session.accessToken;
             }
-            
+
             throw new Error('No authentication session available');
         } catch (error) {
             console.error('Failed to get authentication token:', error);
@@ -120,20 +152,14 @@ export class VSCodeAuthProvider {
      */
     public async signIn(additionalScopes?: string[], account?: vscode.AuthenticationSessionAccountInformation): Promise<vscode.AuthenticationSession> {
         try {
-            const scopes = additionalScopes ? 
-                [
-                    `VSCODE_CLIENT_ID:${this._config.clientId}`,
-                    this._config.tenantId ? `VSCODE_TENANT:${this._config.tenantId}` : 'VSCODE_TENANT:organizations',
-                    'offline_access',
-                    ...this._config.scopes,
-                    ...additionalScopes
-                ] : 
-                this._fullScopes;
+            const scopes = this._buildScopes(additionalScopes);
 
-            const session = await vscode.authentication.getSession(
-                VSCodeAuthProvider.PROVIDER_ID,
-                scopes,
-                { createIfNone: true, clearSessionPreference: true, account }
+            const session = await Perf.track('auth', 'getSession (sign-in)', () =>
+                Promise.resolve(vscode.authentication.getSession(
+                    VSCodeAuthProvider.PROVIDER_ID,
+                    scopes,
+                    { createIfNone: true, clearSessionPreference: true, account }
+                ))
             );
             
             if (!session) {
@@ -195,15 +221,7 @@ export class VSCodeAuthProvider {
      */
     public async refreshSession(additionalScopes?: string[]): Promise<vscode.AuthenticationSession> {
         try {
-            const scopes = additionalScopes ? 
-                [
-                    `VSCODE_CLIENT_ID:${this._config.clientId}`,
-                    this._config.tenantId ? `VSCODE_TENANT:${this._config.tenantId}` : 'VSCODE_TENANT:organizations',
-                    'offline_access',
-                    ...this._config.scopes,
-                    ...additionalScopes
-                ] : 
-                this._fullScopes;
+            const scopes = this._buildScopes(additionalScopes);
 
             const session = await vscode.authentication.getSession(
                 VSCodeAuthProvider.PROVIDER_ID,

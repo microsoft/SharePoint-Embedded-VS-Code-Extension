@@ -10,10 +10,12 @@ import { ContainerType, ContainerTypeRegistration } from '../../models/schemas';
 import { ext } from '../../utils/extensionVariables';
 import { AuthenticationState } from '../../services/AuthenticationState';
 import { serializeError, StorageExplorerApi } from '../../services/StorageExplorer/StorageExplorerApi';
+import { diagnoseAccessDenied } from '../../services/StorageExplorer/accessDenied';
+import { checkExtensionAppPermissions, ensureExtensionAppPermissions } from '../../utils/ExtensionAppPermissions';
 import { createGraphClient } from '../../services/StorageExplorer/graphClient';
 import { evaluateExternalUrl } from '../../services/StorageExplorer/externalUrlPolicy';
 import { escapeHtmlAttribute, sanitizeCspSource, serializeJsonForHtml } from '../../services/StorageExplorer/htmlEncoding';
-import { StorageExplorerPanelState } from '../../services/StorageExplorer/protocol';
+import { SerializedError, StorageExplorerPanelState } from '../../services/StorageExplorer/protocol';
 
 /**
  * Generate a CSP script nonce.
@@ -41,7 +43,7 @@ interface IncomingMessage {
 }
 
 /** Commands the host is willing to act on. Anything else is dropped. */
-const KNOWN_COMMANDS = ['rpc/request', 'exportHar', 'openExternal'];
+const KNOWN_COMMANDS = ['rpc/request', 'exportHar', 'openExternal', 'grantPermissions'];
 
 /** Upper bound on an exported HAR. Large captures are legitimate; unbounded ones are not. */
 const MAX_HAR_LENGTH = 32 * 1024 * 1024;
@@ -74,9 +76,12 @@ export class StorageExplorerPanel {
 
     private readonly _panel: vscode.WebviewPanel;
     private readonly _registrationId: string;
+    private readonly _containerTypeId: string;
     private readonly _api: StorageExplorerApi;
     private readonly _disposables: vscode.Disposable[] = [];
     private _isDisposed = false;
+    /** In-flight permission prompt, so a burst of failed calls raises a single dialog. */
+    private _permissionPrompt: Promise<void> | undefined;
 
     private constructor(
         panel: vscode.WebviewPanel,
@@ -85,6 +90,7 @@ export class StorageExplorerPanel {
     ) {
         this._panel = panel;
         this._registrationId = registrationId;
+        this._containerTypeId = state.containerTypeId;
 
         // Bound to this panel's container type: container-type-scoped operations use
         // this value rather than anything supplied by the webview. The Graph client —
@@ -136,6 +142,11 @@ export class StorageExplorerPanel {
                 return;
             case 'openExternal':
                 await StorageExplorerPanel._handleOpenExternal(message.url);
+                return;
+            case 'grantPermissions':
+                // Raised by the user clicking "Grant permissions" on a failed listing. Routes
+                // through the same prompt a denied call raises, so both paths behave alike.
+                await this._promptForPermissions();
                 return;
         }
     }
@@ -198,12 +209,65 @@ export class StorageExplorerPanel {
             });
             this._post({ command: 'rpc/response', requestId, ok: true, result });
         } catch (error) {
-            const serialized = serializeError(error);
+            const original = serializeError(error);
+            // Log the raw failure, not the diagnosis — when the diagnosis is wrong, this is
+            // the only place the underlying Graph message and code survive.
             ext.outputChannel.error(
-                `[StorageExplorerPanel._handleRpcRequest] ${forLog(message.op)} failed: ${serialized.message}`
+                `[StorageExplorerPanel._handleRpcRequest] ${forLog(message.op)} failed: `
+                + `${original.message}${original.code ? ` (code=${forLog(original.code, 40)})` : ''}`
+                + `${original.statusCode ? ` [HTTP ${original.statusCode}]` : ''}`
             );
-            this._post({ command: 'rpc/response', requestId, ok: false, error: serialized });
+            this._post({ command: 'rpc/response', requestId, ok: false, error: await this._diagnose(original) });
         }
+    }
+
+    /**
+     * Diagnose a failure before it reaches the webview.
+     *
+     * A missing extension-app permission grant is tagged so the webview can render a
+     * "permissions required" state instead of an empty folder, and the user is prompted
+     * to grant; on success the webview is told to reload.
+     */
+    private async _diagnose(serialized: SerializedError): Promise<SerializedError> {
+        if (!this._containerTypeId) {
+            return serialized;
+        }
+
+        const { error, missingPermissions } = await diagnoseAccessDenied(
+            serialized,
+            // Strict form: a failed lookup must throw rather than read as "not granted",
+            // otherwise an unrelated Graph outage would be reported as a permissions problem.
+            () => checkExtensionAppPermissions(this._containerTypeId)
+        );
+        if (missingPermissions) {
+            void this._promptForPermissions();
+        }
+        return error;
+    }
+
+    /**
+     * Prompt for the missing grant and report the outcome to the webview.
+     *
+     * Single-flight: a burst of failed calls, or a click landing while the automatic prompt
+     * is still open, must not stack dialogs. Every caller shares the one prompt and the one
+     * result message.
+     */
+    private _promptForPermissions(): Promise<void> {
+        if (!this._permissionPrompt) {
+            this._permissionPrompt = (async () => {
+                const granted = await ensureExtensionAppPermissions(this._containerTypeId);
+                this._post({ command: 'permissionsGrantResult', granted });
+            })()
+                .catch(error => {
+                    ext.outputChannel.warn(
+                        `[StorageExplorerPanel] extension app permission prompt failed: ${error?.message ?? error}`
+                    );
+                    // The webview is waiting on this; leaving it out hangs the button.
+                    this._post({ command: 'permissionsGrantResult', granted: false });
+                })
+                .finally(() => { this._permissionPrompt = undefined; });
+        }
+        return this._permissionPrompt;
     }
 
     /** Post to the webview unless the panel has already been torn down. */
