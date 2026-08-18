@@ -18,15 +18,29 @@ export function validateAgentProfile(repoRoot: string, worker: WorkerAssignment)
         repoRoot,
         path.posix.join('.github', 'agents', `${worker.agent}.agent.md`)
     );
-    const profile = parseAgentProfile(profilePath);
+    let content: string;
+    try {
+        content = readFileSync(profilePath, 'utf8');
+    } catch (error) {
+        throw new Error(`Unable to read agent profile ${profilePath}: ${errorMessage(error)}`);
+    }
+    return validateAgentProfileContent(content, worker, profilePath);
+}
+
+export function validateAgentProfileContent(
+    content: string,
+    worker: WorkerAssignment,
+    profileLabel: string
+): AgentProfile {
+    const profile = parseAgentProfile(content, profileLabel);
     const expectedTools = worker.mayEdit
-        ? ['edit', 'read', 'search']
-        : ['read', 'search'];
+        ? ['create', 'edit', 'glob', 'grep', 'view']
+        : ['glob', 'grep', 'view'];
     const actualTools = [...profile.tools].sort();
 
     if (profile.name !== worker.agent) {
         throw new Error(
-            `Agent profile ${profilePath} declares "${profile.name}" instead of "${worker.agent}"`
+            `Agent profile ${profileLabel} declares "${profile.name}" instead of "${worker.agent}"`
         );
     }
     if (profile.target !== 'github-copilot') {
@@ -48,14 +62,7 @@ export function agentProfileRepositoryPath(agentName: string): string {
     return path.posix.join('.github', 'agents', `${agentName}.agent.md`);
 }
 
-function parseAgentProfile(profilePath: string): AgentProfile {
-    let content: string;
-    try {
-        content = readFileSync(profilePath, 'utf8');
-    } catch (error) {
-        throw new Error(`Unable to read agent profile ${profilePath}: ${errorMessage(error)}`);
-    }
-
+function parseAgentProfile(content: string, profilePath: string): AgentProfile {
     const frontmatter = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(content);
     if (!frontmatter) {
         throw new Error(`Agent profile is missing YAML frontmatter: ${profilePath}`);

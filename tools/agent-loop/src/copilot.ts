@@ -1,8 +1,15 @@
-import { randomUUID } from 'node:crypto';
-import { readFile } from 'node:fs/promises';
+import { appendFile, readFile } from 'node:fs/promises';
 import * as path from 'node:path';
-import { writeText } from './evidence';
-import { outputTail, runProcess } from './process';
+import { writeJson, writeText } from './evidence';
+import { matchesAny, normalizeRepositoryPath } from './paths';
+import {
+    buildSdkEnvironment,
+    createSdkClient,
+    type SdkAssistantMessage,
+    type SdkClientFactory,
+    type SdkPreflightResult,
+    type SdkSessionEvent
+} from './sdkPreflight';
 import {
     AuthorityPolicy,
     ReviewFinding,
@@ -12,7 +19,12 @@ import {
     WorkerResult
 } from './types';
 
-interface InvocationOptions<T> {
+export const SDK_TOOLS = {
+    readOnly: ['view', 'grep', 'glob'],
+    editing: ['view', 'grep', 'glob', 'create', 'edit']
+} as const;
+
+export interface InvocationOptions<T> {
     repoRoot: string;
     worktreePath: string;
     artifactDir: string;
@@ -24,19 +36,49 @@ interface InvocationOptions<T> {
     assignment: WorkerAssignment;
     resultSchemaPath: string;
     validate: (value: unknown) => string[];
+    sdkRuntime: SdkPreflightResult;
     additionalContext?: string;
+}
+
+interface PermissionAudit {
+    requestKind: string;
+    result: SdkPermissionResult;
+}
+
+interface SdkPermissionRequest {
+    kind: string;
+    managedApprovalRequired?: boolean;
+    path?: string;
+    fileName?: string;
+    requestSandboxBypass?: boolean;
+}
+
+type SdkPermissionResult =
+    | { kind: 'approve-once' }
+    | { kind: 'reject'; feedback: string };
+
+type SdkPermissionHandler = (
+    request: SdkPermissionRequest,
+    invocation: { sessionId: string; managedSettingsEnabled?: boolean }
+) => SdkPermissionResult | Promise<SdkPermissionResult>;
+
+interface SdkInvocationState {
+    sawAssistantMessage: boolean;
+    sawIdle: boolean;
+    sessionErrors: string[];
+    permissionRejections: string[];
 }
 
 export async function invokeEditingWorker(
     options: InvocationOptions<WorkerResult>
 ): Promise<WorkerResult> {
-    return invoke<WorkerResult>(options);
+    return invokeSdkWorker(options);
 }
 
 export async function invokeReviewer(
     options: InvocationOptions<ReviewResult>
 ): Promise<ReviewResult> {
-    return invoke<ReviewResult>(options);
+    return invokeSdkWorker(options);
 }
 
 export function formatRepassContext(findings: ReviewFinding[], validationSummary: string): string {
@@ -52,67 +94,121 @@ export function formatRepassContext(findings: ReviewFinding[], validationSummary
     ].join('\n');
 }
 
-async function invoke<T>(options: InvocationOptions<T>): Promise<T> {
+export async function invokeSdkWorker<T>(
+    options: InvocationOptions<T>,
+    clientFactory: SdkClientFactory = createSdkClient
+): Promise<T> {
     const roleInstructions = await readFile(
         path.join(options.repoRoot, options.assignment.roleFile),
         'utf8'
     );
     const resultSchema = await readFile(options.resultSchemaPath, 'utf8');
+    const agentProfile = await readFile(
+        path.join(options.worktreePath, '.github', 'agents', `${options.assignment.agent}.agent.md`),
+        'utf8'
+    );
     const prompt = buildPrompt(options, roleInstructions, resultSchema);
     const promptPath = path.join(options.artifactDir, 'prompt.txt');
     const eventsPath = path.join(options.artifactDir, 'events.ndjson');
     const stderrPath = path.join(options.artifactDir, 'stderr.log');
+    const metadataPath = path.join(options.artifactDir, 'metadata.json');
     await writeText(promptPath, prompt);
+    await writeText(eventsPath, '');
 
-    const executable = process.env.AGENT_LOOP_COPILOT_COMMAND ?? 'copilot';
-    const discoveredMcpServers = await discoverMcpServerNames(executable, options.worktreePath);
-    const args = buildCopilotArguments(options, prompt, discoveredMcpServers);
-    const result = await runProcess(executable, args, {
-        cwd: options.worktreePath,
-        timeoutMs: options.contract.limits.maxMinutesPerWorker * 60_000,
-        stdoutPath: eventsPath,
-        stderrPath,
-        env: buildCopilotEnvironment()
-    });
-
-    if (result.timedOut) {
-        throw new Error(`Copilot worker ${options.assignment.id} exceeded its time budget`);
-    }
-    if (result.exitCode !== 0) {
-        throw new Error(
-            `Copilot worker ${options.assignment.id} failed with exit code ${result.exitCode}: ` +
-            outputTail(result.stderr)
+    let eventWrite = Promise.resolve();
+    const state: SdkInvocationState = {
+        sawAssistantMessage: false,
+        sawIdle: false,
+        sessionErrors: [],
+        permissionRejections: []
+    };
+    const recordEvent = (event: unknown): void => {
+        eventWrite = eventWrite.then(() =>
+            appendFile(eventsPath, `${JSON.stringify(event)}\n`, 'utf8')
         );
-    }
+    };
+    const onEvent = (event: SdkSessionEvent): void => {
+        recordEvent(event);
+        updateInvocationState(state, event);
+    };
+    const onPermissionDecision = (audit: PermissionAudit): void => {
+        recordEvent({
+            type: 'agent-loop.permission-decision',
+            timestamp: new Date().toISOString(),
+            data: audit
+        });
+        if (audit.result.kind === 'reject') {
+            state.permissionRejections.push(audit.result.feedback);
+        }
+    };
 
-    return extractStructuredResult<T>(result.stdout, options.validate);
+    const client = clientFactory({
+        cliPath: options.sdkRuntime.cliPath,
+        workingDirectory: options.worktreePath,
+        environment: buildSdkEnvironment()
+    });
+    let session: Awaited<ReturnType<typeof client.createSession>> | undefined;
+    let invocationError: unknown;
+    const cleanupErrors: Error[] = [];
+
+    try {
+        await client.start();
+        session = await client.createSession(
+            buildSdkSessionConfig(options, agentProfile, onEvent, onPermissionDecision)
+        );
+        await writeJson(metadataPath, {
+            runtime: 'github-copilot-sdk',
+            sdkVersion: options.sdkRuntime.sdkVersion,
+            cliPath: options.sdkRuntime.cliPath,
+            cliVersion: options.sdkRuntime.cliVersion,
+            model: options.sdkRuntime.model,
+            reasoningEffort: options.sdkRuntime.reasoningEffort ?? 'runtime-default',
+            availableTools: toolsForAssignment(options.assignment),
+            sessionId: session.sessionId
+        });
+
+        const response = await session.sendAndWait(
+            { prompt },
+            options.contract.limits.maxMinutesPerWorker * 60_000
+        );
+        await eventWrite;
+        assertCompletedSdkInvocation(options.assignment.id, response, state);
+        await writeText(stderrPath, '');
+        return parseSdkStructuredResult<T>(response.data.content, options.validate);
+    } catch (error) {
+        invocationError = error;
+        if (session) {
+            await session.abort().catch(abortError => {
+                cleanupErrors.push(asError('Session abort failed', abortError));
+            });
+        }
+        await eventWrite.catch(() => undefined);
+        await writeText(
+            stderrPath,
+            error instanceof Error ? error.stack ?? error.message : String(error)
+        );
+        throw error;
+    } finally {
+        await session?.disconnect().catch(disconnectError => {
+            cleanupErrors.push(asError('Session disconnect failed', disconnectError));
+        });
+        try {
+            cleanupErrors.push(...await client.stop());
+        } catch (stopError) {
+            cleanupErrors.push(asError('SDK client stop failed', stopError));
+        }
+
+        if (cleanupErrors.length > 0) {
+            const cleanupMessage = cleanupErrors.map(error => error.message).join('; ');
+            await appendFile(stderrPath, `\nSDK cleanup failed: ${cleanupMessage}\n`, 'utf8');
+            if (invocationError === undefined) {
+                throw new Error(`Copilot SDK worker cleanup failed: ${cleanupMessage}`);
+            }
+        }
+    }
 }
 
-export function buildCopilotEnvironment(
-    environment: NodeJS.ProcessEnv = process.env,
-    platform: NodeJS.Platform = process.platform
-): NodeJS.ProcessEnv {
-    const result = { ...environment };
-    if (platform !== 'win32') {
-        return result;
-    }
-
-    for (const key of Object.keys(result).filter(name => name.toLowerCase() === 'path')) {
-        result[key] = result[key]
-            ?.split(path.delimiter)
-            .filter(entry => !isIncompatibleWindowsSandboxPath(entry))
-            .join(path.delimiter);
-    }
-
-    return result;
-}
-
-function isIncompatibleWindowsSandboxPath(value: string): boolean {
-    const normalized = value.trim().replace(/[\\/]+$/, '').toLowerCase();
-    return normalized === 'c:\\programdata\\chocolatey\\bin';
-}
-
-function buildPrompt<T>(
+export function buildPrompt<T>(
     options: InvocationOptions<T>,
     roleInstructions: string,
     resultSchema: string
@@ -151,190 +247,212 @@ function buildPrompt<T>(
     ].filter(Boolean).join('\n');
 }
 
-export function buildCopilotArguments<T>(
+export function buildSdkSessionConfig<T>(
     options: InvocationOptions<T>,
-    prompt: string,
-    discoveredMcpServers: string[] = []
-): string[] {
-    const args = [
-        '--prompt',
-        prompt,
-        '--output-format',
-        'json',
-        '--stream',
-        'off',
-        '--mode',
-        'autopilot',
-        '--experimental',
-        '--sandbox',
-        '--max-autopilot-continues',
-        String(options.contract.limits.maxAutopilotContinues),
-        '--max-ai-credits',
-        String(options.contract.limits.maxAiCreditsPerWorker),
-        '--reasoning-effort',
-        process.env.AGENT_LOOP_REASONING_EFFORT ?? 'high',
-        '--agent',
-        options.assignment.agent,
-        '--session-id',
-        randomUUID(),
-        '--name',
-        `${options.contract.taskId}-${options.assignment.id}`,
-        '--log-dir',
-        path.join(options.artifactDir, 'copilot-logs'),
-        '--no-ask-user',
-        '--no-auto-update',
-        '--no-color',
-        '--no-remote',
-        '--no-remote-export',
-        '--disable-builtin-mcps',
-        '--disallow-temp-dir',
-        '--deny-tool=url',
-        '--deny-tool=shell',
-        '--deny-tool=write(node_modules)',
-        '--deny-tool=write(.env)',
-        '--deny-tool=shell(git push)',
-        '--deny-tool=shell(git merge)',
-        '--deny-tool=shell(gh pr merge)',
-        '--deny-tool=shell(npm publish)',
-        '--deny-tool=shell(npx vsce publish)'
-    ];
+    agentProfile: string,
+    onEvent?: (event: SdkSessionEvent) => void,
+    onPermissionDecision?: (audit: PermissionAudit) => void
+) {
+    const tools = toolsForAssignment(options.assignment);
 
-    const disabledMcpServers = new Set([
-        ...options.policy.mcp.disabledServers,
-        ...discoveredMcpServers
-    ]);
-    for (const serverName of disabledMcpServers) {
-        args.push('--disable-mcp-server', serverName);
-    }
-
-    if (process.env.AGENT_LOOP_MODEL) {
-        args.push('--model', process.env.AGENT_LOOP_MODEL);
-    }
-
-    if (options.assignment.mayEdit) {
-        args.push('--allow-tool=write');
-    } else {
-        args.push('--deny-tool=write');
-    }
-
-    const secretEnvironmentVariables = Object.keys(process.env).filter(isSecretEnvironmentVariable);
-    if (secretEnvironmentVariables.length > 0) {
-        args.push(`--secret-env-vars=${secretEnvironmentVariables.join(',')}`);
-    }
-
-    return args;
-}
-
-async function discoverMcpServerNames(executable: string, cwd: string): Promise<string[]> {
-    try {
-        const result = await runProcess(executable, ['mcp', 'list', '--json'], {
-            cwd,
-            timeoutMs: 30_000
-        });
-        if (result.exitCode !== 0) {
-            return [];
+    return {
+        sessionId: `${options.runId}-${options.assignment.id}-${Date.now()}`,
+        clientName: 'sharepoint-embedded-agent-loop',
+        workingDirectory: options.worktreePath,
+        model: options.sdkRuntime.model,
+        reasoningEffort: options.sdkRuntime.reasoningEffort,
+        enableExperimentalMode: true,
+        enableConfigDiscovery: false,
+        availableTools: tools,
+        mcpServers: {},
+        customAgents: [{
+            name: options.assignment.agent,
+            description: `${options.assignment.role} worker for ${options.contract.taskId}`,
+            prompt: agentProfile,
+            tools,
+            infer: false,
+            model: options.sdkRuntime.model,
+            reasoningEffort: options.sdkRuntime.reasoningEffort
+        }],
+        agent: options.assignment.agent,
+        onPermissionRequest: createSdkPermissionHandler(options, onPermissionDecision),
+        onEvent,
+        managedSettings: {
+            permissions: {
+                disableBypassPermissionsMode: 'disable'
+            }
+        },
+        enableSessionStore: false,
+        memory: { enabled: false },
+        infiniteSessions: { enabled: false },
+        skipCustomInstructions: false,
+        customAgentsLocalOnly: true,
+        coauthorEnabled: false,
+        manageScheduleEnabled: false,
+        requestExtensions: false,
+        enableSessionTelemetry: false,
+        enableFileHooks: false,
+        enableHostGitOperations: false,
+        enableSkills: false,
+        remoteSession: 'off',
+        skipEmbeddingRetrieval: true,
+        embeddingCacheStorage: 'in-memory',
+        streaming: true,
+        includeSubAgentStreamingEvents: true,
+        sessionLimits: {
+            maxAiCredits: options.contract.limits.maxAiCreditsPerWorker
         }
-
-        const parsed = JSON.parse(result.stdout) as unknown;
-        const names = new Set<string>();
-        collectNamedServers(parsed, names);
-        return [...names];
-    } catch {
-        return [];
-    }
+    };
 }
 
-function collectNamedServers(value: unknown, names: Set<string>): void {
-    if (Array.isArray(value)) {
-        for (const item of value) {
-            collectNamedServers(item, names);
-        }
-        return;
-    }
-    if (!value || typeof value !== 'object') {
-        return;
-    }
-
-    const record = value as Record<string, unknown>;
-    if (typeof record.name === 'string' && record.name.length > 0) {
-        names.add(record.name);
-    }
-    for (const nested of Object.values(record)) {
-        collectNamedServers(nested, names);
-    }
+export function createSdkPermissionHandler<T>(
+    options: InvocationOptions<T>,
+    onDecision?: (audit: PermissionAudit) => void
+): SdkPermissionHandler {
+    return request => {
+        const result = decidePermission(options, request);
+        onDecision?.({ requestKind: request.kind, result });
+        return result;
+    };
 }
 
-function isSecretEnvironmentVariable(name: string): boolean {
-    return /(TOKEN|SECRET|PASSWORD|CREDENTIAL|CONNECTION_STRING|PRIVATE_KEY)/i.test(name);
-}
-
-function extractStructuredResult<T>(
-    jsonLines: string,
+export function parseSdkStructuredResult<T>(
+    content: string,
     validate: (value: unknown) => string[]
 ): T {
-    const candidates: string[] = [];
-
-    for (const line of jsonLines.split(/\r?\n/).filter(Boolean)) {
-        try {
-            collectStrings(JSON.parse(line), candidates);
-        } catch {
-            candidates.push(line);
-        }
-    }
-
-    const validationFailures: string[] = [];
-    for (const candidate of candidates.reverse()) {
-        const parsed = parseJsonObject(candidate);
-        if (parsed === undefined) {
-            continue;
-        }
-
-        const errors = validate(parsed);
-        if (errors.length === 0) {
-            return parsed as T;
-        }
-        validationFailures.push(...errors);
-    }
-
-    throw new Error(
-        'Worker did not return a valid structured result' +
-        (validationFailures.length > 0 ? `: ${validationFailures.slice(0, 10).join('; ')}` : '')
-    );
-}
-
-function collectStrings(value: unknown, target: string[]): void {
-    if (typeof value === 'string') {
-        target.push(value);
-        return;
-    }
-    if (Array.isArray(value)) {
-        for (const item of value) {
-            collectStrings(item, target);
-        }
-        return;
-    }
-    if (value && typeof value === 'object') {
-        for (const nested of Object.values(value)) {
-            collectStrings(nested, target);
-        }
-    }
-}
-
-function parseJsonObject(value: string): unknown | undefined {
-    const trimmed = value
-        .trim()
-        .replace(/^```(?:json)?\s*/i, '')
-        .replace(/\s*```$/, '');
-    const firstBrace = trimmed.indexOf('{');
-    const lastBrace = trimmed.lastIndexOf('}');
-
-    if (firstBrace === -1 || lastBrace <= firstBrace) {
-        return undefined;
-    }
-
+    const trimmed = content.trim();
+    let parsed: unknown;
     try {
-        return JSON.parse(trimmed.slice(firstBrace, lastBrace + 1));
-    } catch {
+        parsed = JSON.parse(trimmed);
+    } catch (error) {
+        throw new Error(
+            `SDK worker returned malformed JSON: ${error instanceof Error ? error.message : String(error)}`
+        );
+    }
+
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        throw new Error('SDK worker final response must be a JSON object');
+    }
+    const errors = validate(parsed);
+    if (errors.length > 0) {
+        throw new Error(`SDK worker result failed structured validation: ${errors.join('; ')}`);
+    }
+    return parsed as T;
+}
+
+function decidePermission<T>(
+    options: InvocationOptions<T>,
+    request: SdkPermissionRequest
+): SdkPermissionResult {
+    if (request.managedApprovalRequired) {
+        return reject('Managed policy requires a human approval that is unavailable.');
+    }
+
+    if (request.kind === 'read') {
+        if (request.requestSandboxBypass) {
+            return reject('Read sandbox bypass is disabled for repository workers.');
+        }
+        const repositoryPath = resolveRequestedPath(options.worktreePath, request.path);
+        if (
+            repositoryPath === undefined ||
+            matchesAny(options.policy.filesystem.deny, repositoryPath)
+        ) {
+            return reject('Read access is outside the isolated repository authority.');
+        }
+        return { kind: 'approve-once' };
+    }
+
+    if (request.kind === 'write') {
+        if (!options.assignment.mayEdit || request.requestSandboxBypass) {
+            return reject('This worker does not have permission for the requested write.');
+        }
+        const repositoryPath = resolveRequestedPath(options.worktreePath, request.fileName);
+        if (
+            repositoryPath === undefined ||
+            matchesAny(options.policy.filesystem.deny, repositoryPath) ||
+            !matchesAny(options.contract.allowedPaths, repositoryPath) ||
+            !matchesAny(options.assignment.allowedPaths, repositoryPath)
+        ) {
+            return reject('Write access is outside the task and worker path authority.');
+        }
+        return { kind: 'approve-once' };
+    }
+
+    return reject(`Permission kind "${request.kind}" is disabled for repository workers.`);
+}
+
+function assertCompletedSdkInvocation(
+    workerId: string,
+    response: SdkAssistantMessage | undefined,
+    state: SdkInvocationState
+): asserts response is SdkAssistantMessage {
+    if (state.permissionRejections.length > 0) {
+        throw new Error(
+            `Copilot SDK worker ${workerId} requested denied authority: ` +
+            state.permissionRejections.join('; ')
+        );
+    }
+    if (state.sessionErrors.length > 0) {
+        throw new Error(
+            `Copilot SDK worker ${workerId} emitted session errors: ${state.sessionErrors.join('; ')}`
+        );
+    }
+    if (!response || !state.sawAssistantMessage || !state.sawIdle) {
+        throw new Error(
+            `Copilot SDK worker ${workerId} ended without complete assistant.message and session.idle evidence`
+        );
+    }
+}
+
+function updateInvocationState(state: SdkInvocationState, event: SdkSessionEvent): void {
+    if (event.type === 'assistant.message') {
+        state.sawAssistantMessage = true;
+    } else if (event.type === 'session.idle') {
+        state.sawIdle = true;
+    } else if (event.type === 'session.error') {
+        state.sessionErrors.push(readSessionError(event.data));
+    }
+}
+
+function toolsForAssignment(assignment: WorkerAssignment): string[] {
+    return assignment.mayEdit
+        ? [...SDK_TOOLS.editing]
+        : [...SDK_TOOLS.readOnly];
+}
+
+function resolveRequestedPath(
+    root: string,
+    requestedPath: string | undefined
+): string | undefined {
+    if (!requestedPath) {
         return undefined;
     }
+    const resolvedRoot = path.resolve(root);
+    const resolvedPath = path.resolve(root, requestedPath);
+    const relative = path.relative(resolvedRoot, resolvedPath);
+    if (relative.startsWith('..') || path.isAbsolute(relative)) {
+        return undefined;
+    }
+    return normalizeRepositoryPath(relative);
+}
+
+function reject(feedback: string): SdkPermissionResult {
+    return { kind: 'reject', feedback };
+}
+
+function readSessionError(data: unknown): string {
+    if (
+        data &&
+        typeof data === 'object' &&
+        'message' in data &&
+        typeof data.message === 'string'
+    ) {
+        return data.message;
+    }
+    return 'Unknown Copilot SDK session error';
+}
+
+function asError(prefix: string, error: unknown): Error {
+    const message = error instanceof Error ? error.message : String(error);
+    return new Error(`${prefix}: ${message}`);
 }

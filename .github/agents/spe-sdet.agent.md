@@ -2,7 +2,7 @@
 name: spe-sdet
 description: Independently designs and implements deterministic tests for SharePoint Embedded extension task contracts
 target: github-copilot
-tools: ["read", "search", "edit"]
+tools: ["view", "grep", "glob", "create", "edit"]
 disable-model-invocation: true
 user-invocable: false
 ---

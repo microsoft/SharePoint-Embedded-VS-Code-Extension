@@ -185,9 +185,7 @@
     "maxRepasses": 2,
     "maxWallClockMinutes": 120,
     "maxMinutesPerWorker": 35,
-    "maxAiCreditsPerWorker": 30,
-    "maxAutopilotContinues": 4,
-    "maxTokensPerWorker": 50000
+    "maxAiCreditsPerWorker": 30
   },
   "requiredArtifacts": [
     "worker-results",

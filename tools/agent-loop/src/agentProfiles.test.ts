@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import * as path from 'node:path';
 import test from 'node:test';
-import { validateAgentProfile } from './agentProfiles';
+import { validateAgentProfile, validateAgentProfileContent } from './agentProfiles';
 import { loadContract } from './contract';
 import { findRepositoryRoot } from './git';
 
@@ -22,6 +22,30 @@ test('custom agent profiles enforce role-specific tool boundaries', async () => 
         assert.equal(profile.tools.includes('*'), false);
         assert.equal(profile.tools.includes('edit'), worker.mayEdit);
     }
+});
+
+test('base-commit profiles must use canonical SDK tools', async () => {
+    const repoRoot = await findRepositoryRoot(path.resolve(__dirname, '..', '..', '..'));
+    const loaded = loadContract(
+        repoRoot,
+        path.join(repoRoot, '.agent', 'contracts', 'examples', 'storage-explorer-bulk-restore.json')
+    );
+    const implementer = loaded.contract.workers.find(worker => worker.role === 'implementer');
+    assert.ok(implementer);
+
+    assert.throws(
+        () => validateAgentProfileContent([
+            '---',
+            'name: spe-implementer',
+            'description: stale profile',
+            'target: github-copilot',
+            'tools: ["read", "search", "edit"]',
+            'disable-model-invocation: true',
+            'user-invocable: false',
+            '---'
+        ].join('\n'), implementer, 'stale profile at base commit'),
+        /tools must be exactly create, edit, glob, grep, view/
+    );
 });
 
 test('each worker uses a distinct custom agent identity', async () => {

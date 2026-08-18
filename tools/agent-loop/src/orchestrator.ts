@@ -3,7 +3,8 @@ import { mkdir } from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import {
-    agentProfileRepositoryPath
+    agentProfileRepositoryPath,
+    validateAgentProfileContent
 } from './agentProfiles';
 import {
     createReviewResultValidator,
@@ -32,10 +33,12 @@ import {
     diffCheck,
     findRepositoryRoot,
     pathExistsAtCommit,
+    readFileAtCommit,
     resolveCommit
 } from './git';
 import { assertChangedPathsAllowed, matchesAny } from './paths';
 import { outputTail, runShellCommand } from './process';
+import { runSdkPreflight, SdkPreflightResult } from './sdkPreflight';
 import {
     AuthorityPolicy,
     LoadedContract,
@@ -59,6 +62,7 @@ interface RunContext {
     run: RunRecord;
     workerValidator: (value: unknown) => string[];
     reviewValidator: (value: unknown) => string[];
+    sdkRuntime: SdkPreflightResult;
 }
 
 export async function validateContractCommand(contractPath: string): Promise<LoadedContract> {
@@ -103,6 +107,11 @@ export async function runContract(options: RunOptions): Promise<RunRecord> {
     const loaded = loadContract(repoRoot, options.contractPath);
     const baseCommit = await resolveCommit(repoRoot, loaded.contract.baseBranch);
     await assertAgentProfilesInBase(repoRoot, baseCommit, loaded.contract.workers);
+    const sdkRuntime = await runSdkPreflight({
+        repoRoot,
+        contract: loaded.contract,
+        workers: loaded.contract.workers
+    });
     const runId = createRunId();
     const artifactsDir = path.join(repoRoot, '.agent-runs', loaded.contract.taskId, runId);
     const configuredWorktreeRoot = process.env.AGENT_LOOP_WORKTREE_ROOT;
@@ -130,6 +139,7 @@ export async function runContract(options: RunOptions): Promise<RunRecord> {
         worktreeRoot,
         workers: [],
         reviewArtifacts: [],
+        sdkRuntime,
         errors: []
     };
     const context: RunContext = {
@@ -137,7 +147,8 @@ export async function runContract(options: RunOptions): Promise<RunRecord> {
         loaded,
         run,
         workerValidator: createWorkerResultValidator(repoRoot),
-        reviewValidator: createReviewResultValidator(repoRoot)
+        reviewValidator: createReviewResultValidator(repoRoot),
+        sdkRuntime
     };
 
     await mkdir(worktreeRoot, { recursive: true });
@@ -331,6 +342,7 @@ async function runEditingAssignment(
             contract: context.loaded.contract,
             policy: context.loaded.policy,
             assignment,
+            sdkRuntime: context.sdkRuntime,
             resultSchemaPath: path.join(
                 context.repoRoot,
                 '.agent',
@@ -371,14 +383,7 @@ async function runEditingAssignment(
             baseCommit,
             outputCommit,
             filesChanged,
-            artifacts: [
-                ...reported.artifacts,
-                {
-                    type: 'copilot-events',
-                    path: path.join(workerArtifactDir, 'events.ndjson'),
-                    description: 'Structured Copilot CLI session events'
-                }
-            ]
+            artifacts: [...reported.artifacts, ...buildWorkerSdkArtifacts(workerArtifactDir)]
         };
         assertStructuredResult(context.workerValidator, result, `Worker ${invocationId}`);
         const resultPath = path.join(workerArtifactDir, 'result.json');
@@ -417,6 +422,23 @@ async function runEditingAssignment(
         await writeRunRecord(context.repoRoot, context.run);
         throw new Error(failure);
     }
+}
+
+export function buildWorkerSdkArtifacts(
+    workerArtifactDir: string
+): WorkerResult['artifacts'] {
+    return [
+        {
+            type: 'copilot-sdk-events',
+            path: path.join(workerArtifactDir, 'events.ndjson'),
+            description: 'Structured Copilot SDK session events'
+        },
+        {
+            type: 'copilot-sdk-metadata',
+            path: path.join(workerArtifactDir, 'metadata.json'),
+            description: 'Copilot SDK runtime and session metadata'
+        }
+    ];
 }
 
 async function writeIntegrationResult(context: RunContext, startedAt: string): Promise<void> {
@@ -533,6 +555,7 @@ async function runReview(
         contract: context.loaded.contract,
         policy: context.loaded.policy,
         assignment,
+        sdkRuntime: context.sdkRuntime,
         resultSchemaPath: path.join(
             context.repoRoot,
             '.agent',
@@ -686,7 +709,13 @@ async function assertAgentProfilesInBase(
         const profilePath = agentProfileRepositoryPath(worker.agent);
         if (!await pathExistsAtCommit(repoRoot, baseCommit, profilePath)) {
             missing.push(profilePath);
+            continue;
         }
+        validateAgentProfileContent(
+            await readFileAtCommit(repoRoot, baseCommit, profilePath),
+            worker,
+            `${profilePath} at ${baseCommit}`
+        );
     }
     if (missing.length > 0) {
         throw new Error(

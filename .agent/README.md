@@ -1,11 +1,11 @@
 # Agent Delivery Contracts
 
-This directory contains the repository-owned contracts for the Level 3 delivery loop. It is
-vendor-neutral: Copilot, Claude, or another harness may execute a role, but every invocation must
-obey the same task contract, authority policy, output schema, and repository instructions.
+This directory contains the repository-owned contracts for the Level 3 delivery loop. The
+repository runner executes every role through `@github/copilot-sdk`; each invocation must obey the
+same task contract, authority policy, output schema, and repository instructions.
 
-Phase 2 defines the contracts. The Phase 3 runner will enforce them, create isolated worktrees,
-capture events, validate outputs, and stop at human acceptance.
+The runner validates contracts, performs SDK preflight, creates isolated worktrees, captures
+events, validates outputs, and stops at human acceptance.
 
 ## Directory Layout
 
@@ -18,8 +18,8 @@ capture events, validate outputs, and stop at human acceptance.
 ```
 
 Each worker also names a programmatic-only Copilot profile under `.github/agents/`. Profiles filter
-the tools visible to that role; runtime CLI permissions and the authority policy independently
-control which visible tools may execute.
+the canonical SDK tools visible to that role; the SDK permission callback and authority policy
+independently control which visible tools may execute.
 
 All paths in contracts are repository-relative and use `/` separators on every operating system.
 

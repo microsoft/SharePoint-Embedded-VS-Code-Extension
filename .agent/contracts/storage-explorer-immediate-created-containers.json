@@ -4,7 +4,7 @@
   "taskId": "storage-explorer-immediate-created-containers",
   "title": "Show newly created containers before Graph enumeration catches up",
   "goal": "Keep successfully created Storage Explorer containers visible and usable immediately in the current panel session while the Graph container collection remains eventually consistent, then reconcile them into authoritative enumeration results without duplicates or stale local state.",
-  "baseBranch": "aljordac/level3-agent-orchestrator",
+  "baseBranch": "aljordac/storage-browser",
   "allowedPaths": [
     "webview-ui/src/context/**",
     "webview-ui/src/testHost.ts",
@@ -205,9 +205,7 @@
     "maxRepasses": 1,
     "maxWallClockMinutes": 90,
     "maxMinutesPerWorker": 30,
-    "maxAiCreditsPerWorker": 120,
-    "maxAutopilotContinues": 3,
-    "maxTokensPerWorker": 40000
+    "maxAiCreditsPerWorker": 120
   },
   "requiredArtifacts": [
     "worker-results",

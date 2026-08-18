@@ -2,7 +2,7 @@
 name: spe-implementer
 description: Implements bounded SharePoint Embedded VS Code extension changes from a validated task contract
 target: github-copilot
-tools: ["read", "search", "edit"]
+tools: ["view", "grep", "glob", "create", "edit"]
 disable-model-invocation: true
 user-invocable: false
 ---

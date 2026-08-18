@@ -117,8 +117,7 @@
         "maxRepasses",
         "maxWallClockMinutes",
         "maxMinutesPerWorker",
-        "maxAiCreditsPerWorker",
-        "maxAutopilotContinues"
+        "maxAiCreditsPerWorker"
       ],
       "properties": {
         "maxConcurrentWorkers": {
@@ -145,15 +144,6 @@
           "type": "integer",
           "minimum": 30,
           "maximum": 1000
-        },
-        "maxAutopilotContinues": {
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 20
-        },
-        "maxTokensPerWorker": {
-          "type": "integer",
-          "minimum": 1000
         }
       }
     },

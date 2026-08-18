@@ -676,9 +676,11 @@
     "agent:validate": "npm run agent:build --silent && node tools/agent-loop/dist/cli.js validate",
     "agent:plan": "npm run agent:build --silent && node tools/agent-loop/dist/cli.js plan",
     "agent:run": "npm run agent:build --silent && node tools/agent-loop/dist/cli.js run",
-    "agent:test": "npm run agent:build --silent && node --test tools/agent-loop/dist/agentProfiles.test.js tools/agent-loop/dist/contract.test.js tools/agent-loop/dist/copilot.test.js tools/agent-loop/dist/orchestrator.test.js tools/agent-loop/dist/paths.test.js"
+    "agent:test": "npm run agent:build --silent && node --test tools/agent-loop/dist/agentProfiles.test.js tools/agent-loop/dist/contract.test.js tools/agent-loop/dist/copilot.test.js tools/agent-loop/dist/sdkPreflight.test.js tools/agent-loop/dist/orchestrator.test.js tools/agent-loop/dist/paths.test.js",
+    "agent:test:sdk-smoke": "npm run agent:build --silent && node --test tools/agent-loop/dist/copilot.smoke.test.js"
   },
   "devDependencies": {
+    "@github/copilot-sdk": "1.0.10-preview.0",
     "@microsoft/microsoft-graph-types": "^2.43.1",
     "@playwright/test": "^1.49.1",
     "@types/chai": "^4.3.11",

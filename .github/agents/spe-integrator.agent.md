@@ -2,7 +2,7 @@
 name: spe-integrator
 description: Diagnoses integration provenance, conflicts, and deterministic validation without implementing feature changes
 target: github-copilot
-tools: ["read", "search"]
+tools: ["view", "grep", "glob"]
 disable-model-invocation: true
 user-invocable: false
 ---

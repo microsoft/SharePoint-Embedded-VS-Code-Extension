@@ -10,7 +10,7 @@ review.
 - Run in a separate model context from implementation and SDET.
 - Use a read-only checkout of the integrated commit.
 - Receive the contract, integrated changed paths, validation results, and relevant source.
-- Do not run shell commands; inspect the supplied integrated files with read/search tools.
+- Do not run shell commands; inspect the supplied integrated files with view/grep/glob tools.
 - Do not edit code, create a fix commit, or continue an implementing worker's conversation.
 
 ## Review Priorities

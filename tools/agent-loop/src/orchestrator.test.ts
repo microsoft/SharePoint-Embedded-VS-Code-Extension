@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
+import * as path from 'node:path';
 import test from 'node:test';
-import { formatValidationSummary } from './orchestrator';
+import { buildWorkerSdkArtifacts, formatValidationSummary } from './orchestrator';
 import { ValidationResult } from './types';
 
 test('validation handoff omits passing output and bounds failure excerpts', () => {
@@ -32,4 +33,20 @@ test('validation handoff omits passing output and bounds failure excerpts', () =
     assert.match(summary, /\[showing last 1500 characters\]/);
     assert.match(summary, /-end/);
     assert.ok(summary.length < 2500);
+});
+
+test('worker handoff points to SDK-native evidence files', () => {
+    const artifacts = buildWorkerSdkArtifacts(path.join('run', 'workers', 'implementation'));
+
+    assert.deepEqual(
+        artifacts.map(artifact => ({
+            type: artifact.type,
+            file: path.basename(artifact.path)
+        })),
+        [
+            { type: 'copilot-sdk-events', file: 'events.ndjson' },
+            { type: 'copilot-sdk-metadata', file: 'metadata.json' }
+        ]
+    );
+    assert.equal(artifacts.some(artifact => artifact.path.includes('copilot-logs')), false);
 });

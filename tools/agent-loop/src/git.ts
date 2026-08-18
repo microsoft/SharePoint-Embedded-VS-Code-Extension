@@ -95,6 +95,24 @@ export async function pathExistsAtCommit(
     return result.exitCode === 0;
 }
 
+export async function readFileAtCommit(
+    repoRoot: string,
+    commit: string,
+    repositoryPath: string
+): Promise<string> {
+    const result = await git(
+        repoRoot,
+        ['show', `${commit}:${repositoryPath.replaceAll('\\', '/')}`],
+        false
+    );
+    if (result.exitCode !== 0) {
+        throw new Error(
+            `Unable to read ${repositoryPath} at ${commit}: ${result.stderr.trim()}`
+        );
+    }
+    return result.stdout;
+}
+
 export async function committedChangedPaths(
     worktreePath: string,
     baseCommit: string,

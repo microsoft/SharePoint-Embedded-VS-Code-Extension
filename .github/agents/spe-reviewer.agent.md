@@ -2,7 +2,7 @@
 name: spe-reviewer
 description: Independently challenges integrated SharePoint Embedded extension changes before human review
 target: github-copilot
-tools: ["read", "search"]
+tools: ["view", "grep", "glob"]
 disable-model-invocation: true
 user-invocable: false
 ---

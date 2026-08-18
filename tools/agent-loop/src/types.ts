@@ -46,8 +46,6 @@ export interface TaskContract {
         maxWallClockMinutes: number;
         maxMinutesPerWorker: number;
         maxAiCreditsPerWorker: number;
-        maxAutopilotContinues: number;
-        maxTokensPerWorker?: number;
     };
     requiredArtifacts: string[];
 }
@@ -202,6 +200,14 @@ export interface RunRecord {
     workers: WorkerRunRecord[];
     validationArtifact?: string;
     reviewArtifacts: string[];
+    sdkRuntime: {
+        sdkVersion: string;
+        cliPath: string;
+        cliVersion: string;
+        model: string;
+        reasoningEffort?: string;
+        availableTools: string[];
+    };
     errors: string[];
 }
 
