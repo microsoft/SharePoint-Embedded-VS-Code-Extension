@@ -1,0 +1,199 @@
+{
+  "$schema": "../../schemas/task-contract.schema.json",
+  "schemaVersion": "1.0",
+  "taskId": "storage-explorer-bulk-restore",
+  "title": "Restore multiple Storage Explorer recycle-bin items",
+  "goal": "Allow users to restore multiple selected recycle-bin items while preserving clear partial-failure behavior and the extension-host trust boundary.",
+  "baseBranch": "aljordac/storage-browser",
+  "allowedPaths": [
+    "src/services/StorageExplorer/**",
+    "webview-ui/src/api/**",
+    "webview-ui/src/components/RecycledList/**",
+    "webview-ui/src/context/**",
+    "webview-ui/src/testHost.ts",
+    "ui-tests/api/**",
+    "ui-tests/tests/**",
+    "ui-tests/testids.ts"
+  ],
+  "deniedPaths": [
+    "src/services/Auth/**",
+    "src/client.ts",
+    "package.json",
+    "package-lock.json",
+    "webview-ui/package.json",
+    "webview-ui/package-lock.json",
+    "ui-tests/.env"
+  ],
+  "acceptanceCriteria": [
+    {
+      "id": "AC-01",
+      "description": "A user can select multiple recycle-bin items and start one restore operation from the recycle action bar.",
+      "evidence": "Playwright UI coverage exercises multi-selection and the restore action."
+    },
+    {
+      "id": "AC-02",
+      "description": "Every selected item is restored through the typed, allow-listed host RPC boundary without exposing an access token to the webview.",
+      "evidence": "Protocol and API tests prove request validation and projected host responses."
+    },
+    {
+      "id": "AC-03",
+      "description": "A failure restoring one item does not hide successful restores or stop remaining eligible items from being attempted.",
+      "evidence": "A deterministic test injects one failed restore and verifies the remaining results."
+    },
+    {
+      "id": "AC-04",
+      "description": "The UI reports failed item names, refreshes the recycle-bin list, and leaves failed items available for retry.",
+      "evidence": "Playwright UI coverage verifies partial-failure messaging and post-operation state."
+    },
+    {
+      "id": "AC-05",
+      "description": "Existing single-item restore and permanent-delete behavior remains unchanged.",
+      "evidence": "Existing recycle tests and new regression assertions pass."
+    }
+  ],
+  "requiredChecks": [
+    {
+      "id": "typecheck",
+      "command": "npx tsc -p ./ --noEmit",
+      "timeoutMinutes": 10
+    },
+    {
+      "id": "lint",
+      "command": "npm run lint",
+      "timeoutMinutes": 10
+    },
+    {
+      "id": "webview-build",
+      "command": "npm run build:webview",
+      "timeoutMinutes": 10
+    },
+    {
+      "id": "api-tests",
+      "command": "npm run test:api",
+      "timeoutMinutes": 10
+    },
+    {
+      "id": "ui-tests",
+      "command": "npm run test:ui",
+      "timeoutMinutes": 15
+    }
+  ],
+  "workers": [
+    {
+      "id": "implementation",
+      "role": "implementer",
+      "agent": "spe-implementer",
+      "roleFile": ".agent/roles/implementer.md",
+      "isolation": "git-worktree",
+      "mayEdit": true,
+      "allowedPaths": [
+        "src/services/StorageExplorer/**",
+        "webview-ui/src/api/**",
+        "webview-ui/src/components/RecycledList/**",
+        "webview-ui/src/context/**"
+      ],
+      "dependsOn": [],
+      "contextInputs": [
+        "task-contract",
+        "agents-instructions",
+        "authority-policy",
+        "baseline-source"
+      ]
+    },
+    {
+      "id": "test-engineering",
+      "role": "sdet",
+      "agent": "spe-sdet",
+      "roleFile": ".agent/roles/sdet.md",
+      "isolation": "git-worktree",
+      "mayEdit": true,
+      "allowedPaths": [
+        "webview-ui/src/testHost.ts",
+        "ui-tests/api/**",
+        "ui-tests/tests/**",
+        "ui-tests/testids.ts"
+      ],
+      "dependsOn": [],
+      "contextInputs": [
+        "task-contract",
+        "agents-instructions",
+        "authority-policy",
+        "baseline-source"
+      ]
+    },
+    {
+      "id": "integration",
+      "role": "integrator",
+      "agent": "spe-integrator",
+      "roleFile": ".agent/roles/integrator.md",
+      "isolation": "git-worktree",
+      "mayEdit": false,
+      "allowedPaths": [
+        "src/services/StorageExplorer/**",
+        "webview-ui/src/**",
+        "ui-tests/**"
+      ],
+      "dependsOn": [
+        "implementation",
+        "test-engineering"
+      ],
+      "contextInputs": [
+        "task-contract",
+        "agents-instructions",
+        "authority-policy",
+        "worker-results",
+        "worker-commits"
+      ]
+    },
+    {
+      "id": "independent-review",
+      "role": "reviewer",
+      "agent": "spe-reviewer",
+      "roleFile": ".agent/roles/reviewer.md",
+      "isolation": "read-only-checkout",
+      "mayEdit": false,
+      "allowedPaths": [
+        "**"
+      ],
+      "dependsOn": [
+        "integration"
+      ],
+      "contextInputs": [
+        "task-contract",
+        "agents-instructions",
+        "authority-policy",
+        "integrated-diff",
+        "validation-results"
+      ]
+    }
+  ],
+  "authority": {
+    "policyFile": ".agent/policies/default-authority.json",
+    "approvalRequiredFor": [
+      "dependency-change",
+      "authentication-scope-change",
+      "telemetry-change",
+      "security-boundary-change",
+      "new-graph-beta-endpoint",
+      "network-access",
+      "live-cloud-mutation",
+      "authority-expansion"
+    ]
+  },
+  "limits": {
+    "maxConcurrentWorkers": 2,
+    "maxRepasses": 2,
+    "maxWallClockMinutes": 120,
+    "maxMinutesPerWorker": 35,
+    "maxAiCreditsPerWorker": 30,
+    "maxAutopilotContinues": 4,
+    "maxTokensPerWorker": 50000
+  },
+  "requiredArtifacts": [
+    "worker-results",
+    "integration-result",
+    "validation-results",
+    "review-result",
+    "repass-results"
+  ]
+}

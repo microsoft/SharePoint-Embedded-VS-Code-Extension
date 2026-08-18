@@ -1,0 +1,97 @@
+{
+  "schemaVersion": "1.0",
+  "policyId": "default-repository-worker",
+  "description": "Default deny-by-exception authority envelope for repository workers.",
+  "filesystem": {
+    "root": ".",
+    "enforceTaskAllowedPaths": true,
+    "deny": [
+      ".git/**",
+      "**/.env",
+      "**/.env.*",
+      "**/*secret*",
+      "**/*credential*",
+      "**/*.pem",
+      "**/*.pfx",
+      "**/*.p7s",
+      "node_modules/**",
+      "webview-ui/node_modules/**",
+      "out/**",
+      "dist/**",
+      "ui-tests/playwright-report/**",
+      "ui-tests/test-results/**"
+    ]
+  },
+  "commands": {
+    "allowExact": [
+      "npx tsc -p ./ --noEmit",
+      "npm run compile",
+      "npm run lint",
+      "npm run build:webview",
+      "npm run test:api",
+      "npm run test:ui",
+      "npm run test:perf",
+      "git status --short",
+      "git diff --check"
+    ],
+    "allowPrefixes": [
+      "git diff ",
+      "git show ",
+      "git log "
+    ],
+    "denyPrefixes": [
+      "git push",
+      "git merge",
+      "gh pr merge",
+      "npm publish",
+      "npx vsce publish",
+      "az ",
+      "m365 ",
+      "curl ",
+      "Invoke-WebRequest ",
+      "Invoke-RestMethod "
+    ]
+  },
+  "network": {
+    "mode": "deny",
+    "allowLoopback": true,
+    "allowedHosts": []
+  },
+  "mcp": {
+    "mode": "deny",
+    "disabledServers": [
+      "github",
+      "github-mcp-server",
+      "ide",
+      "workiq"
+    ]
+  },
+  "git": {
+    "allowWorkerBranchCommit": true,
+    "allowPush": false,
+    "allowMerge": false,
+    "allowProtectedBranchWrite": false
+  },
+  "cloud": {
+    "allowLiveMicrosoftGraph": false,
+    "allowLiveSharePoint": false,
+    "allowLiveAzure": false
+  },
+  "approvalRequiredFor": [
+    "dependency-change",
+    "authentication-scope-change",
+    "telemetry-change",
+    "security-boundary-change",
+    "new-graph-beta-endpoint",
+    "network-access",
+    "authority-expansion"
+  ],
+  "prohibited": [
+    "blanket-permission-bypass",
+    "secret-access",
+    "publish",
+    "deploy",
+    "release",
+    "autonomous-merge"
+  ]
+}

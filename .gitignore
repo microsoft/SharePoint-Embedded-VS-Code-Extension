@@ -11,3 +11,6 @@ ui-tests/test-results/
 ui-tests/test-results-api/
 ui-tests/perf/results/
 ui-tests/playwright-report/
+.agent-runs/
+tools/agent-loop/src/**/*.js
+tools/agent-loop/src/**/*.js.map

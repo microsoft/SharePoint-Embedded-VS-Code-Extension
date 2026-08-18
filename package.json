@@ -671,7 +671,12 @@
     "esbuild-base": "esbuild ./src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node",
     "esbuild": "npm run esbuild-base -- --sourcemap",
     "esbuild-watch": "npm run esbuild-base -- --sourcemap --watch",
-    "test-compile": "tsc -p ./"
+    "test-compile": "tsc -p ./",
+    "agent:build": "tsc -p tools/agent-loop/tsconfig.json",
+    "agent:validate": "npm run agent:build --silent && node tools/agent-loop/dist/cli.js validate",
+    "agent:plan": "npm run agent:build --silent && node tools/agent-loop/dist/cli.js plan",
+    "agent:run": "npm run agent:build --silent && node tools/agent-loop/dist/cli.js run",
+    "agent:test": "npm run agent:build --silent && node --test tools/agent-loop/dist/agentProfiles.test.js tools/agent-loop/dist/contract.test.js tools/agent-loop/dist/copilot.test.js tools/agent-loop/dist/orchestrator.test.js tools/agent-loop/dist/paths.test.js"
   },
   "devDependencies": {
     "@microsoft/microsoft-graph-types": "^2.43.1",
@@ -691,6 +696,7 @@
     "@typescript-eslint/parser": "^5.59.8",
     "@vscode/test-cli": "^0.0.4",
     "@vscode/test-electron": "^2.3.9",
+    "ajv": "^8.17.1",
     "chai": "^4.4.0",
     "esbuild": "^0.25.0",
     "eslint": "^8.41.0",

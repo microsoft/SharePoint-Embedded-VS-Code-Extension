@@ -180,6 +180,14 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
         { label: panelState.appName, id: null }
     ]);
     const [rootItems, setRootItems] = useState<StorageItem[]>([]);
+    // Containers returned by create remain in this session-only overlay until
+    // authoritative enumeration catches up and returns the same container ID.
+    const [locallyCreatedContainers, setLocallyCreatedContainers] = useState<Map<string, StorageItem>>(
+        () => new Map(),
+    );
+    // Successful deletes stay hidden while Graph's eventually consistent collection still
+    // returns them. Once an authoritative list omits an ID, its tombstone is no longer needed.
+    const deletedContainerIdsRef = useRef<Set<string>>(new Set());
     const [deletedContainers, setDeletedContainers] = useState<StorageItem[]>([]);
     // Map of folderId/containerId → children (populated as user navigates)
     const [folderItems, setFolderItems] = useState<Record<string, StorageItem[]>>({});
@@ -277,7 +285,23 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
             // We receive viewMode but need the current lastId — capture it via closure
             // instead we'll re-read from path in a separate effect
             apiRef.current!.containers.list()
-                .then(items => { if (isCurrent()) { setRootItems(items); } })
+                .then(items => {
+                    if (!isCurrent()) { return; }
+                    const authoritativeIds = new Set(items.map(item => item.id));
+                    setRootItems(items.filter(item => !deletedContainerIdsRef.current.has(item.id)));
+                    for (const id of deletedContainerIdsRef.current) {
+                        if (!authoritativeIds.has(id)) {
+                            deletedContainerIdsRef.current.delete(id);
+                        }
+                    }
+                    setLocallyCreatedContainers(prev => {
+                        const reconciledIds = [...prev.keys()].filter(id => authoritativeIds.has(id));
+                        if (reconciledIds.length === 0) { return prev; }
+                        const next = new Map(prev);
+                        for (const id of reconciledIds) { next.delete(id); }
+                        return next;
+                    });
+                })
                 .catch(err => {
                     console.error('[StorageExplorer] Failed to load containers:', err);
                     if (!isCurrent()) { return; }
@@ -413,35 +437,82 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
         if (message.granted) { refresh(); }
     }), [refresh]);
 
+    const updateContainerInCurrentSession = useCallback((
+        containerId: string,
+        updates: Partial<StorageItem>,
+    ) => {
+        setLocallyCreatedContainers(prev => {
+            const item = prev.get(containerId);
+            if (!item) { return prev; }
+            const next = new Map(prev);
+            next.set(containerId, { ...item, ...updates });
+            return next;
+        });
+        setRootItems(prev => prev.map(item =>
+            item.id === containerId ? { ...item, ...updates } : item
+        ));
+        setSelectedItem(prev =>
+            prev?.id === containerId ? { ...prev, ...updates } : prev
+        );
+    }, []);
+
+    const removeContainerFromCurrentSession = useCallback((containerId: string) => {
+        deletedContainerIdsRef.current.add(containerId);
+        setLocallyCreatedContainers(prev => {
+            if (!prev.has(containerId)) { return prev; }
+            const next = new Map(prev);
+            next.delete(containerId);
+            return next;
+        });
+        setRootItems(prev => prev.filter(item => item.id !== containerId));
+        setSelectedItem(prev => prev?.id === containerId ? null : prev);
+        setSelectedIds(prev => {
+            if (!prev.has(containerId)) { return prev; }
+            const next = new Set(prev);
+            next.delete(containerId);
+            return next;
+        });
+    }, []);
+
     const createContainer = useCallback(async (name: string, description?: string) => {
         // containerTypeId is injected host-side; the webview cannot repoint it.
-        await apiRef.current!.containers.create(name, description);
-        await loadCurrentView(viewMode);
+        const created = await apiRef.current!.containers.create(name, description);
+        setLocallyCreatedContainers(prev => {
+            const next = new Map(prev);
+            next.set(created.id, created);
+            return next;
+        });
+        void loadCurrentView(viewMode);
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [loadCurrentView, viewMode]);
 
     const activateContainer = useCallback(async (containerId: string) => {
         await apiRef.current!.containers.activate(containerId);
-        setSelectedItem(prev => prev?.id === containerId ? { ...prev, status: 'active' } : prev);
-        await loadCurrentView(viewMode);
-    }, [loadCurrentView, viewMode]);
+        updateContainerInCurrentSession(containerId, { status: 'active' });
+        void loadCurrentView(viewMode);
+    }, [loadCurrentView, updateContainerInCurrentSession, viewMode]);
 
     const renameContainer = useCallback(async (containerId: string, newName: string) => {
         await apiRef.current!.containers.rename(containerId, newName);
-        await loadCurrentView(viewMode);
-    }, [loadCurrentView, viewMode]);
+        updateContainerInCurrentSession(containerId, { name: newName });
+        void loadCurrentView(viewMode);
+    }, [loadCurrentView, updateContainerInCurrentSession, viewMode]);
 
     const deleteContainer = useCallback(async (containerId: string) => {
         await apiRef.current!.containers.delete(containerId);
-        setSelectedItem(null);
-        await loadCurrentView(viewMode);
-    }, [loadCurrentView, viewMode]);
+        removeContainerFromCurrentSession(containerId);
+        void loadCurrentView(viewMode);
+    }, [loadCurrentView, removeContainerFromCurrentSession, viewMode]);
 
     const currentItems = useMemo(() => {
         if (viewMode.kind !== 'normal') return [];
         let raw: StorageItem[];
         if (lastId === null) {
-            raw = rootItems;
+            const merged = new Map(rootItems.map(item => [item.id, item]));
+            for (const [id, item] of locallyCreatedContainers) {
+                if (!merged.has(id)) { merged.set(id, item); }
+            }
+            raw = [...merged.values()];
         } else {
             // Use the container id as key when at container root, folder id otherwise
             const key = lastId;
@@ -466,7 +537,7 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
             }
             return sortDirection === 'asc' ? cmp : -cmp;
         });
-    }, [lastId, viewMode, rootItems, folderItems, sortColumn, sortDirection, filterText]);
+    }, [lastId, viewMode, rootItems, locallyCreatedContainers, folderItems, sortColumn, sortDirection, filterText]);
 
     const currentRecycledItems = useMemo(() => {
         if (viewMode.kind === 'normal') return [];
@@ -495,6 +566,7 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
 
     const restoreContainer = useCallback(async (containerId: string) => {
         await apiRef.current!.containers.restore(containerId);
+        deletedContainerIdsRef.current.delete(containerId);
         setSelectedItem(null);
         await loadCurrentView(viewMode);
     }, [loadCurrentView, viewMode]);
@@ -630,8 +702,7 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
         if (item?.kind !== 'container' || item.status) { return; }
         apiRef.current?.containers.get(item.id).then(fresh => {
             if (!fresh) { return; }
-            setSelectedItem(prev => prev?.id === fresh.id ? { ...prev, ...fresh } : prev);
-            setRootItems(prev => prev.map(i => i.id === fresh.id ? { ...i, ...fresh } : i));
+            updateContainerInCurrentSession(fresh.id, fresh);
         }).catch(() => { /* keep list data; status-gated actions stay hidden */ });
     }
 
@@ -674,6 +745,7 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
             try {
                 if (it.kind === 'container') {
                     await apiRef.current!.containers.delete(it.id);
+                    removeContainerFromCurrentSession(it.id);
                 } else if (currentDriveId) {
                     await apiRef.current!.drive.delete(currentDriveId, it.id);
                 }

@@ -8,8 +8,9 @@
  * return shapes the webview services consume. State is seedable and mutated by the route handlers.
  */
 
-import { clientId } from '../../../src/client';
 import { REQUIRED_DELEGATED_PERMISSIONS } from '../../../src/utils/ExtensionAppPermissionScopes';
+
+const MOCK_CLIENT_ID = 'spe-ui-test';
 
 export interface MockContainer {
     id: string;
@@ -223,7 +224,7 @@ export function seedState(opts?: { containers?: number; itemsPerContainer?: numb
 
     // The extension app is granted on the container type by default — the normal state.
     // Specs clear `appPermissionGrants` to reproduce an ungranted tenant.
-    state.appPermissionGrants.set(clientId, {
+    state.appPermissionGrants.set(MOCK_CLIENT_ID, {
         delegatedPermissions: [...REQUIRED_DELEGATED_PERMISSIONS],
         applicationPermissions: [],
     });

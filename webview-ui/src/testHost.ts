@@ -22,7 +22,6 @@ import * as Graph from '@microsoft/microsoft-graph-client';
 import { NetworkLoggingMiddleware } from '../../src/services/StorageExplorer/NetworkLoggingMiddleware';
 import { serializeError, StorageExplorerApi } from '../../src/services/StorageExplorer/StorageExplorerApi';
 import { diagnoseAccessDenied } from '../../src/services/StorageExplorer/accessDenied';
-import { clientId } from '../../src/client';
 import { REQUIRED_DELEGATED_PERMISSIONS } from '../../src/utils/ExtensionAppPermissionScopes';
 
 export interface TestHostOptions {
@@ -47,6 +46,30 @@ declare global {
     }
 }
 
+function getClientId(token: string): string {
+    const encodedPayload = token.split('.')[1];
+    if (!encodedPayload) {
+        throw new Error('The test access token has no JWT payload.');
+    }
+
+    const base64 = encodedPayload
+        .replace(/-/g, '+')
+        .replace(/_/g, '/')
+        .padEnd(Math.ceil(encodedPayload.length / 4) * 4, '=');
+    const claims: unknown = JSON.parse(window.atob(base64));
+    if (typeof claims !== 'object' || claims === null) {
+        throw new Error('The test access token payload is not an object.');
+    }
+
+    const appId = 'appid' in claims
+        ? claims.appid
+        : ('azp' in claims ? claims.azp : undefined);
+    if (typeof appId !== 'string' || !appId) {
+        throw new Error('The test access token has no appid or azp claim.');
+    }
+    return appId;
+}
+
 /**
  * Install a `window.acquireVsCodeApi` shim that answers `rpc/request` messages by running
  * the real host API. Must be called before the React app mounts.
@@ -54,6 +77,7 @@ declare global {
 export function installTestHost(options: TestHostOptions): void {
     const posted: PostedMessage[] = [];
     window.__SPE_TEST_POSTED__ = posted;
+    const clientId = getClientId(options.token);
 
     const toWebview = (data: unknown): void => {
         window.dispatchEvent(new MessageEvent('message', { data }));

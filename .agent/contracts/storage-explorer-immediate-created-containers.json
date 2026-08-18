@@ -1,0 +1,219 @@
+{
+  "$schema": "../schemas/task-contract.schema.json",
+  "schemaVersion": "1.0",
+  "taskId": "storage-explorer-immediate-created-containers",
+  "title": "Show newly created containers before Graph enumeration catches up",
+  "goal": "Keep successfully created Storage Explorer containers visible and usable immediately in the current panel session while the Graph container collection remains eventually consistent, then reconcile them into authoritative enumeration results without duplicates or stale local state.",
+  "baseBranch": "aljordac/level3-agent-orchestrator",
+  "allowedPaths": [
+    "webview-ui/src/context/**",
+    "webview-ui/src/testHost.ts",
+    "ui-tests/helpers/mock/**",
+    "ui-tests/pages/StorageExplorerWebview.ts",
+    "ui-tests/testids.ts",
+    "ui-tests/tests/containers.spec.ts"
+  ],
+  "deniedPaths": [
+    "src/**",
+    "webview-ui/src/api/**",
+    "webview-ui/src/components/**",
+    "package.json",
+    "package-lock.json",
+    "webview-ui/package.json",
+    "webview-ui/package-lock.json",
+    "ui-tests/.env"
+  ],
+  "acceptanceCriteria": [
+    {
+      "id": "AC-01",
+      "description": "After containers.create returns successfully, the returned container appears in the root container list immediately without waiting for containers.list to include it.",
+      "evidence": "A Playwright test makes successful collection responses omit the new container and verifies that its row is visible as soon as the create modal completes."
+    },
+    {
+      "id": "AC-02",
+      "description": "A successful container enumeration that still omits a locally tracked created container keeps that container visible across manual refreshes.",
+      "evidence": "A Playwright test performs multiple successful refreshes while the mock collection remains stale and verifies that the created row remains present."
+    },
+    {
+      "id": "AC-03",
+      "description": "When a successful enumeration eventually contains a locally tracked container ID, the local entry is reconciled with the authoritative item and rendered exactly once.",
+      "evidence": "A deterministic test releases the delayed container into the mock collection, refreshes, and verifies one row with the authoritative data and no duplicate ID or name."
+    },
+    {
+      "id": "AC-04",
+      "description": "Local created-container state changes only after the corresponding API operation succeeds: create failure adds no row, rename failure preserves the prior name, activation failure preserves the prior status, and delete failure preserves the container.",
+      "evidence": "Playwright failure-injection cases verify that unsuccessful create, rename, activate, and delete calls do not apply success-shaped local state."
+    },
+    {
+      "id": "AC-05",
+      "description": "Successful rename and activation operations update a locally tracked container immediately, and successful deletion removes it immediately even while enumeration is stale.",
+      "evidence": "Playwright tests mutate a delayed container and verify its name, activation actions, selection state, and removal without relying on a collection refresh."
+    },
+    {
+      "id": "AC-06",
+      "description": "A failed container enumeration does not discard locally tracked created-container state, so a later successful retry can render and reconcile it.",
+      "evidence": "A test injects a collection failure after creation, retries successfully, and verifies that the locally tracked container was not lost."
+    },
+    {
+      "id": "AC-07",
+      "description": "Late collection responses that began before a successful create cannot erase the newly created container from the current root view.",
+      "evidence": "A race test delays an in-flight collection response, completes create first, then releases the stale response and verifies the created row remains visible."
+    },
+    {
+      "id": "AC-08",
+      "description": "Locally tracked containers participate in existing selection, filtering, sorting, activation, rename, delete, and container-navigation behavior like enumerated containers.",
+      "evidence": "Existing container tests and focused assertions exercise root interactions against a container that is still absent from collection responses."
+    },
+    {
+      "id": "AC-09",
+      "description": "The tracking state is limited to the current webview session and introduces no persistence, token handling, new RPC operation, Graph endpoint, or background cloud mutation.",
+      "evidence": "The integrated diff remains inside the allowed paths and independent review confirms that the existing typed containers.create and containers.list operations are reused."
+    }
+  ],
+  "requiredChecks": [
+    {
+      "id": "typecheck",
+      "command": "npx tsc -p ./ --noEmit",
+      "timeoutMinutes": 10
+    },
+    {
+      "id": "lint",
+      "command": "npm run lint",
+      "timeoutMinutes": 10
+    },
+    {
+      "id": "webview-build",
+      "command": "npm run build:webview",
+      "timeoutMinutes": 10
+    },
+    {
+      "id": "api-tests",
+      "command": "npm run test:api",
+      "timeoutMinutes": 10
+    },
+    {
+      "id": "ui-tests",
+      "command": "npm run test:ui",
+      "timeoutMinutes": 15
+    }
+  ],
+  "workers": [
+    {
+      "id": "implementation",
+      "role": "implementer",
+      "agent": "spe-implementer",
+      "roleFile": ".agent/roles/implementer.md",
+      "isolation": "git-worktree",
+      "mayEdit": true,
+      "allowedPaths": [
+        "webview-ui/src/context/**"
+      ],
+      "dependsOn": [],
+      "contextInputs": [
+        "task-contract",
+        "agents-instructions",
+        "authority-policy",
+        "baseline-source"
+      ]
+    },
+    {
+      "id": "test-engineering",
+      "role": "sdet",
+      "agent": "spe-sdet",
+      "roleFile": ".agent/roles/sdet.md",
+      "isolation": "git-worktree",
+      "mayEdit": true,
+      "allowedPaths": [
+        "webview-ui/src/testHost.ts",
+        "ui-tests/helpers/mock/**",
+        "ui-tests/pages/StorageExplorerWebview.ts",
+        "ui-tests/testids.ts",
+        "ui-tests/tests/containers.spec.ts"
+      ],
+      "dependsOn": [],
+      "contextInputs": [
+        "task-contract",
+        "agents-instructions",
+        "authority-policy",
+        "baseline-source"
+      ]
+    },
+    {
+      "id": "integration",
+      "role": "integrator",
+      "agent": "spe-integrator",
+      "roleFile": ".agent/roles/integrator.md",
+      "isolation": "git-worktree",
+      "mayEdit": false,
+      "allowedPaths": [
+        "webview-ui/src/context/**",
+        "webview-ui/src/testHost.ts",
+        "ui-tests/helpers/mock/**",
+        "ui-tests/pages/StorageExplorerWebview.ts",
+        "ui-tests/testids.ts",
+        "ui-tests/tests/containers.spec.ts"
+      ],
+      "dependsOn": [
+        "implementation",
+        "test-engineering"
+      ],
+      "contextInputs": [
+        "task-contract",
+        "agents-instructions",
+        "authority-policy",
+        "worker-results",
+        "worker-commits"
+      ]
+    },
+    {
+      "id": "independent-review",
+      "role": "reviewer",
+      "agent": "spe-reviewer",
+      "roleFile": ".agent/roles/reviewer.md",
+      "isolation": "read-only-checkout",
+      "mayEdit": false,
+      "allowedPaths": [
+        "**"
+      ],
+      "dependsOn": [
+        "integration"
+      ],
+      "contextInputs": [
+        "task-contract",
+        "agents-instructions",
+        "authority-policy",
+        "integrated-diff",
+        "validation-results"
+      ]
+    }
+  ],
+  "authority": {
+    "policyFile": ".agent/policies/default-authority.json",
+    "approvalRequiredFor": [
+      "dependency-change",
+      "authentication-scope-change",
+      "telemetry-change",
+      "security-boundary-change",
+      "new-graph-beta-endpoint",
+      "network-access",
+      "live-cloud-mutation",
+      "authority-expansion"
+    ]
+  },
+  "limits": {
+    "maxConcurrentWorkers": 2,
+    "maxRepasses": 1,
+    "maxWallClockMinutes": 90,
+    "maxMinutesPerWorker": 30,
+    "maxAiCreditsPerWorker": 120,
+    "maxAutopilotContinues": 3,
+    "maxTokensPerWorker": 40000
+  },
+  "requiredArtifacts": [
+    "worker-results",
+    "integration-result",
+    "validation-results",
+    "review-result",
+    "repass-results"
+  ]
+}

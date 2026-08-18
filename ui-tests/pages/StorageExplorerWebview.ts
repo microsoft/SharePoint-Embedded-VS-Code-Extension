@@ -79,6 +79,26 @@ export class StorageExplorerWebview {
         await expect(this.row(name)).toHaveCount(0, { timeout: 30_000 });
     }
 
+    async refreshContainers(): Promise<void> {
+        const response = this.page.waitForResponse(response =>
+            response.request().method() === 'GET'
+            && /\/storage\/fileStorage\/containers$/.test(new URL(response.url()).pathname)
+        );
+        await this.tid(TID.navRefresh).click();
+        const completed = await response;
+        await completed.finished();
+        await this.page.evaluate(() => new Promise<void>(resolve =>
+            requestAnimationFrame(() => resolve())));
+        await expect(this.tid(TID.listLoading)).toHaveCount(0, { timeout: 30_000 });
+    }
+
+    async dismissModalIfOpen(): Promise<void> {
+        if (await this.tid(TID.modal).count()) {
+            await this.tid(TID.modalCancel).click();
+            await expect(this.tid(TID.modal)).toHaveCount(0);
+        }
+    }
+
     async openDeletedContainers(): Promise<void> {
         await this.tid(TID.actionDeletedContainers).click();
     }
