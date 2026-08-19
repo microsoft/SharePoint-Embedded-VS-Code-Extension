@@ -23,6 +23,7 @@ import { NetworkLoggingMiddleware } from '../../src/services/StorageExplorer/Net
 import { serializeError, StorageExplorerApi } from '../../src/services/StorageExplorer/StorageExplorerApi';
 import { diagnoseAccessDenied } from '../../src/services/StorageExplorer/accessDenied';
 import { REQUIRED_DELEGATED_PERMISSIONS } from '../../src/utils/ExtensionAppPermissionScopes';
+import type { ContainerTypeAppPermission } from '../../src/models/schemas';
 
 export interface TestHostOptions {
     /** Container type the emulated panel is bound to (injected into scoped operations). */
@@ -92,17 +93,14 @@ export function installTestHost(options: TestHostOptions): void {
         ],
     });
 
-    const api = new StorageExplorerApi(options.containerTypeId, client);
-
     /**
-     * Mirror of `hasExtensionAppPermissions()` from the extension host, which cannot be
-     * imported here because it pulls in `vscode`. Kept faithful so the harness reproduces
-     * the host's access-denied diagnosis rather than a more forgiving version of it.
+     * Read the extension app's delegated grant on this container type.
+     *
+     * Mirrors `ContainerTypeAppPermissionGrantService.get()`: a 404 means "no grant"
+     * (a definitive negative), while any other failure propagates so the caller can decide
+     * rather than treat an outage as "nothing granted".
      */
-    const hasExtensionPermissions = async (): Promise<boolean> => {
-        // Mirrors `ContainerTypeAppPermissionGrantService.get()`: a 404 means "no grant"
-        // (a definitive negative), while any other failure propagates so the diagnosis is
-        // skipped rather than reported as a permissions problem.
+    const readGrantedScopes = async (): Promise<ContainerTypeAppPermission[]> => {
         let grant: { delegatedPermissions?: string[] } | null;
         try {
             grant = await client
@@ -112,7 +110,21 @@ export function installTestHost(options: TestHostOptions): void {
             if ((error as { statusCode?: number })?.statusCode !== 404) { throw error; }
             grant = null;
         }
-        const granted = new Set(grant?.delegatedPermissions ?? []);
+        return (grant?.delegatedPermissions ?? []) as ContainerTypeAppPermission[];
+    };
+
+    // The production panel hands the API a grant reader, so operation authorization runs in the
+    // host before Graph is touched. Omitting it here would silently authorize every operation in
+    // the harness and let a missing-permission test pass without the denial path ever running.
+    const api = new StorageExplorerApi(options.containerTypeId, client, readGrantedScopes);
+
+    /**
+     * Mirror of `hasExtensionAppPermissions()` from the extension host, which cannot be
+     * imported here because it pulls in `vscode`. Kept faithful so the harness reproduces
+     * the host's access-denied diagnosis rather than a more forgiving version of it.
+     */
+    const hasExtensionPermissions = async (): Promise<boolean> => {
+        const granted = new Set(await readGrantedScopes());
         return REQUIRED_DELEGATED_PERMISSIONS.every(p => granted.has(p));
     };
 
@@ -131,6 +143,7 @@ export function installTestHost(options: TestHostOptions): void {
                     delegatedPermissions: REQUIRED_DELEGATED_PERMISSIONS,
                     applicationPermissions: [],
                 });
+            api.invalidateGrantedScopes();
             toWebview({ command: 'permissionsGrantResult', granted: true });
         } catch {
             toWebview({ command: 'permissionsGrantResult', granted: false });

@@ -13,14 +13,18 @@
 import { test, expect } from '@playwright/test';
 import { Client } from '@microsoft/microsoft-graph-client';
 import { StorageExplorerApi } from '../../src/services/StorageExplorer/StorageExplorerApi';
-import { REQUIRED_DELEGATED_PERMISSIONS } from '../../src/utils/ExtensionAppPermissionScopes';
+import {
+    missingCapabilitiesForOperation,
+    PERMISSION_MANAGEMENT_CAPABILITIES,
+    REQUIRED_DELEGATED_PERMISSIONS,
+} from '../../src/utils/ExtensionAppPermissionScopes';
+import type { ContainerTypeAppPermission } from '../../src/models/schemas';
 import { FakeGraphClient, RecordedCall } from './fakeClient';
 
 const CONTAINER_TYPE_ID = 'ct-1';
 const CONTAINER_ID = 'b!c1';
 const DRIVE_ID = 'b!c1';
-
-const GRANT_PATH = 'applicationPermissionGrants';
+const ITEM_ID = 'i1';
 
 /** Operations that must be gated, and the scope each one consumes. */
 interface Case {
@@ -58,6 +62,12 @@ const CASES: Case[] = [
     },
     {
         scope: 'readContent',
+        op: 'drive.getDownloadUrl',
+        params: { driveId: DRIVE_ID, itemId: ITEM_ID },
+        reachedGraph: (c) => c.method === 'GET' && c.path === `/drives/${DRIVE_ID}/items/${ITEM_ID}`,
+    },
+    {
+        scope: 'read',
         op: 'drive.listChildren',
         params: { driveId: DRIVE_ID },
         reachedGraph: (c) => c.method === 'GET' && c.path.includes('/children'),
@@ -77,7 +87,7 @@ const CASES: Case[] = [
     {
         scope: 'addPermissions',
         op: 'permissions.addContainerPermission',
-        params: { containerId: CONTAINER_ID, member: { id: 'u-1', displayName: 'Ada', kind: 'user' }, role: 'reader' },
+        params: { containerId: CONTAINER_ID, member: { id: 'u-1', displayName: 'Ada', email: 'ada@contoso.com', kind: 'user' }, role: 'reader' },
         reachedGraph: (c) => c.method === 'POST' && c.path.endsWith('/permissions'),
     },
     {
@@ -113,19 +123,27 @@ const ALL_SCOPES = [
 function hostWith(granted: string[]) {
     const fake = new FakeGraphClient();
     fake.responder = (call) => {
-        if (call.path.includes(GRANT_PATH)) {
-            return { id: 'app-1', appId: 'app-1', delegatedPermissions: granted, applicationPermissions: [] };
-        }
         if (call.path.endsWith('/storage/fileStorage/containers') && call.method === 'GET') {
             return { value: [{ id: CONTAINER_ID, displayName: 'C', containerTypeId: CONTAINER_TYPE_ID }] };
         }
         if (call.path.includes('/storage/fileStorage/containers/') && call.method === 'GET') {
             return { id: CONTAINER_ID, displayName: 'C', containerTypeId: CONTAINER_TYPE_ID, status: 'active' };
         }
+        if (call.path === `/drives/${DRIVE_ID}/items/${ITEM_ID}` && call.method === 'GET') {
+            // eslint-disable-next-line @typescript-eslint/naming-convention -- OData annotation name
+            return { id: ITEM_ID, name: 'f.txt', '@microsoft.graph.downloadUrl': 'https://contoso.example/f.txt' };
+        }
         if (call.method === 'GET') { return { value: [] }; }
         return { id: 'x', name: 'x', roles: ['reader'] };
     };
-    return { fake, api: new StorageExplorerApi(CONTAINER_TYPE_ID, fake as unknown as Client) };
+    // The grant is read through the host-supplied reader, exactly as the production panel
+    // wires it — never from a Graph call the webview could influence.
+    const readGrantedScopes = async (): Promise<ContainerTypeAppPermission[]> =>
+        granted as ContainerTypeAppPermission[];
+    return {
+        fake,
+        api: new StorageExplorerApi(CONTAINER_TYPE_ID, fake as unknown as Client, readGrantedScopes),
+    };
 }
 
 const context = { onProgress: () => { /* unused */ } };
@@ -139,6 +157,34 @@ test.describe('AC-14 — baseline extension-app capability set', () => {
 
     test('contains no duplicates', () => {
         expect(new Set(REQUIRED_DELEGATED_PERMISSIONS).size).toBe(REQUIRED_DELEGATED_PERMISSIONS.length);
+    });
+
+    test('managePermissions satisfies every permission-management capability, including delete-own', () => {
+        expect(PERMISSION_MANAGEMENT_CAPABILITIES).toContain('deleteOwnPermission');
+        // No permission-management operation may be reported as missing under the umbrella grant.
+        for (const op of [
+            'permissions.listContainerPermissions',
+            'permissions.addContainerPermission',
+            'permissions.updateContainerPermission',
+            'permissions.deleteContainerPermission',
+            'permissions.listItemPermissions',
+            'permissions.deleteItemPermission',
+        ] as const) {
+            expect(missingCapabilitiesForOperation(op, ['managePermissions']), `${op} under managePermissions`)
+                .toEqual([]);
+        }
+    });
+
+    test('a partial grant reports only the capabilities it is actually missing', () => {
+        expect(missingCapabilitiesForOperation('containers.create', ['read'])).toEqual(['create']);
+        expect(missingCapabilitiesForOperation('containers.list', ['read'])).toEqual([]);
+        expect(missingCapabilitiesForOperation('permissions.addContainerPermission', ['read']))
+            .toEqual(['addPermissions']);
+        // An empty or absent grant confers nothing — it must never be read as "everything".
+        expect(missingCapabilitiesForOperation('containers.list', [])).toEqual(['read']);
+        expect(missingCapabilitiesForOperation('containers.list', null)).toEqual(['read']);
+        // Operations that touch no container-type resource stay ungated.
+        expect(missingCapabilitiesForOperation('me.get', [])).toEqual([]);
     });
 });
 
@@ -211,11 +257,11 @@ test.describe('AC-16 — denials are typed and disclose only scope names', () =>
             .api.execute('containers.list', {}, context)
             .then(() => null, (e: unknown) => e as { message?: string });
         const contentError = await hostWith(['read', 'create', 'write', 'delete'])
-            .api.execute('drive.listChildren', { driveId: DRIVE_ID }, context)
+            .api.execute('drive.getDownloadUrl', { driveId: DRIVE_ID, itemId: ITEM_ID }, context)
             .then(() => null, (e: unknown) => e as { message?: string });
 
         expect(readError, 'containers.list must be denied without read').not.toBeNull();
-        expect(contentError, 'drive.listChildren must be denied without readContent').not.toBeNull();
+        expect(contentError, 'drive.getDownloadUrl must be denied without readContent').not.toBeNull();
         expect(readError?.message).not.toBe(contentError?.message);
         expect(contentError?.message ?? '').toContain('readContent');
     });

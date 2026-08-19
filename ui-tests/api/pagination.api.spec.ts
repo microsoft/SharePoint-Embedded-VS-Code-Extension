@@ -67,16 +67,40 @@ function expectNoNextLinkLeak(payload: unknown): void {
     expect(serialized).not.toContain('nextLink');
 }
 
+/**
+ * The host keeps the server link for itself: a first-page read must come back with the link
+ * (so a later explicit "Load more" is possible) and without having followed it.
+ */
+function expectHostKeptTheLink(page: { nextLink?: string }): void {
+    expect(page.nextLink, 'the host must retain the server link for an explicit next page').toBeTruthy();
+    expect(page.nextLink).toContain('skiptoken');
+}
+
+/**
+ * Answer container-scope verification (`GET /storage/fileStorage/containers/{id}`) with a
+ * container that belongs to this panel's type, and delegate everything else to `inner`.
+ * Without this the host's scope check rejects the call before the behaviour under test runs.
+ */
+function withContainerScope(containerId: string, inner: (call: RecordedCall) => unknown) {
+    return (call: RecordedCall): unknown => {
+        if (call.method === 'GET' && call.path === `/storage/fileStorage/containers/${containerId}`) {
+            return { id: containerId, displayName: 'Scoped', containerTypeId: CONTAINER_TYPE_ID };
+        }
+        return inner(call);
+    };
+}
+
 test.describe('AC-01 — collections load exactly one Graph page', () => {
     test('ContainerGraphService.list() stops after the first page', async () => {
         const fake = new FakeGraphClient();
         fake.responder = threePages(container);
         const service = new ContainerGraphService(fake as unknown as Client);
 
-        const result: unknown = await service.list(CONTAINER_TYPE_ID);
+        const result = await service.list(CONTAINER_TYPE_ID);
 
         expect(fake.calls).toHaveLength(1);
-        expectNoNextLinkLeak(result);
+        expect(result.items).toHaveLength(2);
+        expectHostKeptTheLink(result);
     });
 
     test('ContainerGraphService.listDeleted() stops after the first page', async () => {
@@ -84,10 +108,10 @@ test.describe('AC-01 — collections load exactly one Graph page', () => {
         fake.responder = threePages(container);
         const service = new ContainerGraphService(fake as unknown as Client);
 
-        const result: unknown = await service.listDeleted(CONTAINER_TYPE_ID);
+        const result = await service.listDeleted(CONTAINER_TYPE_ID);
 
         expect(fake.calls).toHaveLength(1);
-        expectNoNextLinkLeak(result);
+        expectHostKeptTheLink(result);
     });
 
     test('DriveGraphService.listChildren() stops after the first page at the drive root', async () => {
@@ -95,14 +119,11 @@ test.describe('AC-01 — collections load exactly one Graph page', () => {
         fake.responder = threePages(driveItem);
         const service = new DriveGraphService(fake as unknown as Client);
 
-        const pages: unknown[] = [];
-        const result: unknown = await service.listChildren(DRIVE_ID, undefined, (page) => pages.push(page));
+        const result = await service.listChildren(DRIVE_ID);
 
         expect(fake.calls).toHaveLength(1);
         expect(fake.calls[0].path).toBe(`/drives/${DRIVE_ID}/root/children`);
-        expectNoNextLinkLeak(result);
-        // Progress payloads reach the webview too, so they carry the same obligation.
-        expectNoNextLinkLeak(pages);
+        expectHostKeptTheLink(result);
     });
 
     test('DriveGraphService.listChildren() stops after the first page inside a folder', async () => {
@@ -110,11 +131,11 @@ test.describe('AC-01 — collections load exactly one Graph page', () => {
         fake.responder = threePages(driveItem);
         const service = new DriveGraphService(fake as unknown as Client);
 
-        const result: unknown = await service.listChildren(DRIVE_ID, 'folder-1');
+        const result = await service.listChildren(DRIVE_ID, 'folder-1');
 
         expect(fake.calls).toHaveLength(1);
         expect(fake.calls[0].path).toBe(`/drives/${DRIVE_ID}/items/folder-1/children`);
-        expectNoNextLinkLeak(result);
+        expectHostKeptTheLink(result);
     });
 
     test('DriveGraphService.listRecycleBin() stops after the first page', async () => {
@@ -122,10 +143,10 @@ test.describe('AC-01 — collections load exactly one Graph page', () => {
         fake.responder = threePages(driveItem);
         const service = new DriveGraphService(fake as unknown as Client);
 
-        const result: unknown = await service.listRecycleBin('b!c1');
+        const result = await service.listRecycleBin('b!c1');
 
         expect(fake.calls).toHaveLength(1);
-        expectNoNextLinkLeak(result);
+        expectHostKeptTheLink(result);
     });
 
     test('no collection call targets a server-supplied nextLink URL', async () => {
@@ -172,7 +193,7 @@ test.describe('AC-03 / AC-04 — continuation identifiers are opaque and scope-b
 
     test('drive.listChildren progress payloads carry no Graph URL', async () => {
         const fake = new FakeGraphClient();
-        fake.responder = threePages(driveItem);
+        fake.responder = withContainerScope(DRIVE_ID, threePages(driveItem));
         const subject = new StorageExplorerApi(CONTAINER_TYPE_ID, fake as unknown as Client);
         const progress: unknown[] = [];
 
@@ -239,7 +260,10 @@ test.describe('AC-09 — mutations do not fetch unseen pages', () => {
 
     test('creating a folder issues no continuation request', async () => {
         const fake = new FakeGraphClient();
-        fake.responder = () => ({ id: 'i-new', name: 'F', folder: { childCount: 0 } });
+        fake.responder = withContainerScope(
+            DRIVE_ID,
+            () => ({ id: 'i-new', name: 'F', folder: { childCount: 0 } })
+        );
         const subject = new StorageExplorerApi(CONTAINER_TYPE_ID, fake as unknown as Client);
 
         await subject.execute(

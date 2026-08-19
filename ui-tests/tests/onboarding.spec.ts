@@ -107,6 +107,40 @@ test.describe('AC-16 — denied interactions are actionable, not empty', () => {
         await expect(harness.view.row('Denied'), 'a denied create must not produce a local row')
             .toHaveCount(0);
     });
+
+    test('a denied file action reports the missing content scope and never calls Graph', async ({ page }) => {
+        const state = seedState({ containers: 1 });
+        // Enough to browse, but no `writeContent`: creating a folder must be denied in the host.
+        state.appPermissionGrants.set('spe-ui-test', {
+            delegatedPermissions: ['read', 'readContent'],
+            applicationPermissions: [],
+        });
+
+        const harness = await openStorageExplorer(page, state);
+        const view = harness.view;
+        await view.openContainer('Seed Container');
+
+        const before = harness.requests.filter((r) => r.method === 'POST' && r.pathname.endsWith('/children')).length;
+
+        await view.tid(TID.actionNewDropdown).click();
+        await view.tid(TID.actionNewFolder).click();
+        await view.tid(TID.newItemNameInput).fill('Denied Folder');
+        await view.tid(TID.modalConfirm).click();
+
+        // Operation-specific guidance, and an offer to fix it — not a silent no-op.
+        const banner = page
+            .locator(`[data-testid="${TID.permissionBanner}"]`)
+            .or(page.getByText(/permission/i).filter({ hasText: /update|grant|required|writeContent/i }))
+            .first();
+        await expect(banner).toBeVisible({ timeout: 15_000 });
+
+        await expect(view.row('Denied Folder'), 'a denied create must not produce a local row')
+            .toHaveCount(0);
+        expect(
+            harness.requests.filter((r) => r.method === 'POST' && r.pathname.endsWith('/children')).length,
+            'a denied file action must not reach Graph'
+        ).toBe(before);
+    });
 });
 
 test.describe('AC-17 — first-container onboarding', () => {
