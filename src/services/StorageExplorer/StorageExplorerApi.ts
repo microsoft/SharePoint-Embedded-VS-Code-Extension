@@ -12,7 +12,7 @@ import { MeGraphService } from './MeGraphService';
 import { PeopleGraphService } from './PeopleGraphService';
 import { PermissionGraphService } from './PermissionGraphService';
 import { isStorageExplorerOperation, OPERATION_SCHEMAS } from './operationSchemas';
-import { ContinuationStore } from './pagination';
+import { ContinuationStore, NextLinkSink } from './pagination';
 import {
     CollectionScope,
     OperationParams,
@@ -51,6 +51,54 @@ export class MissingContainerTypePermissionError extends Error {
 
 /** Reads the extension app's currently granted delegated scopes on a container type. */
 export type GrantedScopesReader = () => Promise<readonly ContainerTypeAppPermission[]>;
+
+/** Collect the delegated scopes out of a grant document or a grant collection. */
+function readDelegatedPermissions(response: unknown): ContainerTypeAppPermission[] {
+    const scopes = new Set<string>();
+    const collect = (grant: unknown): void => {
+        const delegated = (grant as { delegatedPermissions?: unknown } | null)?.delegatedPermissions;
+        if (!Array.isArray(delegated)) { return; }
+        for (const scope of delegated) {
+            if (typeof scope === 'string') { scopes.add(scope); }
+        }
+    };
+    const value = (response as { value?: unknown } | null)?.value;
+    if (Array.isArray(value)) { value.forEach(collect); } else { collect(response); }
+    return [...scopes] as ContainerTypeAppPermission[];
+}
+
+/**
+ * Default grant lookup: reads the container type's application permission grants with the
+ * panel's own Graph client.
+ *
+ * Every `StorageExplorerApi` gets one of these unless the caller injects a better one, so
+ * capability gating is never silently disabled by a construction site that omitted the
+ * dependency. The extension host injects an app-scoped reader (see `StorageExplorerPanel`);
+ * this fallback reads the registration's grant collection, which is the most specific answer
+ * available when the caller has not told us which app it is running as.
+ *
+ * A definite "no grant" (404) yields no scopes and therefore denies. Any other failure
+ * propagates, so a Graph outage surfaces as itself rather than as a permanent denial —
+ * either way, nothing is authorized.
+ */
+export function createGraphGrantedScopesReader(
+    client: Graph.Client,
+    containerTypeId: string,
+    appId?: string
+): GrantedScopesReader {
+    const base = `/storage/fileStorage/containerTypeRegistrations/${containerTypeId}/applicationPermissionGrants`;
+    const path = appId ? `${base}/${appId}` : base;
+    return async () => {
+        try {
+            return readDelegatedPermissions(await client.api(path).version('v1.0').get());
+        } catch (error) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const err = error as any;
+            if (err?.statusCode === 404 || err?.code === 'itemNotFound') { return []; }
+            throw error;
+        }
+    };
+}
 
 /** Per-request facilities handed to an operation handler. */
 export interface OperationContext {
@@ -116,18 +164,24 @@ export class StorageExplorerApi {
     /** Memoized grant lookup; invalidated whenever the host grants new permissions. */
     private _grantedScopes: Promise<readonly ContainerTypeAppPermission[]> | undefined;
 
+    /** Grant lookup backing the capability matrix. Always present, so gating is never skipped. */
+    private readonly _readGrantedScopes: GrantedScopesReader;
+
     /**
      * @param _containerTypeId Container type this panel was opened for. Injected into every
      *   container-type-scoped operation instead of being accepted from the webview.
      * @param client Authenticated Graph client; its token stays in the host process.
-     * @param _readGrantedScopes Reads the extension app's delegated scopes on this container
-     *   type. Omitted in contexts with no grant model, which disables capability gating.
+     * @param readGrantedScopes Reads the extension app's delegated scopes on this container
+     *   type. Optional only so callers need not repeat the default; omitting it falls back to
+     *   reading the live grant with `client`, never to skipping the capability check.
      */
     public constructor(
         private readonly _containerTypeId: string,
         client: Graph.Client,
-        private readonly _readGrantedScopes?: GrantedScopesReader
+        readGrantedScopes?: GrantedScopesReader
     ) {
+        this._readGrantedScopes = readGrantedScopes
+            ?? createGraphGrantedScopesReader(client, _containerTypeId);
         this._containers = new ContainerGraphService(client);
         this._drive = new DriveGraphService(client);
         this._permissions = new PermissionGraphService(client);
@@ -187,9 +241,10 @@ export class StorageExplorerApi {
      * Gating happens here rather than in each service so no operation can be added without
      * passing through the matrix. Operations that need no container-type capability skip the
      * grant lookup entirely.
+     *
+     * Fails closed: an empty, absent, or unreadable grant authorizes nothing.
      */
     private async _assertAuthorized(operation: StorageExplorerOperation): Promise<void> {
-        if (!this._readGrantedScopes) { return; }
         const required = missingCapabilitiesForOperation(operation, []);
         if (required.length === 0) { return; }
 
@@ -212,12 +267,13 @@ export class StorageExplorerApi {
     /** Start (or restart) a first-page listing, retiring the view's earlier continuations. */
     private async _listFirstPage(
         scope: CollectionScope,
-        fetch: () => Promise<{ items: StorageItem[]; nextLink?: string }>
+        fetch: (onNextLink: NextLinkSink) => Promise<StorageItem[]>
     ): Promise<PagedResult<StorageItem>> {
         const generation = this._continuations.beginListing(scope);
-        const page = await fetch();
-        const continuation = this._continuations.issue(scope, page.nextLink, generation);
-        return continuation ? { items: page.items, continuation } : { items: page.items };
+        let nextLink: string | undefined;
+        const items = await fetch(link => { nextLink = link; });
+        const continuation = this._continuations.issue(scope, nextLink, generation);
+        return continuation ? { items, continuation } : { items };
     }
 
     /**
@@ -231,9 +287,10 @@ export class StorageExplorerApi {
         claimedScope: CollectionScope
     ): Promise<PagedResult<StorageItem>> {
         const { scope, nextLink, generation } = this._continuations.redeem(token, claimedScope);
-        let page;
+        let items: StorageItem[];
+        let followingLink: string | undefined;
         try {
-            page = await this._fetchNextPage(scope, nextLink);
+            items = await this._fetchNextPage(scope, nextLink, link => { followingLink = link; });
         } catch (error) {
             // The token was consumed on redemption; give it back so a retry resumes from the
             // same page instead of skipping it.
@@ -241,21 +298,22 @@ export class StorageExplorerApi {
             throw error;
         }
         if (scope.kind === 'containers' || scope.kind === 'deletedContainers') {
-            this._trackInScope(page.items);
+            this._trackInScope(items);
         }
-        const continuation = this._continuations.issue(scope, page.nextLink, generation);
-        return continuation ? { items: page.items, continuation } : { items: page.items };
+        const continuation = this._continuations.issue(scope, followingLink, generation);
+        return continuation ? { items, continuation } : { items };
     }
 
     private _fetchNextPage(
         scope: CollectionScope,
-        nextLink: string
-    ): Promise<{ items: StorageItem[]; nextLink?: string }> {
+        nextLink: string,
+        onNextLink: NextLinkSink
+    ): Promise<StorageItem[]> {
         switch (scope.kind) {
-            case 'containers': return this._containers.listNextPage(nextLink);
-            case 'deletedContainers': return this._containers.listDeletedNextPage(nextLink);
-            case 'driveChildren': return this._drive.listChildrenNextPage(nextLink);
-            case 'recycleBin': return this._drive.listRecycleBinNextPage(nextLink);
+            case 'containers': return this._containers.listNextPage(nextLink, onNextLink);
+            case 'deletedContainers': return this._containers.listDeletedNextPage(nextLink, onNextLink);
+            case 'driveChildren': return this._drive.listChildrenNextPage(nextLink, onNextLink);
+            case 'recycleBin': return this._drive.listRecycleBinNextPage(nextLink, onNextLink);
         }
     }
 
@@ -309,11 +367,8 @@ export class StorageExplorerApi {
             // ── containers ────────────────────────────────────────────────────
             'containers.list': async () => this._listFirstPage(
                 { kind: 'containers' },
-                async () => {
-                    const page = await containers.list(this._containerTypeId);
-                    this._trackInScope(page.items);
-                    return page;
-                }
+                async onNextLink =>
+                    this._trackInScope(await containers.list(this._containerTypeId, onNextLink))
             ),
             'containers.get': p => containers.get(p.containerId),
             'containers.create': async p =>
@@ -324,11 +379,8 @@ export class StorageExplorerApi {
             'containers.delete': p => containers.delete(p.containerId),
             'containers.listDeleted': async () => this._listFirstPage(
                 { kind: 'deletedContainers' },
-                async () => {
-                    const page = await containers.listDeleted(this._containerTypeId);
-                    this._trackInScope(page.items);
-                    return page;
-                }
+                async onNextLink =>
+                    this._trackInScope(await containers.listDeleted(this._containerTypeId, onNextLink))
             ),
             'containers.restore': p => containers.restore(p.containerId),
             'containers.permanentlyDelete': p => containers.permanentlyDelete(p.containerId),
@@ -346,7 +398,7 @@ export class StorageExplorerApi {
             // ── drive ─────────────────────────────────────────────────────────
             'drive.listChildren': p => this._listFirstPage(
                 { kind: 'driveChildren', containerId: p.driveId, itemId: p.itemId },
-                () => drive.listChildren(p.driveId, p.itemId)
+                onNextLink => drive.listChildren(p.driveId, p.itemId, undefined, onNextLink)
             ),
             'drive.get': p => drive.get(p.driveId, p.itemId),
             'drive.getDetailedDriveItem': p => drive.getDetailedDriveItem(p.driveId, p.itemId),
@@ -359,7 +411,7 @@ export class StorageExplorerApi {
             'drive.createUploadSession': p => drive.createUploadSession(p.driveId, p.parentId, p.fileName),
             'drive.listRecycleBin': p => this._listFirstPage(
                 { kind: 'recycleBin', containerId: p.containerId },
-                () => drive.listRecycleBin(p.containerId)
+                onNextLink => drive.listRecycleBin(p.containerId, onNextLink)
             ),
             'drive.restoreFromRecycleBin': p => drive.restoreFromRecycleBin(p.containerId, p.itemId),
             'drive.permanentlyDelete': p => drive.permanentlyDelete(p.containerId, p.itemId),

@@ -7,7 +7,7 @@ import * as Graph from '@microsoft/microsoft-graph-client';
 import type { DriveItem } from '@microsoft/microsoft-graph-types';
 import { DriveItemDetails, DriveItemVersion, StorageItem } from './protocol';
 import { driveItemToStorageItem, RecycleBinItem, recycleBinItemToStorageItem } from './mappers';
-import { DEFAULT_PAGE_SIZE, GraphPage, RawCollectionResponse, toGraphPage } from './pagination';
+import { DEFAULT_PAGE_SIZE, mapCollectionPage, NextLinkSink, RawCollectionResponse } from './pagination';
 
 const SELECT =
     'id,name,file,folder,size,lastModifiedDateTime,createdDateTime,webUrl,@microsoft.graph.downloadUrl';
@@ -53,10 +53,18 @@ export class DriveGraphService {
      *
      * `@odata.nextLink` is deliberately not followed. Walking every page turned opening a
      * large folder into an unbounded chain of Graph calls, and the extra pages were fetched
-     * whether or not the user ever scrolled to them. The link is returned to the caller,
-     * which surfaces it as an explicit "Load more".
+     * whether or not the user ever scrolled to them. The link is reported to `onNextLink`,
+     * whose owner surfaces it as an explicit "Load more".
+     *
+     * @param onPage Receives the page's items as soon as they are mapped, so a caller can
+     *   render them without waiting for its own post-processing.
      */
-    public async listChildren(driveId: string, itemId?: string): Promise<GraphPage<StorageItem>> {
+    public async listChildren(
+        driveId: string,
+        itemId?: string,
+        onPage?: (items: StorageItem[]) => void,
+        onNextLink?: NextLinkSink
+    ): Promise<StorageItem[]> {
         const path = itemId
             ? `/drives/${driveId}/items/${itemId}/children`
             : `/drives/${driveId}/root/children`;
@@ -66,13 +74,15 @@ export class DriveGraphService {
             .select(LIST_SELECT)
             .top(DEFAULT_PAGE_SIZE)
             .get();
-        return toGraphPage(response, driveItemToStorageItem);
+        const items = mapCollectionPage(response, driveItemToStorageItem, onNextLink);
+        onPage?.(items);
+        return items;
     }
 
     /** Fetch one further page of drive children from a server-provided link. */
-    public async listChildrenNextPage(nextLink: string): Promise<GraphPage<StorageItem>> {
+    public async listChildrenNextPage(nextLink: string, onNextLink?: NextLinkSink): Promise<StorageItem[]> {
         const response: RawCollectionResponse<DriveItem> = await this._client.api(nextLink).get();
-        return toGraphPage(response, driveItemToStorageItem);
+        return mapCollectionPage(response, driveItemToStorageItem, onNextLink);
     }
 
     /** Get a single drive item by ID. */
@@ -235,18 +245,18 @@ export class DriveGraphService {
     // ── Recycle bin ───────────────────────────────────────────────────────────
 
     /** List the **first page** of the drive's recycle bin via the SPE-specific API. */
-    public async listRecycleBin(containerId: string): Promise<GraphPage<StorageItem>> {
+    public async listRecycleBin(containerId: string, onNextLink?: NextLinkSink): Promise<StorageItem[]> {
         const response: RawCollectionResponse<RecycleBinItem> = await this._client
             .api(`/storage/fileStorage/containers/${containerId}/recycleBin/items`)
             .top(DEFAULT_PAGE_SIZE)
             .get();
-        return toGraphPage(response, recycleBinItemToStorageItem);
+        return mapCollectionPage(response, recycleBinItemToStorageItem, onNextLink);
     }
 
     /** Fetch one further page of recycle-bin items from a server-provided link. */
-    public async listRecycleBinNextPage(nextLink: string): Promise<GraphPage<StorageItem>> {
+    public async listRecycleBinNextPage(nextLink: string, onNextLink?: NextLinkSink): Promise<StorageItem[]> {
         const response: RawCollectionResponse<RecycleBinItem> = await this._client.api(nextLink).get();
-        return toGraphPage(response, recycleBinItemToStorageItem);
+        return mapCollectionPage(response, recycleBinItemToStorageItem, onNextLink);
     }
 
     /** Restore an item from the SPE container recycle bin. Uses beta endpoint. */

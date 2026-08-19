@@ -3,17 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CollectionScope, ContinuationToken, StorageItem } from './protocol';
+import type { CollectionScope, ContinuationToken } from './protocol';
 
 /** Number of items requested per server page. Graph may return fewer. */
 export const DEFAULT_PAGE_SIZE = 200;
 
-/** One raw Graph collection page: the mapped items plus the server's own next-page link. */
-export interface GraphPage<T> {
-    items: T[];
-    /** Raw `@odata.nextLink`. Stays on the extension host — never serialized to the webview. */
-    nextLink?: string;
-}
+/**
+ * Receives the raw `@odata.nextLink` of a page, or `undefined` when the server returned the
+ * last one.
+ *
+ * A collection method hands its next-page link to a sink instead of returning it, so the link
+ * only ever exists inside the extension host: it is never a field of a value that a handler
+ * could pass on to the webview, and it cannot be serialized into a response by accident.
+ */
+export type NextLinkSink = (nextLink: string | undefined) => void;
 
 /** Shape of any Graph collection response this module reads. */
 export interface RawCollectionResponse<TRaw> {
@@ -22,16 +25,18 @@ export interface RawCollectionResponse<TRaw> {
     '@odata.nextLink'?: string;
 }
 
-/** Project a raw Graph collection response into a single mapped page. */
-export function toGraphPage<TRaw, TOut>(
+/**
+ * Project a raw Graph collection response into mapped items, reporting the server's next-page
+ * link to `onNextLink` (always called, so "there is no next page" is an explicit answer).
+ */
+export function mapCollectionPage<TRaw, TOut>(
     response: RawCollectionResponse<TRaw> | null | undefined,
-    map: (raw: TRaw) => TOut
-): GraphPage<TOut> {
+    map: (raw: TRaw) => TOut,
+    onNextLink?: NextLinkSink
+): TOut[] {
     const nextLink = response?.['@odata.nextLink'];
-    return {
-        items: (response?.value ?? []).map(map),
-        nextLink: typeof nextLink === 'string' && nextLink.length > 0 ? nextLink : undefined,
-    };
+    onNextLink?.(typeof nextLink === 'string' && nextLink.length > 0 ? nextLink : undefined);
+    return (response?.value ?? []).map(map);
 }
 
 /** A continuation the host has issued and is willing to honour exactly once. */
@@ -187,6 +192,3 @@ function defaultRandomId(): string {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     return require('crypto').randomBytes(16).toString('hex');
 }
-
-/** Convenience alias for the paged shapes the Storage Explorer collections return. */
-export type StorageItemPage = GraphPage<StorageItem>;
