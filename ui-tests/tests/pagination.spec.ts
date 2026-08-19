@@ -112,12 +112,25 @@ test.describe('AC-02 — Load more fetches exactly one page', () => {
 
         await view.loadMoreButton().click();
 
+        // The failure is announced rather than swallowed, and the loading state is cleared.
+        await expect(view.loadMoreError()).toBeVisible();
+        await expect(view.loadMoreLoading()).toHaveCount(0);
+
         // Existing rows survive the failure and the affordance is still actionable.
         await expect.poll(() => view.rowNames()).toEqual(firstPage);
         await expect(view.loadMoreButton()).toBeVisible();
+        await expect(view.loadMoreButton()).toBeEnabled();
+        expect(harness.nextPageRequests(), 'the failed attempt is the only request so far').toHaveLength(1);
 
+        // The retry redeems the reinstated continuation: exactly one more request, and it
+        // fetches the page that failed rather than skipping past it.
         await view.loadMore();
-        expect(await view.rowNames()).toHaveLength(PAGE_SIZE * 2);
+        expect(harness.nextPageRequests(), 'a retry must issue exactly one further request').toHaveLength(2);
+        const afterRetry = await view.rowNames();
+        expect(afterRetry).toHaveLength(PAGE_SIZE * 2);
+        expect(afterRetry.slice(0, PAGE_SIZE)).toEqual(firstPage);
+        expect(new Set(afterRetry).size, 'the retried page must not duplicate rows').toBe(afterRetry.length);
+        await expect(view.loadMoreError()).toHaveCount(0);
     });
 });
 

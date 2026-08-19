@@ -77,17 +77,26 @@ function expectNoNextLinkLeak(payload: unknown): void {
 }
 
 /**
- * The host keeps the server link for itself: a first-page read returns the link on the
- * host-side page object (so a later explicit "Load more" is possible) without having followed
- * it, and none of the mapped items it carries contains a Graph URL.
+ * Collect the server link a first-page read reports to its host-only sink.
  *
- * `GraphPage.nextLink` is host-only by design — `StorageExplorerApi` exchanges it for an opaque
- * continuation before anything crosses the webview boundary, which is asserted separately below.
+ * The link never rides on the returned items — `StorageExplorerApi` exchanges what the sink
+ * receives for an opaque continuation before anything crosses the webview boundary, which is
+ * asserted separately below.
  */
-function expectHostKeptTheLink(page: { items: unknown[]; nextLink?: string }): void {
-    expect(page.nextLink, 'the host must retain the server link for an explicit next page').toBeTruthy();
-    expect(page.nextLink).toContain('skiptoken');
-    expectNoNextLinkLeak(page.items);
+function linkSink(): { reported: (string | undefined)[]; sink: (link: string | undefined) => void } {
+    const reported: (string | undefined)[] = [];
+    return { reported, sink: (link) => reported.push(link) };
+}
+
+/**
+ * The host keeps the server link for itself: it is reported exactly once, to the host-side
+ * sink, without having been followed, and none of the mapped items contains a Graph URL.
+ */
+function expectHostKeptTheLink(items: unknown[], reported: (string | undefined)[]): void {
+    expect(reported, 'the host must be told about the next page exactly once').toHaveLength(1);
+    expect(reported[0], 'the host must retain the server link for an explicit next page').toBeTruthy();
+    expect(reported[0]).toContain('skiptoken');
+    expectNoNextLinkLeak(items);
 }
 
 /**
@@ -110,11 +119,12 @@ test.describe('AC-01 — collections load exactly one Graph page', () => {
         fake.responder = threePages(container);
         const service = new ContainerGraphService(fake as unknown as Client);
 
-        const page = await service.list(CONTAINER_TYPE_ID);
+        const { reported, sink } = linkSink();
+        const items = await service.list(CONTAINER_TYPE_ID, sink);
 
         expect(fake.calls).toHaveLength(1);
-        expect(page.items).toHaveLength(2);
-        expectHostKeptTheLink(page);
+        expect(items).toHaveLength(2);
+        expectHostKeptTheLink(items, reported);
     });
 
     test('ContainerGraphService.listDeleted() stops after the first page', async () => {
@@ -122,11 +132,12 @@ test.describe('AC-01 — collections load exactly one Graph page', () => {
         fake.responder = threePages(container);
         const service = new ContainerGraphService(fake as unknown as Client);
 
-        const page = await service.listDeleted(CONTAINER_TYPE_ID);
+        const { reported, sink } = linkSink();
+        const items = await service.listDeleted(CONTAINER_TYPE_ID, sink);
 
         expect(fake.calls).toHaveLength(1);
-        expect(page.items).toHaveLength(2);
-        expectHostKeptTheLink(page);
+        expect(items).toHaveLength(2);
+        expectHostKeptTheLink(items, reported);
     });
 
     test('DriveGraphService.listChildren() stops after the first page at the drive root', async () => {
@@ -134,12 +145,13 @@ test.describe('AC-01 — collections load exactly one Graph page', () => {
         fake.responder = threePages(driveItem);
         const service = new DriveGraphService(fake as unknown as Client);
 
-        const page = await service.listChildren(DRIVE_ID);
+        const { reported, sink } = linkSink();
+        const items = await service.listChildren(DRIVE_ID, undefined, undefined, sink);
 
         expect(fake.calls).toHaveLength(1);
         expect(fake.calls[0].path).toBe(`/drives/${DRIVE_ID}/root/children`);
-        expect(page.items).toHaveLength(2);
-        expectHostKeptTheLink(page);
+        expect(items).toHaveLength(2);
+        expectHostKeptTheLink(items, reported);
     });
 
     test('DriveGraphService.listChildren() stops after the first page inside a folder', async () => {
@@ -147,12 +159,13 @@ test.describe('AC-01 — collections load exactly one Graph page', () => {
         fake.responder = threePages(driveItem);
         const service = new DriveGraphService(fake as unknown as Client);
 
-        const page = await service.listChildren(DRIVE_ID, 'folder-1');
+        const { reported, sink } = linkSink();
+        const items = await service.listChildren(DRIVE_ID, 'folder-1', undefined, sink);
 
         expect(fake.calls).toHaveLength(1);
         expect(fake.calls[0].path).toBe(`/drives/${DRIVE_ID}/items/folder-1/children`);
-        expect(page.items).toHaveLength(2);
-        expectHostKeptTheLink(page);
+        expect(items).toHaveLength(2);
+        expectHostKeptTheLink(items, reported);
     });
 
     test('DriveGraphService.listRecycleBin() stops after the first page', async () => {
@@ -160,11 +173,12 @@ test.describe('AC-01 — collections load exactly one Graph page', () => {
         fake.responder = threePages(driveItem);
         const service = new DriveGraphService(fake as unknown as Client);
 
-        const page = await service.listRecycleBin('b!c1');
+        const { reported, sink } = linkSink();
+        const items = await service.listRecycleBin('b!c1', sink);
 
         expect(fake.calls).toHaveLength(1);
-        expect(page.items).toHaveLength(2);
-        expectHostKeptTheLink(page);
+        expect(items).toHaveLength(2);
+        expectHostKeptTheLink(items, reported);
     });
 
     test('no collection call targets a server-supplied nextLink URL', async () => {
@@ -228,34 +242,71 @@ test.describe('AC-03 / AC-04 — continuation identifiers are opaque and scope-b
         expectNoNextLinkLeak(progress);
     });
 
-    test('a forged continuation identifier never reaches Graph', async () => {
+    /** Capture the rejection of a `collections.loadMore` the host must refuse. */
+    async function expectRejectedLoadMore(
+        subject: StorageExplorerApi,
+        continuation: string
+    ): Promise<Error> {
+        const error = await subject
+            .execute('collections.loadMore', { continuation, scope: { kind: 'containers' } }, context)
+            .then(
+                () => undefined,
+                (rejection: unknown) => rejection as Error
+            );
+
+        // Silently ignoring attacker-supplied state and answering with a success-shaped page
+        // would hide the rejection from the caller, so an explicit failure is required.
+        expect(error, 'an unknown continuation must be rejected, not quietly ignored').toBeInstanceOf(Error);
+        // The refusal must not echo the host's Graph state back to the webview.
+        expect(error!.message).not.toContain('graph.microsoft.com');
+        expect(error!.message).not.toContain('skiptoken');
+        expect(error!.message).not.toContain('http');
+        return error!;
+    }
+
+    test('a forged continuation identifier is rejected and never reaches Graph', async () => {
         const { fake, api: subject } = api();
 
-        // Either the host rejects the unknown identifier outright, or it ignores it — but under
-        // no circumstance may it turn attacker-supplied state into a Graph request.
-        const outcome = await subject
-            .execute('containers.list', { continuationToken: 'forged', continuation: 'forged' }, context)
-            .then(() => 'resolved' as const, () => 'rejected' as const);
+        const error = await expectRejectedLoadMore(subject, 'forged');
 
-        const followUps = fake.calls.filter((c) => c.path.includes('forged') || c.path.includes('http'));
-        expect(followUps).toHaveLength(0);
-        if (outcome === 'resolved') {
-            // Ignored rather than rejected: it must not have fetched anything beyond page one.
-            expect(fake.calls.filter((c) => c.method === 'GET' && c.path.endsWith('/storage/fileStorage/containers'))).toHaveLength(1);
-        }
+        expect((error as { code?: unknown }).code, 'the rejection must be the typed continuation refusal')
+            .toBe('invalidContinuation');
+        // A refused continuation costs zero Graph requests: nothing was fetched at all.
+        expect(fake.calls).toHaveLength(0);
     });
 
-    test('a raw Graph nextLink supplied by the webview is never used as a request path', async () => {
+    test('a raw Graph nextLink supplied by the webview is rejected and never used as a request path', async () => {
         const { fake, api: subject } = api();
 
-        await subject
-            .execute('containers.list', { continuationToken: NEXT_LINK }, context)
-            .catch(() => undefined);
+        const error = await expectRejectedLoadMore(subject, NEXT_LINK);
 
+        expect((error as { code?: unknown }).code).toBe('invalidContinuation');
+        expect(fake.calls).toHaveLength(0);
         for (const call of fake.calls) {
             expect(call.path).not.toContain('graph.microsoft.com');
             expect(call.path).not.toContain('skiptoken');
         }
+    });
+
+    test('a continuation issued for this panel cannot be replayed into another view', async () => {
+        const { fake, api: subject } = api();
+
+        const first = await subject.execute('containers.list', {}, context) as { continuation?: string };
+        expect(first.continuation, 'a multi-page listing must offer a continuation').toBeTruthy();
+        const callsAfterFirstPage = fake.calls.length;
+
+        // Same token, a different collection kind: the binding must refuse it.
+        const error = await subject
+            .execute(
+                'collections.loadMore',
+                { continuation: first.continuation, scope: { kind: 'deletedContainers' } },
+                context
+            )
+            .then(() => undefined, (rejection: unknown) => rejection as Error);
+
+        expect(error, 'a cross-scope replay must be rejected').toBeInstanceOf(Error);
+        expect((error as { code?: unknown }).code).toBe('invalidContinuation');
+        expect(fake.calls).toHaveLength(callsAfterFirstPage);
     });
 });
 

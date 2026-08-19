@@ -219,6 +219,24 @@ export class StorageExplorerWebview {
     }
 
     /**
+     * The inline failure surfaced next to "Load more" when a next-page fetch failed.
+     *
+     * Resolved by test id first and by the accessible alert role second, so the assertion is
+     * on the user-visible guarantee (the failure is announced, not swallowed) rather than on
+     * one particular markup choice.
+     */
+    loadMoreError(): Locator {
+        return this.page
+            .locator(`[data-testid="${TID.loadMoreError}"], [role="alert"]:has-text("Load more")`)
+            .first();
+    }
+
+    /** The transient "loading the next page" indicator. */
+    loadMoreLoading(): Locator {
+        return this.page.locator(`[data-testid="${TID.loadMoreLoading}"]`);
+    }
+
+    /**
      * Names of every currently rendered list row, in DOM (visual) order.
      *
      * Scoped by `[data-item-id]` because the per-row checkbox (`file-row-checkbox`) and
