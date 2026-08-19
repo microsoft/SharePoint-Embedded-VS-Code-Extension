@@ -75,6 +75,9 @@ const bytes = z
 
 /* eslint-disable @typescript-eslint/naming-convention -- keys are dotted operation ids, not identifiers */
 export const OPERATION_SCHEMAS = {
+    // ── authorization ─────────────────────────────────────────────────────────
+    'authorization.get': empty,
+
     // ── containers ────────────────────────────────────────────────────────────
     'containers.list': empty,
     'containers.get': z.object({ containerId: id }),

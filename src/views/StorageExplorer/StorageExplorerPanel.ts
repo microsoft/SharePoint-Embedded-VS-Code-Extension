@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import { randomBytes } from 'crypto';
 import { URL } from 'url';
-import { ContainerType, ContainerTypeRegistration } from '../../models/schemas';
+import { ContainerType, ContainerTypeAppPermission, ContainerTypeRegistration } from '../../models/schemas';
 import { ext } from '../../utils/extensionVariables';
 import { AuthenticationState } from '../../services/AuthenticationState';
 import { serializeError, StorageExplorerApi } from '../../services/StorageExplorer/StorageExplorerApi';
@@ -84,6 +84,8 @@ export class StorageExplorerPanel {
     private _isDisposed = false;
     /** In-flight permission prompt, so a burst of failed calls raises a single dialog. */
     private _permissionPrompt: Promise<void> | undefined;
+    /** Last grant logged, so the per-operation read reports changes instead of every call. */
+    private _lastLoggedScopes: string | undefined;
 
     private constructor(
         panel: vscode.WebviewPanel,
@@ -106,7 +108,7 @@ export class StorageExplorerPanel {
             client,
             // Capability gating reads the live grant on the extension host; the webview never
             // learns anything about it beyond the scope names a denied call names.
-            () => readGrantedExtensionAppScopes(state.containerTypeId)
+            () => this._readGrantedScopesForGating()
         );
 
         this._panel.webview.html = StorageExplorerPanel._buildHtml(this._panel.webview, state);
@@ -280,6 +282,39 @@ export class StorageExplorerPanel {
                 .finally(() => { this._permissionPrompt = undefined; });
         }
         return this._permissionPrompt;
+    }
+
+    /**
+     * Read the extension app's live grant for capability gating, reporting what it saw.
+     *
+     * Every authorization decision in this panel rests on this one value, so when the UI
+     * disagrees with what an operator believes they granted, the grant the host actually
+     * read is the first thing that has to be checkable. Only scope *names* are written —
+     * never the token, the app id, or the tenant — and only when the set changes, so the
+     * per-operation read does not flood the channel.
+     */
+    private async _readGrantedScopesForGating(): Promise<readonly ContainerTypeAppPermission[]> {
+        try {
+            const granted = await readGrantedExtensionAppScopes(this._containerTypeId);
+            const fingerprint = [...granted].sort().join(',');
+            if (fingerprint !== this._lastLoggedScopes) {
+                this._lastLoggedScopes = fingerprint;
+                ext.outputChannel.info(
+                    '[StorageExplorerPanel] extension app delegated scopes on this container type: '
+                    + (granted.length ? [...granted].sort().join(', ') : '(none)')
+                );
+            }
+            return granted;
+        } catch (error) {
+            // Fails closed in `StorageExplorerApi`, but a silent denial is indistinguishable
+            // from an empty grant, so say which one this was.
+            this._lastLoggedScopes = undefined;
+            ext.outputChannel.error(
+                '[StorageExplorerPanel] could not read the extension app grant; every gated '
+                + `operation will be denied until this succeeds: ${(error as Error)?.message ?? error}`
+            );
+            throw error;
+        }
     }
 
     /** Post to the webview unless the panel has already been torn down. */

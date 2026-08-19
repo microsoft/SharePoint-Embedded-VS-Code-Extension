@@ -142,6 +142,10 @@ test('SDK permission handler enforces read, write, and default-deny authority', 
         { kind: 'approve-once' }
     );
     assert.deepEqual(
+        await decide({ kind: 'read', path: '/webview-ui/src/App.tsx' }, invocation),
+        { kind: 'approve-once' }
+    );
+    assert.deepEqual(
         await decide({ kind: 'write', fileName: 'webview-ui/src/context/example.ts' }, invocation),
         { kind: 'approve-once' }
     );
@@ -167,6 +171,34 @@ test('SDK permission handler enforces read, write, and default-deny authority', 
     );
 });
 
+test('SDK reviewer may read retained evidence but not arbitrary sibling paths', async () => {
+    const temporaryRoot = await mkdtemp(path.join(os.tmpdir(), 'spe-sdk-evidence-'));
+    try {
+        const options = await buildInvocationOptions('reviewer');
+        options.worktreePath = path.join(temporaryRoot, 'review');
+        options.readRoots = [path.join(temporaryRoot, 'evidence')];
+        const decide = createSdkPermissionHandler(options);
+        const invocation = { sessionId: 'test' };
+
+        assert.deepEqual(
+            await decide({
+                kind: 'read',
+                path: path.join(temporaryRoot, 'evidence', 'validation.log')
+            }, invocation),
+            { kind: 'approve-once' }
+        );
+        assert.equal(
+            (await decide({
+                kind: 'read',
+                path: path.join(temporaryRoot, 'other-run', 'validation.log')
+            }, invocation)).kind,
+            'reject'
+        );
+    } finally {
+        await rm(temporaryRoot, { recursive: true, force: true });
+    }
+});
+
 test('SDK structured results accept only a schema-valid JSON object', () => {
     const validate = (value: unknown) => (
         value && typeof value === 'object' && 'status' in value
@@ -186,6 +218,29 @@ test('SDK structured results accept only a schema-valid JSON object', () => {
         () => parseSdkStructuredResult('{"summary":"missing"}', validate),
         /Missing status/
     );
+});
+
+test('SDK worker requests one raw JSON correction after a malformed final response', async () => {
+    const temporaryRoot = await mkdtemp(path.join(os.tmpdir(), 'spe-sdk-test-'));
+    const options = await buildInvocationOptions('reviewer', temporaryRoot);
+    let sendCount = 0;
+    const client = new MockClient(async config => {
+        sendCount++;
+        const content = sendCount === 1
+            ? `\`\`\`json\n${validReviewerJson()}\n\`\`\``
+            : validReviewerJson();
+        config.onEvent?.({ type: 'assistant.message', data: { content } });
+        config.onEvent?.({ type: 'session.idle', data: {} });
+        return { type: 'assistant.message', data: { content } };
+    });
+
+    try {
+        const result = await invokeSdkWorker(options, factoryFor(client));
+        assert.equal((result as { decision: string }).decision, 'blocked');
+        assert.equal(sendCount, 2);
+    } finally {
+        await rm(temporaryRoot, { recursive: true, force: true });
+    }
 });
 
 test('SDK worker captures lifecycle events and runtime metadata incrementally', async () => {

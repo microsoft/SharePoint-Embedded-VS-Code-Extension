@@ -62,11 +62,43 @@ export const PERMISSION_MANAGEMENT_CAPABILITIES: readonly StorageExplorerCapabil
 ];
 
 /**
+ * Every capability the matrix can require.
+ *
+ * Doubles as the expansion of Graph's `full` umbrella and as the filter that keeps scopes the
+ * matrix never names — `manageContent`, `unknownFutureValue` — out of the capability set.
+ */
+export const STORAGE_EXPLORER_CAPABILITIES: readonly StorageExplorerCapability[] = [
+    'read',
+    'write',
+    'create',
+    'delete',
+    'readContent',
+    'writeContent',
+    ...PERMISSION_MANAGEMENT_CAPABILITIES
+];
+
+/** Scopes Graph treats as umbrellas, mapped to the capabilities each one confers. */
+const UMBRELLA_SCOPES: Readonly<Record<string, readonly StorageExplorerCapability[]>> = {
+    // `full` is complete control over the container type. `ContainerTypeAppPermissionGrantService`
+    // already accepts it in place of any required scope, and the two must agree: if this
+    // calculation did not expand it, a tenant that granted `full` would be told it was missing
+    // every scope and would find the whole Storage Explorer disabled.
+    /* eslint-disable-next-line @typescript-eslint/naming-convention -- Graph scope name */
+    full: STORAGE_EXPLORER_CAPABILITIES,
+    // Graph models `managePermissions` as the umbrella over the four granular permission
+    // scopes plus `deleteOwnPermission`.
+    /* eslint-disable-next-line @typescript-eslint/naming-convention -- Graph scope name */
+    managePermissions: PERMISSION_MANAGEMENT_CAPABILITIES,
+};
+
+/**
  * Expand a raw grant into the set of capabilities it confers.
  *
- * Only the expansion Graph itself applies is encoded here — `managePermissions` implying the
- * granular permission scopes. Nothing else is inferred: quietly widening a partial grant
- * would let a call through that the service will deny.
+ * Only the expansions Graph itself applies are encoded here (see {@link UMBRELLA_SCOPES}).
+ * Nothing else is inferred: quietly widening a partial grant would let a call through that
+ * the service will deny. Scopes outside {@link STORAGE_EXPLORER_CAPABILITIES} are ignored
+ * rather than passed through, so a scope the matrix never names can never satisfy a
+ * requirement by accident.
  */
 export function calculateCapabilities(
     granted: readonly ContainerTypeAppPermission[] | undefined | null
@@ -74,11 +106,13 @@ export function calculateCapabilities(
     const capabilities = new Set<StorageExplorerCapability>();
     for (const permission of granted ?? []) {
         if (permission === 'none') { continue; }
-        capabilities.add(permission as StorageExplorerCapability);
-        if (permission === 'managePermissions') {
-            for (const implied of PERMISSION_MANAGEMENT_CAPABILITIES) {
-                capabilities.add(implied);
-            }
+        const implied = UMBRELLA_SCOPES[permission];
+        if (implied) {
+            for (const capability of implied) { capabilities.add(capability); }
+            continue;
+        }
+        if ((STORAGE_EXPLORER_CAPABILITIES as readonly string[]).includes(permission)) {
+            capabilities.add(permission as StorageExplorerCapability);
         }
     }
     return capabilities;
@@ -104,6 +138,9 @@ export function hasCapability(
  */
 /* eslint-disable @typescript-eslint/naming-convention -- keys are dotted operation ids, not identifiers */
 export const OPERATION_REQUIRED_CAPABILITIES: Record<StorageExplorerOperation, readonly StorageExplorerCapability[]> = {
+    // ── authorization ────────────────────────────────────────────────────────
+    'authorization.get': [],
+
     // ── containers ────────────────────────────────────────────────────────────
     'containers.list': ['read'],
     'containers.get': ['read'],

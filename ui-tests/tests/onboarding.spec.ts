@@ -91,7 +91,7 @@ test.describe('AC-16 — denied interactions are actionable, not empty', () => {
             .toBe(true);
     });
 
-    test('a denied container mutation reports the operation-specific scope', async ({ page }) => {
+    test('a missing create grant disables New Container and names the required scope', async ({ page }) => {
         const state = seedState({ containers: 1 });
         state.appPermissionGrants.set('spe-ui-test', {
             delegatedPermissions: ['read', 'readContent'],
@@ -99,11 +99,13 @@ test.describe('AC-16 — denied interactions are actionable, not empty', () => {
         });
 
         const harness = await openStorageExplorer(page, state);
-        await harness.view.tid(TID.actionNewContainer).click();
-        await harness.view.tid(TID.newContainerNameInput).fill('Denied');
-        await harness.view.tid(TID.modalConfirm).click();
+        const create = harness.view.tid(TID.actionNewContainer);
 
-        await expect(page.getByText(/permission/i).first()).toBeVisible({ timeout: 15_000 });
+        await expect(create).toHaveAttribute('aria-disabled', 'true');
+        await expect(create).toHaveAttribute('title', /create app permission/i);
+        await create.click();
+        await expect(page.getByTestId('permission-notice')).toContainText('create app permission');
+        await expect(harness.view.tid(TID.modal)).toHaveCount(1);
         await expect(harness.view.row('Denied'), 'a denied create must not produce a local row')
             .toHaveCount(0);
     });
@@ -122,17 +124,15 @@ test.describe('AC-16 — denied interactions are actionable, not empty', () => {
 
         const before = harness.requests.filter((r) => r.method === 'POST' && r.pathname.endsWith('/children')).length;
 
-        await view.tid(TID.actionNewDropdown).click();
-        await view.tid(TID.actionNewFolder).click();
-        await view.tid(TID.newItemNameInput).fill('Denied Folder');
-        await view.tid(TID.modalConfirm).click();
+        const newItem = view.tid(TID.actionNewDropdown);
+        const upload = view.tid(TID.actionUpload);
+        await expect(newItem).toHaveAttribute('aria-disabled', 'true');
+        await expect(newItem).toHaveAttribute('title', /writeContent app permission/i);
+        await expect(upload).toHaveAttribute('aria-disabled', 'true');
+        await expect(upload).toHaveAttribute('title', /writeContent app permission/i);
+        await newItem.click();
 
-        // Operation-specific guidance, and an offer to fix it — not a silent no-op.
-        const banner = page
-            .locator(`[data-testid="${TID.permissionBanner}"]`)
-            .or(page.getByText(/permission/i).filter({ hasText: /update|grant|required|writeContent/i }))
-            .first();
-        await expect(banner).toBeVisible({ timeout: 15_000 });
+        await expect(page.getByTestId('permission-notice')).toContainText('writeContent app permission');
 
         await expect(view.row('Denied Folder'), 'a denied create must not produce a local row')
             .toHaveCount(0);
@@ -140,6 +140,24 @@ test.describe('AC-16 — denied interactions are actionable, not empty', () => {
             harness.requests.filter((r) => r.method === 'POST' && r.pathname.endsWith('/children')).length,
             'a denied file action must not reach Graph'
         ).toBe(before);
+    });
+
+    test('missing readContent disables preview and download while read-only browsing remains available', async ({ page }) => {
+        const state = seedState({ containers: 1 });
+        state.appPermissionGrants.set('spe-ui-test', {
+            delegatedPermissions: ['read'],
+            applicationPermissions: [],
+        });
+
+        const harness = await openStorageExplorer(page, state);
+        await harness.view.openContainer('Seed Container');
+        await harness.view.row('Report.docx').click();
+
+        await expect(harness.view.tid(TID.actionPreview)).toHaveAttribute('aria-disabled', 'true');
+        await expect(harness.view.tid(TID.actionPreview)).toHaveAttribute('title', /readContent app permission/i);
+        await expect(harness.view.tid(TID.actionDownload)).toHaveAttribute('aria-disabled', 'true');
+        await expect(harness.view.tid(TID.actionDownload)).toHaveAttribute('title', /readContent app permission/i);
+        await expect(harness.view.row('Report.docx')).toBeVisible();
     });
 });
 

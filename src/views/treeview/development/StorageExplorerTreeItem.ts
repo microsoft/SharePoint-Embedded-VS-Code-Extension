@@ -39,17 +39,17 @@ export class StorageExplorerTreeItem extends vscode.TreeItem {
 
         switch (readiness) {
             case 'ready':
-                this.iconPath = new vscode.ThemeIcon('folder-library');
+                this.iconPath = new vscode.ThemeIcon('database');
                 this.tooltip = new vscode.MarkdownString(vscode.l10n.t(
                     '**Storage Explorer**\n\nBrowse containers, create folders, and upload files for this container type.'
                 ));
                 break;
 
             case 'unregistered':
-                this.description = vscode.l10n.t('(register to use)');
+                this.description = vscode.l10n.t('⚠ Not registered');
                 this.iconPath = new vscode.ThemeIcon(
-                    'folder-library',
-                    new vscode.ThemeColor('disabledForeground')
+                    'database',
+                    new vscode.ThemeColor('list.warningForeground')
                 );
                 this.tooltip = new vscode.MarkdownString(vscode.l10n.t(
                     '**Storage Explorer is not available yet.**\n\nThis container type is not registered on your local tenant. Right-click the container type and choose **Register on local tenant** to continue.'
@@ -57,9 +57,9 @@ export class StorageExplorerTreeItem extends vscode.TreeItem {
                 break;
 
             case 'missingPermissions':
-                this.description = vscode.l10n.t('(permissions needed)');
+                this.description = vscode.l10n.t('⚠ App permissions required');
                 this.iconPath = new vscode.ThemeIcon(
-                    'folder-library',
+                    'database',
                     new vscode.ThemeColor('list.warningForeground')
                 );
                 this.tooltip = new vscode.MarkdownString(vscode.l10n.t(
@@ -68,9 +68,9 @@ export class StorageExplorerTreeItem extends vscode.TreeItem {
                 break;
 
             case 'billingBlocked':
-                this.description = vscode.l10n.t('(billing not set up)');
+                this.description = vscode.l10n.t('⚠ Billing required');
                 this.iconPath = new vscode.ThemeIcon(
-                    'folder-library',
+                    'database',
                     new vscode.ThemeColor('list.warningForeground')
                 );
                 this.tooltip = new vscode.MarkdownString(vscode.l10n.t(

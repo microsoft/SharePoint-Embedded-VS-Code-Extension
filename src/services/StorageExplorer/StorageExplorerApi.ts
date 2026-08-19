@@ -14,6 +14,7 @@ import { PermissionGraphService } from './PermissionGraphService';
 import { isStorageExplorerOperation, OPERATION_SCHEMAS } from './operationSchemas';
 import { ContinuationStore, GraphPage } from './pagination';
 import {
+    AuthorizationSnapshot,
     CollectionScope,
     OperationParams,
     OperationResult,
@@ -25,6 +26,7 @@ import {
 import type { ContainerTypeAppPermission } from '../../models/schemas';
 import {
     missingCapabilitiesForOperation,
+    OPERATION_REQUIRED_CAPABILITIES,
     StorageExplorerCapability,
 } from '../../utils/ExtensionAppPermissionScopes';
 
@@ -113,9 +115,6 @@ export class StorageExplorerApi {
     private readonly _containersInScope = new Set<string>();
     private readonly _pendingScopeChecks = new Map<string, Promise<void>>();
 
-    /** Memoized grant lookup; invalidated whenever the host grants new permissions. */
-    private _grantedScopes: Promise<readonly ContainerTypeAppPermission[]> | undefined;
-
     /**
      * Grant lookup backing the capability matrix.
      *
@@ -150,9 +149,12 @@ export class StorageExplorerApi {
         this._handlers = this._buildHandlers();
     }
 
-    /** Drop the memoized grant so the next authorization check re-reads it. */
+    /**
+     * Retained for grant-flow callers. Authorization reads are intentionally live now, so
+     * externally removed scopes cannot remain authorized for the lifetime of an open panel.
+     */
     public invalidateGrantedScopes(): void {
-        this._grantedScopes = undefined;
+        // No cached grant remains to invalidate.
     }
 
     /**
@@ -211,20 +213,26 @@ export class StorageExplorerApi {
         const required = missingCapabilitiesForOperation(operation, []);
         if (required.length === 0) { return; }
 
-        if (!this._grantedScopes) {
-            const pending = Promise.resolve(readGrantedScopes());
-            this._grantedScopes = pending;
-            // A failed lookup must not be memoized as "nothing granted".
-            pending.catch(() => {
-                if (this._grantedScopes === pending) { this._grantedScopes = undefined; }
-            });
-        }
-
-        const granted = await this._grantedScopes;
+        // Read on every operation. App permissions can be edited outside this panel, and a
+        // panel-lifetime cache would continue authorizing removed scopes until VS Code reloads.
+        const granted = await readGrantedScopes();
         const missing = missingCapabilitiesForOperation(operation, granted);
         if (missing.length > 0) {
             throw new MissingContainerTypePermissionError(missing as StorageExplorerCapability[]);
         }
+    }
+
+    /** Return operation-level missing scopes without exposing the underlying grant document. */
+    private async _getAuthorizationSnapshot(): Promise<AuthorizationSnapshot> {
+        const granted = this._readGrantedScopes ? await this._readGrantedScopes() : [];
+        const missingScopesByOperation: Record<string, string[]> = {};
+        for (const operation of Object.keys(OPERATION_REQUIRED_CAPABILITIES) as StorageExplorerOperation[]) {
+            const missing = missingCapabilitiesForOperation(operation, granted);
+            if (missing.length > 0) {
+                missingScopesByOperation[operation] = missing;
+            }
+        }
+        return { missingScopesByOperation };
     }
 
     /** Start (or restart) a first-page listing, retiring the view's earlier continuations. */
@@ -328,6 +336,9 @@ export class StorageExplorerApi {
         const me = this._me;
 
         return {
+            // ── authorization ─────────────────────────────────────────────────
+            'authorization.get': () => this._getAuthorizationSnapshot(),
+
             // ── containers ────────────────────────────────────────────────────
             'containers.list': async () => this._listFirstPage(
                 { kind: 'containers' },

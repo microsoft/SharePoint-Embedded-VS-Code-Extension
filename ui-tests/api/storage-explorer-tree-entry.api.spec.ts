@@ -55,6 +55,11 @@ function iconColorId(item: any): string | undefined {
     return (item.iconPath as StubThemeIcon).color?.id;
 }
 
+function iconId(item: any): string {
+    expect(item.iconPath, 'the entry must always carry an icon').toBeInstanceOf(StubThemeIcon);
+    return (item.iconPath as StubThemeIcon).id;
+}
+
 function tooltipText(item: any): string {
     expect(item.tooltip, 'the entry must always carry a tooltip').toBeInstanceOf(StubMarkdownString);
     return (item.tooltip as StubMarkdownString).value;
@@ -69,6 +74,8 @@ test.describe('AC-11 — the entry is always present and always says which state
             expect(item.collapsibleState, 'the entry has no children of its own')
                 .toBe(vscode.TreeItemCollapsibleState.None);
             expect(item.id, 'the row id must be stable per container type').toContain(CONTAINER_TYPE.id);
+            expect(iconId(item), 'the tree row must match the Storage Explorer hover action icon')
+                .toBe('database');
             expect(typeof tooltipText(item)).toBe('string');
             expect(tooltipText(item).length, 'an empty tooltip explains nothing').toBeGreaterThan(0);
         });
@@ -120,12 +127,14 @@ test.describe('AC-11 — the entry is always present and always says which state
     }
 
     test('unregistered points at registration, and nothing else', () => {
-        const tooltip = tooltipText(build('unregistered'));
+        const item = build('unregistered');
+        const tooltip = tooltipText(item);
 
         expect(tooltip).toMatch(/register/i);
+        expect(String(item.description)).toMatch(/warning|⚠|not registered/i);
         expect(tooltip, 'a missing registration must not be reported as a permission problem')
             .not.toMatch(/grant extension app permissions/i);
-        expect(iconColorId(build('unregistered'))).toBe('disabledForeground');
+        expect(iconColorId(item)).toBe('list.warningForeground');
     });
 
     test('missingPermissions points at the extension-app grant, and nothing else', () => {
@@ -133,6 +142,7 @@ test.describe('AC-11 — the entry is always present and always says which state
         const tooltip = tooltipText(item);
 
         expect(tooltip).toMatch(/permission/i);
+        expect(String(item.description)).toMatch(/warning|⚠|permission/i);
         expect(tooltip, 'a registered container type must not be told to register')
             .not.toMatch(/register on local tenant/i);
         expect(iconColorId(item), 'a fixable permission gap is a warning, not a disabled row')

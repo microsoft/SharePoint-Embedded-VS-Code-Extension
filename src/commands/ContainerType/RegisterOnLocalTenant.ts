@@ -18,6 +18,7 @@ import { AdminConsentHelper } from '../../utils/AdminConsentHelper';
 import { clientId } from '../../client';
 import { REQUIRED_DELEGATED_PERMISSIONS } from '../../utils/ExtensionAppPermissions';
 import { openStorageExplorerWhenReady } from './StorageExplorerHandoff';
+import { StorageExplorerTreeItem } from '../../views/treeview/development/StorageExplorerTreeItem';
 
 /**
  * Command to register a container type on the local tenant
@@ -175,7 +176,10 @@ export class RegisterOnLocalTenant extends Command {
 
         // Extract container type
         let containerType: ContainerType;
-        if (commandProps instanceof ContainerTypeTreeItem) {
+        if (
+            commandProps instanceof ContainerTypeTreeItem
+            || commandProps instanceof StorageExplorerTreeItem
+        ) {
             containerType = commandProps.containerType;
         } else if (commandProps) {
             containerType = commandProps as ContainerType;
@@ -844,4 +848,4 @@ export class RegisterOnLocalTenant extends Command {
 }
 
 // Accept both old and new ContainerType models for backward compatibility
-export type RegistrationCommandProps = ContainerTypeTreeItem | ContainerType;
+export type RegistrationCommandProps = ContainerTypeTreeItem | StorageExplorerTreeItem | ContainerType;

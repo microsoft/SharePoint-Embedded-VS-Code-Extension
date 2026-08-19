@@ -10,15 +10,22 @@ import { ProgressWaitNotification } from '../../views/notifications/ProgressWait
 import { hasExtensionAppPermissions, grantExtensionAppPermissions } from '../../utils/ExtensionAppPermissions';
 import { DevelopmentTreeViewProvider } from '../../views/treeview/development/DevelopmentTreeViewProvider';
 import { openStorageExplorerWhenReady } from './StorageExplorerHandoff';
+import { StorageExplorerTreeItem } from '../../views/treeview/development/StorageExplorerTreeItem';
 
 export class GrantExtensionAppPermissions extends Command {
     public static readonly COMMAND = 'ContainerType.grantExtensionAppPermissions';
 
-    public static async run(commandProps?: ContainerTypeTreeItem | string): Promise<boolean> {
+    public static async run(
+        commandProps?: ContainerTypeTreeItem | StorageExplorerTreeItem | string
+    ): Promise<boolean> {
         // Extract container type ID from command props
         let containerTypeId: string | undefined;
-        if (commandProps instanceof ContainerTypeTreeItem) {
-            containerTypeId = commandProps.containerType.id;
+        const treeItem = commandProps instanceof ContainerTypeTreeItem
+            || commandProps instanceof StorageExplorerTreeItem
+            ? commandProps
+            : undefined;
+        if (treeItem) {
+            containerTypeId = treeItem.containerType.id;
         } else if (typeof commandProps === 'string') {
             containerTypeId = commandProps;
         }
@@ -58,8 +65,8 @@ export class GrantExtensionAppPermissions extends Command {
             );
             // Refreshes the tree and, if this grant was the last missing step, takes the
             // user straight into Storage Explorer.
-            if (commandProps instanceof ContainerTypeTreeItem) {
-                await openStorageExplorerWhenReady(commandProps.containerType, commandProps.registration);
+            if (treeItem) {
+                await openStorageExplorerWhenReady(treeItem.containerType, treeItem.registration);
             } else {
                 DevelopmentTreeViewProvider.getInstance().refresh();
             }

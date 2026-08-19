@@ -2,6 +2,7 @@ import React, { useRef, useState, useEffect } from 'react';
 import { useStorageExplorer } from '../../context/StorageExplorerContext';
 import { openUrl } from '../../utils/openUrl';
 import { Modal } from '../Modal/Modal';
+import type { StorageExplorerOperation } from '../../api/protocol';
 
 export function ActionBar() {
     const { path, currentItems, selectedItem, selectedIds, activateContainer, deleteSelected, clearSelected, deleteProgress, cancelDelete } = useStorageExplorer();
@@ -48,13 +49,22 @@ export function ActionBar() {
                             label="Activate"
                             title="Activate selected container"
                             testId="bulk-activate-container"
+                            permissionOperation="containers.activate"
                             onClick={async () => {
                                 await activateContainer(checkedInactiveContainer.id);
                                 clearSelected();
                             }}
                         />
                     )}
-                    <ActionBtn icon="codicon-trash" label={`Delete (${selectedCount})`} title="Delete selected items" testId="bulk-delete" danger onClick={() => setConfirmBulk(true)} />
+                    <ActionBtn
+                        icon="codicon-trash"
+                        label={`Delete (${selectedCount})`}
+                        title="Delete selected items"
+                        testId="bulk-delete"
+                        permissionOperation={atRoot ? 'containers.delete' : 'drive.delete'}
+                        danger
+                        onClick={() => setConfirmBulk(true)}
+                    />
                     <ActionBtn icon="codicon-close" label="Clear" title="Clear selection" testId="bulk-clear" onClick={clearSelected} />
                     <Separator />
                 </>
@@ -122,19 +132,32 @@ function Separator() {
 }
 
 function ActionBtn({
-    icon, label, title, disabled, danger, onClick, testId,
+    icon, label, title, disabled, danger, onClick, testId, permissionOperation,
 }: {
     icon: string; label: string; title: string;
     disabled?: boolean; danger?: boolean; onClick: () => void; testId?: string;
+    permissionOperation?: StorageExplorerOperation;
 }) {
+    const { missingPermissionMessage, requireOperation } = useStorageExplorer();
+    const permissionMessage = permissionOperation
+        ? missingPermissionMessage(permissionOperation)
+        : null;
+    const permissionBlocked = !!permissionOperation && !!permissionMessage;
     return (
         <button
             className="action-btn"
-            title={title}
+            title={permissionBlocked ? permissionMessage : title}
             disabled={disabled}
-            onClick={onClick}
+            aria-disabled={permissionBlocked || disabled}
+            onClick={() => {
+                if (permissionOperation && !requireOperation(permissionOperation)) { return; }
+                onClick();
+            }}
             data-testid={testId}
-            style={danger && !disabled ? { color: 'var(--vscode-errorForeground)' } : undefined}
+            style={{
+                ...(danger && !disabled ? { color: 'var(--vscode-errorForeground)' } : {}),
+                ...(permissionBlocked ? { opacity: 0.45, cursor: 'not-allowed' } : {}),
+            }}
         >
             <span className={`codicon ${icon}`} />
             {label}
@@ -147,14 +170,14 @@ function ContainerActions({ hasSelection }: { hasSelection: boolean }) {
     const canActivate = selectedItem?.kind === 'container' && selectedItem.status === 'inactive';
     return (
         <>
-            <ActionBtn icon="codicon-add" label="New Container" title="Create a new container" testId="action-new-container" onClick={() => openModal({ kind: 'new-container' })} />
-            <ActionBtn icon="codicon-trash" label="Deleted containers" title="View deleted containers" testId="action-deleted-containers" onClick={navigateToDeletedContainers} />
+            <ActionBtn icon="codicon-add" label="New Container" title="Create a new container" testId="action-new-container" permissionOperation="containers.create" onClick={() => openModal({ kind: 'new-container' })} />
+            <ActionBtn icon="codicon-trash" label="Deleted containers" title="View deleted containers" testId="action-deleted-containers" permissionOperation="containers.listDeleted" onClick={navigateToDeletedContainers} />
             <Separator />
             {canActivate && (
-                <ActionBtn icon="codicon-play" label="Activate" title="Activate selected container" testId="action-activate-container" onClick={() => activateContainer(selectedItem.id)} />
+                <ActionBtn icon="codicon-play" label="Activate" title="Activate selected container" testId="action-activate-container" permissionOperation="containers.activate" onClick={() => activateContainer(selectedItem.id)} />
             )}
-            <ActionBtn icon="codicon-edit" label="Rename" title="Rename selected container" testId="action-rename-container" disabled={!hasSelection} onClick={() => selectedItem && openModal({ kind: 'rename', item: selectedItem })} />
-            <ActionBtn icon="codicon-trash" label="Delete" title="Delete selected container" testId="action-delete-container" disabled={!hasSelection} danger onClick={() => selectedItem && openModal({ kind: 'delete', item: selectedItem })} />
+            <ActionBtn icon="codicon-edit" label="Rename" title="Rename selected container" testId="action-rename-container" permissionOperation="containers.rename" disabled={!hasSelection} onClick={() => selectedItem && openModal({ kind: 'rename', item: selectedItem })} />
+            <ActionBtn icon="codicon-trash" label="Delete" title="Delete selected container" testId="action-delete-container" permissionOperation="containers.delete" disabled={!hasSelection} danger onClick={() => selectedItem && openModal({ kind: 'delete', item: selectedItem })} />
         </>
     );
 }
@@ -191,7 +214,7 @@ function FileActions({
                 onChange={handleFilesSelected}
             />
             <NewDropdown />
-            <ActionBtn icon="codicon-cloud-upload" label="Upload" title="Upload files" testId="action-upload" onClick={() => fileInputRef.current?.click()} />
+            <ActionBtn icon="codicon-cloud-upload" label="Upload" title="Upload files" testId="action-upload" permissionOperation="drive.uploadSmall" onClick={() => fileInputRef.current?.click()} />
             {container && (
                 <ActionBtn
                     // Not `codicon-trash`: Delete sits a few buttons away and already uses it.
@@ -200,6 +223,7 @@ function FileActions({
                     label="Recycle bin"
                     title="View this container's recycle bin"
                     testId="action-recycle-bin"
+                    permissionOperation="drive.listRecycleBin"
                     onClick={() => navigateToContainerRecycleBin(container.id, container.label)}
                 />
             )}
@@ -209,10 +233,10 @@ function FileActions({
                 onOpenInWeb={() => selectedItem?.webUrl && openUrl(selectedItem.webUrl)}
                 onOpenInDesktop={() => selectedItem && openInDesktopApp(selectedItem)}
             />
-            <ActionBtn icon="codicon-eye" label="Preview" title="Preview selected file" testId="action-preview" disabled={!canPreview} onClick={() => selectedItem && previewItem(selectedItem)} />
-            <ActionBtn icon="codicon-edit" label="Rename" title="Rename selected item" testId="action-rename-item" disabled={!hasSelection} onClick={() => selectedItem && openModal({ kind: 'rename', item: selectedItem })} />
-            <ActionBtn icon="codicon-trash" label="Delete" title="Delete selected item" testId="action-delete-item" disabled={!hasSelection} danger onClick={() => selectedItem && openModal({ kind: 'delete', item: selectedItem })} />
-            <ActionBtn icon="codicon-cloud-download" label="Download" title="Download selected file" testId="action-download" disabled={!canDownload} onClick={() => selectedItem && downloadItem(selectedItem)} />
+            <ActionBtn icon="codicon-eye" label="Preview" title="Preview selected file" testId="action-preview" permissionOperation="drive.getPreviewUrl" disabled={!canPreview} onClick={() => selectedItem && previewItem(selectedItem)} />
+            <ActionBtn icon="codicon-edit" label="Rename" title="Rename selected item" testId="action-rename-item" permissionOperation="drive.rename" disabled={!hasSelection} onClick={() => selectedItem && openModal({ kind: 'rename', item: selectedItem })} />
+            <ActionBtn icon="codicon-trash" label="Delete" title="Delete selected item" testId="action-delete-item" permissionOperation="drive.delete" disabled={!hasSelection} danger onClick={() => selectedItem && openModal({ kind: 'delete', item: selectedItem })} />
+            <ActionBtn icon="codicon-cloud-download" label="Download" title="Download selected file" testId="action-download" permissionOperation="drive.getDownloadUrl" disabled={!canDownload} onClick={() => selectedItem && downloadItem(selectedItem)} />
         </>
     );
 }
@@ -235,7 +259,7 @@ function OfficeBadge({ letter, color }: { letter: string; color: string }) {
 // ── + New dropdown ───────────────────────────────────────────────────────────
 
 function NewDropdown() {
-    const { openModal } = useStorageExplorer();
+    const { openModal, missingPermissionMessage, requireOperation } = useStorageExplorer();
     const [open, setOpen] = useState(false);
     const ref = useRef<HTMLDivElement>(null);
 
@@ -256,17 +280,28 @@ function NewDropdown() {
     }, [open]);
 
     function pick(kind: 'new-word' | 'new-powerpoint' | 'new-excel' | 'new-folder' | 'new-file') {
+        const operation = kind === 'new-folder' ? 'drive.createFolder' : 'drive.createFile';
+        if (!requireOperation(operation)) { return; }
         setOpen(false);
         openModal({ kind });
     }
+
+    const permissionMessage = missingPermissionMessage('drive.createFile')
+        ?? missingPermissionMessage('drive.createFolder');
+    const permissionBlocked = !!permissionMessage;
 
     return (
         <div ref={ref} style={{ position: 'relative' }}>
             <button
                 className="action-btn"
-                title="Create a new item"
+                title={permissionMessage ?? 'Create a new item'}
                 data-testid="action-new-dropdown"
-                onClick={() => setOpen(o => !o)}
+                aria-disabled={permissionBlocked}
+                onClick={() => {
+                    if (!requireOperation('drive.createFile')) { return; }
+                    setOpen(o => !o);
+                }}
+                style={permissionBlocked ? { opacity: 0.45, cursor: 'not-allowed' } : undefined}
             >
                 <span className="codicon codicon-add" />
                 New
@@ -318,6 +353,7 @@ function NewDropdown() {
 // ── Open dropdown ────────────────────────────────────────────────────────────
 
 function OpenDropdown({ disabled, onOpenInWeb, onOpenInDesktop }: { disabled: boolean; onOpenInWeb: () => void; onOpenInDesktop: () => void }) {
+    const { missingPermissionMessage, requireOperation } = useStorageExplorer();
     const [open, setOpen] = useState(false);
     const ref = useRef<HTMLDivElement>(null);
 
@@ -337,14 +373,22 @@ function OpenDropdown({ disabled, onOpenInWeb, onOpenInDesktop }: { disabled: bo
         };
     }, [open]);
 
+    const permissionMessage = missingPermissionMessage('drive.getPreviewUrl');
+    const permissionBlocked = !!permissionMessage;
+
     return (
         <div ref={ref} style={{ position: 'relative' }}>
             <button
                 className="action-btn"
                 disabled={disabled}
-                title="Open Office file"
+                aria-disabled={disabled || permissionBlocked}
+                title={permissionMessage ?? 'Open Office file'}
                 data-testid="action-open-dropdown"
-                onClick={() => !disabled && setOpen(o => !o)}
+                onClick={() => {
+                    if (!requireOperation('drive.getPreviewUrl')) { return; }
+                    if (!disabled) { setOpen(o => !o); }
+                }}
+                style={permissionBlocked ? { opacity: 0.45, cursor: 'not-allowed' } : undefined}
             >
                 <span className="codicon codicon-link-external" />
                 Open

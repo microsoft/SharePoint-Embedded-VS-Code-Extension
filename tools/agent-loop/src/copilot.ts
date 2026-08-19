@@ -28,6 +28,7 @@ export interface InvocationOptions<T> {
     repoRoot: string;
     worktreePath: string;
     artifactDir: string;
+    readRoots?: string[];
     runId: string;
     baseCommit: string;
     reviewedCommit?: string;
@@ -167,14 +168,35 @@ export async function invokeSdkWorker<T>(
             sessionId: session.sessionId
         });
 
-        const response = await session.sendAndWait(
+        let response = await session.sendAndWait(
             { prompt },
             options.contract.limits.maxMinutesPerWorker * 60_000
         );
         await eventWrite;
         assertCompletedSdkInvocation(options.assignment.id, response, state);
+        let result: T;
+        try {
+            result = parseSdkStructuredResult<T>(response.data.content, options.validate);
+        } catch (error) {
+            state.sawAssistantMessage = false;
+            state.sawIdle = false;
+            response = await session.sendAndWait(
+                {
+                    prompt: [
+                        'Your previous final response did not satisfy the required raw JSON response contract.',
+                        'Do not modify any files or perform more task work.',
+                        'Return the same result again as exactly one raw JSON object matching the supplied result schema.',
+                        'Do not use Markdown fences and do not include any prose before or after the object.'
+                    ].join(' ')
+                },
+                options.contract.limits.maxMinutesPerWorker * 60_000
+            );
+            await eventWrite;
+            assertCompletedSdkInvocation(options.assignment.id, response, state);
+            result = parseSdkStructuredResult<T>(response.data.content, options.validate);
+        }
         await writeText(stderrPath, '');
-        return parseSdkStructuredResult<T>(response.data.content, options.validate);
+        return result;
     } catch (error) {
         invocationError = error;
         if (session) {
@@ -353,9 +375,15 @@ function decidePermission<T>(
             return reject('Read sandbox bypass is disabled for repository workers.');
         }
         const repositoryPath = resolveRequestedPath(options.worktreePath, request.path);
+        const evidenceRead = options.readRoots?.some(root =>
+            isInsideRoot(root, request.path)
+        ) ?? false;
         if (
-            repositoryPath === undefined ||
-            matchesAny(options.policy.filesystem.deny, repositoryPath)
+            (repositoryPath === undefined && !evidenceRead) ||
+            (
+                repositoryPath !== undefined &&
+                matchesAny(options.policy.filesystem.deny, repositoryPath)
+            )
         ) {
             return reject('Read access is outside the isolated repository authority.');
         }
@@ -427,13 +455,26 @@ function resolveRequestedPath(
     if (!requestedPath) {
         return undefined;
     }
+    const toolPath = /^[\\/](?![\\/])/.test(requestedPath)
+        ? requestedPath.replace(/^[\\/]+/, '')
+        : requestedPath;
     const resolvedRoot = path.resolve(root);
-    const resolvedPath = path.resolve(root, requestedPath);
+    const resolvedPath = path.resolve(root, toolPath);
     const relative = path.relative(resolvedRoot, resolvedPath);
     if (relative.startsWith('..') || path.isAbsolute(relative)) {
         return undefined;
     }
     return normalizeRepositoryPath(relative);
+}
+
+function isInsideRoot(root: string, requestedPath: string | undefined): boolean {
+    if (!requestedPath) {
+        return false;
+    }
+    const resolvedRoot = path.resolve(root);
+    const resolvedPath = path.resolve(root, requestedPath);
+    const relative = path.relative(resolvedRoot, resolvedPath);
+    return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
 }
 
 function reject(feedback: string): SdkPermissionResult {

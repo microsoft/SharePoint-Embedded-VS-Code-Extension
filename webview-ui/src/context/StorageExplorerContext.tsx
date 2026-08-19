@@ -2,7 +2,13 @@ import React, { createContext, useCallback, useContext, useEffect, useRef, useSt
 import { StorageItem, BreadcrumbEntry, SortColumn, SortDirection, SidePanelTab, ModalState, ViewMode, NetworkRequest, UploadFile, UploadStatus } from '../models/StorageItem';
 import { DELETED_CONTAINERS, RECYCLED_ITEMS_BY_CONTAINER_ID } from '../data/dummyData';
 import { createStorageExplorerApi, onHostNetworkRequest, StorageExplorerApi } from '../api';
-import type { CollectionScope, MissingExtensionPermissionsCode, StorageExplorerReadiness } from '../api/protocol';
+import type {
+    AuthorizationSnapshot,
+    CollectionScope,
+    MissingExtensionPermissionsCode,
+    StorageExplorerOperation,
+    StorageExplorerReadiness,
+} from '../api/protocol';
 
 /** Stable key for a collection scope, so continuations are tracked per view. */
 function scopeKey(scope: CollectionScope): string {
@@ -127,6 +133,20 @@ interface StorageExplorerContextValue {
     readiness: StorageExplorerReadiness;
     /** Scope names the container type still needs granted, when readiness blocks on them. */
     requiredScopes: string[];
+    canPerform: (operation: StorageExplorerOperation) => boolean;
+    missingPermissionMessage: (operation: StorageExplorerOperation) => string | null;
+    /** Scopes `operation` lacks; empty while the authorization snapshot is still unknown. */
+    missingScopesForOperation: (operation: StorageExplorerOperation) => string[];
+    requireOperation: (operation: StorageExplorerOperation) => boolean;
+    /**
+     * Every app permission the extension app is missing on this container type, deduplicated
+     * across operations. Non-empty means part of the UI is disabled, so it is what the
+     * always-visible banner and the empty states name.
+     */
+    missingScopes: string[];
+    permissionNotice: string | null;
+    dismissPermissionNotice: () => void;
+    refreshAuthorization: () => Promise<void>;
     /** True when the server said another page exists for the view on screen. */
     canLoadMore: boolean;
     /** Fetch exactly one more page for the current view. No-op when there is nothing more. */
@@ -198,7 +218,7 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
      * webview must not issue them: the onboarding surface names the next action instead, and
      * a blocked panel costs zero Graph requests.
      */
-    const isReady = readiness === 'ready';
+    const isReady = readiness === 'ready' || readiness === 'missingPermissions';
 
     // ── API instances (created once per session) ──────────────────────────────
     // No credentials live here: every service forwards a named operation to the
@@ -262,6 +282,8 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
     const [loadError, setLoadError] = useState<LoadFailure | null>(null);
     // True while the host is showing the extension-app grant prompt on our behalf.
     const [isGrantingPermissions, setIsGrantingPermissions] = useState(false);
+    const [authorizationSnapshot, setAuthorizationSnapshot] = useState<AuthorizationSnapshot | null>(null);
+    const [permissionNotice, setPermissionNotice] = useState<string | null>(null);
     const [networkRequests, setNetworkRequests] = useState<NetworkRequest[]>([]);
     const [networkDrawerOpen, setNetworkDrawerOpen] = useState(false);
     // ── upload state ──
@@ -296,6 +318,68 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
         }
         return { kind: 'normal' };
     }, [lastId, path]);
+
+    const refreshAuthorization = useCallback(async () => {
+        try {
+            setAuthorizationSnapshot(await apiRef.current!.authorization.get());
+        } catch (error) {
+            setAuthorizationSnapshot(null);
+            setPermissionNotice(error instanceof Error
+                ? `Unable to verify app permissions: ${error.message}`
+                : 'Unable to verify app permissions.');
+        }
+    }, []);
+
+    const missingPermissionMessage = useCallback((operation: StorageExplorerOperation): string | null => {
+        if (!authorizationSnapshot) {
+            return 'Checking app permissions...';
+        }
+        const scopes = authorizationSnapshot.missingScopesByOperation[operation] ?? [];
+        if (scopes.length === 0) {
+            return null;
+        }
+        return `This action requires the ${scopes.join(', ')} app `
+            + `${scopes.length === 1 ? 'permission' : 'permissions'}.`;
+    }, [authorizationSnapshot]);
+
+    /**
+     * Scopes `operation` is missing, or `[]` while the snapshot is still unknown.
+     *
+     * Unlike {@link missingPermissionMessage}, "not known yet" reads as "nothing missing" —
+     * this drives what an *empty* result is explained as, and a still-loading snapshot must
+     * not accuse the tenant of a grant it may well have.
+     */
+    const missingScopesForOperation = useCallback((operation: StorageExplorerOperation): string[] =>
+        authorizationSnapshot?.missingScopesByOperation[operation] ?? [], [authorizationSnapshot]);
+
+    const canPerform = useCallback((operation: StorageExplorerOperation): boolean =>
+        missingPermissionMessage(operation) === null, [missingPermissionMessage]);
+
+    /**
+     * The union of every scope the host reported as missing.
+     *
+     * Derived rather than requested separately so it can never disagree with the per-operation
+     * gating: if any action is disabled, its scope appears here, and the banner is shown.
+     */
+    const missingScopes = useMemo((): string[] => {
+        if (!authorizationSnapshot) { return []; }
+        const scopes = new Set<string>();
+        for (const operationScopes of Object.values(authorizationSnapshot.missingScopesByOperation)) {
+            for (const scope of operationScopes) { scopes.add(scope); }
+        }
+        return [...scopes].sort();
+    }, [authorizationSnapshot]);
+
+    const requireOperation = useCallback((operation: StorageExplorerOperation): boolean => {
+        const message = missingPermissionMessage(operation);
+        if (!message) {
+            return true;
+        }
+        setPermissionNotice(message);
+        return false;
+    }, [missingPermissionMessage]);
+
+    const dismissPermissionNotice = useCallback(() => setPermissionNotice(null), []);
 
     // ── Refresh / data loading ────────────────────────────────────────────────
 
@@ -362,6 +446,7 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
                     setRootItems([]);
                     setContinuations(prev => ({ ...prev, [key]: undefined }));
                     setLoadError(toLoadFailure(err));
+                    if (err?.code === MISSING_EXTENSION_PERMISSIONS_CODE) { void refreshAuthorization(); }
                 })
                 .finally(() => { if (isCurrent()) { setIsLoading(false); } });
         } else if (currentViewMode.kind === 'deleted-containers') {
@@ -379,6 +464,7 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
                     setDeletedContainers([]);
                     setContinuations(prev => ({ ...prev, [key]: undefined }));
                     setLoadError(toLoadFailure(err));
+                    if (err?.code === MISSING_EXTENSION_PERMISSIONS_CODE) { void refreshAuthorization(); }
                 })
                 .finally(() => { if (isCurrent()) { setIsLoading(false); } });
         } else {
@@ -386,7 +472,7 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
         }
     // panelState is stable (injected once at mount)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [beginLoad, isReady]);
+    }, [beginLoad, isReady, refreshAuthorization]);
 
     /**
      * Load the first page of drive items whenever we navigate into a container/folder.
@@ -410,9 +496,18 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
                 setFolderItems(prev => ({ ...prev, [key]: [] }));
                 setContinuations(prev => ({ ...prev, [continuationKey]: undefined }));
                 if (isCurrent()) { setLoadError(toLoadFailure(err)); }
+                if (err?.code === MISSING_EXTENSION_PERMISSIONS_CODE) { void refreshAuthorization(); }
             })
             .finally(() => { if (isCurrent()) { setIsLoading(false); } });
-    }, [beginLoad, isReady]);
+    }, [beginLoad, isReady, refreshAuthorization]);
+
+    useEffect(() => {
+        if (!isReady) { return; }
+        void refreshAuthorization();
+        const onFocus = (): void => { void refreshAuthorization(); };
+        window.addEventListener('focus', onFocus);
+        return () => window.removeEventListener('focus', onFocus);
+    }, [isReady, refreshAuthorization]);
 
     // Load whenever the view mode changes (includes initial mount)
     useEffect(() => {
@@ -470,6 +565,7 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
     }, [viewMode.kind === 'container-recycle-bin' ? (viewMode as any).containerId : null]);
 
     const refresh = useCallback(() => {
+        void refreshAuthorization();
         if (viewMode.kind !== 'normal' || lastId === null) {
             loadCurrentView(viewMode);
             return;
@@ -478,7 +574,7 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
         if (!driveId) { loadCurrentView(viewMode); return; }
         const itemId = lastId !== driveId ? lastId : undefined;
         loadDriveItems(driveId, itemId);
-    }, [loadCurrentView, loadDriveItems, viewMode, lastId, path]);
+    }, [loadCurrentView, loadDriveItems, refreshAuthorization, viewMode, lastId, path]);
 
     /**
      * Ask the host to raise the extension-app grant prompt.
@@ -497,8 +593,10 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
     // behind the button — so the button always stops spinning, granted or not.
     useEffect(() => onExtensionMessage('permissionsGrantResult', message => {
         setIsGrantingPermissions(false);
-        if (message.granted) { refresh(); }
-    }), [refresh]);
+        if (message.granted) {
+            void refreshAuthorization().then(refresh);
+        }
+    }), [refresh, refreshAuthorization]);
 
     const updateContainerInCurrentSession = useCallback((
         containerId: string,
@@ -538,6 +636,7 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
     }, []);
 
     const createContainer = useCallback(async (name: string, description?: string) => {
+        if (!requireOperation('containers.create')) { return; }
         // containerTypeId is injected host-side; the webview cannot repoint it.
         const created = await apiRef.current!.containers.create(name, description);
         setLocallyCreatedContainers(prev => {
@@ -547,25 +646,28 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
         });
         void loadCurrentView(viewMode);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [loadCurrentView, viewMode]);
+    }, [loadCurrentView, requireOperation, viewMode]);
 
     const activateContainer = useCallback(async (containerId: string) => {
+        if (!requireOperation('containers.activate')) { return; }
         await apiRef.current!.containers.activate(containerId);
         updateContainerInCurrentSession(containerId, { status: 'active' });
         void loadCurrentView(viewMode);
-    }, [loadCurrentView, updateContainerInCurrentSession, viewMode]);
+    }, [loadCurrentView, requireOperation, updateContainerInCurrentSession, viewMode]);
 
     const renameContainer = useCallback(async (containerId: string, newName: string) => {
+        if (!requireOperation('containers.rename')) { return; }
         await apiRef.current!.containers.rename(containerId, newName);
         updateContainerInCurrentSession(containerId, { name: newName });
         void loadCurrentView(viewMode);
-    }, [loadCurrentView, updateContainerInCurrentSession, viewMode]);
+    }, [loadCurrentView, requireOperation, updateContainerInCurrentSession, viewMode]);
 
     const deleteContainer = useCallback(async (containerId: string) => {
+        if (!requireOperation('containers.delete')) { return; }
         await apiRef.current!.containers.delete(containerId);
         removeContainerFromCurrentSession(containerId);
         void loadCurrentView(viewMode);
-    }, [loadCurrentView, removeContainerFromCurrentSession, viewMode]);
+    }, [loadCurrentView, removeContainerFromCurrentSession, requireOperation, viewMode]);
 
     const currentItems = useMemo(() => {
         if (viewMode.kind !== 'normal') return [];
@@ -671,20 +773,23 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
     // ── Drive item CRUD ───────────────────────────────────────────────────────
 
     const createFolder = useCallback(async (name: string) => {
+        if (!requireOperation('drive.createFolder')) { return; }
         if (!currentDriveId) return;
         const item = await apiRef.current!.drive.createFolder(currentDriveId, currentParentId, name);
         const key = currentParentId ?? currentDriveId;
         setFolderItems(prev => ({ ...prev, [key]: [...(prev[key] ?? []), item] }));
-    }, [currentDriveId, currentParentId]);
+    }, [currentDriveId, currentParentId, requireOperation]);
 
     const createFile = useCallback(async (name: string) => {
+        if (!requireOperation('drive.createFile')) { return; }
         if (!currentDriveId) return;
         const item = await apiRef.current!.drive.createFile(currentDriveId, currentParentId, name);
         const key = currentParentId ?? currentDriveId;
         setFolderItems(prev => ({ ...prev, [key]: [...(prev[key] ?? []), item] }));
-    }, [currentDriveId, currentParentId]);
+    }, [currentDriveId, currentParentId, requireOperation]);
 
     const renameItem = useCallback(async (item: StorageItem, newName: string) => {
+        if (!requireOperation('drive.rename')) { return; }
         if (!currentDriveId) return;
         await apiRef.current!.drive.rename(currentDriveId, item.id, newName);
         const key = currentParentId ?? currentDriveId;
@@ -693,9 +798,10 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
             [key]: (prev[key] ?? []).map(i => i.id === item.id ? { ...i, name: newName } : i),
         }));
         setSelectedItem(prev => prev?.id === item.id ? { ...prev, name: newName } : prev);
-    }, [currentDriveId, currentParentId]);
+    }, [currentDriveId, currentParentId, requireOperation]);
 
     const deleteItem = useCallback(async (item: StorageItem) => {
+        if (!requireOperation('drive.delete')) { return; }
         if (!currentDriveId) return;
         await apiRef.current!.drive.delete(currentDriveId, item.id);
         const key = currentParentId ?? currentDriveId;
@@ -704,24 +810,27 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
             [key]: (prev[key] ?? []).filter(i => i.id !== item.id),
         }));
         setSelectedItem(null);
-    }, [currentDriveId, currentParentId]);
+    }, [currentDriveId, currentParentId, requireOperation]);
 
     const previewItem = useCallback(async (item: StorageItem) => {
+        if (!requireOperation('drive.getPreviewUrl')) { return; }
         if (!currentDriveId) return;
         const url = await apiRef.current!.drive.getPreviewUrl(currentDriveId, item.id);
         openUrl(url);
-    }, [currentDriveId]);
+    }, [currentDriveId, requireOperation]);
 
     const downloadItem = useCallback(async (item: StorageItem) => {
+        if (!requireOperation('drive.getDownloadUrl')) { return; }
         if (!currentDriveId) return;
         // Use cached downloadUrl if present; otherwise fetch on demand.
         // SPE does not always return @microsoft.graph.downloadUrl in listing
         // responses (notably absent for Office files), so we fetch it lazily.
         const url = item.downloadUrl ?? await apiRef.current!.drive.getDownloadUrl(currentDriveId, item.id);
         openUrl(url);
-    }, [currentDriveId]);
+    }, [currentDriveId, requireOperation]);
 
     const openInDesktopApp = useCallback(async (item: StorageItem) => {
+        if (!requireOperation('drive.getItemWebUrl')) { return; }
         if (!currentDriveId) return;
         const scheme = officeDesktopScheme(item.name);
         if (!scheme) return;
@@ -730,7 +839,7 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
         const parentWebUrl = await apiRef.current!.drive.getItemWebUrl(currentDriveId, currentParentId ?? undefined);
         const fileUrl = `${parentWebUrl}/${encodeURIComponent(item.name)}`;
         openUrl(`${scheme}:ofe|u|${fileUrl}`);
-    }, [currentDriveId, currentParentId]);
+    }, [currentDriveId, currentParentId, requireOperation]);
 
     function navigate(item: StorageItem) {
         if (item.kind === 'file') return;
@@ -1041,6 +1150,7 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
     }
 
     function enqueueUploads(files: FileList | File[]) {
+        if (!requireOperation('drive.uploadSmall')) { return; }
         if (!currentDriveId) return;
         const arr = Array.from(files);
         if (!arr.length) return;
@@ -1125,6 +1235,14 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
         api: apiRef.current!,
         readiness,
         requiredScopes,
+        canPerform,
+        missingPermissionMessage,
+        missingScopesForOperation,
+        requireOperation,
+        missingScopes,
+        permissionNotice,
+        dismissPermissionNotice,
+        refreshAuthorization,
         canLoadMore,
         loadMore,
         isLoadingMore,

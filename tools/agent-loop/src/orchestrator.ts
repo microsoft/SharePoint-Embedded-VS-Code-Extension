@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto';
-import { mkdir } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { mkdir, rm, writeFile } from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import {
@@ -232,17 +233,40 @@ async function runInitialWorkers(
     implementer: WorkerAssignment,
     sdet: WorkerAssignment
 ): Promise<WorkerResult[]> {
+    let initial: WorkerResult[];
     if (context.loaded.contract.limits.maxConcurrentWorkers > 1) {
-        return Promise.all([
+        initial = await Promise.all([
             runEditingAssignment(context, implementer, context.run.baseCommit, 0),
             runEditingAssignment(context, sdet, context.run.baseCommit, 0)
         ]);
+    } else {
+        initial = [
+            await runEditingAssignment(context, implementer, context.run.baseCommit, 0),
+            await runEditingAssignment(context, sdet, context.run.baseCommit, 0)
+        ];
     }
 
-    return [
-        await runEditingAssignment(context, implementer, context.run.baseCommit, 0),
-        await runEditingAssignment(context, sdet, context.run.baseCommit, 0)
-    ];
+    const results = [...initial];
+    let implementation = initial.find(result => result.role === 'implementer')!;
+    for (
+        let attempt = 1;
+        implementation.status === 'blocked' &&
+        implementation.outputCommit &&
+        attempt <= context.loaded.contract.limits.maxRepasses;
+        attempt++
+    ) {
+        assertWithinWallClock(context.run, context.loaded.contract);
+        implementation = await runEditingAssignment(
+            context,
+            implementer,
+            implementation.outputCommit,
+            attempt,
+            formatContinuationContext(implementation),
+            'continuation'
+        );
+        results.push(implementation);
+    }
+    return results;
 }
 
 async function runRepassWorkers(
@@ -277,7 +301,9 @@ async function runRepassWorkers(
             implementer,
             context.run.integratedCommit!,
             context.run.repass,
-            formatRepassContext(implementerFindings, failedValidationContext)
+            formatRepassContext(implementerFindings, failedValidationContext),
+            'repass',
+            [context.run.artifactsDir]
         ));
     }
     if (sdetFindings.length > 0) {
@@ -286,7 +312,9 @@ async function runRepassWorkers(
             sdet,
             context.run.integratedCommit!,
             context.run.repass,
-            formatRepassContext(sdetFindings, failedValidationContext)
+            formatRepassContext(sdetFindings, failedValidationContext),
+            'repass',
+            [context.run.artifactsDir]
         ));
     }
 
@@ -310,9 +338,11 @@ async function runEditingAssignment(
     assignment: WorkerAssignment,
     baseCommit: string,
     attempt: number,
-    additionalContext?: string
+    additionalContext?: string,
+    attemptKind: 'repass' | 'continuation' = 'repass',
+    readRoots?: string[]
 ): Promise<WorkerResult> {
-    const suffix = attempt === 0 ? 'initial' : `repass-${attempt}`;
+    const suffix = attempt === 0 ? 'initial' : `${attemptKind}-${attempt}`;
     const invocationId = `${assignment.id}-${suffix}`;
     const worktreePath = path.join(context.run.worktreeRoot, invocationId);
     const workerArtifactDir = path.join(context.run.artifactsDir, 'workers', invocationId);
@@ -337,6 +367,7 @@ async function runEditingAssignment(
             repoRoot: context.repoRoot,
             worktreePath,
             artifactDir: workerArtifactDir,
+            readRoots,
             runId: context.run.runId,
             baseCommit,
             contract: context.loaded.contract,
@@ -364,7 +395,10 @@ async function runEditingAssignment(
         );
         await diffCheck(worktreePath);
 
-        const outputCommit = reported.status === 'completed'
+        const outputCommit = (
+            reported.status === 'completed' ||
+            (reported.status === 'blocked' && filesChanged.length > 0)
+        )
             ? await createWorkerCommit(
                 worktreePath,
                 context.loaded.contract.taskId,
@@ -491,31 +525,38 @@ async function writeIntegrationResult(context: RunContext, startedAt: string): P
 async function runValidation(context: RunContext): Promise<ValidationResult[]> {
     await transitionRun(context.repoRoot, context.run, 'validating');
     const results: ValidationResult[] = [];
+    const removeClientDeclaration = await ensureValidationClientDeclaration(
+        context.run.integrationWorktree!
+    );
 
-    for (const check of context.loaded.contract.requiredChecks) {
-        assertWithinWallClock(context.run, context.loaded.contract);
-        const checkDir = path.join(
-            context.run.artifactsDir,
-            'validation',
-            `attempt-${context.run.repass}`
-        );
-        const stdoutPath = path.join(checkDir, `${check.id}.stdout.log`);
-        const stderrPath = path.join(checkDir, `${check.id}.stderr.log`);
-        const processResult = await runShellCommand(check.command, {
-            cwd: context.run.integrationWorktree!,
-            timeoutMs: check.timeoutMinutes * 60_000,
-            stdoutPath,
-            stderrPath
-        });
-        results.push({
-            command: check.command,
-            status: processResult.exitCode === 0 && !processResult.timedOut ? 'passed' : 'failed',
-            exitCode: processResult.exitCode,
-            durationSeconds: processResult.durationSeconds,
-            outputArtifact: stdoutPath,
-            stdoutTail: outputTail(processResult.stdout),
-            stderrTail: outputTail(processResult.stderr)
-        });
+    try {
+        for (const check of context.loaded.contract.requiredChecks) {
+            assertWithinWallClock(context.run, context.loaded.contract);
+            const checkDir = path.join(
+                context.run.artifactsDir,
+                'validation',
+                `attempt-${context.run.repass}`
+            );
+            const stdoutPath = path.join(checkDir, `${check.id}.stdout.log`);
+            const stderrPath = path.join(checkDir, `${check.id}.stderr.log`);
+            const processResult = await runShellCommand(check.command, {
+                cwd: context.run.integrationWorktree!,
+                timeoutMs: check.timeoutMinutes * 60_000,
+                stdoutPath,
+                stderrPath
+            });
+            results.push({
+                command: check.command,
+                status: processResult.exitCode === 0 && !processResult.timedOut ? 'passed' : 'failed',
+                exitCode: processResult.exitCode,
+                durationSeconds: processResult.durationSeconds,
+                outputArtifact: stdoutPath,
+                stdoutTail: outputTail(processResult.stdout),
+                stderrTail: outputTail(processResult.stderr)
+            });
+        }
+    } finally {
+        await removeClientDeclaration();
     }
 
     const artifact = path.join(
@@ -527,6 +568,29 @@ async function runValidation(context: RunContext): Promise<ValidationResult[]> {
     context.run.validationArtifact = artifact;
     await writeRunRecord(context.repoRoot, context.run);
     return results;
+}
+
+export async function ensureValidationClientDeclaration(
+    worktreePath: string
+): Promise<() => Promise<void>> {
+    const clientSource = path.join(worktreePath, 'src', 'client.ts');
+    const clientDeclaration = path.join(worktreePath, 'src', 'client.d.ts');
+    if (existsSync(clientSource) || existsSync(clientDeclaration)) {
+        return async () => undefined;
+    }
+
+    await writeFile(
+        clientDeclaration,
+        [
+            'export declare const clientId: string;',
+            'export declare const telemetryKey: string;',
+            ''
+        ].join('\n'),
+        'utf8'
+    );
+    return async () => {
+        await rm(clientDeclaration, { force: true });
+    };
 }
 
 async function runReview(
@@ -549,6 +613,7 @@ async function runReview(
         repoRoot: context.repoRoot,
         worktreePath,
         artifactDir,
+        readRoots: [context.run.artifactsDir],
         runId: context.run.runId,
         baseCommit: context.run.baseCommit,
         reviewedCommit: context.run.integratedCommit,
@@ -628,12 +693,44 @@ function addValidationFindings(
 }
 
 function requireCompletedWorkers(results: WorkerResult[]): void {
-    const incomplete = results.filter(result => result.status !== 'completed');
+    const incomplete = selectTerminalWorkerResults(results)
+        .filter(result => result.status !== 'completed');
     if (incomplete.length > 0) {
         throw new Error(
             `Workers did not complete: ${incomplete.map(result => `${result.workerId}=${result.status}`).join(', ')}`
         );
     }
+}
+
+export function selectTerminalWorkerResults(results: WorkerResult[]): WorkerResult[] {
+    const latestByRole = new Map<WorkerResult['role'], WorkerResult>();
+    for (const result of results) {
+        latestByRole.set(result.role, result);
+    }
+    return [...latestByRole.values()];
+}
+
+export function formatContinuationContext(result: WorkerResult): string {
+    const remaining = result.criteria.filter(criterion =>
+        criterion.status === 'blocked' || criterion.status === 'not-satisfied'
+    );
+    return [
+        'This is a bounded continuation of your prior implementation pass.',
+        `The orchestrator checkpointed your prior scoped changes at commit ${result.outputCommit}.`,
+        'Preserve those changes and complete the remaining contract criteria. Do not restart or undo satisfied work.',
+        '',
+        'Prior summary:',
+        result.summary,
+        '',
+        'Remaining criteria:',
+        JSON.stringify(remaining, null, 2),
+        '',
+        'Prior risks:',
+        JSON.stringify(result.risks, null, 2),
+        '',
+        'Prior approval requests:',
+        JSON.stringify(result.approvalRequests, null, 2)
+    ].join('\n');
 }
 
 function assertStructuredResult(

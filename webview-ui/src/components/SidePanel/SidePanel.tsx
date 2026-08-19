@@ -10,6 +10,7 @@ import { ColumnsPanel } from './ColumnsPanel';
 import { SettingsPanel } from './SettingsPanel';
 import { FilePropertiesPanel } from './FilePropertiesPanel';
 import { getItemIcon, getItemIconColor } from '../FileList/fileListUtils';
+import type { StorageExplorerOperation } from '../../api/protocol';
 
 const CONTAINER_TABS: { key: SidePanelTab; label: string; icon: string }[] = [
     { key: 'permissions', label: 'Permissions', icon: 'codicon-account' },
@@ -43,11 +44,41 @@ function getTabsForKind(kind: ItemKind | undefined, isRecycledView: boolean) {
     return FOLDER_TABS;
 }
 
+function operationForTab(
+    tab: SidePanelTab,
+    item: StorageItem | null,
+    isRecycledView: boolean,
+): StorageExplorerOperation | undefined {
+    if (!item || isRecycledView) { return undefined; }
+    switch (tab) {
+        case 'permissions':
+            return item.kind === 'container'
+                ? 'permissions.listContainerPermissions'
+                : 'permissions.listItemPermissions';
+        case 'columns': return 'columns.listContainerColumns';
+        case 'metadata':
+            return item.kind === 'container'
+                ? 'containers.getCustomProperties'
+                : 'columns.getItemFields';
+        case 'settings': return 'containers.getSettings';
+        case 'versions': return 'drive.listVersions';
+        case 'properties':
+            return item.kind === 'container' ? 'containers.get' : 'drive.getDetailedDriveItem';
+    }
+}
+
 export function SidePanel() {
-    const { selectedItem, sidePanelTab, setSidePanelTab, toggleSidePanel, viewMode } = useStorageExplorer();
+    const {
+        selectedItem, sidePanelTab, setSidePanelTab, toggleSidePanel, viewMode,
+        missingPermissionMessage, requireOperation,
+    } = useStorageExplorer();
     const isRecycledView = viewMode.kind !== 'normal';
 
     const visibleTabs = getTabsForKind(selectedItem?.kind, isRecycledView);
+    const selectedTabOperation = operationForTab(sidePanelTab, selectedItem, isRecycledView);
+    const selectedTabPermissionMessage = selectedTabOperation
+        ? missingPermissionMessage(selectedTabOperation)
+        : null;
 
     // Auto-switch to first valid tab when item kind changes
     useEffect(() => {
@@ -80,17 +111,26 @@ export function SidePanel() {
                     gap: 2,
                 }}
             >
-                {visibleTabs.map(tab => (
-                    <button
-                        key={tab.key}
-                        data-testid={`sidepanel-tab-${tab.key}`}
-                        className={`tab-btn${sidePanelTab === tab.key ? ' active' : ''}`}
-                        title={tab.label}
-                        onClick={() => setSidePanelTab(tab.key)}
-                    >
-                        <span className={`codicon ${tab.icon}`} style={{ fontSize: 14 }} />
-                    </button>
-                ))}
+                {visibleTabs.map(tab => {
+                    const operation = operationForTab(tab.key, selectedItem, isRecycledView);
+                    const permissionMessage = operation ? missingPermissionMessage(operation) : null;
+                    return (
+                        <button
+                            key={tab.key}
+                            data-testid={`sidepanel-tab-${tab.key}`}
+                            className={`tab-btn${sidePanelTab === tab.key ? ' active' : ''}`}
+                            title={permissionMessage ?? tab.label}
+                            aria-disabled={!!permissionMessage}
+                            onClick={() => {
+                                if (operation && !requireOperation(operation)) { return; }
+                                setSidePanelTab(tab.key);
+                            }}
+                            style={permissionMessage ? { opacity: 0.45, cursor: 'not-allowed' } : undefined}
+                        >
+                            <span className={`codicon ${tab.icon}`} style={{ fontSize: 14 }} />
+                        </button>
+                    );
+                })}
                 <div style={{ flex: 1 }} />
                 <button className="icon-btn" data-testid="sidepanel-close" title="Close panel" style={{ fontSize: 14 }} onClick={toggleSidePanel}>
                     <span className="codicon codicon-close" />
@@ -126,21 +166,40 @@ export function SidePanel() {
 
             {/* Panel content */}
             <div style={{ flex: 1, overflowY: 'auto', padding: '8px 12px' }}>
-                {sidePanelTab === 'properties'   && <PropertiesPanel item={selectedItem} />}
-                {sidePanelTab === 'metadata'     && (
-                    selectedItem?.kind === 'container'
-                        ? <MetadataPanel item={selectedItem} />
-                        : <FileMetadataPanel item={selectedItem} />
-                )}
-                {sidePanelTab === 'versions'     && <VersionsPanel item={selectedItem} />}
-                {sidePanelTab === 'permissions'  && (
-                    selectedItem?.kind === 'container'
-                        ? <PermissionsPanel item={selectedItem} />
-                        : <FilePermissionsPanel item={selectedItem} />
-                )}
-                {sidePanelTab === 'columns'      && <ColumnsPanel item={selectedItem} />}
-                {sidePanelTab === 'settings'     && <SettingsPanel item={selectedItem} />}
+                {selectedTabPermissionMessage
+                    ? <PermissionRequired message={selectedTabPermissionMessage} />
+                    : (
+                        <>
+                            {sidePanelTab === 'properties'   && <PropertiesPanel item={selectedItem} />}
+                            {sidePanelTab === 'metadata'     && (
+                                selectedItem?.kind === 'container'
+                                    ? <MetadataPanel item={selectedItem} />
+                                    : <FileMetadataPanel item={selectedItem} />
+                            )}
+                            {sidePanelTab === 'versions'     && <VersionsPanel item={selectedItem} />}
+                            {sidePanelTab === 'permissions'  && (
+                                selectedItem?.kind === 'container'
+                                    ? <PermissionsPanel item={selectedItem} />
+                                    : <FilePermissionsPanel item={selectedItem} />
+                            )}
+                            {sidePanelTab === 'columns'      && <ColumnsPanel item={selectedItem} />}
+                            {sidePanelTab === 'settings'     && <SettingsPanel item={selectedItem} />}
+                        </>
+                    )}
             </div>
+        </div>
+    );
+}
+
+function PermissionRequired({ message }: { message: string }) {
+    return (
+        <div
+            data-testid="sidepanel-permission-required"
+            role="status"
+            style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 12 }}
+        >
+            <span className="codicon codicon-warning" style={{ color: 'var(--vscode-editorWarning-foreground)' }} />
+            <span>{message}</span>
         </div>
     );
 }

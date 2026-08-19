@@ -6,6 +6,7 @@ import { DriveGraphService } from './services/DriveGraphService';
 import { MeGraphService } from './services/MeGraphService';
 import { PeopleGraphService } from './services/PeopleGraphService';
 import { PermissionGraphService } from './services/PermissionGraphService';
+import { AuthorizationService } from './services/AuthorizationService';
 import type { NetworkLogger, NetworkRequest } from './protocol';
 
 export { RpcError } from './rpc';
@@ -23,6 +24,7 @@ export type { NetworkLogger };
  */
 export function createStorageExplorerApi(onNetworkRequest: NetworkLogger) {
     return {
+        authorization: new AuthorizationService(),
         containers: new ContainerGraphService(),
         collections: new CollectionsService(),
         drive: new DriveGraphService(onNetworkRequest),

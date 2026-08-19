@@ -16,13 +16,17 @@ interface FileListRowProps {
 export function FileListRow({ item, isSelected, onSelect, onNavigate, colTemplate }: FileListRowProps) {
     const [isHovered, setIsHovered] = useState(false);
     const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
-    const { previewItem, downloadItem, openInDesktopApp, selectedIds, toggleSelected } = useStorageExplorer();
+    const {
+        previewItem, downloadItem, selectedIds, toggleSelected,
+        missingPermissionMessage, requireOperation,
+    } = useStorageExplorer();
 
     const icon = getItemIcon(item);
     const iconColor = getItemIconColor(item);
     const showInlineActions = isHovered || isSelected;
     const isFile = item.kind === 'file';
     const isOffice = isFile && isOfficeFile(item);
+    const readContentMessage = missingPermissionMessage('drive.getPreviewUrl');
 
     const rowBg = isSelected
         ? 'var(--vscode-list-activeSelectionBackground)'
@@ -41,6 +45,7 @@ export function FileListRow({ item, isSelected, onSelect, onNavigate, colTemplat
 
     function handleDoubleClick() {
         if (item.kind !== 'file') { onNavigate(item); return; }
+        if (!requireOperation('drive.getPreviewUrl')) { return; }
         if (isOffice) { item.webUrl && openUrl(item.webUrl); }
         else { previewItem(item); }
     }
@@ -124,10 +129,14 @@ export function FileListRow({ item, isSelected, onSelect, onNavigate, colTemplat
                         {/* Open (Office only — open in browser) */}
                         <button
                             className="icon-btn"
-                            title="Open in browser"
-                            style={{ fontSize: 14, padding: '2px 4px', opacity: isOffice ? 1 : 0.25 }}
+                            title={readContentMessage ?? 'Open in browser'}
+                            aria-disabled={!isOffice || !!readContentMessage}
+                            style={{ fontSize: 14, padding: '2px 4px', opacity: isOffice && !readContentMessage ? 1 : 0.25 }}
                             disabled={!isOffice}
-                            onClick={() => { item.webUrl && openUrl(item.webUrl); }}
+                            onClick={() => {
+                                if (!requireOperation('drive.getPreviewUrl')) { return; }
+                                item.webUrl && openUrl(item.webUrl);
+                            }}
                         >
                             <span className="codicon codicon-globe" />
                         </button>
@@ -135,8 +144,9 @@ export function FileListRow({ item, isSelected, onSelect, onNavigate, colTemplat
                         {/* Preview */}
                         <button
                             className="icon-btn"
-                            title="Preview"
-                            style={{ fontSize: 14, padding: '2px 4px', opacity: isFile ? 1 : 0.25 }}
+                            title={readContentMessage ?? 'Preview'}
+                            aria-disabled={!isFile || !!readContentMessage}
+                            style={{ fontSize: 14, padding: '2px 4px', opacity: isFile && !readContentMessage ? 1 : 0.25 }}
                             disabled={!isFile}
                             onClick={() => { previewItem(item); }}
                         >
@@ -146,8 +156,13 @@ export function FileListRow({ item, isSelected, onSelect, onNavigate, colTemplat
                         {/* Download */}
                         <button
                             className="icon-btn"
-                            title="Download"
-                            style={{ fontSize: 14, padding: '2px 4px', opacity: isFile ? 1 : 0.25 }}
+                            title={missingPermissionMessage('drive.getDownloadUrl') ?? 'Download'}
+                            aria-disabled={!isFile || !!missingPermissionMessage('drive.getDownloadUrl')}
+                            style={{
+                                fontSize: 14,
+                                padding: '2px 4px',
+                                opacity: isFile && !missingPermissionMessage('drive.getDownloadUrl') ? 1 : 0.25,
+                            }}
                             disabled={!isFile}
                             onClick={() => { downloadItem(item); }}
                         >

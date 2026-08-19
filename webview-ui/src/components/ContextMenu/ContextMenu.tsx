@@ -3,12 +3,14 @@ import ReactDOM from 'react-dom';
 import { StorageItem, SidePanelTab, ModalState } from '../../models/StorageItem';
 import { useStorageExplorer } from '../../context/StorageExplorerContext';
 import { openUrl } from '../../utils/openUrl';
+import type { StorageExplorerOperation } from '../../api/protocol';
 
 interface MenuAction {
     icon: string;
     label: string;
     dividerBefore?: boolean;
     danger?: boolean;
+    permissionOperation?: StorageExplorerOperation;
     onClick: () => void;
 }
 
@@ -23,31 +25,47 @@ function getActions(
     downloadItem: (item: StorageItem) => Promise<void>,
     openInDesktopApp: (item: StorageItem) => Promise<void>
 ): MenuAction[] {
-    const rename: MenuAction = { icon: 'codicon-edit', label: 'Rename', onClick: () => { onClose(); openModal({ kind: 'rename', item }); } };
-    const del: MenuAction = { icon: 'codicon-trash', label: 'Delete', danger: true, onClick: () => { onClose(); openModal({ kind: 'delete', item }); } };
+    const rename: MenuAction = {
+        icon: 'codicon-edit', label: 'Rename',
+        permissionOperation: item.kind === 'container' ? 'containers.rename' : 'drive.rename',
+        onClick: () => { onClose(); openModal({ kind: 'rename', item }); },
+    };
+    const del: MenuAction = {
+        icon: 'codicon-trash', label: 'Delete', danger: true,
+        permissionOperation: item.kind === 'container' ? 'containers.delete' : 'drive.delete',
+        onClick: () => { onClose(); openModal({ kind: 'delete', item }); },
+    };
     const perms: MenuAction = {
         icon: 'codicon-account', label: 'Permissions',
+        permissionOperation: item.kind === 'container'
+            ? 'permissions.listContainerPermissions'
+            : 'permissions.listItemPermissions',
         onClick: () => { onClose(); openTab('permissions'); },
     };
     const metadata: MenuAction = {
         icon: 'codicon-tag', label: 'Metadata',
+        permissionOperation: item.kind === 'container'
+            ? 'containers.getCustomProperties'
+            : 'columns.getItemFields',
         onClick: () => { onClose(); openTab('metadata'); },
     };
     const properties: MenuAction = {
         icon: 'codicon-info', label: 'Properties',
+        permissionOperation: item.kind === 'container' ? 'containers.get' : 'drive.getDetailedDriveItem',
         onClick: () => { onClose(); openTab('properties'); },
     };
 
     if (item.kind === 'file') {
         const versions: MenuAction = {
             icon: 'codicon-history', label: 'Versions',
+            permissionOperation: 'drive.listVersions',
             onClick: () => { onClose(); openTab('versions'); },
         };
         return [
-            { icon: 'codicon-eye', label: 'Preview', onClick: () => { onClose(); previewItem(item); } },
-            { icon: 'codicon-globe', label: 'Open in browser', onClick: () => { onClose(); item.webUrl && openUrl(item.webUrl); } },
-            { icon: 'codicon-desktop-download', label: 'Open in desktop', onClick: () => { onClose(); openInDesktopApp(item); } },
-            { icon: 'codicon-cloud-download', label: 'Download', onClick: () => { onClose(); downloadItem(item); } },
+            { icon: 'codicon-eye', label: 'Preview', permissionOperation: 'drive.getPreviewUrl', onClick: () => { onClose(); previewItem(item); } },
+            { icon: 'codicon-globe', label: 'Open in browser', permissionOperation: 'drive.getPreviewUrl', onClick: () => { onClose(); item.webUrl && openUrl(item.webUrl); } },
+            { icon: 'codicon-desktop-download', label: 'Open in desktop', permissionOperation: 'drive.getItemWebUrl', onClick: () => { onClose(); openInDesktopApp(item); } },
+            { icon: 'codicon-cloud-download', label: 'Download', permissionOperation: 'drive.getDownloadUrl', onClick: () => { onClose(); downloadItem(item); } },
             { ...rename, dividerBefore: true },
             del,
             { ...perms, dividerBefore: true },
@@ -70,18 +88,22 @@ function getActions(
     // container
     const columns: MenuAction = {
         icon: 'codicon-list-tree', label: 'Columns',
+        permissionOperation: 'columns.listContainerColumns',
         onClick: () => { onClose(); openTab('columns'); },
     };
     const settings: MenuAction = {
         icon: 'codicon-settings-gear', label: 'Settings',
+        permissionOperation: 'containers.getSettings',
         onClick: () => { onClose(); openTab('settings'); },
     };
     const recycleBin: MenuAction = {
         icon: 'codicon-trash', label: 'Recycle bin', dividerBefore: true,
+        permissionOperation: 'drive.listRecycleBin',
         onClick: () => { onClose(); navigateToContainerRecycleBin(item.id, item.name); },
     };
     const activate: MenuAction = {
         icon: 'codicon-play', label: 'Activate',
+        permissionOperation: 'containers.activate',
         onClick: () => { onClose(); void activateContainer(item.id); },
     };
     return [
@@ -105,7 +127,10 @@ interface ContextMenuProps {
 }
 
 export function ContextMenu({ item, x, y, onClose }: ContextMenuProps) {
-    const { setSidePanelTab, openModal, navigateToContainerRecycleBin, activateContainer, previewItem, downloadItem, openInDesktopApp } = useStorageExplorer();
+    const {
+        setSidePanelTab, openModal, navigateToContainerRecycleBin, activateContainer,
+        previewItem, downloadItem, openInDesktopApp, missingPermissionMessage, requireOperation,
+    } = useStorageExplorer();
     const ref = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -155,7 +180,20 @@ export function ContextMenu({ item, x, y, onClose }: ContextMenuProps) {
                     <button
                         className={`menu-item${action.danger ? ' danger' : ''}`}
                         data-testid={`context-menu-item-${action.label.toLowerCase().replace(/\s+/g, '-')}`}
-                        onClick={action.onClick}
+                        aria-disabled={!!(
+                            action.permissionOperation
+                            && missingPermissionMessage(action.permissionOperation)
+                        )}
+                        title={action.permissionOperation
+                            ? missingPermissionMessage(action.permissionOperation) ?? action.label
+                            : action.label}
+                        onClick={() => {
+                            if (action.permissionOperation && !requireOperation(action.permissionOperation)) { return; }
+                            action.onClick();
+                        }}
+                        style={action.permissionOperation && missingPermissionMessage(action.permissionOperation)
+                            ? { opacity: 0.45, cursor: 'not-allowed' }
+                            : undefined}
                     >
                         <span className={`codicon ${action.icon}`} />
                         {action.label}

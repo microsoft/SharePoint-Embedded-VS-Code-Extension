@@ -189,6 +189,44 @@ test.describe('AC-14 — baseline extension-app capability set', () => {
 });
 
 test.describe('AC-15 — operations are authorized before Graph is called', () => {
+    test('authorization snapshot reports only operation-level missing scopes without calling Graph', async () => {
+        const { fake, api } = hostWith(['read']);
+
+        const snapshot = await api.execute('authorization.get', {}, context) as {
+            missingScopesByOperation: Record<string, string[]>;
+        };
+
+        expect(snapshot.missingScopesByOperation['containers.list']).toBeUndefined();
+        expect(snapshot.missingScopesByOperation['containers.create']).toEqual(['create']);
+        expect(snapshot.missingScopesByOperation['drive.createFile']).toEqual(['writeContent']);
+        expect(snapshot.missingScopesByOperation['drive.getPreviewUrl']).toEqual(['readContent']);
+        expect(JSON.stringify(snapshot)).not.toContain('applicationPermissionGrants');
+        expect(JSON.stringify(snapshot)).not.toContain('appId');
+        expect(fake.calls).toHaveLength(0);
+    });
+
+    test('an externally removed scope is denied on the next operation without reopening the panel', async () => {
+        const fake = new FakeGraphClient();
+        fake.responder = () => ({ value: [] });
+        let granted: ContainerTypeAppPermission[] = ['read'];
+        const api = new StorageExplorerApi(
+            CONTAINER_TYPE_ID,
+            fake as unknown as Client,
+            async () => granted,
+        );
+
+        await api.execute('containers.list', {}, context);
+        const callsAfterAuthorizedList = fake.calls.length;
+        granted = [];
+
+        const error = await api.execute('containers.list', {}, context)
+            .then(() => null, (caught: unknown) => caught as { code?: string; requiredScopes?: string[] });
+
+        expect(error?.code).toBe('missingExtensionAppPermissions');
+        expect(error?.requiredScopes).toEqual(['read']);
+        expect(fake.calls).toHaveLength(callsAfterAuthorizedList);
+    });
+
     for (const testCase of CASES) {
         test(`${testCase.op} is allowed with ${testCase.scope}`, async () => {
             const { fake, api } = hostWith(ALL_SCOPES);

@@ -1,0 +1,38 @@
+# Copilot instructions
+
+This repository is a VS Code extension for managing SharePoint Embedded resources from a dedicated activity bar container and tree views. The core flows are signing into an admin Microsoft 365 tenant, creating a trial container type, registering it on the local tenant, managing owning and guest apps, exporting Postman configuration, and operating on containers from the Development tree. Paid/Standard and direct-to-customer (D2C) container type support — including the Azure billing setup — is in active development (branch `aljordac/paid-container-type-support`).
+
+## Build, lint, and test
+
+- `npm run compile` compiles TypeScript from `src/` into `out/`. Use this for normal local builds.
+- `npx tsc -p ./ --noEmit` is the fastest way to check for TypeScript compile issues without overwriting `out/`. Prefer this when you only need a type-check.
+- `npm run watch` is the default VS Code build task from `.vscode/tasks.json`; `F5` / **Run Extension** depends on this watch build and opens an Extension Development Host.
+- `npm run lint` runs ESLint over `src/**/*.ts`.
+- `npm test` runs `pretest` first (`npm run compile && npm run lint`) and then launches the VS Code extension-host test harness via `node ./out/test/runTest.js`.
+- `npm run test-compile` compiles test output into `out/test` without launching the test harness.
+- There is no maintained single-test npm script, and there are currently no checked-in `*.test.ts` files under `src/test`. If you need to debug one test while adding coverage, use the **Extension Tests** launch configuration and temporarily narrow the Mocha run with `suite.only` / `test.only`; `src/test/suite/index.ts` glob-loads compiled `**/**.test.js` files from `out/test`.
+- `npm run esbuild`, `npm run esbuild-watch`, and `npm run vscode:prepublish` are the packaging path for the extension bundle; they are not the normal F5/debug loop.
+
+## High-level architecture
+
+- `package.json` contributes the `sharepoint-embedded` activity bar container plus the `spe-welcome`, `spe-accounts`, and `spe-development` views. Menu visibility is driven by `when` clauses against tree item `contextValue` values and context keys such as `spe:isLoggedIn`, `spe:isLoggingIn`, `spe:showGettingStartedView`, and `spe:showFailedView`.
+- `src/extension.ts` is the orchestration point. It creates the `SharePoint Embedded` output channel, initializes `StorageProvider` and telemetry, registers the account and development tree views, attaches the URI handler, and registers all commands from `src/commands/index.ts` before auth initialization so the extension still responds if session restore hangs.
+- Authentication is centralized in `src/services/AuthenticationState.ts` and `src/services/Auth/`. Use the singleton auth providers instead of creating ad hoc clients. `GraphAuthProvider.resetInstance()` also resets `GraphProvider`, so tenant/account switches and deep-link tenant targeting need to flow through the auth state helpers.
+- The current refactor direction is **commands -> services -> Zod schemas**. New work should prefer `src/services/Graph/*` plus `src/models/schemas/*` rather than the older class-based models under `src/models/*.ts`.
+- `src/services/Graph/GraphProvider.ts` is the singleton service hub around the Microsoft Graph SDK client. It exposes `applications`, `containerTypes`, `registrations`, `appPermissionGrants`, `containers`, and `users`. Graph services use the `v1.0` endpoint exclusively.
+- `src/services/ARM/ARMProvider.ts` is the singleton hub for Azure Resource Manager operations (mirrors `GraphProvider`), exposing `subscriptions`, `syntexProviders`, and `syntexAccounts`. ARM is used only by the paid/D2C billing setup: registering the `Microsoft.Syntex` resource provider on a subscription and creating a `Microsoft.Syntex/accounts` billing account. Each ARM service is a stateless wrapper over `src/services/ARM/armFetch.ts` (`armRequest`), which acquires a token via `ARMAuthProvider` and throws `ArmError` on non-2xx. `src/services/ARM/diagnoseArmError.ts` is the single ARM error classifier — route ARM failures through it before surfacing a toast rather than adding a new classifier.
+- `src/views/treeview/development/DevelopmentTreeViewProvider.ts` owns the Development tree. It fetches root container types through `graphProvider.containerTypes.list()`, deduplicates concurrent root fetches for stable object identity, and is the source of truth for refresh/reveal behavior after mutations.
+- `src/services/UriHandler.ts` handles deep links of the form `vscode://sharepointembedded.ms-sharepoint-embedded-vscode-extension/{tenantId}/{containerTypeId}?action=open` and uses auth state plus tree reveal logic to switch tenants and focus the correct container type.
+- Use `src/commands/ContainerTypes/CreateTrialContainerType.ts` and `src/commands/ContainerType/RegisterOnLocalTenant.ts` as the clearest examples of the current command/service flow. The paid/D2C flow runs through `src/commands/ContainerTypes/CreateContainerType.ts` → `runStandardFlow.ts` / `runDirectToCustomerFlow.ts` → `attachBillingToContainerType.ts`; `CreateStandardContainerType.ts` is a registered stub that no-ops.
+
+## Key conventions
+
+- Every command is a static class extending `src/commands/Command.ts`. To fully wire a new command, keep four places in sync: the command file, `src/commands/index.ts`, `src/extension.ts`, and the command/menu contribution in `package.json`.
+- Keep tree item `contextValue` strings and `package.json` menu `when` clauses aligned. `ContainerTypeTreeItem` composes suffixes for trial vs. paid, discoverability state, registration state, billing validity, and extension-permission state, and those suffixes control which menu actions appear.
+- Authentication UI state depends on ordering: `onBeforeSignIn()` empties the development tree before `spe:isLoggingIn` is set, and sign-out resets auth/provider singletons before clearing the logged-in context. New auth-related code should reuse `AuthenticationState` instead of toggling context keys ad hoc.
+- After create/update/delete operations, refresh the Development tree through `DevelopmentTreeViewProvider.getInstance().refresh()` or a targeted subtree refresh so VS Code sees fresh tree item instances.
+- User-facing strings should use `vscode.l10n.t(...)`; this extension is localized through `l10n/` and `package.nls.json`.
+- Service-layer code follows a consistent pattern: validate request/response shapes with Zod schemas (`src/models/schemas/*`), log with `[ClassName.methodName]` prefixes via `Logger`/`console`, and throw explicit errors rather than returning loosely shaped data or silently swallowing failures. Put `.default(...)` on create schemas, not on response schemas (a default on a response can silently misclassify data). Never log access tokens.
+- Every catch block in `src/services/ARM/*` and the paid-CT commands that call ARM should route the error through `diagnoseArmError(error)` before surfacing a toast; extend that classifier rather than adding a new one when a new ARM error shape appears.
+- For day-to-day debugging, prefer the TypeScript compile/watch flow (`npm run watch`, `F5`) rather than the esbuild packaging scripts. The workspace intentionally keeps `out/` visible for compiled extension and test output, and the checked-in launch configurations point at `out/**/*.js`.
+- `docs/ONBOARDING.md` is a deep architecture/onboarding reference (auth, ARM billing, sequence diagrams, file map); consult it for cross-cutting context beyond this summary. Related references in `docs/`: `SEQUENCE_DIAGRAMS.md` (end-to-end flow diagrams), `API_ENDPOINTS.md` (Graph/ARM endpoints used), and `CODE_AUDIT.md`.

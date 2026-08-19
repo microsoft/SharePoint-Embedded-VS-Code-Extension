@@ -16,6 +16,7 @@ import { Client } from '@microsoft/microsoft-graph-client';
 import { ContainerGraphService } from '../../src/services/StorageExplorer/ContainerGraphService';
 import { DriveGraphService } from '../../src/services/StorageExplorer/DriveGraphService';
 import { StorageExplorerApi } from '../../src/services/StorageExplorer/StorageExplorerApi';
+import type { GraphPage } from '../../src/services/StorageExplorer/pagination';
 import type { ContainerTypeAppPermission } from '../../src/models/schemas';
 import { FakeGraphClient, RecordedCall } from './fakeClient';
 
@@ -77,26 +78,17 @@ function expectNoNextLinkLeak(payload: unknown): void {
 }
 
 /**
- * Collect the server link a first-page read reports to its host-only sink.
+ * The host keeps the server link for itself: the page states it explicitly, it was not
+ * followed, and none of the mapped items contains a Graph URL.
  *
- * The link never rides on the returned items — `StorageExplorerApi` exchanges what the sink
- * receives for an opaque continuation before anything crosses the webview boundary, which is
- * asserted separately below.
+ * The link rides on the returned {@link GraphPage} envelope rather than on the items —
+ * `StorageExplorerApi` exchanges it for an opaque continuation before anything crosses the
+ * webview boundary, which is asserted separately below.
  */
-function linkSink(): { reported: (string | undefined)[]; sink: (link: string | undefined) => void } {
-    const reported: (string | undefined)[] = [];
-    return { reported, sink: (link) => reported.push(link) };
-}
-
-/**
- * The host keeps the server link for itself: it is reported exactly once, to the host-side
- * sink, without having been followed, and none of the mapped items contains a Graph URL.
- */
-function expectHostKeptTheLink(items: unknown[], reported: (string | undefined)[]): void {
-    expect(reported, 'the host must be told about the next page exactly once').toHaveLength(1);
-    expect(reported[0], 'the host must retain the server link for an explicit next page').toBeTruthy();
-    expect(reported[0]).toContain('skiptoken');
-    expectNoNextLinkLeak(items);
+function expectHostKeptTheLink(page: GraphPage<unknown>): void {
+    expect(page.nextLink, 'the host must retain the server link for an explicit next page').toBeTruthy();
+    expect(page.nextLink).toContain('skiptoken');
+    expectNoNextLinkLeak(page.items);
 }
 
 /**
@@ -119,12 +111,11 @@ test.describe('AC-01 — collections load exactly one Graph page', () => {
         fake.responder = threePages(container);
         const service = new ContainerGraphService(fake as unknown as Client);
 
-        const { reported, sink } = linkSink();
-        const items = await service.list(CONTAINER_TYPE_ID, sink);
+        const page = await service.list(CONTAINER_TYPE_ID);
 
         expect(fake.calls).toHaveLength(1);
-        expect(items).toHaveLength(2);
-        expectHostKeptTheLink(items, reported);
+        expect(page.items).toHaveLength(2);
+        expectHostKeptTheLink(page);
     });
 
     test('ContainerGraphService.listDeleted() stops after the first page', async () => {
@@ -132,12 +123,11 @@ test.describe('AC-01 — collections load exactly one Graph page', () => {
         fake.responder = threePages(container);
         const service = new ContainerGraphService(fake as unknown as Client);
 
-        const { reported, sink } = linkSink();
-        const items = await service.listDeleted(CONTAINER_TYPE_ID, sink);
+        const page = await service.listDeleted(CONTAINER_TYPE_ID);
 
         expect(fake.calls).toHaveLength(1);
-        expect(items).toHaveLength(2);
-        expectHostKeptTheLink(items, reported);
+        expect(page.items).toHaveLength(2);
+        expectHostKeptTheLink(page);
     });
 
     test('DriveGraphService.listChildren() stops after the first page at the drive root', async () => {
@@ -145,13 +135,12 @@ test.describe('AC-01 — collections load exactly one Graph page', () => {
         fake.responder = threePages(driveItem);
         const service = new DriveGraphService(fake as unknown as Client);
 
-        const { reported, sink } = linkSink();
-        const items = await service.listChildren(DRIVE_ID, undefined, undefined, sink);
+        const page = await service.listChildren(DRIVE_ID, undefined);
 
         expect(fake.calls).toHaveLength(1);
         expect(fake.calls[0].path).toBe(`/drives/${DRIVE_ID}/root/children`);
-        expect(items).toHaveLength(2);
-        expectHostKeptTheLink(items, reported);
+        expect(page.items).toHaveLength(2);
+        expectHostKeptTheLink(page);
     });
 
     test('DriveGraphService.listChildren() stops after the first page inside a folder', async () => {
@@ -159,13 +148,12 @@ test.describe('AC-01 — collections load exactly one Graph page', () => {
         fake.responder = threePages(driveItem);
         const service = new DriveGraphService(fake as unknown as Client);
 
-        const { reported, sink } = linkSink();
-        const items = await service.listChildren(DRIVE_ID, 'folder-1', undefined, sink);
+        const page = await service.listChildren(DRIVE_ID, 'folder-1');
 
         expect(fake.calls).toHaveLength(1);
         expect(fake.calls[0].path).toBe(`/drives/${DRIVE_ID}/items/folder-1/children`);
-        expect(items).toHaveLength(2);
-        expectHostKeptTheLink(items, reported);
+        expect(page.items).toHaveLength(2);
+        expectHostKeptTheLink(page);
     });
 
     test('DriveGraphService.listRecycleBin() stops after the first page', async () => {
@@ -173,12 +161,11 @@ test.describe('AC-01 — collections load exactly one Graph page', () => {
         fake.responder = threePages(driveItem);
         const service = new DriveGraphService(fake as unknown as Client);
 
-        const { reported, sink } = linkSink();
-        const items = await service.listRecycleBin('b!c1', sink);
+        const page = await service.listRecycleBin('b!c1');
 
         expect(fake.calls).toHaveLength(1);
-        expect(items).toHaveLength(2);
-        expectHostKeptTheLink(items, reported);
+        expect(page.items).toHaveLength(2);
+        expectHostKeptTheLink(page);
     });
 
     test('no collection call targets a server-supplied nextLink URL', async () => {

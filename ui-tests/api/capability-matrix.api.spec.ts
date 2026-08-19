@@ -24,6 +24,7 @@ import {
     OPERATION_REQUIRED_CAPABILITIES,
     PERMISSION_MANAGEMENT_CAPABILITIES,
     REQUIRED_DELEGATED_PERMISSIONS,
+    STORAGE_EXPLORER_CAPABILITIES,
 } from '../../src/utils/ExtensionAppPermissionScopes';
 import type { StorageExplorerCapability } from '../../src/utils/ExtensionAppPermissionScopes';
 import type { ContainerTypeAppPermission } from '../../src/models/schemas';
@@ -33,7 +34,13 @@ const grant = (...permissions: string[]): ContainerTypeAppPermission[] =>
     permissions as ContainerTypeAppPermission[];
 
 /** Operations that legitimately touch no container-type resource, so no grant gates them. */
-const UNGATED: StorageExplorerOperation[] = ['me.get', 'people.search', 'people.searchUsers', 'people.searchGroups'];
+const UNGATED: StorageExplorerOperation[] = [
+    'authorization.get',
+    'me.get',
+    'people.search',
+    'people.searchUsers',
+    'people.searchGroups',
+];
 
 const KNOWN_CAPABILITIES: StorageExplorerCapability[] = [
     'read', 'write', 'create', 'delete', 'readContent', 'writeContent',
@@ -77,6 +84,37 @@ test.describe('AC-14 — capability calculation', () => {
         for (const unrelated of ['read', 'write', 'create', 'delete', 'readContent', 'writeContent'] as StorageExplorerCapability[]) {
             expect(capabilities.has(unrelated), `managePermissions must not imply ${unrelated}`).toBe(false);
         }
+    });
+
+    test('the full umbrella confers every capability', () => {
+        // `ContainerTypeAppPermissionGrantService.hasPermissions` accepts `full` in place of any
+        // required scope, so the tree reports a `full` grant as ready. If this calculation did
+        // not agree, that same grant would arrive at Storage Explorer reported as missing every
+        // scope — a fully permissioned tenant with a fully disabled UI.
+        const capabilities = calculateCapabilities(grant('full'));
+
+        for (const capability of KNOWN_CAPABILITIES) {
+            expect(capabilities.has(capability), `full must imply ${capability}`).toBe(true);
+        }
+        expect([...capabilities].sort()).toEqual([...STORAGE_EXPLORER_CAPABILITIES].sort());
+
+        for (const operation of Object.keys(OPERATION_REQUIRED_CAPABILITIES) as StorageExplorerOperation[]) {
+            expect(missingCapabilitiesForOperation(operation, grant('full')), `${operation}`).toEqual([]);
+        }
+    });
+
+    test('the capability list and the expansion of full are the same set', () => {
+        expect([...STORAGE_EXPLORER_CAPABILITIES].sort()).toEqual([...KNOWN_CAPABILITIES].sort());
+    });
+
+    test('scopes the matrix never names are ignored rather than admitted', () => {
+        // `manageContent` and `unknownFutureValue` are real members of the Graph enum but are
+        // not capabilities here. Carrying them into the set would put a value in it that no
+        // requirement can consume, and would make a future scope look like a capability.
+        expect([...calculateCapabilities(grant('manageContent', 'unknownFutureValue'))]).toEqual([]);
+        expect([...calculateCapabilities(grant('manageContent', 'read'))]).toEqual(['read']);
+        expect(missingCapabilitiesForOperation('drive.createFile', grant('manageContent', 'read', 'write')))
+            .toEqual(['writeContent']);
     });
 
     test('a granular permission grant is not read as the umbrella', () => {
@@ -139,7 +177,7 @@ test.describe('AC-15 — the authorization matrix is complete and explicit', () 
         expect(unknown, 'a capability the calculation never produces can never be satisfied').toEqual([]);
     });
 
-    test('only the directory and signed-in-user operations are ungated', () => {
+    test('only authorization discovery, directory, and signed-in-user operations are ungated', () => {
         const ungated = (Object.keys(OPERATION_REQUIRED_CAPABILITIES) as StorageExplorerOperation[])
             .filter((operation) => requiredCapabilitiesForOperation(operation).length === 0);
 

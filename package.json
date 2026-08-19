@@ -623,6 +623,8 @@
     "lint": "eslint src --ext ts",
     "test": "node ./out/test/runTest.js",
     "test:ui": "playwright test -c ui-tests/playwright.config.ts",
+    "typecheck:tests": "tsc -p ui-tests/tsconfig.json --noEmit",
+    "pretest:api": "npm run typecheck:tests",
     "test:api": "playwright test -c ui-tests/playwright.api.config.ts",
     "test:perf": "playwright test -c ui-tests/playwright.perf.config.ts",
     "explore": "playwright test -c ui-tests/playwright.explore.config.ts",

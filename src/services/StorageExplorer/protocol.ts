@@ -177,6 +177,16 @@ export interface UploadChunkResult {
     item?: StorageItem;
 }
 
+/**
+ * Host-derived authorization state for the current container type.
+ *
+ * Only missing scope names are exposed, keyed by the allow-listed operation that needs
+ * them. The grant document, app identity, tenant identity, and bearer token stay host-only.
+ */
+export interface AuthorizationSnapshot {
+    missingScopesByOperation: Record<string, string[]>;
+}
+
 // ── Paging ────────────────────────────────────────────────────────────────────
 
 /**
@@ -235,6 +245,9 @@ export interface PagedResult<T> {
  */
 /* eslint-disable @typescript-eslint/naming-convention -- operation ids are dotted string literals, not identifiers */
 export interface StorageExplorerOperations {
+    // ── authorization ─────────────────────────────────────────────────────────
+    'authorization.get': { params: Record<string, never>; result: AuthorizationSnapshot };
+
     // ── containers ────────────────────────────────────────────────────────────
     'containers.list': { params: Record<string, never>; result: PagedResult<StorageItem> };
     'containers.get': { params: { containerId: string }; result: StorageItem | null };

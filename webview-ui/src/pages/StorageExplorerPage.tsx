@@ -8,17 +8,24 @@ import { SidePanel } from '../components/SidePanel/SidePanel';
 import { NetworkDrawer } from '../components/NetworkDrawer/NetworkDrawer';
 import { UploadCard } from '../components/UploadCard/UploadCard';
 import { Modal } from '../components/Modal/Modal';
+import { PermissionBanner } from '../components/common/PermissionBanner';
 import { useStorageExplorer } from '../context/StorageExplorerContext';
 import { DEFAULT_RETENTION_DAYS } from '../data/dummyData';
 
 export function StorageExplorerPage() {
-    const { sidePanelOpen, modal, closeModal, viewMode, setRetentionOverride, networkDrawerOpen, createContainer, renameContainer, deleteContainer, permanentlyDeleteContainer, permanentlyDeleteItem, createFolder, createFile, renameItem, deleteItem, currentDriveId } = useStorageExplorer();
+    const {
+        sidePanelOpen, modal, closeModal, viewMode, setRetentionOverride, networkDrawerOpen,
+        createContainer, renameContainer, deleteContainer, permanentlyDeleteContainer,
+        permanentlyDeleteItem, createFolder, createFile, renameItem, deleteItem, currentDriveId,
+        permissionNotice, dismissPermissionNotice,
+    } = useStorageExplorer();
     const isRecycledView = viewMode.kind !== 'normal';
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
             <NavBar />
             {isRecycledView ? <RecycledActionBar /> : <ActionBar />}
+            <PermissionBanner />
             <div style={{ display: 'flex', flex: 1, overflow: 'hidden', flexDirection: 'column', minHeight: 0 }}>
                 <div style={{ flex: 1, display: 'flex', overflow: 'hidden', minHeight: 0 }}>
                     {isRecycledView ? <RecycledList /> : <FileList />}
@@ -27,6 +34,16 @@ export function StorageExplorerPage() {
                 {networkDrawerOpen && <NetworkDrawer />}
             </div>
             <UploadCard />
+            {permissionNotice && (
+                <Modal
+                    title="App permission required"
+                    confirmLabel="OK"
+                    onConfirm={dismissPermissionNotice}
+                    onCancel={dismissPermissionNotice}
+                >
+                    <p data-testid="permission-notice" style={{ margin: 0 }}>{permissionNotice}</p>
+                </Modal>
+            )}
             {modal?.kind === 'new-container' && (
                 <NewContainerModal
                     onConfirm={async (name, description) => {

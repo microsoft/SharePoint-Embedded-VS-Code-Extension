@@ -27,14 +27,13 @@ test.describe('ContainerGraphService', () => {
                 status: 'Inactive',
             }],
         });
-        // The server link is reported to a host-only sink, never on the returned items.
-        let reportedLink: string | undefined | 'not-reported' = 'not-reported';
-        const containers = await s.list('ct-1', link => { reportedLink = link; });
+        // The server link is reported on the page envelope, never on the returned items.
+        const page = await s.list('ct-1');
         expect(fake.last).toMatchObject({ method: 'GET', path: BASE, version: 'v1.0' });
         expect(fake.last.filter).toContain('containerTypeId eq ct-1');
         expect(fake.last.expand).toContain('drive');
-        expect(containers[0].status).toBe('inactive');
-        expect(reportedLink, 'a single-page response must state "no next page" explicitly').toBeUndefined();
+        expect(page.items[0].status).toBe('inactive');
+        expect(page.nextLink, 'a single-page response must state "no next page" explicitly').toBeUndefined();
     });
 
     test('get()', async () => {

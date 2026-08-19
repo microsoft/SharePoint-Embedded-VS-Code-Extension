@@ -19,12 +19,14 @@ import type {
 export class RpcError extends Error {
     public readonly statusCode?: number;
     public readonly code?: string;
+    public readonly requiredScopes?: string[];
 
     public constructor(error: SerializedError) {
         super(error.message);
         this.name = 'RpcError';
         this.statusCode = error.statusCode;
         this.code = error.code;
+        this.requiredScopes = error.requiredScopes;
     }
 }
 

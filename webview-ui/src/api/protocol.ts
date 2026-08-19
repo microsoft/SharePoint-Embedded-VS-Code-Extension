@@ -6,6 +6,7 @@
  * Everything here is a type — nothing crosses into the bundle at runtime.
  */
 export type {
+    AuthorizationSnapshot,
     CollectionScope,
     ContainerCustomProperties,
     ContainerRole,

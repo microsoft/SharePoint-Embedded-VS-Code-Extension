@@ -101,41 +101,38 @@ test.describe('AC-03 — continuation identifiers are opaque', () => {
     });
 
     test('mapCollectionPage keeps the server link out of the mapped items', () => {
-        const reported: (string | undefined)[] = [];
-        const items = mapCollectionPage<{ id: string }, string>(
+        const page = mapCollectionPage<{ id: string }, string>(
             // eslint-disable-next-line @typescript-eslint/naming-convention -- OData annotation name
             { value: [{ id: 'a' }, { id: 'b' }], '@odata.nextLink': LINK_1 },
-            (raw) => raw.id,
-            (link) => reported.push(link)
+            (raw) => raw.id
         );
 
-        expect(items).toEqual(['a', 'b']);
+        expect(page.items).toEqual(['a', 'b']);
         // The items are what a projected result is built from; the link must not ride along in them.
-        expect(JSON.stringify(items)).not.toContain('skiptoken');
-        expect(JSON.stringify(items)).not.toContain('graph.microsoft.com');
-        // The link reaches the host-only sink instead, exactly once.
-        expect(reported, 'the host needs the link to offer an explicit next page').toEqual([LINK_1]);
+        expect(JSON.stringify(page.items)).not.toContain('skiptoken');
+        expect(JSON.stringify(page.items)).not.toContain('graph.microsoft.com');
+        // The link reaches the host on the envelope instead, where it stays.
+        expect(page.nextLink, 'the host needs the link to offer an explicit next page').toBe(LINK_1);
     });
 
     test('mapCollectionPage reports "no next page" explicitly rather than staying silent', () => {
-        function report(response: unknown): (string | undefined)[] {
-            const reported: (string | undefined)[] = [];
-            mapCollectionPage<{ id: string }, string>(
+        function nextLinkOf(response: unknown): { present: boolean; value: string | undefined } {
+            const page = mapCollectionPage<{ id: string }, string>(
                 response as { value?: { id: string }[] } | null,
-                (raw) => raw.id,
-                (link) => reported.push(link)
+                (raw) => raw.id
             );
-            return reported;
+            // Presence of the property is the point: `undefined` is a stated answer, whereas a
+            // missing key would be indistinguishable from "the mapper forgot to report".
+            return { present: 'nextLink' in page, value: page.nextLink };
         }
 
-        // "No next page" is stated, not merely omitted: the sink still fires, with undefined.
-        expect(report({ value: [] })).toEqual([undefined]);
-        expect(report(null)).toEqual([undefined]);
+        expect(nextLinkOf({ value: [] })).toEqual({ present: true, value: undefined });
+        expect(nextLinkOf(null)).toEqual({ present: true, value: undefined });
         // An empty-string link is "no next page", not a fetchable one.
         // eslint-disable-next-line @typescript-eslint/naming-convention -- OData annotation name
-        expect(report({ value: [{ id: 'a' }], '@odata.nextLink': '' })).toEqual([undefined]);
-        expect(mapCollectionPage<{ id: string }, string>({ value: [] }, (raw) => raw.id)).toEqual([]);
-        expect(mapCollectionPage<{ id: string }, string>(null, (raw) => raw.id)).toEqual([]);
+        expect(nextLinkOf({ value: [{ id: 'a' }], '@odata.nextLink': '' })).toEqual({ present: true, value: undefined });
+        expect(mapCollectionPage<{ id: string }, string>({ value: [] }, (raw) => raw.id).items).toEqual([]);
+        expect(mapCollectionPage<{ id: string }, string>(null, (raw) => raw.id).items).toEqual([]);
     });
 });
 
