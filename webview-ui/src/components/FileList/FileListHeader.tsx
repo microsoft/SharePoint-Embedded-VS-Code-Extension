@@ -55,17 +55,23 @@ export function FileListHeader({ colTemplate, sortColumn, sortDirection, onSort,
                 // Left-edge handle on all fixed-width columns (i >= 2)
                 const showHandle = onColResize && i >= 2;
                 const fixedIdx = i - 2;
+                // Date Modified is pinned to newest-first and never toggles, so it renders as a
+                // fixed column rather than an interactive sort control.
+                const isFixed = col.key === 'modified';
                 return (
                     <div
                         key={i}
                         data-testid={col.key ? SORT_TEST_IDS[col.key] : undefined}
+                        data-fixed-sort={isFixed ? 'true' : undefined}
+                        aria-disabled={isFixed ? true : undefined}
+                        title={isFixed ? 'Sorted by Date Modified, newest first' : undefined}
                         onClick={() => col.key && onSort(col.key)}
                         style={{
                             display: 'flex',
                             alignItems: 'center',
                             gap: 4,
                             padding: '5px 8px',
-                            cursor: col.key ? 'pointer' : 'default',
+                            cursor: col.key && !isFixed ? 'pointer' : 'default',
                             justifyContent: col.align === 'right' ? 'flex-end' : 'flex-start',
                             fontSize: 11,
                             fontWeight: 600,
@@ -92,8 +98,11 @@ export function FileListHeader({ colTemplate, sortColumn, sortDirection, onSort,
                         ) : (
                             <>
                                 {col.label}
+                                {isFixed && (
+                                    <span className="codicon codicon-lock-small" style={{ fontSize: 10 }} data-testid="sort-modified-fixed" />
+                                )}
                                 {col.key && sortColumn === col.key && (
-                                    <span className={`codicon ${arrow}`} style={{ fontSize: 10 }} />
+                                    <span className={`codicon ${isFixed ? 'codicon-arrow-down' : arrow}`} style={{ fontSize: 10 }} />
                                 )}
                                 {showHandle && (
                                     <ColResizeHandle side="left" onMouseDown={e => onColResize!(e, fixedIdx, -1)} />

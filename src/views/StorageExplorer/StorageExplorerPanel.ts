@@ -11,11 +11,12 @@ import { ext } from '../../utils/extensionVariables';
 import { AuthenticationState } from '../../services/AuthenticationState';
 import { serializeError, StorageExplorerApi } from '../../services/StorageExplorer/StorageExplorerApi';
 import { diagnoseAccessDenied } from '../../services/StorageExplorer/accessDenied';
-import { checkExtensionAppPermissions, ensureExtensionAppPermissions } from '../../utils/ExtensionAppPermissions';
+import { checkExtensionAppPermissions, ensureExtensionAppPermissions, readGrantedExtensionAppScopes } from '../../utils/ExtensionAppPermissions';
+import { missingCapabilitiesForOperation } from '../../utils/ExtensionAppPermissionScopes';
 import { createGraphClient } from '../../services/StorageExplorer/graphClient';
 import { evaluateExternalUrl } from '../../services/StorageExplorer/externalUrlPolicy';
 import { escapeHtmlAttribute, sanitizeCspSource, serializeJsonForHtml } from '../../services/StorageExplorer/htmlEncoding';
-import { SerializedError, StorageExplorerPanelState } from '../../services/StorageExplorer/protocol';
+import { SerializedError, StorageExplorerPanelState, StorageExplorerReadiness } from '../../services/StorageExplorer/protocol';
 
 /**
  * Generate a CSP script nonce.
@@ -98,7 +99,13 @@ export class StorageExplorerPanel {
         const client = createGraphClient(request => {
             this._post({ command: 'networkLog', request });
         });
-        this._api = new StorageExplorerApi(state.containerTypeId, client);
+        this._api = new StorageExplorerApi(
+            state.containerTypeId,
+            client,
+            // Capability gating reads the live grant on the extension host; the webview never
+            // learns anything about it beyond the scope names a denied call names.
+            () => readGrantedExtensionAppScopes(state.containerTypeId)
+        );
 
         this._panel.webview.html = StorageExplorerPanel._buildHtml(this._panel.webview, state);
         this._panel.onDidDispose(() => this._dispose(), null, this._disposables);
@@ -256,6 +263,9 @@ export class StorageExplorerPanel {
         if (!this._permissionPrompt) {
             this._permissionPrompt = (async () => {
                 const granted = await ensureExtensionAppPermissions(this._containerTypeId);
+                // The grant changed under us; drop the memoized capability set so the next
+                // call re-reads it instead of denying with a stale answer.
+                if (granted) { this._api.invalidateGrantedScopes(); }
                 this._post({ command: 'permissionsGrantResult', granted });
             })()
                 .catch(error => {
@@ -284,9 +294,12 @@ export class StorageExplorerPanel {
 
     public static async open(
         containerType: ContainerType,
-        registration: ContainerTypeRegistration
+        registration: ContainerTypeRegistration | null,
+        readiness: StorageExplorerReadiness = 'ready'
     ): Promise<void> {
-        const registrationId = registration.id;
+        // Blocked container types have no registration to key on, so the container type id
+        // keys the panel instead. Either way one panel exists per container type.
+        const registrationId = registration?.id ?? `ct:${containerType.id}`;
         const existing = StorageExplorerPanel._panels.get(registrationId);
         if (existing) {
             existing._panel.reveal();
@@ -314,11 +327,24 @@ export class StorageExplorerPanel {
             appName: containerType.name,
             tenantDomain: AuthenticationState.getCurrentAccountSync()?.domain ?? 'local tenant',
             containerTypeId: containerType.id,
-            registrationId: registration.id,
+            registrationId: registration?.id ?? '',
+            readiness,
+            // Scope names only, so the onboarding surface can name the grant it is waiting on.
+            requiredScopes: readiness === 'missingPermissions'
+                ? missingCapabilitiesForOperation('containers.list', []) as string[]
+                : undefined,
         };
 
         const instance = new StorageExplorerPanel(panel, registrationId, state);
         StorageExplorerPanel._panels.set(registrationId, instance);
+    }
+
+    /** Reveal the panel for a registration if one is already open. */
+    public static reveal(registrationId: string): boolean {
+        const existing = StorageExplorerPanel._panels.get(registrationId);
+        if (!existing) { return false; }
+        existing._panel.reveal();
+        return true;
     }
 
     // ------------------------------------------------------------------

@@ -1,6 +1,6 @@
 import type { FileStorageContainerSettings } from '@microsoft/microsoft-graph-types';
 import { request } from '../rpc';
-import type { ContainerCustomProperties, StorageItem } from '../protocol';
+import type { ContainerCustomProperties, PagedResult, StorageItem } from '../protocol';
 
 /**
  * SPE container operations.
@@ -8,10 +8,14 @@ import type { ContainerCustomProperties, StorageItem } from '../protocol';
  * Every method forwards to the extension host, which owns the Graph token.
  * Container-type-scoped calls (`list`, `listDeleted`, `create`) deliberately take no
  * container type id: the host uses the one the panel was opened with.
+ *
+ * Listings return **one server page**. The `continuation` handle in the result is opaque —
+ * the Graph `@odata.nextLink` never leaves the extension host — and is redeemed by
+ * `loadMore` only when the user explicitly asks for the next page.
  */
 export class ContainerGraphService {
-    /** List all active containers for this panel's container type. */
-    async list(): Promise<StorageItem[]> {
+    /** List the first page of active containers for this panel's container type. */
+    async list(): Promise<PagedResult<StorageItem>> {
         return request('containers.list', {});
     }
 
@@ -45,8 +49,8 @@ export class ContainerGraphService {
         return request('containers.delete', { containerId });
     }
 
-    /** List soft-deleted containers for this panel's container type. */
-    async listDeleted(): Promise<StorageItem[]> {
+    /** List the first page of soft-deleted containers for this panel's container type. */
+    async listDeleted(): Promise<PagedResult<StorageItem>> {
         return request('containers.listDeleted', {});
     }
 

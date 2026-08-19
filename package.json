@@ -392,69 +392,29 @@
           "group": "inline@1"
         },
         {
-          "when": "viewItem == spe:containersTreeItem",
-          "command": "spe.Containers.create",
+          "when": "viewItem =~ /spe:storageExplorerTreeItem.*/",
+          "command": "spe.ContainerType.openStorageExplorer",
           "group": "1@1"
         },
         {
-          "when": "viewItem =~ /spe:containersTreeItem.*/",
-          "command": "spe.refresh",
-          "group": "2@1"
-        },
-        {
-          "when": "viewItem =~ /spe:containersTreeItem.*/",
-          "command": "spe.refresh",
-          "group": "inline@1"
-        },
-        {
-          "when": "viewItem =~ /spe:containerTreeItem.*/",
-          "command": "spe.Container.rename",
-          "group": "1@1"
-        },
-        {
-          "when": "viewItem =~ /spe:containerTreeItem.*/",
-          "command": "spe.Container.editDescription",
+          "when": "viewItem == spe:storageExplorerTreeItem-unregistered",
+          "command": "spe.ContainerType.registerOnLocalTenant",
           "group": "1@2"
         },
         {
-          "when": "viewItem =~ /spe:containerTreeItem.*/",
-          "command": "spe.Container.recycle",
-          "group": "1@3"
-        },
-        {
-          "when": "viewItem =~ /spe:containerTreeItem.*/",
-          "command": "spe.Container.copyId",
-          "group": "2@1"
-        },
-        {
-          "when": "viewItem =~ /spe:containerTreeItem.*/",
-          "command": "spe.Container.viewProperties",
-          "group": "2@2"
-        },
-        {
-          "when": "viewItem =~ /spe:recycledContainerTreeItem.*/",
-          "command": "spe.RecycledContainer.restore",
-          "group": "1@1"
-        },
-        {
-          "when": "viewItem =~ /spe:recycledContainerTreeItem.*/",
-          "command": "spe.RecycledContainer.delete",
+          "when": "viewItem == spe:storageExplorerTreeItem-missingPermissions",
+          "command": "spe.ContainerType.grantExtensionAppPermissions",
           "group": "1@2"
         },
         {
-          "when": "viewItem =~ /spe:recycledContainerTreeItem.*/",
-          "command": "spe.RecycledContainer.copyId",
-          "group": "2@1"
+          "when": "viewItem == spe:storageExplorerTreeItem-billingBlocked",
+          "command": "spe.ContainerType.attachBilling",
+          "group": "1@2"
         },
         {
-          "when": "viewItem == spe:recycledContainersTreeItem",
+          "when": "viewItem =~ /spe:storageExplorerTreeItem.*/",
           "command": "spe.refresh",
           "group": "2@1"
-        },
-        {
-          "when": "viewItem == spe:recycledContainersTreeItem",
-          "command": "spe.refresh",
-          "group": "inline@1"
         }
       ]
     },

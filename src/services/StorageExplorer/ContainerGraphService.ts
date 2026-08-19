@@ -11,11 +11,21 @@ import type {
 } from '@microsoft/microsoft-graph-types';
 import { ContainerCustomProperties, StorageItem } from './protocol';
 import { containerToStorageItem, formatDate } from './mappers';
+import { DEFAULT_PAGE_SIZE, GraphPage, RawCollectionResponse, toGraphPage } from './pagination';
 
 const BASE_PATH = '/storage/fileStorage/containers';
 const DELETED_PATH = '/storage/fileStorage/deletedContainers';
 const CONTAINER_SELECT =
     'id,displayName,description,containerTypeId,createdDateTime,status,lockState,assignedSensitivityLabel';
+
+/** Deleted containers carry a `deletedDateTime` the shared container mapper does not read. */
+function deletedContainerToStorageItem(container: FileStorageContainer): StorageItem {
+    return {
+        ...containerToStorageItem(container),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        deletedAt: formatDate((container as any).deletedDateTime),
+    };
+}
 
 /**
  * SPE container operations for the Storage Explorer, executed on the extension host.
@@ -27,16 +37,30 @@ const CONTAINER_SELECT =
 export class ContainerGraphService {
     public constructor(private readonly _client: Graph.Client) { }
 
-    /** List all active containers for a given container type. */
-    public async list(containerTypeId: string): Promise<StorageItem[]> {
-        const response = await this._client
+    /**
+     * List the **first page** of active containers for a container type.
+     *
+     * Deliberately does not follow `@odata.nextLink`: eagerly walking every page turns
+     * opening the panel into an unbounded number of Graph calls. The link comes back to the
+     * caller, which decides whether the user ever asks for the next page.
+     */
+    public async list(containerTypeId: string): Promise<GraphPage<StorageItem>> {
+        const response: RawCollectionResponse<FileStorageContainer> = await this._client
             .api(BASE_PATH)
             .version('v1.0')
             .filter(`containerTypeId eq ${containerTypeId}`)
             .select(CONTAINER_SELECT)
             .expand('drive($select=quota)')
+            .top(DEFAULT_PAGE_SIZE)
             .get();
-        return (response.value as FileStorageContainer[]).map(containerToStorageItem);
+        return toGraphPage(response, containerToStorageItem);
+    }
+
+    /** Fetch one further page of active containers from a server-provided link. */
+    public async listNextPage(nextLink: string): Promise<GraphPage<StorageItem>> {
+        const response: RawCollectionResponse<FileStorageContainer> =
+            await this._client.api(nextLink).get();
+        return toGraphPage(response, containerToStorageItem);
     }
 
     /** Get a single container by ID. */
@@ -99,18 +123,22 @@ export class ContainerGraphService {
             .delete();
     }
 
-    /** List soft-deleted containers for a given container type. */
-    public async listDeleted(containerTypeId: string): Promise<StorageItem[]> {
-        const response = await this._client
+    /** List the **first page** of soft-deleted containers for a container type. */
+    public async listDeleted(containerTypeId: string): Promise<GraphPage<StorageItem>> {
+        const response: RawCollectionResponse<FileStorageContainer> = await this._client
             .api(DELETED_PATH)
             .version('v1.0')
             .filter(`containerTypeId eq ${containerTypeId}`)
+            .top(DEFAULT_PAGE_SIZE)
             .get();
-        return (response.value as FileStorageContainer[]).map(c => ({
-            ...containerToStorageItem(c),
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            deletedAt: formatDate((c as any).deletedDateTime),
-        }));
+        return toGraphPage(response, deletedContainerToStorageItem);
+    }
+
+    /** Fetch one further page of soft-deleted containers from a server-provided link. */
+    public async listDeletedNextPage(nextLink: string): Promise<GraphPage<StorageItem>> {
+        const response: RawCollectionResponse<FileStorageContainer> =
+            await this._client.api(nextLink).get();
+        return toGraphPage(response, deletedContainerToStorageItem);
     }
 
     /** Restore a soft-deleted container. */

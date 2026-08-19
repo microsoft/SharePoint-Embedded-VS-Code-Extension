@@ -169,6 +169,48 @@ export interface UploadChunkResult {
     item?: StorageItem;
 }
 
+// ── Paging ────────────────────────────────────────────────────────────────────
+
+/**
+ * Opaque handle to "there is another server page for this collection".
+ *
+ * It is **not** a Graph `@odata.nextLink`. The host mints a random identifier, keeps the
+ * real link in its own memory, and binds the identifier to the panel, the collection kind,
+ * the container, and the folder it was issued for. A webview therefore cannot read a Graph
+ * URL out of it, cannot forge one, and cannot replay one against a different view.
+ */
+export type ContinuationToken = string;
+
+/** The Storage Explorer collections that page one server page at a time. */
+export type StorageCollectionKind =
+    | 'containers'
+    | 'deletedContainers'
+    | 'driveChildren'
+    | 'recycleBin';
+
+/**
+ * The exact view a continuation belongs to.
+ *
+ * `collections.loadMore` carries the scope the webview believes it is in; the host compares
+ * it with the scope recorded when the token was issued and rejects a mismatch, so a token
+ * left over from another folder, recycle view, or root listing cannot append into the
+ * current one.
+ */
+export interface CollectionScope {
+    kind: StorageCollectionKind;
+    /** Container (= drive) id. Absent for the container-type-scoped collections. */
+    containerId?: string;
+    /** Folder item id for a nested drive listing. Absent at the drive root. */
+    itemId?: string;
+}
+
+/** One server page plus the handle to the next one, when the server said there is one. */
+export interface PagedResult<T> {
+    items: T[];
+    /** Absent once the server returned the final page. */
+    continuation?: ContinuationToken;
+}
+
 // ── Operation contract ────────────────────────────────────────────────────────
 
 /**
@@ -186,14 +228,14 @@ export interface UploadChunkResult {
 /* eslint-disable @typescript-eslint/naming-convention -- operation ids are dotted string literals, not identifiers */
 export interface StorageExplorerOperations {
     // ── containers ────────────────────────────────────────────────────────────
-    'containers.list': { params: Record<string, never>; result: StorageItem[] };
+    'containers.list': { params: Record<string, never>; result: PagedResult<StorageItem> };
     'containers.get': { params: { containerId: string }; result: StorageItem | null };
     'containers.create': { params: { displayName: string; description?: string }; result: StorageItem };
     'containers.activate': { params: { containerId: string }; result: void };
     'containers.rename': { params: { containerId: string; displayName: string }; result: void };
     'containers.updateDescription': { params: { containerId: string; description: string }; result: void };
     'containers.delete': { params: { containerId: string }; result: void };
-    'containers.listDeleted': { params: Record<string, never>; result: StorageItem[] };
+    'containers.listDeleted': { params: Record<string, never>; result: PagedResult<StorageItem> };
     'containers.restore': { params: { containerId: string }; result: void };
     'containers.permanentlyDelete': { params: { containerId: string }; result: void };
     'containers.getSettings': { params: { containerId: string }; result: FileStorageContainerSettings };
@@ -202,9 +244,21 @@ export interface StorageExplorerOperations {
     'containers.setCustomProperty': { params: { containerId: string; key: string; value: string; isSearchable: boolean }; result: void };
     'containers.deleteCustomProperty': { params: { containerId: string; key: string }; result: void };
 
+    // ── collections ───────────────────────────────────────────────────────────
+    /**
+     * Fetch exactly one more server page for a collection already listed by this panel.
+     *
+     * Never issued implicitly: only an explicit user action ("Load more") reaches here, so a
+     * first page stays a first page until the user asks for the next one.
+     */
+    'collections.loadMore': {
+        params: { continuation: ContinuationToken; scope: CollectionScope };
+        result: PagedResult<StorageItem>;
+    };
+
     // ── drive ─────────────────────────────────────────────────────────────────
-    /** Streams one page at a time as `rpc/progress` payloads of `StorageItem[]`; the webview accumulates. */
-    'drive.listChildren': { params: { driveId: string; itemId?: string }; result: StorageItem[] };
+    /** Returns only the first server page; the caller asks for more via `collections.loadMore`. */
+    'drive.listChildren': { params: { driveId: string; itemId?: string }; result: PagedResult<StorageItem> };
     'drive.get': { params: { driveId: string; itemId: string }; result: StorageItem | null };
     'drive.getDetailedDriveItem': { params: { driveId: string; itemId: string }; result: DriveItemDetails };
     'drive.createFolder': { params: { driveId: string; parentId: string | null; name: string }; result: StorageItem };
@@ -223,7 +277,7 @@ export interface StorageExplorerOperations {
         result: StorageItem;
     };
     'drive.createUploadSession': { params: { driveId: string; parentId: string | null; fileName: string }; result: string };
-    'drive.listRecycleBin': { params: { containerId: string }; result: StorageItem[] };
+    'drive.listRecycleBin': { params: { containerId: string }; result: PagedResult<StorageItem> };
     'drive.restoreFromRecycleBin': { params: { containerId: string; itemId: string }; result: void };
     'drive.permanentlyDelete': { params: { containerId: string; itemId: string }; result: void };
     'drive.getFields': { params: { driveId: string; itemId: string }; result: Record<string, unknown> };
@@ -299,6 +353,13 @@ export interface SerializedError {
     /** HTTP status code when the failure originated from a Graph response. */
     statusCode?: number;
     code?: string;
+    /**
+     * Container-type scope names the operation needed but the extension app was not granted.
+     *
+     * Present only on a `missingExtensionAppPermissions` failure. Scope *names* only — never
+     * the grant itself, the principal it belongs to, or anything else about the tenant.
+     */
+    requiredScopes?: string[];
 }
 
 /**
@@ -378,4 +439,29 @@ export interface StorageExplorerPanelState {
     tenantDomain: string;
     containerTypeId: string;
     registrationId: string;
+    /**
+     * Whether this container type can serve Storage Explorer requests at all.
+     *
+     * Anything other than `ready` makes the webview render a disabled onboarding surface and
+     * issue no collection operations, so a blocked container type costs zero Graph calls.
+     */
+    readiness: StorageExplorerReadiness;
+    /**
+     * Scope names still required when `readiness === 'missingPermissions'`.
+     * Names only — the webview uses them to say which grant is missing.
+     */
+    requiredScopes?: string[];
 }
+
+/**
+ * Why (or whether) Storage Explorer can operate on a container type.
+ *
+ * `unregistered` — no local tenant registration yet.
+ * `missingPermissions` — registered, but the extension app lacks required delegated scopes.
+ * `billingBlocked` — billing is not set up, so nothing under the container type works.
+ */
+export type StorageExplorerReadiness =
+    | 'ready'
+    | 'unregistered'
+    | 'missingPermissions'
+    | 'billingBlocked';

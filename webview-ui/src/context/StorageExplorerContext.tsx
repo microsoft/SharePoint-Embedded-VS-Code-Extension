@@ -2,7 +2,12 @@ import React, { createContext, useCallback, useContext, useEffect, useRef, useSt
 import { StorageItem, BreadcrumbEntry, SortColumn, SortDirection, SidePanelTab, ModalState, ViewMode, NetworkRequest, UploadFile, UploadStatus } from '../models/StorageItem';
 import { DELETED_CONTAINERS, RECYCLED_ITEMS_BY_CONTAINER_ID } from '../data/dummyData';
 import { createStorageExplorerApi, onHostNetworkRequest, StorageExplorerApi } from '../api';
-import type { MissingExtensionPermissionsCode } from '../api/protocol';
+import type { CollectionScope, MissingExtensionPermissionsCode, StorageExplorerReadiness } from '../api/protocol';
+
+/** Stable key for a collection scope, so continuations are tracked per view. */
+function scopeKey(scope: CollectionScope): string {
+    return `${scope.kind}|${scope.containerId ?? ''}|${scope.itemId ?? ''}`;
+}
 import { DriveGraphService } from '../api/services/DriveGraphService';
 import { openUrl } from '../utils/openUrl';
 import { onExtensionMessage, postToExtension } from '../utils/vsbridge';
@@ -62,6 +67,8 @@ declare global {
             tenantDomain: string;
             containerTypeId: string;
             registrationId: string;
+            readiness?: StorageExplorerReadiness;
+            requiredScopes?: string[];
         };
     }
 }
@@ -101,6 +108,21 @@ interface StorageExplorerContextValue {
     retentionOverrides: Record<string, number | null>;
     setRetentionOverride: (containerId: string, days: number | null) => void;
     api: StorageExplorerApi;
+    /**
+     * Whether this container type can serve requests at all. Anything but `ready` renders the
+     * onboarding surface and suppresses every collection request.
+     */
+    readiness: StorageExplorerReadiness;
+    /** Scope names the container type still needs granted, when readiness blocks on them. */
+    requiredScopes: string[];
+    /** True when the server said another page exists for the view on screen. */
+    canLoadMore: boolean;
+    /** Fetch exactly one more page for the current view. No-op when there is nothing more. */
+    loadMore: () => Promise<void>;
+    /** True while a Load more request is in flight. */
+    isLoadingMore: boolean;
+    /** Set when the last Load more failed, so the button can offer a retry. */
+    loadMoreError: string | null;
     isLoading: boolean;
     loadProgress: number;
     /** Set when the current view failed to load; null when the view simply has no items. */
@@ -157,6 +179,14 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
         containerTypeId: '',
         registrationId: '',
     };
+    const readiness: StorageExplorerReadiness = panelState.readiness ?? 'ready';
+    const requiredScopes = panelState.requiredScopes ?? [];
+    /**
+     * A container type that is not ready cannot serve container or file operations, so the
+     * webview must not issue them: the onboarding surface names the next action instead, and
+     * a blocked panel costs zero Graph requests.
+     */
+    const isReady = readiness === 'ready';
 
     // ── API instances (created once per session) ──────────────────────────────
     // No credentials live here: every service forwards a named operation to the
@@ -202,8 +232,16 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
     // Progress of an in-flight bulk delete (null when not deleting).
     const [deleteProgress, setDeleteProgress] = useState<{ current: number; total: number } | null>(null);
     const deleteCancelRef = useRef(false);
-    const [sortColumn, setSortColumnState] = useState<SortColumn>('name');
-    const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
+    // Date Modified descending is the fixed default for every list: the question a user opens
+    // Storage Explorer to answer is "what changed recently", and a newly created container or
+    // freshly uploaded file must be visible without hunting. It is not toggleable — see setSort.
+    const [sortColumn, setSortColumnState] = useState<SortColumn>('modified');
+    const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+    // Opaque continuation handle per view, keyed by scope. Absent/undefined means the server
+    // returned the final page. These are host-minted ids, never Graph nextLinks.
+    const [continuations, setContinuations] = useState<Record<string, string | undefined>>({});
+    const [isLoadingMore, setIsLoadingMore] = useState(false);
+    const [loadMoreError, setLoadMoreError] = useState<string | null>(null);
     const [sidePanelOpen, setSidePanelOpen] = useState(true);
     const [sidePanelTab, setSidePanelTabState] = useState<SidePanelTab>('permissions');
     const [modal, setModal] = useState<ModalState | null>(null);
@@ -279,21 +317,25 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
     const loadCurrentView = useCallback((currentViewMode: ViewMode) => {
         const { containerTypeId } = panelState;
         const isCurrent = beginLoad();
+        if (!isReady) { setIsLoading(false); return; }
         if (currentViewMode.kind === 'normal') {
             if (!containerTypeId) { setIsLoading(false); return; }
-            // Determine the current path state at call time by reading from path state
-            // We receive viewMode but need the current lastId — capture it via closure
-            // instead we'll re-read from path in a separate effect
+            const key = scopeKey({ kind: 'containers' });
             apiRef.current!.containers.list()
-                .then(items => {
+                .then(page => {
                     if (!isCurrent()) { return; }
+                    const items = page.items;
                     const authoritativeIds = new Set(items.map(item => item.id));
                     setRootItems(items.filter(item => !deletedContainerIdsRef.current.has(item.id)));
+                    setContinuations(prev => ({ ...prev, [key]: page.continuation }));
                     for (const id of deletedContainerIdsRef.current) {
                         if (!authoritativeIds.has(id)) {
                             deletedContainerIdsRef.current.delete(id);
                         }
                     }
+                    // Only IDs the *loaded* pages actually returned are reconciled. A container
+                    // still sitting on an unfetched page has not been superseded, so dropping it
+                    // from the overlay here would make it vanish from the user's own session.
                     setLocallyCreatedContainers(prev => {
                         const reconciledIds = [...prev.keys()].filter(id => authoritativeIds.has(id));
                         if (reconciledIds.length === 0) { return prev; }
@@ -306,17 +348,24 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
                     console.error('[StorageExplorer] Failed to load containers:', err);
                     if (!isCurrent()) { return; }
                     setRootItems([]);
+                    setContinuations(prev => ({ ...prev, [key]: undefined }));
                     setLoadError(toLoadFailure(err));
                 })
                 .finally(() => { if (isCurrent()) { setIsLoading(false); } });
         } else if (currentViewMode.kind === 'deleted-containers') {
             if (!containerTypeId) { setIsLoading(false); return; }
+            const key = scopeKey({ kind: 'deletedContainers' });
             apiRef.current!.containers.listDeleted()
-                .then(items => { if (isCurrent()) { setDeletedContainers(items); } })
+                .then(page => {
+                    if (!isCurrent()) { return; }
+                    setDeletedContainers(page.items);
+                    setContinuations(prev => ({ ...prev, [key]: page.continuation }));
+                })
                 .catch(err => {
                     console.error('[StorageExplorer] Failed to load deleted containers:', err);
                     if (!isCurrent()) { return; }
                     setDeletedContainers([]);
+                    setContinuations(prev => ({ ...prev, [key]: undefined }));
                     setLoadError(toLoadFailure(err));
                 })
                 .finally(() => { if (isCurrent()) { setIsLoading(false); } });
@@ -325,10 +374,10 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
         }
     // panelState is stable (injected once at mount)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [beginLoad]);
+    }, [beginLoad, isReady]);
 
     /**
-     * Load drive items whenever we navigate into a container/folder.
+     * Load the first page of drive items whenever we navigate into a container/folder.
      *
      * `silent` re-lists a folder in the background (after an upload) without touching the
      * shared loading/error state — that folder may not be the one on screen any more.
@@ -337,25 +386,21 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
         const key = itemId ?? driveId;
         const silent = opts?.silent === true;
         const isCurrent = silent ? () => false : beginLoad();
-        // The host streams one page at a time; accumulate here so the message payload
-        // stays proportional to the page rather than to everything loaded so far.
-        const accumulated: StorageItem[] = [];
-        apiRef.current!.drive.listChildren(driveId, itemId, (page) => {
-            // Stream each page into the view and update the running count.
-            for (const item of page) { accumulated.push(item); }
-            const snapshot = accumulated.slice();
-            setFolderItems(prev => ({ ...prev, [key]: snapshot }));
-            if (isCurrent()) { setLoadProgress(snapshot.length); }
-        })
-            .then(items => setFolderItems(prev => ({ ...prev, [key]: items })))
+        if (!isReady) { setIsLoading(false); return; }
+        const continuationKey = scopeKey({ kind: 'driveChildren', containerId: driveId, itemId });
+        apiRef.current!.drive.listChildren(driveId, itemId)
+            .then(page => {
+                setFolderItems(prev => ({ ...prev, [key]: page.items }));
+                setContinuations(prev => ({ ...prev, [continuationKey]: page.continuation }));
+            })
             .catch(err => {
                 console.error('[StorageExplorer] Failed to load drive items:', err);
-                // Drop any partial pages: a half-listed folder reads as a complete one.
                 setFolderItems(prev => ({ ...prev, [key]: [] }));
+                setContinuations(prev => ({ ...prev, [continuationKey]: undefined }));
                 if (isCurrent()) { setLoadError(toLoadFailure(err)); }
             })
             .finally(() => { if (isCurrent()) { setIsLoading(false); } });
-    }, [beginLoad]);
+    }, [beginLoad, isReady]);
 
     // Load whenever the view mode changes (includes initial mount)
     useEffect(() => {
@@ -395,11 +440,17 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
         if (viewMode.kind !== 'container-recycle-bin') return;
         const { containerId } = viewMode;
         const isCurrent = beginLoad();
+        if (!isReady) { setIsLoading(false); return; }
+        const continuationKey = scopeKey({ kind: 'recycleBin', containerId });
         apiRef.current!.drive.listRecycleBin(containerId)
-            .then(items => setFolderItems(prev => ({ ...prev, [`recycle-${containerId}`]: items })))
+            .then(page => {
+                setFolderItems(prev => ({ ...prev, [`recycle-${containerId}`]: page.items }));
+                setContinuations(prev => ({ ...prev, [continuationKey]: page.continuation }));
+            })
             .catch(err => {
                 console.error('[StorageExplorer] Failed to load recycle bin:', err);
                 setFolderItems(prev => ({ ...prev, [`recycle-${containerId}`]: [] }));
+                setContinuations(prev => ({ ...prev, [continuationKey]: undefined }));
                 if (isCurrent()) { setLoadError(toLoadFailure(err)); }
             })
             .finally(() => { if (isCurrent()) { setIsLoading(false); } });
@@ -506,24 +557,28 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
 
     const currentItems = useMemo(() => {
         if (viewMode.kind !== 'normal') return [];
-        let raw: StorageItem[];
-        if (lastId === null) {
-            const merged = new Map(rootItems.map(item => [item.id, item]));
-            for (const [id, item] of locallyCreatedContainers) {
-                if (!merged.has(id)) { merged.set(id, item); }
-            }
-            raw = [...merged.values()];
-        } else {
-            // Use the container id as key when at container root, folder id otherwise
-            const key = lastId;
-            raw = folderItems[key] ?? [];
-        }
+        const isRoot = lastId === null;
+        const authoritative: StorageItem[] = isRoot ? rootItems : (folderItems[lastId] ?? []);
+        const authoritativeIds = new Set(authoritative.map(item => item.id));
+        // Containers this session created that the loaded pages have not returned yet. They
+        // are pinned rather than merged: with only one page loaded, an alphabetical or size
+        // sort would routinely bury a container the user just made below rows they did not
+        // ask about, which reads as "my container was not created".
+        const pinned = isRoot
+            ? [...locallyCreatedContainers.values()].filter(item => !authoritativeIds.has(item.id))
+            : [];
+
         const kindOrder: Record<string, number> = { container: 0, folder: 1, file: 2 };
-
         const filter = filterText.trim().toLowerCase();
-        const filtered = filter ? raw.filter(i => i.name.toLowerCase().includes(filter)) : raw;
+        // Sorting and filtering are deliberately local: they act on what is loaded and never
+        // trigger a hidden page fetch, so the list can never claim to have searched the server.
+        const matches = (item: StorageItem) => !filter || item.name.toLowerCase().includes(filter);
 
-        return [...filtered].sort((a, b) => {
+        const pinnedRows = pinned
+            .filter(matches)
+            .sort((a, b) => b.modifiedAt.localeCompare(a.modifiedAt));
+
+        const rows = authoritative.filter(matches).sort((a, b) => {
             // Containers and folders always sort before files
             const kindCmp = (kindOrder[a.kind] ?? 2) - (kindOrder[b.kind] ?? 2);
             if (kindCmp !== 0) return kindCmp;
@@ -537,6 +592,8 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
             }
             return sortDirection === 'asc' ? cmp : -cmp;
         });
+
+        return [...pinnedRows, ...rows];
     }, [lastId, viewMode, rootItems, locallyCreatedContainers, folderItems, sortColumn, sortDirection, filterText]);
 
     const currentRecycledItems = useMemo(() => {
@@ -767,11 +824,95 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
     }
 
     function setSort(col: SortColumn) {
+        // Date Modified is fixed at newest-first and never toggles: it is the ordering the
+        // whole "did my change land?" workflow depends on, and a stray click that flipped it
+        // to oldest-first silently hid exactly the rows the user was looking for.
+        if (col === 'modified') {
+            setSortColumnState('modified');
+            setSortDirection('desc');
+            return;
+        }
         if (col === sortColumn) {
             setSortDirection(d => (d === 'asc' ? 'desc' : 'asc'));
         } else {
             setSortColumnState(col);
             setSortDirection('asc');
+        }
+    }
+
+    /** The collection the user is looking at right now, or null when there is nothing to page. */
+    const currentScope: CollectionScope | null = useMemo(() => {
+        if (viewMode.kind === 'deleted-containers') { return { kind: 'deletedContainers' }; }
+        if (viewMode.kind === 'container-recycle-bin') {
+            return { kind: 'recycleBin', containerId: viewMode.containerId };
+        }
+        if (lastId === null) { return { kind: 'containers' }; }
+        const driveId = path[1]?.id;
+        if (!driveId) { return null; }
+        return {
+            kind: 'driveChildren',
+            containerId: driveId,
+            itemId: lastId !== driveId ? lastId : undefined,
+        };
+    }, [viewMode, lastId, path]);
+
+    const currentContinuation = currentScope ? continuations[scopeKey(currentScope)] : undefined;
+    const canLoadMore = !!currentContinuation;
+
+    /**
+     * Fetch exactly one more page for the view on screen.
+     *
+     * Only ever reached from the user's own "Load more" click, so a list never grows behind
+     * their back. The continuation is redeemed once: on failure the host reinstates it, so
+     * the button can offer a retry without skipping a page.
+     */
+    async function loadMore(): Promise<void> {
+        if (!currentScope || !currentContinuation || isLoadingMore) { return; }
+        const scope = currentScope;
+        const key = scopeKey(scope);
+        setIsLoadingMore(true);
+        setLoadMoreError(null);
+        try {
+            const page = await apiRef.current!.collections.loadMore(currentContinuation, scope);
+            // Append by id so a page that overlaps the previous one cannot duplicate a row,
+            // and so rows already on screen keep their identity (and the user's selection).
+            const append = (existing: StorageItem[]): StorageItem[] => {
+                const seen = new Set(existing.map(item => item.id));
+                return [...existing, ...page.items.filter(item => !seen.has(item.id))];
+            };
+            switch (scope.kind) {
+                case 'containers':
+                    setRootItems(prev => append(prev).filter(i => !deletedContainerIdsRef.current.has(i.id)));
+                    setLocallyCreatedContainers(prev => {
+                        const arrived = page.items.filter(item => prev.has(item.id));
+                        if (arrived.length === 0) { return prev; }
+                        const next = new Map(prev);
+                        // The authoritative row wins; the overlay entry has done its job.
+                        for (const item of arrived) { next.delete(item.id); }
+                        return next;
+                    });
+                    break;
+                case 'deletedContainers':
+                    setDeletedContainers(prev => append(prev));
+                    break;
+                case 'driveChildren': {
+                    const folderKey = scope.itemId ?? scope.containerId!;
+                    setFolderItems(prev => ({ ...prev, [folderKey]: append(prev[folderKey] ?? []) }));
+                    break;
+                }
+                case 'recycleBin':
+                    setFolderItems(prev => ({
+                        ...prev,
+                        [`recycle-${scope.containerId}`]: append(prev[`recycle-${scope.containerId}`] ?? []),
+                    }));
+                    break;
+            }
+            setContinuations(prev => ({ ...prev, [key]: page.continuation }));
+        } catch (err: any) {
+            console.error('[StorageExplorer] Failed to load the next page:', err);
+            setLoadMoreError(err?.message ?? 'Could not load more items.');
+        } finally {
+            setIsLoadingMore(false);
         }
     }
 
@@ -970,6 +1111,12 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
         appName: panelState.appName,
         tenantDomain: panelState.tenantDomain,
         api: apiRef.current!,
+        readiness,
+        requiredScopes,
+        canLoadMore,
+        loadMore,
+        isLoadingMore,
+        loadMoreError,
         isLoading,
         loadProgress,
         loadError,

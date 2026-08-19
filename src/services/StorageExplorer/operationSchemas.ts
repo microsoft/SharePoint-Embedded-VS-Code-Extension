@@ -97,6 +97,15 @@ export const OPERATION_SCHEMAS = {
     }),
     'containers.deleteCustomProperty': z.object({ containerId: id, key: z.string().min(1) }),
 
+    'collections.loadMore': z.object({
+        continuation: z.string().min(1).max(256),
+        scope: z.object({
+            kind: z.enum(['containers', 'deletedContainers', 'driveChildren', 'recycleBin']),
+            containerId: optionalId,
+            itemId: optionalId,
+        }),
+    }),
+
     // ── drive ─────────────────────────────────────────────────────────────────
     'drive.listChildren': z.object({ driveId: id, itemId: optionalId }),
     'drive.get': z.object({ driveId: id, itemId: id }),

@@ -1,5 +1,5 @@
 import { request } from '../rpc';
-import type { NetworkLogger, NetworkRequest, StorageItem, UploadChunkResult } from '../protocol';
+import type { NetworkLogger, NetworkRequest, PagedResult, StorageItem, UploadChunkResult } from '../protocol';
 import { redactNetworkRequest } from '../../../../src/services/StorageExplorer/networkRedaction';
 
 // Re-exported for the panels that consume these shapes (FilePropertiesPanel, VersionsPanel).
@@ -37,23 +37,15 @@ export class DriveGraphService {
     }
 
     /**
-     * List the children of a drive root (itemId undefined) or a specific folder.
+     * List the **first page** of children of a drive root (itemId undefined) or a folder.
      * driveId is the container ID (container.id === driveId).
      *
-     * `onPage` receives **only the newly fetched page** each time the host completes one;
-     * callers are responsible for accumulating. Sending the cumulative array across the
-     * message boundary on every page would be quadratic for large folders.
+     * Only one server page is fetched. The `continuation` handle in the result is opaque and
+     * is redeemed through `collections.loadMore` when the user asks for more, so opening a
+     * large folder costs exactly one Graph request.
      */
-    async listChildren(
-        driveId: string,
-        itemId?: string,
-        onPage?: (page: StorageItem[]) => void,
-    ): Promise<StorageItem[]> {
-        return request(
-            'drive.listChildren',
-            { driveId, itemId },
-            onPage ? data => onPage(data as StorageItem[]) : undefined,
-        );
+    async listChildren(driveId: string, itemId?: string): Promise<PagedResult<StorageItem>> {
+        return request('drive.listChildren', { driveId, itemId });
     }
 
     /** Get a single drive item by ID. */
@@ -193,8 +185,8 @@ export class DriveGraphService {
 
     // ── Recycle bin ───────────────────────────────────────────────────────────
 
-    /** List items in the container's recycle bin. */
-    async listRecycleBin(containerId: string): Promise<StorageItem[]> {
+    /** List the first page of items in the container's recycle bin. */
+    async listRecycleBin(containerId: string): Promise<PagedResult<StorageItem>> {
         return request('drive.listRecycleBin', { containerId });
     }
 

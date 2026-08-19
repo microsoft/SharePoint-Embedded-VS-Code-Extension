@@ -8,8 +8,40 @@ import { clientId } from '../client';
 import { GraphProvider } from '../services/Graph/GraphProvider';
 import { DevelopmentTreeViewProvider } from '../views/treeview/development/DevelopmentTreeViewProvider';
 import { REQUIRED_DELEGATED_PERMISSIONS } from './ExtensionAppPermissionScopes';
+import type { ContainerTypeAppPermission } from '../models/schemas';
 
 export { REQUIRED_DELEGATED_PERMISSIONS };
+export {
+    calculateCapabilities,
+    hasCapability,
+    missingCapabilitiesForOperation,
+    requiredCapabilitiesForOperation,
+    OPERATION_REQUIRED_CAPABILITIES,
+    PERMISSION_MANAGEMENT_CAPABILITIES,
+} from './ExtensionAppPermissionScopes';
+export type { StorageExplorerCapability } from './ExtensionAppPermissionScopes';
+
+/**
+ * Read the delegated scopes the 1P extension app currently holds on a container type.
+ *
+ * Returns the raw grant so callers can evaluate operation-specific capabilities themselves;
+ * {@link checkExtensionAppPermissions} answers only the coarse "is the baseline in place"
+ * question. Throws when the lookup fails — a missing answer must not read as "nothing
+ * granted", which would deny every operation for an unrelated Graph outage.
+ */
+export async function readGrantedExtensionAppScopes(
+    containerTypeId: string
+): Promise<ContainerTypeAppPermission[]> {
+    const graphProvider = GraphProvider.getInstance();
+    try {
+        const grant = await graphProvider.appPermissionGrants.get(containerTypeId, clientId);
+        return (grant?.delegatedPermissions ?? []) as ContainerTypeAppPermission[];
+    } catch (error: any) {
+        // "No grant at all" is a definite answer, not a failed lookup.
+        if (error?.statusCode === 404 || error?.code === 'itemNotFound') { return []; }
+        throw error;
+    }
+}
 
 /**
  * Check whether the 1P extension app already has the required delegated

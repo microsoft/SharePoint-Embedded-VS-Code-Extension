@@ -6,8 +6,10 @@
  * Everything here is a type — nothing crosses into the bundle at runtime.
  */
 export type {
+    CollectionScope,
     ContainerCustomProperties,
     ContainerRole,
+    ContinuationToken,
     CurrentUser,
     DriveItemDetails,
     DriveItemVersion,
@@ -17,14 +19,17 @@ export type {
     NetworkRequest,
     OperationParams,
     OperationResult,
+    PagedResult,
     PeopleSuggestion,
     RpcProgressMessage,
     RpcRequestMessage,
     RpcResponseMessage,
     SerializedError,
+    StorageCollectionKind,
     StorageExplorerOperation,
     StorageExplorerOperations,
     StorageExplorerPanelState,
+    StorageExplorerReadiness,
     StorageItem,
     UploadChunkResult,
 } from '../../../src/services/StorageExplorer/protocol';

@@ -7,6 +7,7 @@ import * as Graph from '@microsoft/microsoft-graph-client';
 import type { DriveItem } from '@microsoft/microsoft-graph-types';
 import { DriveItemDetails, DriveItemVersion, StorageItem } from './protocol';
 import { driveItemToStorageItem, RecycleBinItem, recycleBinItemToStorageItem } from './mappers';
+import { DEFAULT_PAGE_SIZE, GraphPage, RawCollectionResponse, toGraphPage } from './pagination';
 
 const SELECT =
     'id,name,file,folder,size,lastModifiedDateTime,createdDateTime,webUrl,@microsoft.graph.downloadUrl';
@@ -47,47 +48,31 @@ export class DriveGraphService {
     public constructor(private readonly _client: Graph.Client) { }
 
     /**
-     * List the children of a drive root (itemId undefined) or a specific folder.
+     * List the **first page** of children of a drive root (itemId undefined) or a folder.
      * driveId is the container ID (container.id === driveId).
      *
-     * `onPage` is invoked once per page with **only that page's items** so callers can
-     * stream rows to the UI incrementally; sending the cumulative array each time makes
-     * streaming a large folder quadratic in both mapping cost and message size.
+     * `@odata.nextLink` is deliberately not followed. Walking every page turned opening a
+     * large folder into an unbounded chain of Graph calls, and the extra pages were fetched
+     * whether or not the user ever scrolled to them. The link is returned to the caller,
+     * which surfaces it as an explicit "Load more".
      */
-    public async listChildren(
-        driveId: string,
-        itemId?: string,
-        onPage?: (page: StorageItem[]) => void
-    ): Promise<StorageItem[]> {
-        const firstPath = itemId
+    public async listChildren(driveId: string, itemId?: string): Promise<GraphPage<StorageItem>> {
+        const path = itemId
             ? `/drives/${driveId}/items/${itemId}/children`
             : `/drives/${driveId}/root/children`;
 
-        // Follow @odata.nextLink to load EVERY page — a folder can hold far more items than a
-        // single Graph page (~200). The first request applies select+top; subsequent requests
-        // use the server-provided nextLink, which already encodes the query.
-        const all: StorageItem[] = [];
-        const emit = (items?: DriveItem[]): void => {
-            const page = (items ?? []).map(driveItemToStorageItem);
-            for (const item of page) { all.push(item); }
-            onPage?.(page);
-        };
+        const response: RawCollectionResponse<DriveItem> = await this._client
+            .api(path)
+            .select(LIST_SELECT)
+            .top(DEFAULT_PAGE_SIZE)
+            .get();
+        return toGraphPage(response, driveItemToStorageItem);
+    }
 
-        // eslint-disable-next-line @typescript-eslint/naming-convention -- OData annotation name
-        let resp: { value?: DriveItem[]; '@odata.nextLink'?: string } =
-            await this._client.api(firstPath).select(LIST_SELECT).top(200).get();
-        emit(resp.value);
-
-        let nextLink = resp['@odata.nextLink'];
-        let guard = 0;
-        while (nextLink && guard < 1000) {
-            resp = await this._client.api(nextLink).get();
-            emit(resp.value);
-            nextLink = resp['@odata.nextLink'];
-            guard++;
-        }
-
-        return all;
+    /** Fetch one further page of drive children from a server-provided link. */
+    public async listChildrenNextPage(nextLink: string): Promise<GraphPage<StorageItem>> {
+        const response: RawCollectionResponse<DriveItem> = await this._client.api(nextLink).get();
+        return toGraphPage(response, driveItemToStorageItem);
     }
 
     /** Get a single drive item by ID. */
@@ -249,13 +234,19 @@ export class DriveGraphService {
 
     // ── Recycle bin ───────────────────────────────────────────────────────────
 
-    /** List items in the drive's recycle bin using the SPE-specific recycleBin API. */
-    public async listRecycleBin(containerId: string): Promise<StorageItem[]> {
-        const resp = await this._client
+    /** List the **first page** of the drive's recycle bin via the SPE-specific API. */
+    public async listRecycleBin(containerId: string): Promise<GraphPage<StorageItem>> {
+        const response: RawCollectionResponse<RecycleBinItem> = await this._client
             .api(`/storage/fileStorage/containers/${containerId}/recycleBin/items`)
+            .top(DEFAULT_PAGE_SIZE)
             .get();
-        const items: RecycleBinItem[] = resp.value ?? [];
-        return items.map(recycleBinItemToStorageItem);
+        return toGraphPage(response, recycleBinItemToStorageItem);
+    }
+
+    /** Fetch one further page of recycle-bin items from a server-provided link. */
+    public async listRecycleBinNextPage(nextLink: string): Promise<GraphPage<StorageItem>> {
+        const response: RawCollectionResponse<RecycleBinItem> = await this._client.api(nextLink).get();
+        return toGraphPage(response, recycleBinItemToStorageItem);
     }
 
     /** Restore an item from the SPE container recycle bin. Uses beta endpoint. */

@@ -10,10 +10,14 @@ import { IChildrenProvidingTreeItem } from "./IDataProvidingTreeItem";
 import { LocalRegistrationTreeItem } from "./LocalRegistrationTreeItem";
 import { Logger } from "../../../utils/Logger";
 import { blockBillingInvalid, tintBillingInvalid } from "./BillingDecorationProvider";
+import { StorageExplorerTreeItem } from "./StorageExplorerTreeItem";
+import type { StorageExplorerReadiness } from "../../../services/StorageExplorer/protocol";
 
 export class ContainerTypeTreeItem extends IChildrenProvidingTreeItem {
     public readonly registration: ContainerTypeRegistration | null;
     public readonly subtreeBillingInvalid: boolean;
+    /** Whether Storage Explorer can operate on this container type, and if not, why. */
+    public readonly storageExplorerReadiness: StorageExplorerReadiness;
 
     constructor(
         public readonly containerType: ContainerType,
@@ -115,6 +119,15 @@ export class ContainerTypeTreeItem extends IChildrenProvidingTreeItem {
         if (registration && hasExtensionPermissions) {
             this.contextValue += "-extensionPermissionsGranted";
         }
+
+        // Readiness drives the Storage Explorer row below. Billing is checked first: without
+        // it nothing under the container type works, so naming a missing registration or
+        // grant would send the user down the wrong path.
+        this.storageExplorerReadiness = billingInvalid
+            ? 'billingBlocked'
+            : !registration
+                ? 'unregistered'
+                : hasExtensionPermissions ? 'ready' : 'missingPermissions';
     }
 
     public async getChildren(): Promise<vscode.TreeItem[]> {
@@ -134,6 +147,14 @@ export class ContainerTypeTreeItem extends IChildrenProvidingTreeItem {
             if (this.registration) {
                 children.push(new LocalRegistrationTreeItem(this.containerType, this.registration, this.subtreeBillingInvalid));
             }
+
+            // Always last, and always present: a container type that is not ready yet needs
+            // this row most, because it is what names the next step.
+            children.push(new StorageExplorerTreeItem(
+                this.containerType,
+                this.registration,
+                this.storageExplorerReadiness
+            ));
         } catch (error) {
             console.error('Error loading container type children:', error);
         }

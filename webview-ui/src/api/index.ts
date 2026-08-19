@@ -1,5 +1,6 @@
 import { onExtensionMessage } from '../utils/vsbridge';
 import { ColumnGraphService } from './services/ColumnGraphService';
+import { CollectionsService } from './services/CollectionsService';
 import { ContainerGraphService } from './services/ContainerGraphService';
 import { DriveGraphService } from './services/DriveGraphService';
 import { MeGraphService } from './services/MeGraphService';
@@ -23,6 +24,7 @@ export type { NetworkLogger };
 export function createStorageExplorerApi(onNetworkRequest: NetworkLogger) {
     return {
         containers: new ContainerGraphService(),
+        collections: new CollectionsService(),
         drive: new DriveGraphService(onNetworkRequest),
         permissions: new PermissionGraphService(),
         columns: new ColumnGraphService(),
