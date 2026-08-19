@@ -31,8 +31,9 @@ test.describe('ContainerGraphService', () => {
         expect(fake.last).toMatchObject({ method: 'GET', path: BASE, version: 'v1.0' });
         expect(fake.last.filter).toContain('containerTypeId eq ct-1');
         expect(fake.last.expand).toContain('drive');
-        // The first page comes back as a mapped array; the next-page link goes to the host sink.
-        expect(containers[0].status).toBe('inactive');
+        // The first page comes back as a mapped page; `nextLink` stays host-side.
+        expect(containers.items[0].status).toBe('inactive');
+        expect(containers.nextLink, 'a single-page response offers no continuation').toBeUndefined();
     });
 
     test('get()', async () => {

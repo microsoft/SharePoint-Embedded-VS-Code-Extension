@@ -218,9 +218,15 @@ export class StorageExplorerWebview {
             .first();
     }
 
-    /** Names of every currently rendered list row, in DOM (visual) order. */
+    /**
+     * Names of every currently rendered list row, in DOM (visual) order.
+     *
+     * Scoped by `[data-item-id]` because the per-row checkbox (`file-row-checkbox`) and
+     * overflow button (`file-row-menu`) share the `file-row-` test-id prefix; matching on the
+     * prefix alone would report three "rows" for every rendered item.
+     */
     async rowNames(): Promise<string[]> {
-        return this.page.$$eval('[data-testid^="file-row-"]', (nodes) =>
+        return this.page.$$eval('[data-testid^="file-row-"][data-item-id]', (nodes) =>
             nodes
                 .map((n) => n.getAttribute('data-testid') ?? '')
                 .filter((id) => id.startsWith('file-row-'))
