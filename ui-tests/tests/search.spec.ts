@@ -30,7 +30,11 @@ test.describe('Search / filter', () => {
 
     test('shows a filter-specific empty state when nothing matches', async ({ storage }) => {
         await storage.search('zzz-no-such-container');
-        await expect(storage.tid('filelist-empty')).toHaveText('No items match your filter');
+        const empty = storage.tid('filelist-empty');
+        // The message must be about the filter, not the generic "nothing here" state, so a user
+        // cannot read it as "the container type is empty".
+        await expect(empty).toHaveText(/match/i);
+        await expect(empty).not.toHaveText(/This folder is empty/i);
     });
 
     test('filters files within a container', async ({ storage, page }) => {

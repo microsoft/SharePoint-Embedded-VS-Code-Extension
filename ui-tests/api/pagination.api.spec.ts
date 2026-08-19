@@ -16,9 +16,18 @@ import { Client } from '@microsoft/microsoft-graph-client';
 import { ContainerGraphService } from '../../src/services/StorageExplorer/ContainerGraphService';
 import { DriveGraphService } from '../../src/services/StorageExplorer/DriveGraphService';
 import { StorageExplorerApi } from '../../src/services/StorageExplorer/StorageExplorerApi';
+import type { ContainerTypeAppPermission } from '../../src/models/schemas';
 import { FakeGraphClient, RecordedCall } from './fakeClient';
 
 const CONTAINER_TYPE_ID = 'ct-1';
+
+/**
+ * A grant reader for the capability matrix. Injected so a pagination test exercises paging,
+ * not the grant lookup; authorization itself is covered by `capability-matrix.api.spec.ts`.
+ */
+function grants(...scopes: ContainerTypeAppPermission[]) {
+    return async () => scopes;
+}
 const DRIVE_ID = 'b!drive1';
 
 /** A next-page URL that must never appear in anything handed to the webview. */
@@ -68,12 +77,14 @@ function expectNoNextLinkLeak(payload: unknown): void {
 }
 
 /**
- * The host keeps the server link for itself: a first-page read must come back with the link
- * (so a later explicit "Load more" is possible) and without having followed it.
+ * The host keeps the server link for itself: a first-page read reports the link to its
+ * host-side sink (so a later explicit "Load more" is possible) without having followed it,
+ * and the value the caller gets back carries no Graph URL at all.
  */
-function expectHostKeptTheLink(page: { nextLink?: string }): void {
-    expect(page.nextLink, 'the host must retain the server link for an explicit next page').toBeTruthy();
-    expect(page.nextLink).toContain('skiptoken');
+function expectHostKeptTheLink(reported: string | undefined, returned: unknown): void {
+    expect(reported, 'the host must retain the server link for an explicit next page').toBeTruthy();
+    expect(reported).toContain('skiptoken');
+    expectNoNextLinkLeak(returned);
 }
 
 /**
@@ -96,11 +107,12 @@ test.describe('AC-01 — collections load exactly one Graph page', () => {
         fake.responder = threePages(container);
         const service = new ContainerGraphService(fake as unknown as Client);
 
-        const result = await service.list(CONTAINER_TYPE_ID);
+        let reported: string | undefined;
+        const items = await service.list(CONTAINER_TYPE_ID, link => { reported = link; });
 
         expect(fake.calls).toHaveLength(1);
-        expect(result.items).toHaveLength(2);
-        expectHostKeptTheLink(result);
+        expect(items).toHaveLength(2);
+        expectHostKeptTheLink(reported, items);
     });
 
     test('ContainerGraphService.listDeleted() stops after the first page', async () => {
@@ -108,10 +120,12 @@ test.describe('AC-01 — collections load exactly one Graph page', () => {
         fake.responder = threePages(container);
         const service = new ContainerGraphService(fake as unknown as Client);
 
-        const result = await service.listDeleted(CONTAINER_TYPE_ID);
+        let reported: string | undefined;
+        const items = await service.listDeleted(CONTAINER_TYPE_ID, link => { reported = link; });
 
         expect(fake.calls).toHaveLength(1);
-        expectHostKeptTheLink(result);
+        expect(items).toHaveLength(2);
+        expectHostKeptTheLink(reported, items);
     });
 
     test('DriveGraphService.listChildren() stops after the first page at the drive root', async () => {
@@ -119,11 +133,13 @@ test.describe('AC-01 — collections load exactly one Graph page', () => {
         fake.responder = threePages(driveItem);
         const service = new DriveGraphService(fake as unknown as Client);
 
-        const result = await service.listChildren(DRIVE_ID);
+        let reported: string | undefined;
+        const items = await service.listChildren(DRIVE_ID, undefined, undefined, link => { reported = link; });
 
         expect(fake.calls).toHaveLength(1);
         expect(fake.calls[0].path).toBe(`/drives/${DRIVE_ID}/root/children`);
-        expectHostKeptTheLink(result);
+        expect(items).toHaveLength(2);
+        expectHostKeptTheLink(reported, items);
     });
 
     test('DriveGraphService.listChildren() stops after the first page inside a folder', async () => {
@@ -131,11 +147,12 @@ test.describe('AC-01 — collections load exactly one Graph page', () => {
         fake.responder = threePages(driveItem);
         const service = new DriveGraphService(fake as unknown as Client);
 
-        const result = await service.listChildren(DRIVE_ID, 'folder-1');
+        let reported: string | undefined;
+        const items = await service.listChildren(DRIVE_ID, 'folder-1', undefined, link => { reported = link; });
 
         expect(fake.calls).toHaveLength(1);
         expect(fake.calls[0].path).toBe(`/drives/${DRIVE_ID}/items/folder-1/children`);
-        expectHostKeptTheLink(result);
+        expectHostKeptTheLink(reported, items);
     });
 
     test('DriveGraphService.listRecycleBin() stops after the first page', async () => {
@@ -143,10 +160,11 @@ test.describe('AC-01 — collections load exactly one Graph page', () => {
         fake.responder = threePages(driveItem);
         const service = new DriveGraphService(fake as unknown as Client);
 
-        const result = await service.listRecycleBin('b!c1');
+        let reported: string | undefined;
+        const items = await service.listRecycleBin('b!c1', link => { reported = link; });
 
         expect(fake.calls).toHaveLength(1);
-        expectHostKeptTheLink(result);
+        expectHostKeptTheLink(reported, items);
     });
 
     test('no collection call targets a server-supplied nextLink URL', async () => {
@@ -176,7 +194,10 @@ test.describe('AC-03 / AC-04 — continuation identifiers are opaque and scope-b
     function api() {
         const fake = new FakeGraphClient();
         fake.responder = threePages(container);
-        return { fake, api: new StorageExplorerApi(CONTAINER_TYPE_ID, fake as unknown as Client) };
+        return {
+            fake,
+            api: new StorageExplorerApi(CONTAINER_TYPE_ID, fake as unknown as Client, grants('read')),
+        };
     }
 
     const context = { onProgress: () => { /* progress payloads are asserted separately */ } };
@@ -194,7 +215,7 @@ test.describe('AC-03 / AC-04 — continuation identifiers are opaque and scope-b
     test('drive.listChildren progress payloads carry no Graph URL', async () => {
         const fake = new FakeGraphClient();
         fake.responder = withContainerScope(DRIVE_ID, threePages(driveItem));
-        const subject = new StorageExplorerApi(CONTAINER_TYPE_ID, fake as unknown as Client);
+        const subject = new StorageExplorerApi(CONTAINER_TYPE_ID, fake as unknown as Client, grants('read'));
         const progress: unknown[] = [];
 
         const result = await subject.execute(
@@ -246,7 +267,7 @@ test.describe('AC-09 — mutations do not fetch unseen pages', () => {
         fake.responder = (call) => (call.method === 'POST'
             ? { id: 'b!new', displayName: 'New', containerTypeId: CONTAINER_TYPE_ID }
             : threePages(container)(call));
-        const subject = new StorageExplorerApi(CONTAINER_TYPE_ID, fake as unknown as Client);
+        const subject = new StorageExplorerApi(CONTAINER_TYPE_ID, fake as unknown as Client, grants('create'));
 
         const result = await subject.execute(
             'containers.create',
@@ -264,7 +285,11 @@ test.describe('AC-09 — mutations do not fetch unseen pages', () => {
             DRIVE_ID,
             () => ({ id: 'i-new', name: 'F', folder: { childCount: 0 } })
         );
-        const subject = new StorageExplorerApi(CONTAINER_TYPE_ID, fake as unknown as Client);
+        const subject = new StorageExplorerApi(
+            CONTAINER_TYPE_ID,
+            fake as unknown as Client,
+            grants('read', 'writeContent')
+        );
 
         await subject.execute(
             'drive.createFolder',
