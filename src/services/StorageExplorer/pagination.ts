@@ -9,14 +9,16 @@ import type { CollectionScope, ContinuationToken } from './protocol';
 export const DEFAULT_PAGE_SIZE = 200;
 
 /**
- * Receives the raw `@odata.nextLink` of a page, or `undefined` when the server returned the
- * last one.
+ * One server page of a Storage Explorer collection, as read on the extension host.
  *
- * A collection method hands its next-page link to a sink instead of returning it, so the link
- * only ever exists inside the extension host: it is never a field of a value that a handler
- * could pass on to the webview, and it cannot be serialized into a response by accident.
+ * `nextLink` is the raw Graph `@odata.nextLink` and is **host-only**: `StorageExplorerApi`
+ * exchanges it for an opaque continuation identifier before anything reaches the webview, and
+ * no protocol result type carries this shape.
  */
-export type NextLinkSink = (nextLink: string | undefined) => void;
+export interface GraphPage<T> {
+    items: T[];
+    nextLink?: string;
+}
 
 /** Shape of any Graph collection response this module reads. */
 export interface RawCollectionResponse<TRaw> {
@@ -26,17 +28,20 @@ export interface RawCollectionResponse<TRaw> {
 }
 
 /**
- * Project a raw Graph collection response into mapped items, reporting the server's next-page
- * link to `onNextLink` (always called, so "there is no next page" is an explicit answer).
+ * Project a raw Graph collection response into a single mapped page.
+ *
+ * The server's next-page link is carried through as `nextLink` so the caller can decide,
+ * explicitly, whether the user ever asks for another page. It is never followed here.
  */
 export function mapCollectionPage<TRaw, TOut>(
     response: RawCollectionResponse<TRaw> | null | undefined,
-    map: (raw: TRaw) => TOut,
-    onNextLink?: NextLinkSink
-): TOut[] {
+    map: (raw: TRaw) => TOut
+): GraphPage<TOut> {
     const nextLink = response?.['@odata.nextLink'];
-    onNextLink?.(typeof nextLink === 'string' && nextLink.length > 0 ? nextLink : undefined);
-    return (response?.value ?? []).map(map);
+    return {
+        items: (response?.value ?? []).map(map),
+        nextLink: typeof nextLink === 'string' && nextLink.length > 0 ? nextLink : undefined,
+    };
 }
 
 /** A continuation the host has issued and is willing to honour exactly once. */

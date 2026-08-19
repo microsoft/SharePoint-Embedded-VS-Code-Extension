@@ -137,7 +137,7 @@ function EmptyState({ filtered }: { filtered: boolean }) {
             }}
         >
             <span className={`codicon ${filtered ? 'codicon-search-stop' : 'codicon-inbox'}`} style={{ fontSize: 48 }} />
-            <span style={{ fontSize: 13 }} data-testid="filelist-empty">{filtered ? 'No items match your loaded items' : 'This folder is empty'}</span>
+            <span style={{ fontSize: 13 }} data-testid="filelist-empty">{filtered ? 'No items match your filter' : 'This folder is empty'}</span>
         </div>
     );
 }
