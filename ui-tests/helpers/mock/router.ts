@@ -24,6 +24,8 @@ interface Ctx {
     query: URLSearchParams;
     body: Record<string, unknown>;
     state: GraphState;
+    /** Request path with the `/v1.0` or `/beta` prefix stripped — used to build `@odata.nextLink`. */
+    path: string;
 }
 
 interface Route {
@@ -36,6 +38,31 @@ const ok = (body: unknown): RouteResult => ({ status: 200, body });
 const created = (body: unknown): RouteResult => ({ status: 201, body });
 const noContent = (): RouteResult => ({ status: 204, body: '' });
 const list = (values: unknown[]): RouteResult => ok({ value: values });
+
+/**
+ * Server-side paging for a collection route.
+ *
+ * When `state.pageSize` is unset the whole collection comes back in one response (the
+ * historical behaviour every existing spec relies on). When it is set, each response carries
+ * at most `pageSize` entries plus an `@odata.nextLink` whose `$skiptoken` is the absolute
+ * offset of the next page — the same contract Graph offers, and the reason a caller must not
+ * be able to see the whole collection without asking for it.
+ */
+function paged(values: unknown[], ctx: Ctx): RouteResult {
+    const size = ctx.state.pageSize;
+    if (!size || size <= 0) { return list(values); }
+
+    const skip = Number.parseInt(ctx.query.get('$skiptoken') ?? '0', 10) || 0;
+    const page = values.slice(skip, skip + size);
+    const next = skip + size;
+
+    const body: Record<string, unknown> = { value: page };
+    if (next < values.length) {
+        // eslint-disable-next-line @typescript-eslint/naming-convention -- OData annotation name
+        body['@odata.nextLink'] = `https://graph.microsoft.com/v1.0${ctx.path}?$skiptoken=${next}`;
+    }
+    return ok(body);
+}
 
 function personToGranted(p: { displayName: string; id: string; userPrincipalName?: string }) {
     return { user: { displayName: p.displayName, id: p.id, userPrincipalName: p.userPrincipalName } };
@@ -77,7 +104,7 @@ const routes: Route[] = [
     {
         method: 'GET',
         re: /^\/storage\/fileStorage\/containers\/([^/]+)\/recycleBin\/items$/,
-        handler: ({ m, state }) => list((state.recycleBins.get(m[1]) ?? []).map(serializeDriveItem)),
+        handler: (ctx) => paged((ctx.state.recycleBins.get(ctx.m[1]) ?? []).map(serializeDriveItem), ctx),
     },
 
     // ── Container permissions ────────────────────────────────────────────────
@@ -186,7 +213,7 @@ const routes: Route[] = [
     {
         method: 'GET',
         re: /^\/storage\/fileStorage\/deletedContainers$/,
-        handler: ({ state }) => list(state.deletedContainers.map((c) => ({ ...serializeContainer(c), deletedDateTime: c.deletedDateTime }))),
+        handler: (ctx) => paged(ctx.state.deletedContainers.map((c) => ({ ...serializeContainer(c), deletedDateTime: c.deletedDateTime })), ctx),
     },
     {
         method: 'POST',
@@ -226,11 +253,11 @@ const routes: Route[] = [
         re: /^\/storage\/fileStorage\/containers$/,
         // Real Graph's container *collection* omits `status`; only the single-container
         // read returns it. Mirror that so the UI is exercised against the real shape.
-        handler: ({ state }) => list(state.containers.map(c => {
+        handler: (ctx) => paged(ctx.state.containers.map(c => {
             const serialized = serializeContainer(c);
             delete serialized.status;
             return serialized;
-        })),
+        }), ctx),
     },
     {
         method: 'POST',
@@ -389,12 +416,12 @@ const routes: Route[] = [
     {
         method: 'GET',
         re: /^\/drives\/([^/]+)\/root\/children$/,
-        handler: ({ m, state }) => list((state.driveItems.get(m[1]) ?? []).filter((i) => i.parentId === null).map(serializeDriveItem)),
+        handler: (ctx) => paged((ctx.state.driveItems.get(ctx.m[1]) ?? []).filter((i) => i.parentId === null).map(serializeDriveItem), ctx),
     },
     {
         method: 'GET',
         re: /^\/drives\/([^/]+)\/items\/([^/]+)\/children$/,
-        handler: ({ m, state }) => list((state.driveItems.get(m[1]) ?? []).filter((i) => i.parentId === m[2]).map(serializeDriveItem)),
+        handler: (ctx) => paged((ctx.state.driveItems.get(ctx.m[1]) ?? []).filter((i) => i.parentId === ctx.m[2]).map(serializeDriveItem), ctx),
     },
     {
         method: 'POST',
@@ -518,7 +545,7 @@ export function resolveRoute(
     for (const route of routes) {
         if (route.method !== method) { continue; }
         const m = path.match(route.re);
-        if (m) { return route.handler({ m, query, body, state }); }
+        if (m) { return route.handler({ m, query, body, state, path }); }
     }
     return null;
 }

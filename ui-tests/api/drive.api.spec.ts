@@ -26,23 +26,22 @@ test.describe('DriveGraphService', () => {
         expect(fake.last).toMatchObject({ method: 'GET', path: '/drives/d1/items/item1/children' });
     });
 
-    test('listChildren() follows @odata.nextLink across pages and omits downloadUrl from the list select', async () => {
+    test('listChildren() loads only the first page and omits downloadUrl from the list select', async () => {
         const { fake, s } = svc();
         const nextUrl = 'https://graph.microsoft.com/v1.0/drives/d1/root/children?$skiptoken=ABC';
         fake.responder = (call) => call.path === nextUrl
             ? { value: [{ id: 'i3' }, { id: 'i4' }] }
+            // eslint-disable-next-line @typescript-eslint/naming-convention -- OData annotation name
             : { value: [{ id: 'i1' }, { id: 'i2' }], '@odata.nextLink': nextUrl };
 
-        const items = await s.listChildren('d1');
-        expect(items.map((i) => i.id)).toEqual(['i1', 'i2', 'i3', 'i4']);
+        await s.listChildren('d1');
 
         // First page: LIST_SELECT (no expensive downloadUrl), top 200.
         expect(fake.calls[0].path).toBe('/drives/d1/root/children');
         expect(String(fake.calls[0].select)).not.toContain('downloadUrl');
         expect(fake.calls[0].top).toBe(200);
-        // Second request targets the server-provided nextLink URL, then stops.
-        expect(fake.calls[1].path).toBe(nextUrl);
-        expect(fake.calls.length).toBe(2);
+        // The server-provided nextLink is NOT followed: further pages need an explicit request.
+        expect(fake.calls.length).toBe(1);
     });
 
     test('get()', async () => {

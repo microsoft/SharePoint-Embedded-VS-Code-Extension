@@ -202,4 +202,58 @@ export class StorageExplorerWebview {
     async clearSearch(): Promise<void> {
         await this.tid(TID.searchClear).click();
     }
+
+    // ── Pagination ───────────────────────────────────────────────────────────
+
+    /**
+     * The explicit "Load more" affordance.
+     *
+     * Resolved by test id first and by accessible role+name second, so the assertion is on
+     * the behaviour the acceptance criteria describe (an accessible button that loads the
+     * next page) rather than on one particular markup choice.
+     */
+    loadMoreButton(): Locator {
+        return this.page
+            .locator(`[data-testid="${TID.loadMore}"], button:has-text("Load more"), [role="button"]:has-text("Load more")`)
+            .first();
+    }
+
+    /** Names of every currently rendered list row, in DOM (visual) order. */
+    async rowNames(): Promise<string[]> {
+        return this.page.$$eval('[data-testid^="file-row-"]', (nodes) =>
+            nodes
+                .map((n) => n.getAttribute('data-testid') ?? '')
+                .filter((id) => id.startsWith('file-row-'))
+                .map((id) => id.slice('file-row-'.length))
+        );
+    }
+
+    /** Names of every currently rendered recycle-bin row, in DOM order. */
+    async recycledRowNames(): Promise<string[]> {
+        return this.page.$$eval('[data-testid^="recycled-row-"]', (nodes) =>
+            nodes
+                .map((n) => n.getAttribute('data-testid') ?? '')
+                .filter((id) => id.startsWith('recycled-row-'))
+                .map((id) => id.slice('recycled-row-'.length))
+        );
+    }
+
+    /**
+     * Click "Load more" and wait until the row count grows.
+     *
+     * Deliberately does not wait on a network response: whether a click issues a request at
+     * all is exactly what the pagination specs assert, so waiting for one here would hide a
+     * regression where the click silently does nothing.
+     */
+    async loadMore(): Promise<void> {
+        const before = (await this.rowNames()).length;
+        await this.loadMoreButton().click();
+        await expect
+            .poll(async () => (await this.rowNames()).length, { timeout: 15_000 })
+            .toBeGreaterThan(before);
+    }
+
+    async sortBy(testId: string): Promise<void> {
+        await this.tid(testId).click();
+    }
 }

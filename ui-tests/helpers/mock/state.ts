@@ -77,6 +77,16 @@ export function nextId(prefix: string): string {
 export class GraphState {
     containerTypeId = 'ct-mock-00000000-0000-0000-0000-000000000000';
 
+    /**
+     * When set, every *collection* route (containers, deleted containers, drive children,
+     * recycle bin) serves at most this many entries per response and advertises the rest
+     * through an `@odata.nextLink`, exactly as Graph does.
+     *
+     * Left `undefined` by default so existing single-page specs are untouched. Pagination
+     * specs set it to reproduce a multi-page server.
+     */
+    pageSize?: number;
+
     containers: MockContainer[] = [];
     deletedContainers: MockContainer[] = [];
 
@@ -115,14 +125,14 @@ export class GraphState {
 
     // ── Factories ─────────────────────────────────────────────────────────────
 
-    addContainer(displayName: string, description: string | null = null): MockContainer {
+    addContainer(displayName: string, description: string | null = null, createdDateTime?: string): MockContainer {
         const id = nextId('b!container');
         const c: MockContainer = {
             id,
             displayName,
             description,
             containerTypeId: this.containerTypeId,
-            createdDateTime: new Date().toISOString(),
+            createdDateTime: createdDateTime ?? new Date().toISOString(),
             status: 'active',
             lockState: 'unlocked',
             assignedSensitivityLabel: null,
@@ -138,7 +148,7 @@ export class GraphState {
         return c;
     }
 
-    addDriveItem(driveId: string, opts: { name: string; isFolder?: boolean; parentId?: string | null; size?: number }): MockDriveItem {
+    addDriveItem(driveId: string, opts: { name: string; isFolder?: boolean; parentId?: string | null; size?: number; lastModifiedDateTime?: string }): MockDriveItem {
         const item: MockDriveItem = {
             id: nextId('item'),
             parentId: opts.parentId ?? null,
@@ -146,7 +156,7 @@ export class GraphState {
             isFolder: opts.isFolder ?? false,
             size: opts.size ?? (opts.isFolder ? 0 : 1024),
             createdDateTime: new Date().toISOString(),
-            lastModifiedDateTime: new Date().toISOString(),
+            lastModifiedDateTime: opts.lastModifiedDateTime ?? new Date().toISOString(),
             webUrl: `https://contoso.sharepoint.com/contentstorage/${driveId}/${encodeURIComponent(opts.name)}`,
         };
         const list = this.driveItems.get(driveId) ?? [];

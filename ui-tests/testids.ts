@@ -75,6 +75,23 @@ export const TID = {
     sortModified: 'sort-modified',
     sortType: 'sort-type',
     sortSize: 'sort-size',
+    /** Explicit "Load more" affordance shown when the server has another page. */
+    loadMore: 'load-more',
+    /** Busy indicator rendered in place of / inside the Load more affordance. */
+    loadMoreLoading: 'load-more-loading',
+    /** Error surfaced when a Load more request failed; retrying is expected to be possible. */
+    loadMoreError: 'load-more-error',
+
+    // ── Onboarding / readiness surfaces ──────────────────────────────────────
+    /** Empty-state call to action shown when a ready container type has no containers. */
+    onboardingCreateFirstContainer: 'onboarding-create-first-container',
+    /** Blocking surface shown when the container type is not ready (unregistered / no grant). */
+    onboardingBlocked: 'onboarding-blocked',
+    /** The single next action offered by the blocked surface. */
+    onboardingAction: 'onboarding-action',
+    /** Banner/notification shown when the host denied an operation for missing permissions. */
+    permissionBanner: 'permission-banner',
+    permissionBannerAction: 'permission-banner-action',
 
     // ── ContextMenu ──────────────────────────────────────────────────────────
     contextMenu: 'context-menu',
