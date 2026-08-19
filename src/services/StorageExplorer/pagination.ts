@@ -9,16 +9,16 @@ import type { CollectionScope, ContinuationToken } from './protocol';
 export const DEFAULT_PAGE_SIZE = 200;
 
 /**
- * One server page of a Storage Explorer collection, as read on the extension host.
+ * Receives the raw Graph `@odata.nextLink` for a page that has just been read.
  *
- * `nextLink` is the raw Graph `@odata.nextLink` and is **host-only**: `StorageExplorerApi`
- * exchanges it for an opaque continuation identifier before anything reaches the webview, and
- * no protocol result type carries this shape.
+ * The link is **host-only**: `StorageExplorerApi` exchanges it for an opaque continuation
+ * identifier before anything reaches the webview. Passing it to a sink rather than returning
+ * it keeps it off the value that flows outward, so a caller cannot leak it by accident.
+ *
+ * The sink is always called — with `undefined` when the page is the last one — so "no next
+ * page" is stated explicitly rather than being indistinguishable from "not reported".
  */
-export interface GraphPage<T> {
-    items: T[];
-    nextLink?: string;
-}
+export type NextLinkSink = (nextLink: string | undefined) => void;
 
 /** Shape of any Graph collection response this module reads. */
 export interface RawCollectionResponse<TRaw> {
@@ -28,20 +28,20 @@ export interface RawCollectionResponse<TRaw> {
 }
 
 /**
- * Project a raw Graph collection response into a single mapped page.
+ * Project a raw Graph collection response into the mapped items of a single page.
  *
- * The server's next-page link is carried through as `nextLink` so the caller can decide,
- * explicitly, whether the user ever asks for another page. It is never followed here.
+ * The server's next-page link is never followed here and never returned: it goes only to
+ * `onNextLink`, so the host can decide — explicitly — whether the user ever asks for another
+ * page, while the returned items stay free of any Graph URL.
  */
 export function mapCollectionPage<TRaw, TOut>(
     response: RawCollectionResponse<TRaw> | null | undefined,
-    map: (raw: TRaw) => TOut
-): GraphPage<TOut> {
-    const nextLink = response?.['@odata.nextLink'];
-    return {
-        items: (response?.value ?? []).map(map),
-        nextLink: typeof nextLink === 'string' && nextLink.length > 0 ? nextLink : undefined,
-    };
+    map: (raw: TRaw) => TOut,
+    onNextLink?: NextLinkSink
+): TOut[] {
+    const link = response?.['@odata.nextLink'];
+    onNextLink?.(typeof link === 'string' && link.length > 0 ? link : undefined);
+    return (response?.value ?? []).map(map);
 }
 
 /** A continuation the host has issued and is willing to honour exactly once. */
@@ -94,6 +94,14 @@ export class ContinuationRejectedError extends Error {
 export class ContinuationStore {
     private readonly _records = new Map<ContinuationToken, ContinuationRecord>();
     private readonly _generations = new Map<string, number>();
+    /**
+     * Scopes with a page fetch currently outstanding.
+     *
+     * A second "Load more" for the same view must wait: without this, two clicks that race
+     * could either append the same page twice or, if one fails and reinstates while the other
+     * succeeds, leave a replayable token for a page that is already on screen.
+     */
+    private readonly _inFlight = new Set<string>();
     private _counter = 0;
 
     public constructor(private readonly _randomId: () => string = defaultRandomId) { }
@@ -109,6 +117,8 @@ export class ContinuationStore {
         const key = scopeKey(scope);
         const generation = (this._generations.get(key) ?? 0) + 1;
         this._generations.set(key, generation);
+        // Whatever page was in flight belongs to the listing being replaced.
+        this._inFlight.delete(key);
         for (const [token, record] of this._records) {
             if (scopeKey(record.scope) === key) {
                 this._records.delete(token);
@@ -140,8 +150,8 @@ export class ContinuationStore {
      * Redeem a token for its Graph link, consuming it so one click fetches exactly one page.
      *
      * @throws {ContinuationRejectedError} when the token is unknown, already used, retired by
-     * a newer listing of the same view, or was issued for a different view than the one the
-     * webview claims to be in.
+     * a newer listing of the same view, superseded by another page fetch already running for
+     * that view, or was issued for a different view than the one the webview claims to be in.
      */
     public redeem(token: unknown, claimedScope: CollectionScope): { scope: CollectionScope; nextLink: string; generation: number } {
         if (typeof token !== 'string' || token.length === 0) {
@@ -157,10 +167,25 @@ export class ContinuationStore {
         if (!sameScope(record.scope, claimedScope)) {
             throw new ContinuationRejectedError('The continuation token belongs to a different view.');
         }
-        if (this._generations.get(scopeKey(record.scope)) !== record.generation) {
+        const key = scopeKey(record.scope);
+        if (this._generations.get(key) !== record.generation) {
             throw new ContinuationRejectedError('This list has been refreshed; reload it to keep browsing.');
         }
+        if (this._inFlight.has(key)) {
+            throw new ContinuationRejectedError('Another page of this list is already loading.');
+        }
+        this._inFlight.add(key);
         return { scope: record.scope, nextLink: record.nextLink, generation: record.generation };
+    }
+
+    /**
+     * Release the in-flight hold after a page fetch finished successfully.
+     *
+     * The token itself stays consumed; only the "one fetch at a time per view" hold is lifted,
+     * so the continuation minted from the page just appended can be redeemed next.
+     */
+    public settle(scope: CollectionScope): void {
+        this._inFlight.delete(scopeKey(scope));
     }
 
     /**
@@ -174,6 +199,8 @@ export class ContinuationStore {
         token: ContinuationToken,
         record: { scope: CollectionScope; nextLink: string; generation: number }
     ): void {
+        // The fetch is over either way, so the view is free for another attempt.
+        this._inFlight.delete(scopeKey(record.scope));
         if (this._generations.get(scopeKey(record.scope)) !== record.generation) { return; }
         this._records.set(token, record);
     }

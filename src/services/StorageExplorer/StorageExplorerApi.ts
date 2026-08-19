@@ -12,7 +12,7 @@ import { MeGraphService } from './MeGraphService';
 import { PeopleGraphService } from './PeopleGraphService';
 import { PermissionGraphService } from './PermissionGraphService';
 import { isStorageExplorerOperation, OPERATION_SCHEMAS } from './operationSchemas';
-import { ContinuationStore, GraphPage } from './pagination';
+import { ContinuationStore } from './pagination';
 import {
     CollectionScope,
     OperationParams,
@@ -230,12 +230,13 @@ export class StorageExplorerApi {
     /** Start (or restart) a first-page listing, retiring the view's earlier continuations. */
     private async _listFirstPage(
         scope: CollectionScope,
-        fetch: () => Promise<GraphPage<StorageItem>>
+        fetch: (onNextLink: (link: string | undefined) => void) => Promise<StorageItem[]>
     ): Promise<PagedResult<StorageItem>> {
         const generation = this._continuations.beginListing(scope);
-        const page = await fetch();
-        const continuation = this._continuations.issue(scope, page.nextLink, generation);
-        return continuation ? { items: page.items, continuation } : { items: page.items };
+        let nextLink: string | undefined;
+        const items = await fetch(link => { nextLink = link; });
+        const continuation = this._continuations.issue(scope, nextLink, generation);
+        return continuation ? { items, continuation } : { items };
     }
 
     /**
@@ -249,31 +250,36 @@ export class StorageExplorerApi {
         claimedScope: CollectionScope
     ): Promise<PagedResult<StorageItem>> {
         const { scope, nextLink, generation } = this._continuations.redeem(token, claimedScope);
-        let page: GraphPage<StorageItem>;
+        let items: StorageItem[];
+        let followingLink: string | undefined;
         try {
-            page = await this._fetchNextPage(scope, nextLink);
+            items = await this._fetchNextPage(scope, nextLink, link => { followingLink = link; });
         } catch (error) {
             // The token was consumed on redemption; give it back so a retry resumes from the
-            // same page instead of skipping it.
+            // same page instead of skipping it. This also releases the view's in-flight hold.
             this._continuations.reinstate(token, { scope, nextLink, generation });
             throw error;
         }
+        // The page is now the caller's; release the hold before minting its successor so the
+        // next click is honoured and no earlier token can still be replayed.
+        this._continuations.settle(scope);
         if (scope.kind === 'containers' || scope.kind === 'deletedContainers') {
-            this._trackInScope(page.items);
+            this._trackInScope(items);
         }
-        const continuation = this._continuations.issue(scope, page.nextLink, generation);
-        return continuation ? { items: page.items, continuation } : { items: page.items };
+        const continuation = this._continuations.issue(scope, followingLink, generation);
+        return continuation ? { items, continuation } : { items };
     }
 
     private _fetchNextPage(
         scope: CollectionScope,
-        nextLink: string
-    ): Promise<GraphPage<StorageItem>> {
+        nextLink: string,
+        onNextLink: (link: string | undefined) => void
+    ): Promise<StorageItem[]> {
         switch (scope.kind) {
-            case 'containers': return this._containers.listNextPage(nextLink);
-            case 'deletedContainers': return this._containers.listDeletedNextPage(nextLink);
-            case 'driveChildren': return this._drive.listChildrenNextPage(nextLink);
-            case 'recycleBin': return this._drive.listRecycleBinNextPage(nextLink);
+            case 'containers': return this._containers.listNextPage(nextLink, onNextLink);
+            case 'deletedContainers': return this._containers.listDeletedNextPage(nextLink, onNextLink);
+            case 'driveChildren': return this._drive.listChildrenNextPage(nextLink, onNextLink);
+            case 'recycleBin': return this._drive.listRecycleBinNextPage(nextLink, onNextLink);
         }
     }
 
@@ -327,10 +333,10 @@ export class StorageExplorerApi {
             // ── containers ────────────────────────────────────────────────────
             'containers.list': async () => this._listFirstPage(
                 { kind: 'containers' },
-                async () => {
-                    const page = await containers.list(this._containerTypeId);
-                    this._trackInScope(page.items);
-                    return page;
+                async onNextLink => {
+                    const items = await containers.list(this._containerTypeId, onNextLink);
+                    this._trackInScope(items);
+                    return items;
                 }
             ),
             'containers.get': p => containers.get(p.containerId),
@@ -342,10 +348,10 @@ export class StorageExplorerApi {
             'containers.delete': p => containers.delete(p.containerId),
             'containers.listDeleted': async () => this._listFirstPage(
                 { kind: 'deletedContainers' },
-                async () => {
-                    const page = await containers.listDeleted(this._containerTypeId);
-                    this._trackInScope(page.items);
-                    return page;
+                async onNextLink => {
+                    const items = await containers.listDeleted(this._containerTypeId, onNextLink);
+                    this._trackInScope(items);
+                    return items;
                 }
             ),
             'containers.restore': p => containers.restore(p.containerId),
@@ -364,7 +370,7 @@ export class StorageExplorerApi {
             // ── drive ─────────────────────────────────────────────────────────
             'drive.listChildren': p => this._listFirstPage(
                 { kind: 'driveChildren', containerId: p.driveId, itemId: p.itemId },
-                () => drive.listChildren(p.driveId, p.itemId)
+                onNextLink => drive.listChildren(p.driveId, p.itemId, undefined, onNextLink)
             ),
             'drive.get': p => drive.get(p.driveId, p.itemId),
             'drive.getDetailedDriveItem': p => drive.getDetailedDriveItem(p.driveId, p.itemId),
@@ -377,7 +383,7 @@ export class StorageExplorerApi {
             'drive.createUploadSession': p => drive.createUploadSession(p.driveId, p.parentId, p.fileName),
             'drive.listRecycleBin': p => this._listFirstPage(
                 { kind: 'recycleBin', containerId: p.containerId },
-                () => drive.listRecycleBin(p.containerId)
+                onNextLink => drive.listRecycleBin(p.containerId, onNextLink)
             ),
             'drive.restoreFromRecycleBin': p => drive.restoreFromRecycleBin(p.containerId, p.itemId),
             'drive.permanentlyDelete': p => drive.permanentlyDelete(p.containerId, p.itemId),
