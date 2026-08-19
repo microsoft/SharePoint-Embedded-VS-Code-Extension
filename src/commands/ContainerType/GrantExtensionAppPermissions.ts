@@ -9,6 +9,7 @@ import { ContainerTypeTreeItem } from '../../views/treeview/development/Containe
 import { ProgressWaitNotification } from '../../views/notifications/ProgressWaitNotification';
 import { hasExtensionAppPermissions, grantExtensionAppPermissions } from '../../utils/ExtensionAppPermissions';
 import { DevelopmentTreeViewProvider } from '../../views/treeview/development/DevelopmentTreeViewProvider';
+import { openStorageExplorerWhenReady } from './StorageExplorerHandoff';
 
 export class GrantExtensionAppPermissions extends Command {
     public static readonly COMMAND = 'ContainerType.grantExtensionAppPermissions';
@@ -52,10 +53,16 @@ export class GrantExtensionAppPermissions extends Command {
         try {
             await grantExtensionAppPermissions(containerTypeId);
             grantProgress.hide();
-            DevelopmentTreeViewProvider.getInstance().refresh();
             vscode.window.showInformationMessage(
                 vscode.l10n.t('Extension app permissions granted successfully.')
             );
+            // Refreshes the tree and, if this grant was the last missing step, takes the
+            // user straight into Storage Explorer.
+            if (commandProps instanceof ContainerTypeTreeItem) {
+                await openStorageExplorerWhenReady(commandProps.containerType, commandProps.registration);
+            } else {
+                DevelopmentTreeViewProvider.getInstance().refresh();
+            }
             return true;
         } catch (error: any) {
             grantProgress.hide();

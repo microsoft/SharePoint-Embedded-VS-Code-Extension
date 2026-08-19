@@ -11,6 +11,7 @@ import { LocalRegistrationTreeItem } from "./LocalRegistrationTreeItem";
 import { Logger } from "../../../utils/Logger";
 import { blockBillingInvalid, tintBillingInvalid } from "./BillingDecorationProvider";
 import { StorageExplorerTreeItem } from "./StorageExplorerTreeItem";
+import { computeStorageExplorerReadiness, isBillingInvalid } from "./storageExplorerReadiness";
 import type { StorageExplorerReadiness } from "../../../services/StorageExplorer/protocol";
 
 export class ContainerTypeTreeItem extends IChildrenProvidingTreeItem {
@@ -79,7 +80,7 @@ export class ContainerTypeTreeItem extends IChildrenProvidingTreeItem {
         // CT row reflects DTC registration state too.
         const ctBillingInvalid = (isStandard || isDirectToCustomer) && containerType.billingStatus !== 'valid';
         const regBillingInvalid = !!registration && registration.billingStatus !== 'valid';
-        this.subtreeBillingInvalid = ctBillingInvalid || regBillingInvalid;
+        this.subtreeBillingInvalid = isBillingInvalid(containerType, registration);
         const billingInvalid = this.subtreeBillingInvalid;
         Logger.log(`[ContainerTypeTreeItem] ${containerType.name}: classification=${classification ?? '(undef)'} billingStatus=${containerType.billingStatus ?? '(undef)'} ctBillingInvalid=${ctBillingInvalid} regBillingInvalid=${regBillingInvalid}`);
         if (billingInvalid) {
@@ -120,14 +121,13 @@ export class ContainerTypeTreeItem extends IChildrenProvidingTreeItem {
             this.contextValue += "-extensionPermissionsGranted";
         }
 
-        // Readiness drives the Storage Explorer row below. Billing is checked first: without
-        // it nothing under the container type works, so naming a missing registration or
-        // grant would send the user down the wrong path.
-        this.storageExplorerReadiness = billingInvalid
-            ? 'billingBlocked'
-            : !registration
-                ? 'unregistered'
-                : hasExtensionPermissions ? 'ready' : 'missingPermissions';
+        // Readiness drives the Storage Explorer row below, and is computed by the same
+        // helper the post-setup hand-off uses so the tree and the panel never disagree.
+        this.storageExplorerReadiness = computeStorageExplorerReadiness(
+            containerType,
+            registration,
+            hasExtensionPermissions
+        );
     }
 
     public async getChildren(): Promise<vscode.TreeItem[]> {

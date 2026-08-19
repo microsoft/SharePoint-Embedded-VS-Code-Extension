@@ -78,6 +78,7 @@ export class StorageExplorerPanel {
     private readonly _panel: vscode.WebviewPanel;
     private readonly _registrationId: string;
     private readonly _containerTypeId: string;
+    private readonly _readiness: StorageExplorerReadiness;
     private readonly _api: StorageExplorerApi;
     private readonly _disposables: vscode.Disposable[] = [];
     private _isDisposed = false;
@@ -92,6 +93,7 @@ export class StorageExplorerPanel {
         this._panel = panel;
         this._registrationId = registrationId;
         this._containerTypeId = state.containerTypeId;
+        this._readiness = state.readiness;
 
         // Bound to this panel's container type: container-type-scoped operations use
         // this value rather than anything supplied by the webview. The Graph client —
@@ -300,10 +302,23 @@ export class StorageExplorerPanel {
         // Blocked container types have no registration to key on, so the container type id
         // keys the panel instead. Either way one panel exists per container type.
         const registrationId = registration?.id ?? `ct:${containerType.id}`;
-        const existing = StorageExplorerPanel._panels.get(registrationId);
+        const unregisteredKey = `ct:${containerType.id}`;
+        // A panel opened before registration is keyed on the container type, so look under
+        // that key too: otherwise finishing setup would leave a stale blocked panel open
+        // alongside the ready one.
+        const existing = StorageExplorerPanel._panels.get(registrationId)
+            ?? (registrationId === unregisteredKey
+                ? undefined
+                : StorageExplorerPanel._panels.get(unregisteredKey));
         if (existing) {
-            existing._panel.reveal();
-            return;
+            if (existing._registrationId === registrationId && existing._readiness === readiness) {
+                existing._panel.reveal();
+                return;
+            }
+            // The onboarding surface it is showing no longer describes this container type
+            // (registration or the extension-app grant has since landed), and the surface is
+            // baked into the webview state at creation time. Replace it with a fresh panel.
+            existing._dispose();
         }
 
         const panel = vscode.window.createWebviewPanel(
