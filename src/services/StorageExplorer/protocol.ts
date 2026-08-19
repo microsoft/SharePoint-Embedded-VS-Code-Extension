@@ -32,6 +32,14 @@ export interface StorageItem {
     name: string;
     kind: ItemKind;
     modifiedAt: string;
+    /**
+     * `modifiedAt` as epoch milliseconds, for ordering.
+     *
+     * `modifiedAt` is a localized display string ("Sep 1, 2025, 12:00 AM"), so comparing it
+     * as text orders rows by month name rather than by date. This field carries the value the
+     * fixed newest-first ordering actually sorts on. Absent when the source had no timestamp.
+     */
+    modifiedTs?: number;
     type: string;
     size: string;
     /**

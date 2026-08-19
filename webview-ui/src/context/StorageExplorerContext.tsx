@@ -52,8 +52,20 @@ const SIZE_UNIT_BYTES: Record<string, number> = {
  * falls back to parsing the formatted `size` string (e.g. "1.2 MB") so items
  * that only carry a display string still sort by real magnitude.
  */
-function sizeToBytes(item: StorageItem): number {
-    if (typeof item.sizeBytes === 'number') return item.sizeBytes;
+/**
+ * Ordering key for "Date Modified", in epoch milliseconds.
+ *
+ * `modifiedAt` is a localized display string, so it must never be compared as text. Items
+ * that predate `modifiedTs` (or carry no timestamp at all) fall back to parsing the display
+ * string and finally to 0, which sorts them last under the newest-first default.
+ */
+function modifiedKey(item: StorageItem): number {
+    if (typeof item.modifiedTs === 'number') return item.modifiedTs;
+    const parsed = Date.parse(item.modifiedAt ?? '');
+    return Number.isNaN(parsed) ? 0 : parsed;
+}
+
+function sizeToBytes(item: StorageItem): number {    if (typeof item.sizeBytes === 'number') return item.sizeBytes;
     const m = /^([\d.]+)\s*(B|KB|MB|GB|TB)$/i.exec((item.size ?? '').trim());
     if (!m) return 0;
     return parseFloat(m[1]) * (SIZE_UNIT_BYTES[m[2].toUpperCase()] ?? 1);
@@ -576,7 +588,7 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
 
         const pinnedRows = pinned
             .filter(matches)
-            .sort((a, b) => b.modifiedAt.localeCompare(a.modifiedAt));
+            .sort((a, b) => modifiedKey(b) - modifiedKey(a));
 
         const rows = authoritative.filter(matches).sort((a, b) => {
             // Containers and folders always sort before files
@@ -586,7 +598,7 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
             let cmp = 0;
             switch (sortColumn) {
                 case 'name': cmp = a.name.localeCompare(b.name); break;
-                case 'modified': cmp = a.modifiedAt.localeCompare(b.modifiedAt); break;
+                case 'modified': cmp = modifiedKey(a) - modifiedKey(b); break;
                 case 'type': cmp = a.type.localeCompare(b.type); break;
                 case 'size': cmp = sizeToBytes(a) - sizeToBytes(b); break;
             }
@@ -607,7 +619,7 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
             let cmp = 0;
             switch (sortColumn) {
                 case 'name': cmp = a.name.localeCompare(b.name); break;
-                case 'modified': cmp = a.modifiedAt.localeCompare(b.modifiedAt); break;
+                case 'modified': cmp = modifiedKey(a) - modifiedKey(b); break;
                 case 'type': cmp = a.type.localeCompare(b.type); break;
                 case 'size': cmp = sizeToBytes(a) - sizeToBytes(b); break;
                 default: break;

@@ -38,6 +38,18 @@ export function formatDate(dateStr: string | null | undefined): string {
     }
 }
 
+/**
+ * A timestamp for ordering, in epoch milliseconds.
+ *
+ * The display string `formatDate` produces sorts as text by month name, so every mapped item
+ * also carries this value for the fixed newest-first ordering to sort on.
+ */
+export function toEpochMillis(dateStr: string | null | undefined): number | undefined {
+    if (!dateStr) { return undefined; }
+    const parsed = Date.parse(dateStr);
+    return Number.isNaN(parsed) ? undefined : parsed;
+}
+
 const FILE_TYPE_MAP: Record<string, string> = {
     DOCX: 'Word Document', DOC: 'Word Document',
     XLSX: 'Excel Workbook', XLS: 'Excel Workbook',
@@ -65,6 +77,7 @@ export function driveItemToStorageItem(item: DriveItem): StorageItem {
         name: item.name ?? '(unnamed)',
         kind: item.folder ? 'folder' : 'file',
         modifiedAt: formatDate(item.lastModifiedDateTime),
+        modifiedTs: toEpochMillis(item.lastModifiedDateTime),
         createdAt: formatDate(item.createdDateTime),
         type: getFileType(item),
         size: formatBytes(item.size),
@@ -88,6 +101,7 @@ export function containerToStorageItem(c: FileStorageContainer): StorageItem {
         kind: 'container',
         createdAt: formatDate(c.createdDateTime),
         modifiedAt: formatDate(c.createdDateTime),
+        modifiedTs: toEpochMillis(c.createdDateTime),
         type: 'Container',
         size: formatBytes(quotaUsed),
         sizeBytes: quotaUsed ?? 0,
@@ -119,6 +133,7 @@ export function recycleBinItemToStorageItem(item: RecycleBinItem): StorageItem {
         name,
         kind,
         modifiedAt: formatDate(item.deletedDateTime),
+        modifiedTs: toEpochMillis(item.deletedDateTime),
         deletedAt: formatDate(item.deletedDateTime),
         createdAt: '',
         type: kind === 'folder' ? 'Folder' : getFileType({ name } as DriveItem),

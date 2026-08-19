@@ -9,16 +9,20 @@ import type { CollectionScope, ContinuationToken } from './protocol';
 export const DEFAULT_PAGE_SIZE = 200;
 
 /**
- * Receives the raw Graph `@odata.nextLink` for a page that has just been read.
+ * One server page: the mapped items plus the raw Graph `@odata.nextLink`, if any.
  *
- * The link is **host-only**: `StorageExplorerApi` exchanges it for an opaque continuation
- * identifier before anything reaches the webview. Passing it to a sink rather than returning
- * it keeps it off the value that flows outward, so a caller cannot leak it by accident.
+ * `nextLink` is **host-only**. It stays on this envelope, never on the items, and
+ * `StorageExplorerApi` exchanges it for an opaque continuation identifier before anything
+ * crosses the webview boundary. Carrying it separately means a caller that projects
+ * `items` outward cannot leak a Graph URL by accident.
  *
- * The sink is always called — with `undefined` when the page is the last one — so "no next
+ * `nextLink` is always present as a property — `undefined` on the final page — so "no next
  * page" is stated explicitly rather than being indistinguishable from "not reported".
  */
-export type NextLinkSink = (nextLink: string | undefined) => void;
+export interface GraphPage<T> {
+    items: T[];
+    nextLink?: string;
+}
 
 /** Shape of any Graph collection response this module reads. */
 export interface RawCollectionResponse<TRaw> {
@@ -28,20 +32,21 @@ export interface RawCollectionResponse<TRaw> {
 }
 
 /**
- * Project a raw Graph collection response into the mapped items of a single page.
+ * Project a raw Graph collection response into a single host-side page.
  *
- * The server's next-page link is never followed here and never returned: it goes only to
- * `onNextLink`, so the host can decide — explicitly — whether the user ever asks for another
- * page, while the returned items stay free of any Graph URL.
+ * The server's next-page link is never followed here: it is returned on the envelope so the
+ * host can decide — explicitly — whether the user ever asks for another page, while the
+ * mapped items stay free of any Graph URL.
  */
 export function mapCollectionPage<TRaw, TOut>(
     response: RawCollectionResponse<TRaw> | null | undefined,
-    map: (raw: TRaw) => TOut,
-    onNextLink?: NextLinkSink
-): TOut[] {
+    map: (raw: TRaw) => TOut
+): GraphPage<TOut> {
     const link = response?.['@odata.nextLink'];
-    onNextLink?.(typeof link === 'string' && link.length > 0 ? link : undefined);
-    return (response?.value ?? []).map(map);
+    return {
+        items: (response?.value ?? []).map(map),
+        nextLink: typeof link === 'string' && link.length > 0 ? link : undefined,
+    };
 }
 
 /** A continuation the host has issued and is willing to honour exactly once. */
@@ -211,16 +216,26 @@ export class ContinuationStore {
     }
 }
 
-/** Non-guessable suffix for a token. Uses Node crypto when available, Web Crypto otherwise. */
+/**
+ * Non-guessable suffix for a token, from the Web Crypto API.
+ *
+ * `globalThis.crypto` is present on the extension host (Node) and in the browser harness this
+ * module family must keep running in, so one path covers both. When it is genuinely missing
+ * this throws instead of falling back to a predictable value: an unpredictable identifier is
+ * what keeps continuations unforgeable, so degrading silently would weaken the boundary.
+ * Callers that need another source can pass one to the `ContinuationStore` constructor.
+ */
 function defaultRandomId(): string {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const globals = globalThis as any;
-    const webCrypto = globals.crypto;
-    if (webCrypto?.getRandomValues) {
-        const buffer = new Uint8Array(16);
-        webCrypto.getRandomValues(buffer);
-        return Array.from(buffer, byte => byte.toString(16).padStart(2, '0')).join('');
+    const webCrypto: { getRandomValues?: (array: Uint8Array) => Uint8Array } | undefined =
+        (globalThis as { crypto?: { getRandomValues?: (array: Uint8Array) => Uint8Array } }).crypto;
+    if (!webCrypto?.getRandomValues) {
+        throw new Error(
+            'Cannot create a Storage Explorer continuation: no cryptographic random source is ' +
+            'available in this runtime. Run on a host that provides the Web Crypto API, or ' +
+            'supply a random id generator to ContinuationStore.'
+        );
     }
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    return require('crypto').randomBytes(16).toString('hex');
+    const buffer = new Uint8Array(16);
+    webCrypto.getRandomValues(buffer);
+    return Array.from(buffer, byte => byte.toString(16).padStart(2, '0')).join('');
 }

@@ -11,7 +11,7 @@ import type {
 } from '@microsoft/microsoft-graph-types';
 import { ContainerCustomProperties, StorageItem } from './protocol';
 import { containerToStorageItem, formatDate } from './mappers';
-import { DEFAULT_PAGE_SIZE, mapCollectionPage, NextLinkSink, RawCollectionResponse } from './pagination';
+import { DEFAULT_PAGE_SIZE, GraphPage, mapCollectionPage, RawCollectionResponse } from './pagination';
 
 const BASE_PATH = '/storage/fileStorage/containers';
 const DELETED_PATH = '/storage/fileStorage/deletedContainers';
@@ -41,11 +41,11 @@ export class ContainerGraphService {
      * List the **first page** of active containers for a container type.
      *
      * Deliberately does not follow `@odata.nextLink`: eagerly walking every page turns
-     * opening the panel into an unbounded number of Graph calls. The link is reported to
-     * `onNextLink` — a host-side sink — so the host, never the webview, decides whether the
-     * next page is ever fetched.
+     * opening the panel into an unbounded number of Graph calls. The link comes back on the
+     * host-only page envelope, so the host, never the webview, decides whether the next page
+     * is ever fetched.
      */
-    public async list(containerTypeId: string, onNextLink?: NextLinkSink): Promise<StorageItem[]> {
+    public async list(containerTypeId: string): Promise<GraphPage<StorageItem>> {
         const response: RawCollectionResponse<FileStorageContainer> = await this._client
             .api(BASE_PATH)
             .version('v1.0')
@@ -54,14 +54,14 @@ export class ContainerGraphService {
             .expand('drive($select=quota)')
             .top(DEFAULT_PAGE_SIZE)
             .get();
-        return mapCollectionPage(response, containerToStorageItem, onNextLink);
+        return mapCollectionPage(response, containerToStorageItem);
     }
 
     /** Fetch one further page of active containers from a server-provided link. */
-    public async listNextPage(nextLink: string, onNextLink?: NextLinkSink): Promise<StorageItem[]> {
+    public async listNextPage(nextLink: string): Promise<GraphPage<StorageItem>> {
         const response: RawCollectionResponse<FileStorageContainer> =
             await this._client.api(nextLink).get();
-        return mapCollectionPage(response, containerToStorageItem, onNextLink);
+        return mapCollectionPage(response, containerToStorageItem);
     }
 
     /** Get a single container by ID. */
@@ -125,21 +125,21 @@ export class ContainerGraphService {
     }
 
     /** List the **first page** of soft-deleted containers for a container type. */
-    public async listDeleted(containerTypeId: string, onNextLink?: NextLinkSink): Promise<StorageItem[]> {
+    public async listDeleted(containerTypeId: string): Promise<GraphPage<StorageItem>> {
         const response: RawCollectionResponse<FileStorageContainer> = await this._client
             .api(DELETED_PATH)
             .version('v1.0')
             .filter(`containerTypeId eq ${containerTypeId}`)
             .top(DEFAULT_PAGE_SIZE)
             .get();
-        return mapCollectionPage(response, deletedContainerToStorageItem, onNextLink);
+        return mapCollectionPage(response, deletedContainerToStorageItem);
     }
 
     /** Fetch one further page of soft-deleted containers from a server-provided link. */
-    public async listDeletedNextPage(nextLink: string, onNextLink?: NextLinkSink): Promise<StorageItem[]> {
+    public async listDeletedNextPage(nextLink: string): Promise<GraphPage<StorageItem>> {
         const response: RawCollectionResponse<FileStorageContainer> =
             await this._client.api(nextLink).get();
-        return mapCollectionPage(response, deletedContainerToStorageItem, onNextLink);
+        return mapCollectionPage(response, deletedContainerToStorageItem);
     }
 
     /** Restore a soft-deleted container. */
