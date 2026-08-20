@@ -31,7 +31,9 @@ test.describe('AC-12 — blocked container types show guidance, not Graph calls'
 
         const harness = await openStorageExplorer(page, state, { waitForReady: false });
 
-        const guidance = page.getByText(/update .*permission/i).first();
+        // The blocked surface names the missing scopes and offers the grant action; there is
+        // no separate "update permissions" wording.
+        const guidance = page.getByRole('button', { name: /grant permissions/i }).first();
         await expect(guidance).toBeVisible({ timeout: 30_000 });
         expect(collectionRequests(harness.requests), 'a blocked panel must not enumerate containers').toEqual([]);
     });
@@ -71,7 +73,12 @@ test.describe('AC-16 — denied interactions are actionable, not empty', () => {
         const harness = await openStorageExplorer(page, state);
         await harness.view.openContainerTab('Seed Container', 'permissions');
 
-        // A denial must be visible; an empty permission list would be a false success.
+        // Opening a gated action explains itself rather than showing an empty permission list,
+        // which would read as a false success.
+        await expect(page.getByTestId('permission-notice')).toContainText('enumeratePermissions app permission');
+        // The notice is modal, so clear it before reaching the banner underneath.
+        await harness.view.confirmModal();
+
         const banner = page
             .locator(`[data-testid="${TID.permissionBanner}"]`)
             .or(page.getByText(/permission/i).filter({ hasText: /update|grant|required/i }))
@@ -103,7 +110,8 @@ test.describe('AC-16 — denied interactions are actionable, not empty', () => {
 
         await expect(create).toHaveAttribute('aria-disabled', 'true');
         await expect(create).toHaveAttribute('title', /create app permission/i);
-        await create.click();
+        // `aria-disabled` (not `disabled`) so the click still explains the gap.
+        await create.click({ force: true });
         await expect(page.getByTestId('permission-notice')).toContainText('create app permission');
         await expect(harness.view.tid(TID.modal)).toHaveCount(1);
         await expect(harness.view.row('Denied'), 'a denied create must not produce a local row')
@@ -130,7 +138,7 @@ test.describe('AC-16 — denied interactions are actionable, not empty', () => {
         await expect(newItem).toHaveAttribute('title', /writeContent app permission/i);
         await expect(upload).toHaveAttribute('aria-disabled', 'true');
         await expect(upload).toHaveAttribute('title', /writeContent app permission/i);
-        await newItem.click();
+        await newItem.click({ force: true });
 
         await expect(page.getByTestId('permission-notice')).toContainText('writeContent app permission');
 
@@ -151,13 +159,13 @@ test.describe('AC-16 — denied interactions are actionable, not empty', () => {
 
         const harness = await openStorageExplorer(page, state);
         await harness.view.openContainer('Seed Container');
-        await harness.view.row('Report.docx').click();
+        await harness.view.row('File 2.docx').click();
 
         await expect(harness.view.tid(TID.actionPreview)).toHaveAttribute('aria-disabled', 'true');
         await expect(harness.view.tid(TID.actionPreview)).toHaveAttribute('title', /readContent app permission/i);
         await expect(harness.view.tid(TID.actionDownload)).toHaveAttribute('aria-disabled', 'true');
         await expect(harness.view.tid(TID.actionDownload)).toHaveAttribute('title', /readContent app permission/i);
-        await expect(harness.view.row('Report.docx')).toBeVisible();
+        await expect(harness.view.row('File 2.docx')).toBeVisible();
     });
 });
 

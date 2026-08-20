@@ -36,7 +36,10 @@ export async function installGraphMock(page: Page, opts: GraphMockOptions = {}):
         const url = new URL(req.url());
 
         let body: Record<string, unknown> = {};
-        if (method === 'POST' || method === 'PATCH') {
+        // PUT included: the extension-app grant is written with PUT (createOrReplace), and
+        // dropping its body silently stored an empty permission list — a granted tenant that
+        // still reported every scope missing.
+        if (method === 'POST' || method === 'PATCH' || method === 'PUT') {
             try { body = (req.postDataJSON() as Record<string, unknown>) ?? {}; } catch { body = {}; }
         }
 

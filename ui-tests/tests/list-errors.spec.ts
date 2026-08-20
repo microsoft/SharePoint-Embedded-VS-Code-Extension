@@ -65,7 +65,7 @@ test.describe('Failed container listing', () => {
 
         await expect(storage.tid('list-error')).toBeVisible({ timeout: 30_000 });
         await expect(storage.tid('list-error-title')).toHaveText('Permissions required');
-        await expect(storage.tid('list-error-message')).toContainText('does not have permissions on this container type');
+        await expect(storage.tid('list-error-message')).toContainText('read permission on this container type');
         await expect(storage.tid('list-error-retry')).toHaveText('Grant permissions');
 
         // The misleading empty state must be gone.
@@ -86,7 +86,7 @@ test.describe('Failed container listing', () => {
         await expect(storage.tid('filelist-empty')).toHaveCount(0);
     });
 
-    test('still shows the empty state when the listing succeeds with no containers', async ({ page }) => {
+    test('still shows a non-error empty state when the listing succeeds with no containers', async ({ page }) => {
         const state = seedState();
         state.containers = [];
         const storage = await boot(page, state);
@@ -94,8 +94,11 @@ test.describe('Failed container listing', () => {
         await page.goto('/');
         await storage.waitUntilReady();
 
-        await expect(storage.tid('filelist-empty')).toHaveText('This folder is empty');
+        // A permitted tenant with no containers yet gets the onboarding call to action,
+        // never a failure state.
+        await expect(storage.tid('first-container-onboarding')).toBeVisible();
         await expect(storage.tid('list-error')).toHaveCount(0);
+        await expect(storage.tid('list-missing-permission')).toHaveCount(0);
     });
 
     test('the grant button raises the host grant flow and reloads once permissions land', async ({ page }) => {

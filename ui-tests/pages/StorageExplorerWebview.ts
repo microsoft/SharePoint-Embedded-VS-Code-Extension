@@ -50,7 +50,10 @@ export class StorageExplorerWebview {
     }
 
     async clickMenuItem(key: string): Promise<void> {
-        await this.tid(TID.contextMenuItem(key)).click();
+        // Permission-gated menu items stay clickable on purpose: they carry `aria-disabled`
+        // rather than `disabled` so a click still explains the missing scope. Playwright's
+        // actionability check reads `aria-disabled` as "not enabled", so force the click.
+        await this.tid(TID.contextMenuItem(key)).click({ force: true });
     }
 
     // ── Container (root) view ────────────────────────────────────────────────

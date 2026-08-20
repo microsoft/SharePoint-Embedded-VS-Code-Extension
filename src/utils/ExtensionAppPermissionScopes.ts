@@ -26,6 +26,25 @@ export const REQUIRED_DELEGATED_PERMISSIONS: ContainerTypeAppPermission[] = [
 ];
 
 /**
+ * Whether a grant satisfies the coarse, all-or-nothing baseline the Development tree checks.
+ *
+ * Deliberately mirrors `ContainerTypeAppPermissionGrantService.hasPermissions` for
+ * {@link REQUIRED_DELEGATED_PERMISSIONS}, so a caller that has already read the grant can
+ * reach the tree's verdict without spending a second Graph request. The two must stay in
+ * agreement: this is what lets the Storage Explorer panel decide the tree row is stale.
+ *
+ * This is *not* the per-operation gate — a partial grant fails this while still permitting
+ * several operations. Use {@link missingCapabilitiesForOperation} for that.
+ */
+export function satisfiesExtensionAppBaseline(
+    granted: readonly ContainerTypeAppPermission[] | undefined | null
+): boolean {
+    const scopes = granted ?? [];
+    return scopes.includes('full')
+        || REQUIRED_DELEGATED_PERMISSIONS.every(scope => scopes.includes(scope));
+}
+
+/**
  * The capabilities a Storage Explorer operation can require.
  *
  * A strict subset of {@link ContainerTypeAppPermission}: `none` is not a capability, and

@@ -24,6 +24,7 @@ import {
     OPERATION_REQUIRED_CAPABILITIES,
     PERMISSION_MANAGEMENT_CAPABILITIES,
     REQUIRED_DELEGATED_PERMISSIONS,
+    satisfiesExtensionAppBaseline,
     STORAGE_EXPLORER_CAPABILITIES,
 } from '../../src/utils/ExtensionAppPermissionScopes';
 import type { StorageExplorerCapability } from '../../src/utils/ExtensionAppPermissionScopes';
@@ -241,5 +242,72 @@ test.describe('AC-15 — the authorization matrix is complete and explicit', () 
         // The report crosses the boundary to the webview, so it must be free of grant detail.
         expect(JSON.stringify(missing)).not.toContain('applicationPermissionGrants');
         expect(JSON.stringify(missing)).not.toContain('appId');
+    });
+});
+
+/**
+ * The coarse baseline the Development tree row reflects.
+ *
+ * This is the check the Storage Explorer panel re-evaluates against its live grant to decide
+ * the cached tree row has gone stale, so it must reproduce
+ * `ContainerTypeAppPermissionGrantService.hasPermissions` exactly for the baseline scope list.
+ * If the two drift, the panel either refreshes the tree forever or never corrects it.
+ */
+test.describe('satisfiesExtensionAppBaseline', () => {
+    const grant = (...scopes: string[]) => scopes as ContainerTypeAppPermission[];
+
+    /** The service's own rule, restated independently of the implementation under test. */
+    const serviceVerdict = (granted: ContainerTypeAppPermission[]) =>
+        granted.includes('full' as ContainerTypeAppPermission)
+        || REQUIRED_DELEGATED_PERMISSIONS.every((scope) => granted.includes(scope));
+
+    test('the full grant satisfies the baseline', () => {
+        expect(satisfiesExtensionAppBaseline(grant('full'))).toBe(true);
+    });
+
+    test('the complete baseline grant satisfies it', () => {
+        expect(satisfiesExtensionAppBaseline([...REQUIRED_DELEGATED_PERMISSIONS])).toBe(true);
+    });
+
+    test('dropping any single required scope fails the baseline', () => {
+        for (const dropped of REQUIRED_DELEGATED_PERMISSIONS) {
+            const partial = REQUIRED_DELEGATED_PERMISSIONS.filter((scope) => scope !== dropped);
+            expect(satisfiesExtensionAppBaseline(partial), `dropping ${dropped}`).toBe(false);
+        }
+    });
+
+    test('an absent or empty grant fails the baseline', () => {
+        expect(satisfiesExtensionAppBaseline([])).toBe(false);
+        expect(satisfiesExtensionAppBaseline(undefined)).toBe(false);
+        expect(satisfiesExtensionAppBaseline(null)).toBe(false);
+    });
+
+    test('it agrees with the grant service rule the tree actually applies', () => {
+        const cases: ContainerTypeAppPermission[][] = [
+            [],
+            grant('full'),
+            grant('read'),
+            grant('read', 'readContent'),
+            grant('managePermissions'),
+            [...REQUIRED_DELEGATED_PERMISSIONS],
+            REQUIRED_DELEGATED_PERMISSIONS.filter((scope) => scope !== 'delete'),
+            [...REQUIRED_DELEGATED_PERMISSIONS, 'manageContent' as ContainerTypeAppPermission],
+        ];
+
+        for (const granted of cases) {
+            expect(satisfiesExtensionAppBaseline(granted), JSON.stringify(granted))
+                .toBe(serviceVerdict(granted));
+        }
+    });
+
+    test('it is stricter than per-operation gating', () => {
+        // The exact case that confused the tree: a grant that still permits several operations
+        // but no longer clears the baseline, so the row must show "needs attention" while the
+        // panel keeps the operations it can still serve enabled.
+        const partial = REQUIRED_DELEGATED_PERMISSIONS.filter((scope) => scope !== 'delete');
+
+        expect(satisfiesExtensionAppBaseline(partial)).toBe(false);
+        expect(missingCapabilitiesForOperation('containers.list', partial)).toEqual([]);
+        expect(missingCapabilitiesForOperation('containers.delete', partial)).toEqual(['delete']);
     });
 });

@@ -99,14 +99,15 @@ test.describe('AC-02 — Load more fetches exactly one page', () => {
         await expect.poll(() => view.rowNames().then((r) => r.length)).toBe(PAGE_SIZE);
         const firstPage = await view.rowNames();
 
-        // Fail only the next-page request, once.
+        // Fail only the next-page request, once. 500 (not 503) because the Graph SDK's retry
+        // handler transparently retries 503/429/504, which would silently succeed on retry.
         let failed = false;
         await page.route(
             (url) => url.href.includes('graph.microsoft.com') && url.href.includes('skiptoken'),
             async (route) => {
                 if (failed) { await route.fallback(); return; }
                 failed = true;
-                await route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: { code: 'serviceUnavailable', message: 'Try later' } }) });
+                await route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ error: { code: 'internalServerError', message: 'Try later' } }) });
             }
         );
 

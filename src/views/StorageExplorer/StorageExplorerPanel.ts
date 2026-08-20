@@ -12,7 +12,8 @@ import { AuthenticationState } from '../../services/AuthenticationState';
 import { serializeError, StorageExplorerApi } from '../../services/StorageExplorer/StorageExplorerApi';
 import { diagnoseAccessDenied } from '../../services/StorageExplorer/accessDenied';
 import { checkExtensionAppPermissions, ensureExtensionAppPermissions, readGrantedExtensionAppScopes } from '../../utils/ExtensionAppPermissions';
-import { missingCapabilitiesForOperation } from '../../utils/ExtensionAppPermissionScopes';
+import { missingCapabilitiesForOperation, satisfiesExtensionAppBaseline } from '../../utils/ExtensionAppPermissionScopes';
+import { DevelopmentTreeViewProvider } from '../treeview/development/DevelopmentTreeViewProvider';
 import { createGraphClient } from '../../services/StorageExplorer/graphClient';
 import { evaluateExternalUrl } from '../../services/StorageExplorer/externalUrlPolicy';
 import { escapeHtmlAttribute, sanitizeCspSource, serializeJsonForHtml } from '../../services/StorageExplorer/htmlEncoding';
@@ -86,6 +87,17 @@ export class StorageExplorerPanel {
     private _permissionPrompt: Promise<void> | undefined;
     /** Last grant logged, so the per-operation read reports changes instead of every call. */
     private _lastLoggedScopes: string | undefined;
+    /**
+     * Whether the grant satisfied the tree's all-or-nothing baseline the last time the panel
+     * reconciled the two.
+     *
+     * Seeded from the readiness the panel opened with, and only for the two readiness states
+     * the grant decides. `billingBlocked` and `unregistered` are settled by something other
+     * than permissions, so a grant change tells us nothing about whether those rows are
+     * stale — reconciling them would refresh the tree for no reason. `undefined` therefore
+     * means "not ours to reconcile".
+     */
+    private _grantMatchedTree: boolean | undefined;
 
     private constructor(
         panel: vscode.WebviewPanel,
@@ -96,6 +108,9 @@ export class StorageExplorerPanel {
         this._registrationId = registrationId;
         this._containerTypeId = state.containerTypeId;
         this._readiness = state.readiness;
+        this._grantMatchedTree = state.readiness === 'ready' ? true
+            : state.readiness === 'missingPermissions' ? false
+                : undefined;
 
         // Bound to this panel's container type: container-type-scoped operations use
         // this value rather than anything supplied by the webview. The Graph client —
@@ -304,6 +319,7 @@ export class StorageExplorerPanel {
                     + (granted.length ? [...granted].sort().join(', ') : '(none)')
                 );
             }
+            this._reconcileTreeRow(granted);
             return granted;
         } catch (error) {
             // Fails closed in `StorageExplorerApi`, but a silent denial is indistinguishable
@@ -314,6 +330,44 @@ export class StorageExplorerPanel {
                 + `operation will be denied until this succeeds: ${(error as Error)?.message ?? error}`
             );
             throw error;
+        }
+    }
+
+    /**
+     * Correct the Development tree when this panel's live grant read disagrees with the
+     * readiness the tree row is displaying.
+     *
+     * The tree reads the grant once, when `ContainerTypesTreeItem` builds its children, and
+     * caches the result; nothing invalidates that cache when the grant is changed out of band
+     * (an admin edit, another tool, a direct Graph call). This panel reads the grant live on
+     * every gated operation, so it is the first place in the extension to learn the truth —
+     * and leaving the two surfaces contradicting each other is worse than a redundant refresh.
+     *
+     * Fires only on a transition, so a steady state costs nothing no matter how many
+     * operations the panel runs.
+     */
+    private _reconcileTreeRow(granted: readonly ContainerTypeAppPermission[]): void {
+        if (this._grantMatchedTree === undefined) { return; }
+
+        const satisfiesBaseline = satisfiesExtensionAppBaseline(granted);
+        if (satisfiesBaseline === this._grantMatchedTree) { return; }
+
+        this._grantMatchedTree = satisfiesBaseline;
+        ext.outputChannel.info(
+            '[StorageExplorerPanel] the extension app grant no longer matches the Development '
+            + `tree (baseline ${satisfiesBaseline ? 'now satisfied' : 'no longer satisfied'}); `
+            + 'refreshing the tree'
+        );
+
+        try {
+            DevelopmentTreeViewProvider.getInstance().refresh();
+        } catch (error) {
+            // A tree that could not be refreshed is stale, not broken: the panel itself is
+            // still gated correctly, so this must never take down the operation that ran.
+            ext.outputChannel.warn(
+                '[StorageExplorerPanel] could not refresh the Development tree: '
+                + `${(error as Error)?.message ?? error}`
+            );
         }
     }
 

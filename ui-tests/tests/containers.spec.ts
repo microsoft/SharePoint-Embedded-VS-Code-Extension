@@ -331,15 +331,27 @@ test.describe('Containers', () => {
         await expect(storage.row(alpha)).toBeVisible();
         await expect(storage.row(zulu)).toBeVisible();
 
+        // Locally created rows are pinned newest-first and deliberately ignore the chosen sort
+        // (so a container you just made is never buried). Release them into the authoritative
+        // collection first, otherwise the Name header has nothing sortable to act on.
+        for (const name of [alpha, zulu]) {
+            const created = mock.containers.find(item => item.displayName === name);
+            if (!created) { throw new Error(`Mock create did not add ${name}`); }
+            mock.releaseContainer(created.id);
+        }
+        await storage.refreshContainers();
+
         const visibleOrder = page.locator('[data-item-id]:visible');
         const rowOrder = async (): Promise<string[]> =>
             visibleOrder.evaluateAll(rows => rows.map(row => row.getAttribute('data-testid') ?? ''));
-        await storage.tid(TID.sortName).click();
-        const firstDirection = await rowOrder();
-        expect([...firstDirection].sort()).toEqual([TID.fileRow(alpha), TID.fileRow(zulu)].sort());
+        const ascending = [TID.fileRow(alpha), TID.fileRow(zulu)];
+        const descending = [...ascending].reverse();
 
         await storage.tid(TID.sortName).click();
-        await expect.poll(rowOrder).toEqual([...firstDirection].reverse());
+        await expect.poll(rowOrder).toEqual(ascending);
+
+        await storage.tid(TID.sortName).click();
+        await expect.poll(rowOrder).toEqual(descending);
 
         await storage.check(alpha);
         await expect(storage.tid(TID.selectionCount)).toHaveText('1 selected');
