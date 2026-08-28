@@ -247,8 +247,9 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
     const [locallyCreatedContainers, setLocallyCreatedContainers] = useState<Map<string, StorageItem>>(
         () => new Map(),
     );
-    // Successful deletes stay hidden while Graph's eventually consistent collection still
-    // returns them. Once an authoritative list omits an ID, its tombstone is no longer needed.
+    // Successful deletes stay hidden for this panel session while Graph's eventually
+    // consistent collection may return them. A single omission is not enough to prove later
+    // responses will stay consistent, so only an explicit restore clears a tombstone.
     const deletedContainerIdsRef = useRef<Set<string>>(new Set());
     const [deletedContainers, setDeletedContainers] = useState<StorageItem[]>([]);
     // Map of folderId/containerId → children (populated as user navigates)
@@ -424,11 +425,6 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
                     const authoritativeIds = new Set(items.map(item => item.id));
                     setRootItems(items.filter(item => !deletedContainerIdsRef.current.has(item.id)));
                     setContinuations(prev => ({ ...prev, [key]: page.continuation }));
-                    for (const id of deletedContainerIdsRef.current) {
-                        if (!authoritativeIds.has(id)) {
-                            deletedContainerIdsRef.current.delete(id);
-                        }
-                    }
                     // Only IDs the *loaded* pages actually returned are reconciled. A container
                     // still sitting on an unfetched page has not been superseded, so dropping it
                     // from the overlay here would make it vanish from the user's own session.
@@ -786,7 +782,8 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
         const item = await apiRef.current!.drive.createFile(currentDriveId, currentParentId, name);
         const key = currentParentId ?? currentDriveId;
         setFolderItems(prev => ({ ...prev, [key]: [...(prev[key] ?? []), item] }));
-    }, [currentDriveId, currentParentId, requireOperation]);
+        updateContainerInCurrentSession(currentDriveId, { status: 'active' });
+    }, [currentDriveId, currentParentId, requireOperation, updateContainerInCurrentSession]);
 
     const renameItem = useCallback(async (item: StorageItem, newName: string) => {
         if (!requireOperation('drive.rename')) { return; }
@@ -1103,6 +1100,7 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
                 const item = await apiRef.current!.drive.uploadSmall(driveId, parentId, file);
                 if (uploadStates.current.get(id) === 'cancelled') return;
                 addToFolderCache(driveId, parentId, item);
+                updateContainerInCurrentSession(driveId, { status: 'active' });
                 setUploads(prev => prev.map(u => u.id === id ? { ...u, uploaded: file.size, status: 'completed' as UploadStatus } : u));
                 cleanupUploadRefs(id);
             } else {
@@ -1134,6 +1132,7 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
                             // user may have navigated elsewhere while the upload ran.
                             loadDriveItems(driveId, parentId ?? undefined, { silent: true });
                         }
+                        updateContainerInCurrentSession(driveId, { status: 'active' });
                         setUploads(prev => prev.map(u => u.id === id ? { ...u, uploaded: file.size, status: 'completed' as UploadStatus } : u));
                         cleanupUploadRefs(id);
                         return;

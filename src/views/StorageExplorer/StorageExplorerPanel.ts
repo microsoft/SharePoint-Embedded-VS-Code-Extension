@@ -451,6 +451,24 @@ export class StorageExplorerPanel {
         return true;
     }
 
+    /**
+     * Close every Storage Explorer panel bound to a container type.
+     *
+     * There should normally be only one, but panels can be keyed by either a registration
+     * or the container type while setup is incomplete. Matching the bound container type
+     * ensures an old panel cannot survive registration changes or container-type deletion.
+     *
+     * @returns The number of panels closed.
+     */
+    public static closeForContainerType(containerTypeId: string): number {
+        const matchingPanels = [...new Set(StorageExplorerPanel._panels.values())]
+            .filter(panel => panel._containerTypeId === containerTypeId);
+        for (const panel of matchingPanels) {
+            panel._dispose();
+        }
+        return matchingPanels.length;
+    }
+
     // ------------------------------------------------------------------
     // Private helpers
     // ------------------------------------------------------------------
@@ -537,8 +555,13 @@ export class StorageExplorerPanel {
     }
 
     private _dispose(): void {
+        if (this._isDisposed) {
+            return;
+        }
         this._isDisposed = true;
-        StorageExplorerPanel._panels.delete(this._registrationId);
+        if (StorageExplorerPanel._panels.get(this._registrationId) === this) {
+            StorageExplorerPanel._panels.delete(this._registrationId);
+        }
         this._panel.dispose();
         for (const d of this._disposables) {
             d.dispose();

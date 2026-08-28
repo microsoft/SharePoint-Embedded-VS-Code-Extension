@@ -14,6 +14,7 @@ import { getStandaloneConfig } from '../../config';
 import { installGraphMock } from '../graphMock';
 import { StorageExplorerWebview } from '../../pages/StorageExplorerWebview';
 import { GraphState } from './state';
+import type { StorageExplorerReadiness } from '../../../webview-ui/src/api/protocol';
 
 export interface HarnessResult {
     view: StorageExplorerWebview;
@@ -34,7 +35,7 @@ export interface HarnessResult {
 export async function openStorageExplorer(
     page: Page,
     state: GraphState,
-    opts: { waitForReady?: boolean } = {}
+    opts: { waitForReady?: boolean; readiness?: StorageExplorerReadiness } = {}
 ): Promise<HarnessResult> {
     const cfg = getStandaloneConfig();
     const requests: { method: string; pathname: string; url: string }[] = [];
@@ -50,6 +51,7 @@ export async function openStorageExplorer(
                 tenantDomain: cfg.tenantDomain,
                 containerTypeId: cfg.containerTypeId,
                 registrationId: cfg.registrationId,
+                readiness: opts.readiness,
             },
             token: cfg.token,
         }

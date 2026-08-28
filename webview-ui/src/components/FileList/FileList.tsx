@@ -56,7 +56,11 @@ export function FileList() {
 
     // The first thing a user needs is a container. Offer it prominently when a ready
     // container type has none, instead of the generic "this folder is empty".
-    const showFirstContainerAction = readiness === 'ready'
+    // `missingPermissions` is the tree's snapshot from when the panel opened. The live
+    // authorization check may prove that grant is now adequate (for example after an
+    // out-of-band admin update), so let the operation-level checks decide whether the CTA
+    // is usable. Truly blocked readiness states still must not offer container creation.
+    const showFirstContainerAction = (readiness === 'ready' || readiness === 'missingPermissions')
         && isNormalView
         && atRoot
         && !isFiltered
@@ -485,7 +489,7 @@ function FirstContainerState({
             </span>
             <button
                 type="button"
-                data-testid="create-first-container"
+                data-testid="onboarding-create-first-container"
                 onClick={onCreate}
                 aria-disabled={!!permissionMessage}
                 title={permissionMessage ?? 'Create your first container'}

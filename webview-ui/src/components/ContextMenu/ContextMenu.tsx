@@ -188,7 +188,14 @@ export function ContextMenu({ item, x, y, onClose }: ContextMenuProps) {
                             ? missingPermissionMessage(action.permissionOperation) ?? action.label
                             : action.label}
                         onClick={() => {
-                            if (action.permissionOperation && !requireOperation(action.permissionOperation)) { return; }
+                            // A denied action still dismisses the menu. It has already explained
+                            // itself through the permission notice, and leaving the menu mounted
+                            // traps the pointer over the rest of the view — including the banner's
+                            // own "Grant permissions" button, the one control that resolves it.
+                            if (action.permissionOperation && !requireOperation(action.permissionOperation)) {
+                                onClose();
+                                return;
+                            }
                             action.onClick();
                         }}
                         style={action.permissionOperation && missingPermissionMessage(action.permissionOperation)

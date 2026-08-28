@@ -195,4 +195,13 @@ test.describe('AC-17 — first-container onboarding', () => {
         await view.openContainer('My First Container');
         await expect(view.tid(TID.actionUpload)).toBeVisible();
     });
+
+    test('uses live grants when the panel opened with stale missing-permissions readiness', async ({ page }) => {
+        const state = seedState({ containers: 0 });
+        const harness = await openStorageExplorer(page, state, { readiness: 'missingPermissions' });
+
+        await expect(harness.view.tid('first-container-onboarding')).toBeVisible({ timeout: 30_000 });
+        await expect(harness.view.tid(TID.onboardingCreateFirstContainer)).toBeEnabled();
+        await expect(harness.view.tid('filelist-empty')).toHaveCount(0);
+    });
 });

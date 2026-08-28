@@ -13,6 +13,7 @@
 .vscode-test/**
 .github/**
 .claude/**
+.agent-runs/**
 .gitignore
 .eslintrc.json
 

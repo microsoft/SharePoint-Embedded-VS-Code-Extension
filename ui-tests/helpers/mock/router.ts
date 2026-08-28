@@ -438,12 +438,20 @@ const routes: Route[] = [
     {
         method: 'PUT',
         re: /^\/drives\/([^/]+)\/root:\/(.+):\/content$/,
-        handler: ({ m, state }) => created(serializeDriveItem(state.addDriveItem(m[1], { name: decodeURIComponent(m[2]), isFolder: false, parentId: null }))),
+        handler: ({ m, state }) => {
+            const container = state.findContainer(m[1]);
+            if (container) { container.status = 'active'; }
+            return created(serializeDriveItem(state.addDriveItem(m[1], { name: decodeURIComponent(m[2]), isFolder: false, parentId: null })));
+        },
     },
     {
         method: 'PUT',
         re: /^\/drives\/([^/]+)\/items\/([^/:]+):\/(.+):\/content$/,
-        handler: ({ m, state }) => created(serializeDriveItem(state.addDriveItem(m[1], { name: decodeURIComponent(m[3]), isFolder: false, parentId: m[2] }))),
+        handler: ({ m, state }) => {
+            const container = state.findContainer(m[1]);
+            if (container) { container.status = 'active'; }
+            return created(serializeDriveItem(state.addDriveItem(m[1], { name: decodeURIComponent(m[3]), isFolder: false, parentId: m[2] })));
+        },
     },
 
     // ── Drive item get / rename / delete ─────────────────────────────────────

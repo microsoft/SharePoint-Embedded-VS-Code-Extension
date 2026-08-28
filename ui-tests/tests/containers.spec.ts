@@ -84,6 +84,27 @@ test.describe('Containers', () => {
         await expect(storage.tid(TID.actionActivateContainer)).toHaveCount(0);
     });
 
+    test('upload immediately clears the cached inactive container status', async ({ storage, page }) => {
+        const name = `ct-upload-activate-${Date.now()}`;
+        const fileName = 'first-upload.txt';
+        await storage.createContainer(name);
+        await storage.select(name);
+        await expect(storage.tid(TID.actionActivateContainer)).toBeVisible({ timeout: 30_000 });
+
+        await storage.openContainer(name);
+        await page.locator('[data-testid="action-upload-input"]').setInputFiles({
+            name: fileName,
+            mimeType: 'text/plain',
+            buffer: Buffer.from('activates the container'),
+        });
+        await expect(storage.tid(TID.uploadItem(fileName))).toContainText('Done', { timeout: 30_000 });
+
+        await storage.breadcrumbTo(0);
+        await storage.select(name);
+        await expect(storage.tid(TID.actionDeleteContainer)).toBeEnabled();
+        await expect(storage.tid(TID.actionActivateContainer)).toHaveCount(0);
+    });
+
     test('no activate button when a checkbox selection spans more than one container', async ({ storage }) => {
         const a = `ct-multi-a-${Date.now()}`;
         const b = `ct-multi-b-${Date.now()}`;
@@ -247,6 +268,26 @@ test.describe('Containers', () => {
 
         mock.completeContainerDeletion(id);
         await storage.refreshContainers();
+        await expect(storage.row(name)).toHaveCount(0);
+    });
+
+    test('does not clear a delete tombstone after one transient collection omission', async ({ storage, page }) => {
+        const mock = await installContainerConsistencyMock(page);
+        const name = `ct-flapping-delete-${Date.now()}`;
+        const id = await createLocallyTrackedContainer(storage, mock, name);
+
+        mock.releaseContainer(id);
+        await storage.refreshContainers();
+        mock.keepDeletedContainerInCollection(id);
+        await storage.deleteContainer(name);
+        await expect(storage.row(name)).toHaveCount(0);
+
+        // One response catches up, but a later replica still returns the deleted row.
+        mock.freezeContainerCollection();
+        await storage.refreshContainers();
+        mock.releaseContainer(id);
+        await storage.refreshContainers();
+
         await expect(storage.row(name)).toHaveCount(0);
     });
 
