@@ -7,9 +7,11 @@ import * as Graph from '@microsoft/microsoft-graph-client';
 import {
     ContainerType,
     ContainerTypeCreate,
+    ContainerTypePermission,
     ContainerTypeUpdate,
     containerTypeSchema,
     containerTypeCreateSchema,
+    containerTypePermissionSchema,
     containerTypeUpdateSchema
 } from '../../models/schemas';
 import { Logger } from '../../utils/Logger';
@@ -20,6 +22,7 @@ import { Logger } from '../../utils/Logger';
  */
 export class ContainerTypeService {
     private static readonly API_VERSION = 'v1.0';
+    private static readonly PERMISSIONS_API_VERSION = 'beta';
     private static readonly BASE_PATH = '/storage/fileStorage/containerTypes';
 
     constructor(private _client: Graph.Client) {}
@@ -78,15 +81,22 @@ export class ContainerTypeService {
     /**
      * Get a specific container type by ID
      * GET /storage/fileStorage/containerTypes/{id}
+     *
+     * Expanding permissions uses the beta endpoint because the relationship is
+     * not available in v1.0.
      */
     async get(id: string, options?: {
         select?: string[];
+        expand?: string[];
         noCache?: boolean;
     }): Promise<ContainerType | null> {
         try {
+            const apiVersion = options?.expand?.includes('permissions')
+                ? ContainerTypeService.PERMISSIONS_API_VERSION
+                : ContainerTypeService.API_VERSION;
             let request = this._client
                 .api(`${ContainerTypeService.BASE_PATH}/${id}`)
-                .version(ContainerTypeService.API_VERSION);
+                .version(apiVersion);
 
             // Add cache-control header to prevent stale data
             if (options?.noCache) {
@@ -95,6 +105,9 @@ export class ContainerTypeService {
 
             if (options?.select) {
                 request = request.select(options.select.join(','));
+            }
+            if (options?.expand) {
+                request = request.expand(options.expand.join(','));
             }
 
             Logger.log(`[ContainerTypeService.get] Fetching container type ${id}`);
@@ -115,9 +128,8 @@ export class ContainerTypeService {
      * POST /v1.0/storage/fileStorage/containerTypes
      *
      * The caller controls `billingClassification` via the payload — the
-     * service no longer hardcodes 'trial'. `permissions` is not a navigation
-     * property on fileStorageContainerType, so $expand=permissions is not
-     * supported; use `patchOwners` separately to set permissions.
+     * service no longer hardcodes 'trial'. Owner permissions are managed
+     * separately and are not part of the create payload.
      */
     async create(containerType: ContainerTypeCreate): Promise<ContainerType> {
         try {
@@ -142,19 +154,19 @@ export class ContainerTypeService {
      *
      * GET /beta/storage/fileStorage/containerTypes/{id}/permissions
      *
-     * Response shape per entry: `{ id, roles: string[], grantedToV2: { user: { id } } }`.
+     * Response shape per entry: `{ id, roles: ["owner"], grantedToV2: { user: { id } } }`.
      * Beta-only — v1.0 returns "Resource not found for the segment 'permissions'".
      * Requires the calling user to be an owner on the CT or a SharePoint
      * Embedded / Global Administrator (delegated `FileStorageContainerType.Manage.All`).
      */
-    async listPermissions(id: string): Promise<any[]> {
+    async listPermissions(id: string): Promise<ContainerTypePermission[]> {
         try {
             Logger.log(`[ContainerTypeService.listPermissions] Listing permissions for container type ${id}`);
             const response = await this._client
                 .api(`${ContainerTypeService.BASE_PATH}/${id}/permissions`)
-                .version('beta')
+                .version(ContainerTypeService.PERMISSIONS_API_VERSION)
                 .get();
-            return response?.value ?? [];
+            return containerTypePermissionSchema.array().parse(response?.value ?? []);
         } catch (error: any) {
             console.error(`[ContainerTypeService.listPermissions] Error listing permissions for ${id}:`, error);
             throw new Error(`Failed to list permissions for container type: ${error.message || error}`);
@@ -182,7 +194,7 @@ export class ContainerTypeService {
 
             await this._client
                 .api(`${ContainerTypeService.BASE_PATH}/${id}/permissions`)
-                .version('beta')
+                .version(ContainerTypeService.PERMISSIONS_API_VERSION)
                 .post(requestBody);
 
             Logger.log(`[ContainerTypeService.addOwner] Owner ${userId} added to container type ${id}`);
