@@ -2,7 +2,6 @@ import React, { useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
 import { StorageItem, SidePanelTab, ModalState } from '../../models/StorageItem';
 import { useStorageExplorer } from '../../context/StorageExplorerContext';
-import { openUrl } from '../../utils/openUrl';
 import type { StorageExplorerOperation } from '../../api/protocol';
 
 interface MenuAction {
@@ -63,7 +62,7 @@ function getActions(
         };
         return [
             { icon: 'codicon-eye', label: 'Preview', permissionOperation: 'drive.getPreviewUrl', onClick: () => { onClose(); previewItem(item); } },
-            { icon: 'codicon-globe', label: 'Open in browser', permissionOperation: 'drive.getPreviewUrl', onClick: () => { onClose(); item.webUrl && openUrl(item.webUrl); } },
+            { icon: 'codicon-globe', label: 'Open in browser', permissionOperation: 'drive.getPreviewUrl', onClick: () => { onClose(); void previewItem(item); } },
             { icon: 'codicon-desktop-download', label: 'Open in desktop', permissionOperation: 'drive.getItemWebUrl', onClick: () => { onClose(); openInDesktopApp(item); } },
             { icon: 'codicon-cloud-download', label: 'Download', permissionOperation: 'drive.getDownloadUrl', onClick: () => { onClose(); downloadItem(item); } },
             { ...rename, dividerBefore: true },
@@ -148,7 +147,10 @@ export function ContextMenu({ item, x, y, onClose }: ContextMenuProps) {
         };
     }, [onClose]);
 
-    const actions = getActions(item, onClose, setSidePanelTab, openModal, navigateToContainerRecycleBin, activateContainer, previewItem, downloadItem, openInDesktopApp);
+    const actions = getActions(
+        item, onClose, setSidePanelTab, openModal, navigateToContainerRecycleBin,
+        activateContainer, previewItem, downloadItem, openInDesktopApp,
+    );
 
     // Clamp to viewport
     const maxX = Math.min(x, window.innerWidth - 210);

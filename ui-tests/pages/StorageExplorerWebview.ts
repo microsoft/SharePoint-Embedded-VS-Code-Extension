@@ -61,11 +61,20 @@ export class StorageExplorerWebview {
         await expect(this.tid(TID.actionNewContainer)).toBeVisible({ timeout: 30_000 });
     }
 
-    async createContainer(name: string, description?: string): Promise<void> {
+    async createContainer(
+        name: string,
+        description?: string,
+        options: { returnToRoot?: boolean } = { returnToRoot: true },
+    ): Promise<void> {
         await this.tid(TID.actionNewContainer).click();
         await this.tid(TID.newContainerNameInput).fill(name);
         if (description) { await this.page.locator('#container-description').fill(description); }
         await this.confirmModal();
+        await expect(this.tid(TID.actionNewDropdown)).toBeVisible({ timeout: 30_000 });
+        if (options.returnToRoot !== false) {
+            await this.breadcrumbTo(0);
+            await expect(this.tid(TID.actionNewContainer)).toBeVisible({ timeout: 30_000 });
+        }
     }
 
     async renameContainer(name: string, newName: string): Promise<void> {

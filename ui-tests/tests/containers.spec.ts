@@ -35,10 +35,15 @@ async function createLocallyTrackedContainer(
 }
 
 test.describe('Containers', () => {
-    test('create → assert row appears', async ({ storage }) => {
+    test('navigates into a newly created container', async ({ storage }) => {
         const name = `ct-create-${Date.now()}`;
-        await storage.createContainer(name, 'Created by SPE UI automation');
-        await expect(storage.row(name)).toBeVisible();
+        await storage.createContainer(
+            name,
+            'Created by SPE UI automation',
+            { returnToRoot: false },
+        );
+        await expect(storage.tid(TID.breadcrumbItem(1))).toHaveText(name);
+        await expect(storage.tid(TID.actionNewDropdown)).toBeVisible();
     });
 
     test('rename a container', async ({ storage }) => {

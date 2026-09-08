@@ -1,9 +1,8 @@
 import React, { useState } from 'react';
 import { StorageItem } from '../../models/StorageItem';
-import { getItemIcon, getItemIconColor, formatSize, isOfficeFile } from './fileListUtils';
+import { getItemIcon, getItemIconColor, formatSize } from './fileListUtils';
 import { ContextMenu } from '../ContextMenu/ContextMenu';
 import { useStorageExplorer } from '../../context/StorageExplorerContext';
-import { openUrl } from '../../utils/openUrl';
 
 interface FileListRowProps {
     item: StorageItem;
@@ -25,7 +24,6 @@ export function FileListRow({ item, isSelected, onSelect, onNavigate, colTemplat
     const iconColor = getItemIconColor(item);
     const showInlineActions = isHovered || isSelected;
     const isFile = item.kind === 'file';
-    const isOffice = isFile && isOfficeFile(item);
     const readContentMessage = missingPermissionMessage('drive.getPreviewUrl');
 
     const rowBg = isSelected
@@ -45,9 +43,7 @@ export function FileListRow({ item, isSelected, onSelect, onNavigate, colTemplat
 
     function handleDoubleClick() {
         if (item.kind !== 'file') { onNavigate(item); return; }
-        if (!requireOperation('drive.getPreviewUrl')) { return; }
-        if (isOffice) { item.webUrl && openUrl(item.webUrl); }
-        else { previewItem(item); }
+        void previewItem(item);
     }
 
     function handleContextMenuBtn(e: React.MouseEvent) {
@@ -130,12 +126,11 @@ export function FileListRow({ item, isSelected, onSelect, onNavigate, colTemplat
                         <button
                             className="icon-btn"
                             title={readContentMessage ?? 'Open in browser'}
-                            aria-disabled={!isOffice || !!readContentMessage}
-                            style={{ fontSize: 14, padding: '2px 4px', opacity: isOffice && !readContentMessage ? 1 : 0.25 }}
-                            disabled={!isOffice}
+                            aria-disabled={!isFile || !!readContentMessage}
+                            style={{ fontSize: 14, padding: '2px 4px', opacity: isFile && !readContentMessage ? 1 : 0.25 }}
+                            disabled={!isFile}
                             onClick={() => {
-                                if (!requireOperation('drive.getPreviewUrl')) { return; }
-                                item.webUrl && openUrl(item.webUrl);
+                                void previewItem(item);
                             }}
                         >
                             <span className="codicon codicon-globe" />

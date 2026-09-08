@@ -58,7 +58,7 @@ test.describe('Empty listings are attributed to the grant behind them', () => {
         await harness.view.openContainer('Seed Container');
 
         await expect(page.getByTestId('empty-folder-onboarding')).toBeVisible({ timeout: 30_000 });
-        await expect(page.getByTestId('filelist-empty')).toHaveText('This folder is empty');
+        await expect(page.getByTestId('filelist-empty')).toHaveText('This container is empty');
 
         // Every offer here is reachable: the state is only rendered once its scopes are granted.
         await expect(page.getByTestId('empty-folder-upload')).toBeEnabled();

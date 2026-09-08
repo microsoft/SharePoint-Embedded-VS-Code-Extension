@@ -1,6 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { useStorageExplorer } from '../../context/StorageExplorerContext';
-import { openUrl } from '../../utils/openUrl';
 import { Modal } from '../Modal/Modal';
 import type { StorageExplorerOperation } from '../../api/protocol';
 
@@ -9,8 +8,7 @@ export function ActionBar() {
     const atRoot = path.length === 1;
     const isFile = selectedItem?.kind === 'file';
     const hasSelection = selectedItem !== null;
-    // Open in web: only Office files carry a webUrl
-    const canOpen     = isFile && !!selectedItem?.webUrl;
+    const canOpen     = isFile;
     const canPreview  = isFile;   // preview is fetched on demand via POST /preview
     const canDownload = isFile;
 
@@ -188,7 +186,10 @@ function FileActions({
     hasSelection: boolean; isFile: boolean;
     canOpen: boolean; canPreview: boolean; canDownload: boolean;
 }) {
-    const { path, selectedItem, openModal, enqueueUploads, previewItem, downloadItem, openInDesktopApp, navigateToContainerRecycleBin } = useStorageExplorer();
+    const {
+        path, selectedItem, openModal, enqueueUploads, previewItem, downloadItem,
+        openInDesktopApp, navigateToContainerRecycleBin,
+    } = useStorageExplorer();
     const fileInputRef = useRef<HTMLInputElement>(null);
     // The recycle bin is scoped to the container, not the folder we happen to be in, so it
     // always comes from path[1] — the entry directly under the root.
@@ -230,7 +231,7 @@ function FileActions({
             <Separator />
             <OpenDropdown
                 disabled={!canOpen}
-                onOpenInWeb={() => selectedItem?.webUrl && openUrl(selectedItem.webUrl)}
+                onOpenInWeb={() => selectedItem && void previewItem(selectedItem)}
                 onOpenInDesktop={() => selectedItem && openInDesktopApp(selectedItem)}
             />
             <ActionBtn icon="codicon-eye" label="Preview" title="Preview selected file" testId="action-preview" permissionOperation="drive.getPreviewUrl" disabled={!canPreview} onClick={() => selectedItem && previewItem(selectedItem)} />

@@ -14,6 +14,29 @@ test.describe('Files & folders', () => {
         await expect(storage.row('Folder 1')).toBeVisible({ timeout: 30_000 });
     });
 
+    test('opens a file in the browser from the action bar and context menu', async ({ storage, page }) => {
+        await storage.openContainer(SEED_CONTAINER);
+        await storage.select('File 2.docx');
+
+        await expect(storage.tid('action-open-dropdown')).toBeEnabled();
+        await storage.tid('action-open-dropdown').click();
+        await storage.tid('action-open-web').click();
+        await expect.poll(() => page.evaluate(() =>
+            window.__SPE_TEST_POSTED__?.filter(message => message.command === 'openExternal').length ?? 0
+        )).toBe(1);
+
+        await storage.openRowMenu('File 2.docx');
+        await storage.clickMenuItem('open-in-browser');
+        await expect.poll(() => page.evaluate(() =>
+            window.__SPE_TEST_POSTED__?.filter(message => message.command === 'openExternal').length ?? 0
+        )).toBe(2);
+        await expect.poll(() => page.evaluate(() =>
+            window.__SPE_TEST_POSTED__?.filter(message =>
+                message.command === 'rpc/request' && message.op === 'drive.getPreviewUrl'
+            ).length ?? 0
+        )).toBe(2);
+    });
+
     test('create a new folder', async ({ storage }) => {
         await storage.openContainer(SEED_CONTAINER);
         const folder = `NewFolder-${Date.now()}`;

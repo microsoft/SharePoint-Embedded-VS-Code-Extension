@@ -5,6 +5,7 @@ import { FileListHeader } from './FileListHeader';
 import { FileListRow } from './FileListRow';
 import { useResizableColumns } from '../../hooks/useResizableColumns';
 import { ListErrorState } from '../common/ListErrorState';
+import { ListLoadingState } from '../common/ListLoadingState';
 import type { StorageExplorerOperation } from '../../api/protocol';
 
 // Initial widths for: Date Modified, Type, Size (Name stays 1fr)
@@ -33,13 +34,14 @@ export function FileList() {
         currentItems, selectedItem, selectItem, setSort, sortColumn, sortDirection, navigate,
         filterText, isLoading, loadProgress, loadError, refresh, selectedIds, selectAllCurrent,
         clearSelected, canLoadMore, loadMore, isLoadingMore, loadMoreError, readiness, openModal,
-        viewMode, currentDriveId, missingPermissionMessage, missingScopesForOperation, requireOperation,
+        path, viewMode, currentDriveId, missingPermissionMessage, missingScopesForOperation, requireOperation,
     } = useStorageExplorer();
     const { colWidths } = useResizableColumns(INITIAL_COL_WIDTHS);
     const colTemplate = `32px 1fr ${colWidths[0]}px ${colWidths[1]}px ${colWidths[2]}px`;
 
     const atRoot = currentDriveId === null;
     const isNormalView = viewMode.kind === 'normal';
+    const isContainerRoot = isNormalView && currentDriveId !== null && path.length === 2;
     const isFiltered = !!filterText.trim();
 
     // What produced the view on screen, so an empty result can be attributed to the grant
@@ -94,89 +96,73 @@ export function FileList() {
                 onToggleSelectAll={onToggleSelectAll}
                 onClick={(e: React.MouseEvent) => e.stopPropagation()}
             />
-            {isLoading && (
-                <div
-                    data-testid="list-loading"
-                    onClick={(e) => e.stopPropagation()}
-                    style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 8,
-                        padding: '4px 10px',
-                        fontSize: 12,
-                        opacity: 0.85,
-                        borderBottom: '1px solid var(--vscode-panel-border)',
-                        backgroundColor: 'var(--vscode-editor-background)',
-                        flexShrink: 0,
-                    }}
-                >
-                    <span className="codicon codicon-loading codicon-modifier-spin" />
-                    <span>{loadProgress > 0 ? `Loading… ${loadProgress.toLocaleString()} items so far` : 'Loading…'}</span>
-                </div>
-            )}
             <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', padding: '0 4px' }}>
-                {currentItems.length === 0 ? (
-                    // A failed load must not masquerade as an empty folder.
-                    loadError ? <ListErrorState error={loadError} onRetry={refresh} />
-                        // Neither may a listing the extension app was never allowed to make.
-                        // Graph answers an under-permissioned enumeration with an empty page
-                        // rather than an error, so "no items" here is not evidence of "nothing
-                        // to show" until the grant behind the listing is accounted for.
-                        : listMissingScopes.length > 0
-                            ? <MissingListPermissionState scopes={listMissingScopes} atRoot={atRoot} />
-                            // A filter that matched nothing is the user's own doing, and saying
-                            // so beats attributing it to a permission they cannot act on here.
-                            : isFiltered
-                                ? <EmptyState filtered />
-                                // Listing worked and the folder really is empty. Whether that is
-                                // an invitation or a dead end depends on what the user may add.
-                                : isNormalView && contentMissingScopes.length > 0
-                                    ? <EmptyAndBlockedState scopes={contentMissingScopes} atRoot={atRoot} />
-                                    : showFirstContainerAction
-                                        ? <FirstContainerState
-                                            permissionMessage={missingPermissionMessage('containers.create')}
-                                            onCreate={() => {
-                                                if (requireOperation('containers.create')) {
-                                                    openModal({ kind: 'new-container' });
-                                                }
-                                            }}
-                                        />
-                                        : isNormalView && !atRoot
-                                            ? <EmptyFolderState />
-                                            : <EmptyState filtered={false} />
-                ) : (
-                    // Virtualized: only the rows in (and near) the viewport are mounted, so the DOM
-                    // stays O(viewport) regardless of how many items the enumeration returns.
-                    <div style={{ height: rowVirtualizer.getTotalSize(), position: 'relative', width: '100%' }}>
-                        {rowVirtualizer.getVirtualItems().map(virtualRow => {
-                            const item = currentItems[virtualRow.index];
-                            return (
-                                <div
-                                    key={virtualRow.key}
-                                    data-index={virtualRow.index}
-                                    ref={rowVirtualizer.measureElement}
-                                    style={{ position: 'absolute', top: 0, left: 0, width: '100%', transform: `translateY(${virtualRow.start}px)` }}
-                                >
-                                    <FileListRow
-                                        item={item}
-                                        colTemplate={colTemplate}
-                                        isSelected={selectedItem?.id === item.id}
-                                        onSelect={selectItem}
-                                        onNavigate={navigate}
-                                    />
-                                </div>
-                            );
-                        })}
-                    </div>
-                )}
-                {/* Paging is explicit: the next page is fetched only when the user asks for it,
-                    and the control disappears once the server says there is nothing left. */}
-                {canLoadMore && (
-                    <LoadMoreButton
-                        onClick={() => void loadMore()}
-                        isLoading={isLoadingMore}
-                        error={loadMoreError}
-                    />
+                {isLoading ? <ListLoadingState progress={loadProgress} /> : (
+                    <>
+                        {currentItems.length === 0 ? (
+                            // A failed load must not masquerade as an empty folder.
+                            loadError ? <ListErrorState error={loadError} onRetry={refresh} />
+                                // Neither may a listing the extension app was never allowed to make.
+                                // Graph answers an under-permissioned enumeration with an empty page
+                                // rather than an error, so "no items" here is not evidence of "nothing
+                                // to show" until the grant behind the listing is accounted for.
+                                : listMissingScopes.length > 0
+                                    ? <MissingListPermissionState scopes={listMissingScopes} atRoot={atRoot} />
+                                    // A filter that matched nothing is the user's own doing, and saying
+                                    // so beats attributing it to a permission they cannot act on here.
+                                    : isFiltered
+                                        ? <EmptyState filtered />
+                                        // Listing worked and the folder really is empty. Whether that is
+                                        // an invitation or a dead end depends on what the user may add.
+                                        : isNormalView && contentMissingScopes.length > 0
+                                            ? <EmptyAndBlockedState scopes={contentMissingScopes} atRoot={atRoot} />
+                                            : showFirstContainerAction
+                                                ? <FirstContainerState
+                                                    permissionMessage={missingPermissionMessage('containers.create')}
+                                                    onCreate={() => {
+                                                        if (requireOperation('containers.create')) {
+                                                            openModal({ kind: 'new-container' });
+                                                        }
+                                                    }}
+                                                />
+                                                : isNormalView && !atRoot
+                                                    ? <EmptyFolderState isContainerRoot={isContainerRoot} />
+                                                    : <EmptyState filtered={false} />
+                        ) : (
+                            // Virtualized: only the rows in (and near) the viewport are mounted, so the DOM
+                            // stays O(viewport) regardless of how many items the enumeration returns.
+                            <div style={{ height: rowVirtualizer.getTotalSize(), position: 'relative', width: '100%' }}>
+                                {rowVirtualizer.getVirtualItems().map(virtualRow => {
+                                    const item = currentItems[virtualRow.index];
+                                    return (
+                                        <div
+                                            key={virtualRow.key}
+                                            data-index={virtualRow.index}
+                                            ref={rowVirtualizer.measureElement}
+                                            style={{ position: 'absolute', top: 0, left: 0, width: '100%', transform: `translateY(${virtualRow.start}px)` }}
+                                        >
+                                            <FileListRow
+                                                item={item}
+                                                colTemplate={colTemplate}
+                                                isSelected={selectedItem?.id === item.id}
+                                                onSelect={selectItem}
+                                                onNavigate={navigate}
+                                            />
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+                        {/* Paging is explicit: the next page is fetched only when the user asks for it,
+                            and the control disappears once the server says there is nothing left. */}
+                        {canLoadMore && (
+                            <LoadMoreButton
+                                onClick={() => void loadMore()}
+                                isLoading={isLoadingMore}
+                                error={loadMoreError}
+                            />
+                        )}
+                    </>
                 )}
             </div>
         </div>
@@ -294,7 +280,7 @@ function EmptyAndBlockedState({ scopes, atRoot }: { scopes: string[]; atRoot: bo
  * here is guaranteed to be permitted — an empty folder should read as an invitation, not a
  * dead end.
  */
-function EmptyFolderState() {
+function EmptyFolderState({ isContainerRoot }: { isContainerRoot: boolean }) {
     const { openModal, enqueueUploads, requireOperation } = useStorageExplorer();
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -337,7 +323,7 @@ function EmptyFolderState() {
             />
             <span className="codicon codicon-cloud-upload" style={{ fontSize: 48, opacity: 0.55 }} />
             <span style={{ fontSize: 13, fontWeight: 600 }} data-testid="filelist-empty">
-                This folder is empty
+                {isContainerRoot ? 'This container is empty' : 'This folder is empty'}
             </span>
             <span style={{ fontSize: 12, opacity: 0.75, maxWidth: 420 }}>
                 Drop in your first file, or create one without leaving the editor.

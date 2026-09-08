@@ -279,7 +279,9 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
     const [sidePanelTab, setSidePanelTabState] = useState<SidePanelTab>('permissions');
     const [modal, setModal] = useState<ModalState | null>(null);
     const [retentionOverrides, setRetentionOverridesState] = useState<Record<string, number | null>>({});
-    const [isLoading, setIsLoading] = useState(false);
+    // The initial listing starts in an effect after the first render. Start busy so that render
+    // cannot briefly expose an empty/onboarding state before the request begins.
+    const [isLoading, setIsLoading] = useState(true);
     const [loadError, setLoadError] = useState<LoadFailure | null>(null);
     // True while the host is showing the extension-app grant prompt on our behalf.
     const [isGrantingPermissions, setIsGrantingPermissions] = useState(false);
@@ -640,9 +642,11 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
             next.set(created.id, created);
             return next;
         });
-        void loadCurrentView(viewMode);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [loadCurrentView, requireOperation, viewMode]);
+        setIsLoading(true);
+        setPath(prev => [prev[0], { label: created.name, id: created.id }]);
+        setSelectedItem(null);
+        setFilterText('');
+    }, [requireOperation]);
 
     const activateContainer = useCallback(async (containerId: string) => {
         if (!requireOperation('containers.activate')) { return; }
@@ -841,24 +845,34 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
     function navigate(item: StorageItem) {
         if (item.kind === 'file') return;
         if (viewMode.kind !== 'normal') return;
+        // Effects issue the request after this render; mark the destination busy first so stale
+        // rows or an empty state cannot flash while navigation is being committed.
+        setIsLoading(true);
         setPath(prev => [...prev, { label: item.name, id: item.id }]);
         setSelectedItem(null);
         setFilterText('');
     }
 
     function navigateToBreadcrumb(index: number) {
+        // Normal-view root data is already cached. Every other breadcrumb transition changes
+        // scope or view mode and therefore starts a listing request in an effect.
+        if (index > 0 || viewMode.kind !== 'normal') {
+            setIsLoading(true);
+        }
         setPath(prev => prev.slice(0, index + 1));
         setSelectedItem(null);
         setFilterText('');
     }
 
     function navigateToDeletedContainers() {
+        setIsLoading(true);
         setPath([path[0], { label: 'Deleted containers', id: '__deleted_containers' }]);
         setSelectedItem(null);
         setFilterText('');
     }
 
     function navigateToContainerRecycleBin(containerId: string, containerName: string) {
+        setIsLoading(true);
         setPath([path[0], { label: containerName, id: containerId }, { label: 'Recycle bin', id: '__recyclebin__' }]);
         setSelectedItem(null);
         setFilterText('');

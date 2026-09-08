@@ -36,7 +36,10 @@ export function NavBar() {
             }}
         >
             {/* Tenant identity — far left */}
-            <span className="codicon codicon-database" style={{ fontSize: 16, color: 'var(--vscode-symbolIcon-classForeground, #4ec9b0)', flexShrink: 0 }} />
+            <span
+                className="codicon codicon-database"
+                style={{ fontSize: 16, color: 'var(--vscode-foreground)', flexShrink: 0 }}
+            />
             <span
                 data-testid="nav-tenant-domain"
                 style={{

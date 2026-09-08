@@ -26,7 +26,7 @@ export function getItemIcon(item: StorageItem): string {
 
 /** Returns a VS Code CSS-variable color for the icon based on item kind. */
 export function getItemIconColor(item: StorageItem): string {
-    if (item.kind === 'container') return 'var(--vscode-symbolIcon-classForeground, #4ec9b0)';
+    if (item.kind === 'container') return 'var(--vscode-foreground)';
     if (item.kind === 'folder') return 'var(--vscode-symbolIcon-namespaceForeground, #e8ab65)';
     return 'var(--vscode-foreground)';
 }

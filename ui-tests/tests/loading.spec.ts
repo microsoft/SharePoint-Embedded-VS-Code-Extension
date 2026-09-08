@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { test, expect } from '../fixtures';
+import { TID } from '../testids';
 
 const SEED_CONTAINER = 'Seed Container';
 
@@ -40,6 +41,9 @@ test.describe('Loading progress', () => {
 
         // The loading banner appears while page 1 is in flight...
         await expect(storage.tid('list-loading')).toBeVisible();
+        // No result-derived state may render until the request settles.
+        await expect(storage.tid('filelist-empty')).toHaveCount(0);
+        await expect(storage.row('File 0.txt')).toHaveCount(0);
         // ...and disappears once that page has landed.
         await expect(storage.tid('list-loading')).toHaveCount(0, { timeout: 15_000 });
 
@@ -56,5 +60,53 @@ test.describe('Loading progress', () => {
         expect(pageRequests).toBe(2);
         await storage.search('File 99.txt');
         await expect(storage.row('File 99.txt')).toBeVisible({ timeout: 15_000 });
+    });
+
+    test('hides cached containers while the root refresh is in flight', async ({ storage, page }) => {
+        await page.route((url) => url.pathname.endsWith('/storage/fileStorage/containers'), async (route) => {
+            await new Promise(r => setTimeout(r, 800));
+            await route.fallback();
+        });
+
+        await storage.tid(TID.navRefresh).click();
+
+        await expect(storage.tid(TID.listLoading)).toBeVisible();
+        await expect(storage.row(SEED_CONTAINER)).toHaveCount(0);
+        await expect(storage.tid(TID.fileListEmpty)).toHaveCount(0);
+
+        await expect(storage.tid(TID.listLoading)).toHaveCount(0, { timeout: 15_000 });
+        await expect(storage.row(SEED_CONTAINER)).toBeVisible();
+    });
+
+    test('shows only loading while deleted containers are being listed', async ({ storage, page }) => {
+        await page.route((url) => url.pathname.endsWith('/storage/fileStorage/deletedContainers'), async (route) => {
+            await new Promise(r => setTimeout(r, 800));
+            await route.fallback();
+        });
+
+        await storage.openDeletedContainers();
+
+        await expect(storage.tid(TID.listLoading)).toBeVisible();
+        await expect(page.getByText('No deleted containers', { exact: true })).toHaveCount(0);
+
+        await expect(storage.tid(TID.listLoading)).toHaveCount(0, { timeout: 15_000 });
+        await expect(page.getByText('No deleted containers', { exact: true })).toBeVisible();
+    });
+
+    test('shows only loading while recycle-bin items are being listed', async ({ storage, page }) => {
+        await storage.openContainer(SEED_CONTAINER);
+        await expect(storage.row('Folder 1')).toBeVisible({ timeout: 15_000 });
+        await page.route((url) => url.pathname.endsWith('/recycleBin/items'), async (route) => {
+            await new Promise(r => setTimeout(r, 800));
+            await route.fallback();
+        });
+
+        await storage.openRecycleBin();
+
+        await expect(storage.tid(TID.listLoading)).toBeVisible();
+        await expect(page.getByText('Recycle bin is empty', { exact: true })).toHaveCount(0);
+
+        await expect(storage.tid(TID.listLoading)).toHaveCount(0, { timeout: 15_000 });
+        await expect(page.getByText('Recycle bin is empty', { exact: true })).toBeVisible();
     });
 });
