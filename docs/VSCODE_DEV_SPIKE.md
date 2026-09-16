@@ -53,14 +53,25 @@ are already represented by the squash commit on `main`.
 
 ## Current compatibility findings
 
-The extension is desktop-only today:
+The first spike milestone now provides:
 
-- `package.json` has a Node entry point in `main`, but no `browser` entry point.
-- The desktop bundle uses CommonJS and `platform=node`.
-- `src/extension.ts` eagerly imports and registers 47 commands. Any Node-only
-  import reachable from one command prevents the complete browser bundle.
-- A baseline esbuild run with `platform=browser` fails on 13 unresolved Node
-  built-ins.
+- The existing Node entry point in `main` for desktop.
+- A separate `browser` entry point backed by `src/extension.web.ts`.
+- A browser bundle built with esbuild `platform=browser`.
+- Web-host activation, storage initialization, account and development trees,
+  Microsoft authentication state, and the sign-in, sign-out, switch-account,
+  cancel-sign-in, and refresh commands.
+- A dual-host packaging build that produces both `out/extension.js` and
+  `out/extension.web.js`.
+
+The browser bundle builds without unresolved Node built-ins. Desktop-only
+commands are intentionally not imported by the web entry point yet. This is a
+capability boundary for the spike, not the final web UX: menu contributions for
+unavailable commands still need web-specific `when` clauses.
+
+Before the split, `src/extension.ts` eagerly imported and registered 47 commands
+and a baseline esbuild run with `platform=browser` failed on 13 unresolved Node
+built-ins.
 
 Known runtime blockers:
 
@@ -90,11 +101,12 @@ do not prove browser compatibility.
 
 ## Proposed spike sequence
 
-1. Add a minimal web entry point, dual esbuild configuration, and a local
-   `@vscode/test-web` smoke test.
-2. Split command registration into common and desktop-only capabilities until
-   the browser bundle loads.
-3. Prove Microsoft sign-in and a single Graph request on vscode.dev.
+1. Add a local `@vscode/test-web` activation smoke test for the new web entry
+   point.
+2. Add web-specific menu capability gating for commands that are not registered
+   by the browser entry point.
+3. Provision the local client configuration in the spike worktree, then prove
+   Microsoft sign-in and a single Graph request on vscode.dev.
 4. Prove container type and container listing.
 5. Prove Storage Browser list, download, upload-session, and external-open
    operations, recording CORS behavior for every endpoint.
@@ -130,4 +142,3 @@ web extension host:
   or an acceptable service-side/proxy design is identified.
 - Desktop-only commands can be hidden without breaking the core management
   experience.
-

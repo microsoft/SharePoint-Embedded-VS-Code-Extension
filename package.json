@@ -21,6 +21,7 @@
     "Other"
   ],
   "main": "./out/extension.js",
+  "browser": "./out/extension.web.js",
   "l10n": "./l10n",
   "activationEvents": [
     "onUri"
@@ -613,7 +614,7 @@
     ]
   },
   "scripts": {
-    "vscode:prepublish": "npm run build:webview && npm run esbuild-base -- --minify",
+    "vscode:prepublish": "npm run build:webview && npm run esbuild-base -- --minify && npm run esbuild-web-base -- --minify",
     "build:webview": "cd webview-ui && npm run build",
     "watch:webview": "cd webview-ui && npm run watch",
     "postinstall": "cd webview-ui && npm install",
@@ -631,7 +632,9 @@
     "test:ui:report": "playwright show-report ui-tests/playwright-report",
     "bundle": "npm install -g @vscode/vsce && vsce package",
     "esbuild-base": "esbuild ./src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node",
+    "esbuild-web-base": "esbuild ./src/extension.web.ts --bundle --outfile=out/extension.web.js --external:vscode --format=cjs --platform=browser",
     "esbuild": "npm run esbuild-base -- --sourcemap",
+    "esbuild-web": "npm run esbuild-web-base -- --sourcemap",
     "esbuild-watch": "npm run esbuild-base -- --sourcemap --watch",
     "test-compile": "tsc -p ./",
     "agent:build": "tsc -p tools/agent-loop/tsconfig.json",
