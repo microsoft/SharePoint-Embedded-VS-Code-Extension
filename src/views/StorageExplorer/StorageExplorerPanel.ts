@@ -4,8 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { randomBytes } from 'crypto';
-import { URL } from 'url';
 import { ContainerType, ContainerTypeAppPermission, ContainerTypeRegistration } from '../../models/schemas';
 import { ext } from '../../utils/extensionVariables';
 import { AuthenticationState } from '../../services/AuthenticationState';
@@ -28,7 +26,10 @@ import { SerializedError, StorageExplorerPanelState, StorageExplorerReadiness } 
  * 128 bits of entropy, base64url-encoded to stay safe inside the CSP header.
  */
 function getNonce(): string {
-    return randomBytes(16).toString('base64')
+    const bytes = new Uint8Array(16);
+    globalThis.crypto.getRandomValues(bytes);
+    const binary = Array.from(bytes, byte => String.fromCharCode(byte)).join('');
+    return btoa(binary)
         .replace(/\+/g, '-')
         .replace(/\//g, '_')
         .replace(/=+$/, '');
@@ -474,13 +475,10 @@ export class StorageExplorerPanel {
     // ------------------------------------------------------------------
 
     private static async _handleExportHar(har: string): Promise<void> {
-        const tmpDir = require('os').tmpdir();
-        const path = require('path');
-        const fs = require('fs');
-        const fileName = `storage-explorer-${Date.now()}.har`;
-        const filePath = path.join(tmpDir, fileName);
-        fs.writeFileSync(filePath, har, 'utf8');
-        const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(filePath));
+        const doc = await vscode.workspace.openTextDocument({
+            content: har,
+            language: 'json'
+        });
         await vscode.window.showTextDocument(doc, { preview: false });
     }
 

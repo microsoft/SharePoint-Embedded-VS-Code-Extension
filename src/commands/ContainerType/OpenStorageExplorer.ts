@@ -4,7 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { LocalRegistrationTreeItem } from '../../views/treeview/development/LocalRegistrationTreeItem';
-import { StorageExplorerTreeItem } from '../../views/treeview/development/StorageExplorerTreeItem';
+import {
+    StorageExplorerCommandArgs,
+    StorageExplorerTreeItem
+} from '../../views/treeview/development/StorageExplorerTreeItem';
 import { StorageExplorerPanel } from '../../views/StorageExplorer/StorageExplorerPanel';
 import { Command } from '../Command';
 
@@ -19,16 +22,24 @@ import { Command } from '../Command';
 export class OpenStorageExplorer extends Command {
     public static readonly COMMAND = 'ContainerType.openStorageExplorer';
 
-    public static async run(treeItem?: StorageExplorerTreeItem | LocalRegistrationTreeItem): Promise<void> {
+    public static async run(
+        treeItem?: StorageExplorerTreeItem | LocalRegistrationTreeItem | StorageExplorerCommandArgs
+    ): Promise<void> {
         if (!treeItem) {
             return;
         }
 
-        if (treeItem instanceof StorageExplorerTreeItem) {
+        if (treeItem instanceof StorageExplorerTreeItem || isStorageExplorerCommandArgs(treeItem)) {
             await StorageExplorerPanel.open(treeItem.containerType, treeItem.registration, treeItem.readiness);
             return;
         }
 
         await StorageExplorerPanel.open(treeItem.containerType, treeItem.registration);
     }
+}
+
+function isStorageExplorerCommandArgs(value: object): value is StorageExplorerCommandArgs {
+    return 'containerType' in value
+        && 'registration' in value
+        && 'readiness' in value;
 }

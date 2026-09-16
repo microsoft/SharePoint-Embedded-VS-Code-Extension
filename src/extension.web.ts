@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { registerWebResourceCommands } from './commands/registerWebCommands';
 import { AuthenticationState } from './services/AuthenticationState';
 import { GraphAuthProvider } from './services/Auth';
 import { LocalStorageService, StorageProvider } from './services/StorageProvider';
@@ -62,6 +63,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     });
 
     registerWebCommands(context, developmentTree);
+    registerWebResourceCommands(context);
 
     try {
         await AuthenticationState.initialize();
@@ -119,11 +121,21 @@ function registerWebCommands(
             developmentTree.refresh();
         }),
         vscode.commands.registerCommand(WEB_COMMANDS.switchAccount, async () => {
-            developmentTree.emptyTree();
-            await vscode.commands.executeCommand('setContext', 'spe:isLoggingIn', true);
-            await vscode.commands.executeCommand('setContext', 'spe:isLoggedIn', false);
-            await AuthenticationState.signOut();
-            await AuthenticationState.signIn();
+            try {
+                developmentTree.emptyTree();
+                await vscode.commands.executeCommand('setContext', 'spe:isLoggingIn', true);
+                await vscode.commands.executeCommand('setContext', 'spe:isLoggedIn', false);
+                await AuthenticationState.signOut();
+                await AuthenticationState.signIn();
+            } catch (error) {
+                await vscode.commands.executeCommand('setContext', 'spe:isLoggingIn', false);
+                await vscode.commands.executeCommand('setContext', 'spe:isLoggedIn', false);
+                await vscode.commands.executeCommand('setContext', 'spe:signInReady', true);
+                const detail = error instanceof Error ? error.message : String(error);
+                await vscode.window.showErrorMessage(
+                    vscode.l10n.t('Failed to switch account: {0}', detail)
+                );
+            }
         }),
         vscode.commands.registerCommand(WEB_COMMANDS.cancelSignIn, () => {
             AuthenticationState.cancelSignIn();

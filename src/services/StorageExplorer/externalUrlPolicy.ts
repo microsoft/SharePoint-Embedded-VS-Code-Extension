@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URL } from 'url';
-
 /**
  * Allow-list policy for URLs the Storage Explorer webview asks the extension host to
  * hand to the operating system via `vscode.env.openExternal`.

@@ -7,6 +7,12 @@ import * as vscode from 'vscode';
 import { ContainerType, ContainerTypeRegistration } from '../../../models/schemas';
 import type { StorageExplorerReadiness } from '../../../services/StorageExplorer/protocol';
 
+export interface StorageExplorerCommandArgs {
+    containerType: ContainerType;
+    registration: ContainerTypeRegistration | null;
+    readiness: StorageExplorerReadiness;
+}
+
 /**
  * The single entry point to Storage Explorer under a container type.
  *
@@ -34,7 +40,11 @@ export class StorageExplorerTreeItem extends vscode.TreeItem {
         this.command = {
             command: 'spe.ContainerType.openStorageExplorer',
             title: vscode.l10n.t('Open Storage Explorer'),
-            arguments: [this],
+            arguments: [{
+                containerType: this.containerType,
+                registration: this.registration,
+                readiness: this.readiness,
+            } satisfies StorageExplorerCommandArgs],
         };
 
         switch (readiness) {

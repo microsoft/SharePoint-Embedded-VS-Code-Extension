@@ -182,3 +182,28 @@ web extension host:
   or an acceptable service-side/proxy design is identified.
 - Desktop-only commands can be hidden without breaking the core management
   experience.
+
+## TODO prior to Marketplace release
+
+- Validate the packaged extension in actual `vscode.dev`, including Microsoft
+  sign-in, tenant and account switching, Graph container-type and container
+  requests, and Storage Browser list, download, upload-session, and
+  external-open operations. Record the CORS result for each endpoint.
+- Add `spe:isWeb` menu conditions in `package.json` so desktop-only commands do
+  not appear in web environments. Replace the temporary "not available in the
+  vscode.dev spike yet" command handlers with final capability-specific UX.
+- Decide and document the final web behavior for container-type creation and
+  registration, billing attachment, Postman file export, local admin consent,
+  sample-app cloning, and container creation. Implement browser-safe
+  alternatives or explicitly keep each workflow desktop-only.
+- Add browser-extension CI that builds `out/extension.web.js` and verifies
+  activation in a web extension host. Existing type-check, lint, webview, API,
+  and UI validation does not exercise the browser entry point.
+- Make packaging reproducible by pinning `@vscode/vsce`, then create and inspect
+  the VSIX and install-test it in both desktop VS Code and `vscode.dev`.
+- Stop the local HTTPS server before running `npm run vscode:prepublish`.
+  Serving `out/` can lock generated webview assets on Windows and prevent Vite
+  from cleaning `out/webviewApp`.
+- Reconcile the spike with the target release branch, commit all final changes,
+  update release notes and the extension version, and complete independent
+  review and CI validation before publishing.

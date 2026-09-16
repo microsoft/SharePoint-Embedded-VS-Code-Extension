@@ -5,7 +5,7 @@
 
 import { Command } from '../Command';
 import { RecycledContainerTreeItem } from '../../views/treeview/development/RecycledContainerTreeItem';
-import { Commands } from '..';
+import { CopyContainerId } from '../Container/CopyContainerId';
 
 // Static class that handles the copy container type id command
 export class CopyRecycledContainerId extends Command {
@@ -14,6 +14,6 @@ export class CopyRecycledContainerId extends Command {
 
     // Command handler
     public static async run(containerViewModel?: RecycledContainerTreeItem): Promise<void> {
-        await Commands.CopyContainerId.run(containerViewModel);
+        await CopyContainerId.run(containerViewModel);
     }
 }

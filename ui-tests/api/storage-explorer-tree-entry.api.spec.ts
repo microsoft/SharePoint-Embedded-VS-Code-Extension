@@ -86,15 +86,21 @@ test.describe('AC-11 — the entry is always present and always says which state
             expect(item.contextValue).toBe(`spe:storageExplorerTreeItem-${readiness}`);
         });
 
-        test(`${readiness}: clicking opens Storage Explorer and passes the row itself`, () => {
+        test(`${readiness}: clicking opens Storage Explorer with a serializable payload`, () => {
             const item = build(readiness);
 
             // Blocked states still open: the panel renders the onboarding surface (AC-12) and
             // makes no collection request, which is more useful than an inert row.
             expect(item.command?.command).toBe('spe.ContainerType.openStorageExplorer');
             expect(item.command?.title?.length ?? 0).toBeGreaterThan(0);
-            expect(item.command?.arguments?.[0], 'the handler needs the readiness it was built with')
-                .toBe(item);
+            const commandArg = item.command?.arguments?.[0];
+            expect(commandArg).toEqual({
+                containerType: CONTAINER_TYPE,
+                registration: readiness === 'unregistered' ? null : REGISTRATION,
+                readiness,
+            });
+            expect(() => JSON.stringify(commandArg), 'web-host command arguments must cross a worker boundary')
+                .not.toThrow();
         });
     }
 
