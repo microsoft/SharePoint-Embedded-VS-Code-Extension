@@ -101,18 +101,58 @@ do not prove browser compatibility.
 
 ## Proposed spike sequence
 
-1. Add a local `@vscode/test-web` activation smoke test for the new web entry
-   point.
-2. Add web-specific menu capability gating for commands that are not registered
+1. Add web-specific menu capability gating for commands that are not registered
    by the browser entry point.
-3. Provision the local client configuration in the spike worktree, then prove
+2. Provision the local client configuration in the spike worktree, then prove
    Microsoft sign-in and a single Graph request on vscode.dev.
-4. Prove container type and container listing.
-5. Prove Storage Browser list, download, upload-session, and external-open
+3. Prove container type and container listing.
+4. Prove Storage Browser list, download, upload-session, and external-open
    operations, recording CORS behavior for every endpoint.
-6. Decide which local-machine workflows remain desktop-only and hide their
+5. Decide which local-machine workflows remain desktop-only and hide their
    menus in web environments.
-7. Add browser CI only after the authentication and network go/no-go gates pass.
+6. Add browser CI only after the authentication and network go/no-go gates pass.
+
+## Local testing
+
+The public Marketplace version remains unavailable on vscode.dev until a
+version containing the `browser` entry point is published. Local development
+does not require publishing.
+
+### Browser-hosted VS Code on localhost
+
+The fastest feedback loop uses `@vscode/test-web`:
+
+```powershell
+npm run open:web
+```
+
+This builds `out/extension.web.js`, downloads VS Code web assets into
+`.vscode-test-web`, starts a localhost server, opens Chromium, and opens browser
+developer tools. The extension is loaded directly from this worktree.
+
+The first run downloads VS Code and a browser runtime, so it is slower than
+subsequent runs. The virtual workspace is backed by the local test server;
+changes made to workspace files in the browser are kept in memory.
+
+For source-level debugging without leaving desktop VS Code, select
+**Run and Debug > Run Web Extension**. This starts the extension in VS Code's
+web extension host with web-worker debugging enabled.
+
+### Actual vscode.dev sideload
+
+For a final environment check, host the extension worktree over local HTTPS
+with CORS enabled. In vscode.dev run **Developer: Install Extension From
+Location...** and enter the HTTPS localhost URL. The official flow uses
+`mkcert` to create a trusted localhost certificate and `serve --cors` to host
+the extension directory.
+
+The normal Extensions view still describes the Marketplace release as
+unavailable; that does not affect the separately sideloaded development
+extension.
+
+Do not disable browser web security for normal validation. The harness supports
+that mode, but it bypasses the CORS behavior that is one of this spike's key
+go/no-go questions.
 
 ## Estimate
 

@@ -36,6 +36,17 @@
 			"group": "build"
 		},
 		{
+			"label": "build:web-extension",
+			"type": "npm",
+			"script": "esbuild-web",
+			"problemMatcher": [],
+			"presentation": {
+				"reveal": "silent",
+				"clear": true
+			},
+			"group": "build"
+		},
+		{
 			"label": "watch:webview",
 			"type": "npm",
 			"script": "watch:webview",
