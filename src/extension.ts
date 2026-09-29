@@ -14,6 +14,7 @@ import { Commands } from './commands/';
 import { AuthenticationState } from './services/AuthenticationState';
 import { GraphAuthProvider } from './services/Auth';
 import { SpeUriHandler } from './services/UriHandler';
+import { registerMcpServerProvider } from './services/McpServerProvider';
 
 export async function activate(context: vscode.ExtensionContext) {
     // Keep the "Loading SharePoint Embedded..." view up until we've positively
@@ -41,6 +42,7 @@ export async function activate(context: vscode.ExtensionContext) {
     ext.outputChannel = vscode.window.createOutputChannel("SharePoint Embedded", { log: true });
     context.subscriptions.push(ext.outputChannel);
     context.subscriptions.push(TelemetryProvider.instance);
+    registerMcpServerProvider(context, ext.outputChannel);
 
     StorageProvider.init(
         new LocalStorageService(context.globalState),

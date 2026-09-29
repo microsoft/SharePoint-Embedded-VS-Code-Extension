@@ -13,6 +13,8 @@ The SharePoint Embedded Visual Studio Code extension helps developers create, co
 1. Select **"Install"** and the SharePoint Embedded icon will appear on the activity bar.
 1. Select the icon to open the SharePoint Embedded view and create a container type with the billing method you need.
 
+The extension also includes the SharePoint Embedded MCP server. In VS Code 1.101 or later, it is registered automatically with GitHub Copilot Chat when the extension is installed. The server runs from the extension package and does not require a separate `npm`, `npx`, or global MCP server installation. Sign in to the Azure CLI with `az login --allow-no-subscriptions` before using bootstrap-mode provisioning tools.
+
 ### Sign in
 
 To use the extension, you must sign into a Microsoft 365 tenant.

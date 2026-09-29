@@ -7,6 +7,7 @@ import * as vscode from 'vscode';
 import { decodeJwt, checkJwtForGlobalAdmin } from '../utils/token';
 import { Perf } from '../utils/Perf';
 import { GraphAuthProvider, ARMAuthProvider, AppAuthProviderFactory } from './Auth';
+import { clearPendingCreatedContainers } from './StorageExplorer/pendingCreatedContainers';
 
 /**
  * Authentication state change events
@@ -286,6 +287,7 @@ export class AuthenticationState {
         GraphAuthProvider.resetInstance();
         ARMAuthProvider.resetInstance();
         AppAuthProviderFactory.clearAll();
+        clearPendingCreatedContainers();
         GraphAuthProvider.getInstance(tenantId);
         ARMAuthProvider.getInstance(tenantId);
         return await AuthenticationState.signIn();
@@ -304,6 +306,7 @@ export class AuthenticationState {
             GraphAuthProvider.resetInstance(); // also resets GraphProvider
             ARMAuthProvider.resetInstance();
             AppAuthProviderFactory.clearAll();
+            clearPendingCreatedContainers();
 
             AuthenticationState._currentAccount = undefined;
 

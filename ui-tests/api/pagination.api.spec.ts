@@ -317,6 +317,85 @@ test.describe('AC-09 — mutations do not fetch unseen pages', () => {
         expectNoNextLinkLeak(result);
     });
 
+    test('a reopened panel resolves a pending container by tenant-scoped ID', async () => {
+        const tenantId = 'tenant-reopen';
+        const createdId = 'b!pending';
+        const createClient = new FakeGraphClient();
+        createClient.responder = () => ({
+            id: createdId,
+            displayName: 'Pending',
+            containerTypeId: CONTAINER_TYPE_ID,
+        });
+        const creatingPanel = new StorageExplorerApi(
+            CONTAINER_TYPE_ID,
+            createClient as unknown as Client,
+            grants('create'),
+            tenantId
+        );
+        await creatingPanel.execute('containers.create', { displayName: 'Pending' }, context);
+
+        const reopenedClient = new FakeGraphClient();
+        reopenedClient.responder = call => {
+            if (call.path === `/storage/fileStorage/containers/${createdId}`) {
+                return {
+                    id: createdId,
+                    displayName: 'Pending',
+                    containerTypeId: CONTAINER_TYPE_ID,
+                };
+            }
+            return { value: [] };
+        };
+        const reopenedPanel = new StorageExplorerApi(
+            CONTAINER_TYPE_ID,
+            reopenedClient as unknown as Client,
+            grants('read'),
+            tenantId
+        );
+
+        const result = await reopenedPanel.execute('containers.list', {}, context) as {
+            items: Array<{ id: string }>;
+        };
+
+        expect(result.items.map(item => item.id)).toContain(createdId);
+        expect(reopenedClient.calls.some(call =>
+            call.method === 'GET'
+            && call.path === `/storage/fileStorage/containers/${createdId}`
+        )).toBe(true);
+    });
+
+    test('a pending container is not exposed to another tenant', async () => {
+        const createdId = 'b!tenant-scoped';
+        const createClient = new FakeGraphClient();
+        createClient.responder = () => ({
+            id: createdId,
+            displayName: 'Tenant scoped',
+            containerTypeId: CONTAINER_TYPE_ID,
+        });
+        const creatingPanel = new StorageExplorerApi(
+            CONTAINER_TYPE_ID,
+            createClient as unknown as Client,
+            grants('create'),
+            'tenant-a'
+        );
+        await creatingPanel.execute('containers.create', { displayName: 'Tenant scoped' }, context);
+
+        const otherTenantClient = new FakeGraphClient();
+        const otherTenantPanel = new StorageExplorerApi(
+            CONTAINER_TYPE_ID,
+            otherTenantClient as unknown as Client,
+            grants('read'),
+            'tenant-b'
+        );
+        const result = await otherTenantPanel.execute('containers.list', {}, context) as {
+            items: Array<{ id: string }>;
+        };
+
+        expect(result.items).toEqual([]);
+        expect(otherTenantClient.calls.some(call =>
+            call.path === `/storage/fileStorage/containers/${createdId}`
+        )).toBe(false);
+    });
+
     test('creating a folder issues no continuation request', async () => {
         const fake = new FakeGraphClient();
         fake.responder = withContainerScope(

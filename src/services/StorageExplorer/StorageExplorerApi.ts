@@ -29,6 +29,11 @@ import {
     OPERATION_REQUIRED_CAPABILITIES,
     StorageExplorerCapability,
 } from '../../utils/ExtensionAppPermissionScopes';
+import {
+    getPendingCreatedContainerIds,
+    recordPendingCreatedContainer,
+    removePendingCreatedContainer,
+} from './pendingCreatedContainers';
 
 /** `SerializedError.code` the webview matches to render "permissions required". */
 const MISSING_EXTENSION_PERMISSIONS_CODE = 'missingExtensionAppPermissions';
@@ -133,11 +138,13 @@ export class StorageExplorerApi {
      * @param client Authenticated Graph client; its token stays in the host process.
      * @param readGrantedScopes Reads the extension app's delegated scopes on this container
      *   type. Supplied by every real host; see `_readGrantedScopes`.
+     * @param _tenantId Scopes the volatile pending-container registry to the signed-in tenant.
      */
     public constructor(
         private readonly _containerTypeId: string,
         client: Graph.Client,
-        readGrantedScopes?: GrantedScopesReader
+        readGrantedScopes?: GrantedScopesReader,
+        private readonly _tenantId?: string
     ) {
         this._readGrantedScopes = readGrantedScopes;
         this._containers = new ContainerGraphService(client);
@@ -301,6 +308,39 @@ export class StorageExplorerApi {
         return result;
     }
 
+    /**
+     * Supplement an eventually-consistent collection response with containers created by this
+     * extension host. The registry stores identifiers and timestamps only; current properties
+     * are always read directly from Graph.
+     */
+    private async _mergePendingCreatedContainers(items: StorageItem[]): Promise<StorageItem[]> {
+        if (!this._tenantId) { return items; }
+
+        const authoritativeIds = new Set(items.map(item => item.id));
+        const pendingIds = getPendingCreatedContainerIds(this._tenantId, this._containerTypeId);
+
+        for (const containerId of pendingIds) {
+            if (authoritativeIds.has(containerId)) {
+                removePendingCreatedContainer(this._tenantId, this._containerTypeId, containerId);
+            }
+        }
+
+        const unresolvedIds = pendingIds.filter(containerId => !authoritativeIds.has(containerId));
+        const resolved = await Promise.all(unresolvedIds.map(async containerId => {
+            try {
+                const container = await this._containers.get(containerId);
+                if (container && container.containerTypeId === this._containerTypeId) {
+                    return container;
+                }
+            } catch (error) {
+                console.warn('[StorageExplorerApi] Pending container reconciliation failed; retaining it for retry.');
+            }
+            return null;
+        }));
+
+        return [...resolved.filter((item): item is StorageItem => item !== null), ...items];
+    }
+
     /** Throw unless `containerId` belongs to the container type this panel is bound to. */
     private async _assertContainerInScope(containerId: string): Promise<void> {
         if (this._containersInScope.has(containerId)) { return; }
@@ -344,17 +384,30 @@ export class StorageExplorerApi {
                 { kind: 'containers' },
                 async () => {
                     const page = await containers.list(this._containerTypeId);
+                    page.items = await this._mergePendingCreatedContainers(page.items);
                     this._trackInScope(page.items);
                     return page;
                 }
             ),
             'containers.get': p => containers.get(p.containerId),
-            'containers.create': async p =>
-                this._trackInScope(await containers.create(this._containerTypeId, p.displayName, p.description)),
+            'containers.create': async p => {
+                const created = this._trackInScope(
+                    await containers.create(this._containerTypeId, p.displayName, p.description)
+                );
+                if (this._tenantId) {
+                    recordPendingCreatedContainer(this._tenantId, this._containerTypeId, created.id);
+                }
+                return created;
+            },
             'containers.activate': p => containers.activate(p.containerId),
             'containers.rename': p => containers.rename(p.containerId, p.displayName),
             'containers.updateDescription': p => containers.updateDescription(p.containerId, p.description),
-            'containers.delete': p => containers.delete(p.containerId),
+            'containers.delete': async p => {
+                await containers.delete(p.containerId);
+                if (this._tenantId) {
+                    removePendingCreatedContainer(this._tenantId, this._containerTypeId, p.containerId);
+                }
+            },
             'containers.listDeleted': async () => this._listFirstPage(
                 { kind: 'deletedContainers' },
                 async () => {

@@ -123,7 +123,8 @@ export class StorageExplorerPanel {
             client,
             // Capability gating reads the live grant on the extension host; the webview never
             // learns anything about it beyond the scope names a denied call names.
-            () => this._readGrantedScopesForGating()
+            () => this._readGrantedScopesForGating(),
+            AuthenticationState.getCurrentAccountSync()?.tenantId
         );
 
         this._panel.webview.html = StorageExplorerPanel._buildHtml(this._panel.webview, state);
