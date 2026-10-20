@@ -58,7 +58,7 @@ export class VSCodeAuthProvider {
     private _buildScopes(additionalScopes?: string[]): string[] {
         const scopes = [
             `VSCODE_CLIENT_ID:${this._config.clientId}`,
-            this._config.tenantId ? `VSCODE_TENANT:${this._config.tenantId}` : 'VSCODE_TENANT:organizations',
+            this._config.tenantId ? `VSCODE_TENANT:${this._config.tenantId}` : 'VSCODE_TENANT:common',
             'offline_access',
             ...this._config.scopes,
             ...(additionalScopes ?? [])

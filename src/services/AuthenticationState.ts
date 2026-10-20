@@ -46,6 +46,8 @@ export interface AuthStateChangeListener {
  * Centralized authentication state manager using GraphAuthProvider
  */
 export class AuthenticationState {
+    private static readonly _MICROSOFT_CONSUMER_TENANT_ID = '9188040d-6c67-4c5b-b112-36a304b66dad';
+
     private static _instance: AuthenticationState;
     private static readonly _listeners: AuthStateChangeListener[] = [];
     private static _currentAccount: AuthenticatedAccount | undefined;
@@ -117,6 +119,11 @@ export class AuthenticationState {
 
             // Get additional account info from token
             const decodedToken = decodeJwt(session.accessToken);
+
+            if (decodedToken.tid?.toLowerCase() === AuthenticationState._MICROSOFT_CONSUMER_TENANT_ID) {
+                await graphAuth.signOut();
+                throw new Error('SharePoint Embedded requires a Microsoft 365 work or school account.');
+            }
 
             const account: AuthenticatedAccount = {
                 id: session.account.id,
