@@ -3,6 +3,7 @@ import { NetworkRequest } from '../../models/StorageItem';
 import { useStorageExplorer } from '../../context/StorageExplorerContext';
 import { useResizableColumns, ColResizeHandle } from '../../hooks/useResizableColumns';
 import { redactNetworkRequest } from '../../../../src/services/StorageExplorer/networkRedaction';
+import { isInsideVsCode, postToExtension } from '../../utils/vsbridge';
 
 const METHOD_COLORS: Record<string, string> = {
     GET:    'var(--vscode-symbolIcon-classForeground, #4ec9b0)',
@@ -68,6 +69,7 @@ function buildHar(requests: NetworkRequest[]): string {
         },
         cache: {},
         timings: { send: 0, wait: r.durationMs, receive: 0 },
+        _error: r.error,
     }));
 
     return JSON.stringify({
@@ -352,10 +354,8 @@ export function NetworkDrawer() {
     // ── HAR export ─────────────────────────────────────────────────────────
     function handleExport() {
         const har = buildHar(networkRequests);
-        // @ts-ignore — vscode acquireVsCodeApi is injected at runtime
-        const vscode = typeof acquireVsCodeApi !== 'undefined' ? acquireVsCodeApi() : null;
-        if (vscode) {
-            vscode.postMessage({ command: 'exportHar', har });
+        if (isInsideVsCode()) {
+            postToExtension({ command: 'exportHar', har });
         } else {
             // Fallback for dev: download inline
             const blob = new Blob([har], { type: 'application/json' });

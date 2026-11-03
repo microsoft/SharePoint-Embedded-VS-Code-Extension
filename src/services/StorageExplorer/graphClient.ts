@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as Graph from '@microsoft/microsoft-graph-client';
-import type * as vscode from 'vscode';
+import * as vscode from 'vscode';
 import { clientId } from '../../client';
 import { AuthenticationState } from '../AuthenticationState';
 import { VSCodeAuthProvider } from '../Auth';
@@ -25,7 +25,7 @@ const STORAGE_EXPLORER_SCOPES = [
  * This factory is deliberately kept out of `StorageExplorerApi` so that the API
  * layer has no dependency on `vscode` and can be exercised with an injected client.
  */
-export function createGraphClient(onNetworkRequest: NetworkLogger): Graph.Client {
+export function createGraphClient(onNetworkRequest: NetworkLogger, allowInteractiveSignIn = true): Graph.Client {
     let authProvider: VSCodeAuthProvider | undefined;
     let authProviderKey: string | undefined;
 
@@ -48,6 +48,20 @@ export function createGraphClient(onNetworkRequest: NetworkLogger): Graph.Client
                 ? { id: currentAccount.id, label: currentAccount.username }
                 : undefined;
 
+            if (!allowInteractiveSignIn) {
+                try {
+                    const token = await authProvider.getTokenSilently(account);
+                    const latest = AuthenticationState.getCurrentAccountSync();
+                    if (latest?.id !== currentAccount?.id || latest?.tenantId !== tenantId) {
+                        throw new Error('Upload account changed');
+                    }
+                    return token;
+                } catch {
+                    throw new Error(vscode.l10n.t(
+                        'Your existing Microsoft Graph session could not be refreshed silently. Sign in from the Accounts view, then retry the upload. The upload did not open a sign-in prompt.'
+                    ));
+                }
+            }
             try {
                 return await authProvider.getToken(undefined, false, account);
             } catch {

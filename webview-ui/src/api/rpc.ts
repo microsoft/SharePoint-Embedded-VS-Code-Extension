@@ -74,7 +74,7 @@ export function request<K extends StorageExplorerOperation>(
 ): Promise<OperationResult<K>> {
     if (!isInsideVsCode()) {
         return Promise.reject(
-            new Error(`Storage Explorer operation "${op}" requires the VS Code extension host.`),
+            new Error(`Content operation "${op}" requires the VS Code extension host.`),
         );
     }
 

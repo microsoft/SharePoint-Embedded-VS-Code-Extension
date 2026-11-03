@@ -103,13 +103,14 @@ test.describe('DriveGraphService', () => {
         expect(fake.last.body).toBeInstanceOf(Uint8Array);
     });
 
-    test('createUploadSession() → POST session request and returns upload URL', async () => {
+    test('createUploadSession() → POST session request and returns an opaque handle', async () => {
         const { fake, s } = svc();
         fake.responder = () => ({ uploadUrl: 'https://contoso.sharepoint.com/upload-session' });
-        const uploadUrl = await s.createUploadSession('d1', null, 'Large.bin');
+        const sessionId = await s.createUploadSession('d1', null, 'Large.bin');
         expect(fake.last).toMatchObject({ method: 'POST', path: '/drives/d1/root:/Large.bin:/createUploadSession' });
         expect(fake.last.body).toMatchObject({ item: { '@microsoft.graph.conflictBehavior': 'rename' } });
-        expect(uploadUrl).toBe('https://contoso.sharepoint.com/upload-session');
+        expect(sessionId).toMatch(/^[a-f0-9-]{36}$/);
+        expect(sessionId).not.toContain('sharepoint');
     });
 
     test('listRecycleBin()', async () => {

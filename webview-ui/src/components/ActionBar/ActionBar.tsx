@@ -2,13 +2,14 @@ import React, { useRef, useState, useEffect } from 'react';
 import { useStorageExplorer } from '../../context/StorageExplorerContext';
 import { Modal } from '../Modal/Modal';
 import type { StorageExplorerOperation } from '../../api/protocol';
+import { isOfficeFile } from '../FileList/fileListUtils';
 
 export function ActionBar() {
     const { path, currentItems, selectedItem, selectedIds, activateContainer, deleteSelected, clearSelected, deleteProgress, cancelDelete } = useStorageExplorer();
     const atRoot = path.length === 1;
     const isFile = selectedItem?.kind === 'file';
     const hasSelection = selectedItem !== null;
-    const canOpen     = isFile;
+    const canOpen     = selectedItem !== null && isOfficeFile(selectedItem);
     const canPreview  = isFile;   // preview is fetched on demand via POST /preview
     const canDownload = isFile;
 
@@ -168,7 +169,7 @@ function ContainerActions({ hasSelection }: { hasSelection: boolean }) {
     const canActivate = selectedItem?.kind === 'container' && selectedItem.status === 'inactive';
     return (
         <>
-            <ActionBtn icon="codicon-add" label="New Container" title="Create a new container" testId="action-new-container" permissionOperation="containers.create" onClick={() => openModal({ kind: 'new-container' })} />
+            <ActionBtn icon="codicon-add" label="New container" title="Create a new container" testId="action-new-container" permissionOperation="containers.create" onClick={() => openModal({ kind: 'new-container' })} />
             <ActionBtn icon="codicon-trash" label="Deleted containers" title="View deleted containers" testId="action-deleted-containers" permissionOperation="containers.listDeleted" onClick={navigateToDeletedContainers} />
             <Separator />
             {canActivate && (
@@ -187,7 +188,7 @@ function FileActions({
     canOpen: boolean; canPreview: boolean; canDownload: boolean;
 }) {
     const {
-        path, selectedItem, openModal, enqueueUploads, previewItem, downloadItem,
+        path, selectedItem, openModal, enqueueUploads, previewItem, openInBrowser, downloadItem,
         openInDesktopApp, navigateToContainerRecycleBin,
     } = useStorageExplorer();
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -231,13 +232,13 @@ function FileActions({
             <Separator />
             <OpenDropdown
                 disabled={!canOpen}
-                onOpenInWeb={() => selectedItem && void previewItem(selectedItem)}
+                onOpenInWeb={() => selectedItem && void openInBrowser(selectedItem)}
                 onOpenInDesktop={() => selectedItem && openInDesktopApp(selectedItem)}
             />
             <ActionBtn icon="codicon-eye" label="Preview" title="Preview selected file" testId="action-preview" permissionOperation="drive.getPreviewUrl" disabled={!canPreview} onClick={() => selectedItem && previewItem(selectedItem)} />
             <ActionBtn icon="codicon-edit" label="Rename" title="Rename selected item" testId="action-rename-item" permissionOperation="drive.rename" disabled={!hasSelection} onClick={() => selectedItem && openModal({ kind: 'rename', item: selectedItem })} />
             <ActionBtn icon="codicon-trash" label="Delete" title="Delete selected item" testId="action-delete-item" permissionOperation="drive.delete" disabled={!hasSelection} danger onClick={() => selectedItem && openModal({ kind: 'delete', item: selectedItem })} />
-            <ActionBtn icon="codicon-cloud-download" label="Download" title="Download selected file" testId="action-download" permissionOperation="drive.getDownloadUrl" disabled={!canDownload} onClick={() => selectedItem && downloadItem(selectedItem)} />
+            <ActionBtn icon="codicon-cloud-download" label="Download" title="Download selected file" testId="action-download" permissionOperation="drive.download" disabled={!canDownload} onClick={() => selectedItem && downloadItem(selectedItem)} />
         </>
     );
 }
@@ -396,7 +397,7 @@ function OpenDropdown({ disabled, onOpenInWeb, onOpenInDesktop }: { disabled: bo
                 <span className="codicon codicon-chevron-down" style={{ fontSize: 11, marginLeft: 2 }} />
             </button>
 
-            {open && (
+            {open && !disabled && (
                 <div
                     style={{
                         position: 'absolute',

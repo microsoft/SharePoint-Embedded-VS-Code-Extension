@@ -374,7 +374,7 @@ function NewContainerModal({
 
     async function handleConfirm() {
         const trimmedName = name.trim();
-        if (!trimmedName) return;
+        if (!trimmedName || busy) return;
         setBusy(true);
         setError(null);
         try {
@@ -390,6 +390,7 @@ function NewContainerModal({
             title="New container"
             confirmLabel={busy ? 'Creating…' : 'Create'}
             confirmDisabled={!name.trim() || busy}
+            cancelDisabled={busy}
             onConfirm={handleConfirm}
             onCancel={onCancel}
         >

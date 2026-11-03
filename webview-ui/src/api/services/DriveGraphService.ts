@@ -1,6 +1,5 @@
 import { request } from '../rpc';
-import type { NetworkLogger, NetworkRequest, PagedResult, StorageItem, UploadChunkResult } from '../protocol';
-import { redactNetworkRequest } from '../../../../src/services/StorageExplorer/networkRedaction';
+import type { PagedResult, StorageItem, UploadChunkResult } from '../protocol';
 
 // Re-exported for the panels that consume these shapes (FilePropertiesPanel, VersionsPanel).
 export type { DriveItemDetails, DriveItemVersion } from '../protocol';
@@ -8,33 +7,19 @@ export type { DriveItemDetails, DriveItemVersion } from '../protocol';
 /**
  * Drive item operations.
  *
- * Graph calls are executed by the extension host so the webview never holds a
- * bearer token. The one exception is chunked upload traffic: `createUploadSession`
- * returns a *pre-authenticated* `*.sharepoint.com` URL that takes no `Authorization`
- * header, so those PUTs are issued here without any credential.
+ * Graph and upload-session calls are executed by the extension host so the webview
+ * never holds a bearer token or an upload-session URL.
  */
 export class DriveGraphService {
-    /** Upper bound for single-PUT uploads. Files above this use the session API. */
+    /** Upper bound for a one-message upload; larger files cross the boundary in chunks. */
     static readonly SMALL_FILE_THRESHOLD = 10 * 1024 * 1024; // 10 MiB
+    static readonly GRAPH_UPLOAD_LIMIT = 250_000_000;
     /**
      * Chunk size for session-based uploads.
      * Must be a multiple of 320 KiB (327,680 bytes).
      * 18 × 320 KiB = 5,898,240 bytes ≈ 5.625 MiB
      */
     static readonly CHUNK_SIZE = 18 * 320 * 1024; // 5,898,240 bytes
-
-    constructor(private readonly _onNetworkRequest?: NetworkLogger) {}
-
-    /**
-     * Log a chunk-upload request after redaction.
-     *
-     * The upload-session URL is *pre-authenticated*: possessing it grants write access to
-     * the file for the life of the session, so it is bearer-equivalent and must never be
-     * recorded verbatim in the network drawer or a HAR export.
-     */
-    private _logChunkRequest(entry: NetworkRequest): void {
-        this._onNetworkRequest?.(redactNetworkRequest(entry));
-    }
 
     /**
      * List the **first page** of children of a drive root (itemId undefined) or a folder.
@@ -96,91 +81,38 @@ export class DriveGraphService {
     }
 
     /**
-     * Create a session for uploading a large file.
-     * Returns the pre-authenticated uploadUrl (valid for ~24 hours).
+     * Create a staged Graph upload up to 250 MB, otherwise a resumable upload session.
+     * Returns an opaque handle; all transport state remains on the host.
      */
-    async createUploadSession(driveId: string, parentId: string | null, fileName: string): Promise<string> {
-        return request('drive.createUploadSession', { driveId, parentId, fileName });
+    async createUploadSession(driveId: string, parentId: string | null, file: File): Promise<string> {
+        return request('drive.createUploadSession', {
+            driveId, parentId, fileName: file.name, fileSize: file.size,
+            contentType: file.type || 'application/octet-stream',
+        });
     }
 
     /**
-     * PUT one chunk of a large file to the session uploadUrl.
-     * IMPORTANT: The session URL is pre-authenticated — no Authorization header must be
-     * sent, and none is available in the webview. We use raw fetch() for this reason and
-     * log the request via _onNetworkRequest.
+     * Transfer at most one chunk to the host, which selects the session's authentication.
      * Returns done=true + the completed StorageItem when the last chunk is accepted.
      */
     async uploadChunk(
-        uploadUrl: string,
+        sessionId: string,
         file: File,
         offset: number,
         driveId: string,
     ): Promise<UploadChunkResult> {
-        const end = Math.min(offset + DriveGraphService.CHUNK_SIZE, file.size) - 1;
-        const chunkSize = end - offset + 1;
-        const chunk = file.slice(offset, end + 1);
-        const requestHeaders: Record<string, string> = {
-            'Content-Length': String(chunkSize),
-            'Content-Range': `bytes ${offset}-${end}/${file.size}`,
-        };
-        const start = Date.now();
-        let resp: Response;
-        try {
-            resp = await fetch(uploadUrl, { method: 'PUT', headers: requestHeaders, body: chunk });
-        } catch (err: any) {
-            this._logChunkRequest({
-                id: `chunk-${Date.now()}`,
-                method: 'PUT',
-                url: uploadUrl,
-                status: 0,
-                statusText: 'Network Error',
-                durationMs: Date.now() - start,
-                timestamp: new Date(start).toISOString(),
-                requestHeaders,
-                error: err?.message ?? 'fetch failed',
-                responseHeaders: {},
-            });
-            throw err;
-        }
-        const durationMs = Date.now() - start;
-        const responseText = await resp.clone().text().catch(() => '');
-        this._logChunkRequest({
-            id: `chunk-${Date.now()}`,
-            method: 'PUT',
-            url: uploadUrl,
-            status: resp.status,
-            statusText: resp.statusText,
-            durationMs,
-            timestamp: new Date(start).toISOString(),
-            requestHeaders,
-            requestBody: `[${chunkSize} bytes, offset ${offset}–${end}]`,
-            responseHeaders: Object.fromEntries([...resp.headers.entries()]),
-            responseBody: responseText,
-        });
-
-        if (resp.status === 200 || resp.status === 201) {
-            const body = JSON.parse(responseText || 'null');
-            // The completed DriveItem comes back raw from SharePoint. Ask the host for the
-            // projected StorageItem instead of duplicating the mapping logic here.
-            let item: StorageItem | undefined;
-            const createdId: string | undefined = body?.id;
-            if (createdId) {
-                item = (await this.get(driveId, createdId).catch(() => null)) ?? undefined;
-            }
-            return { done: true, nextOffset: file.size, item };
-        }
-        if (resp.status === 202) {
-            const body = JSON.parse(responseText || 'null');
-            const ranges: string[] = body?.nextExpectedRanges ?? [];
-            const nextOffset = ranges.length > 0 ? parseInt(ranges[0].split('-')[0], 10) : end + 1;
-            return { done: false, nextOffset };
-        }
-        throw new Error(`Chunk upload failed (${resp.status}): ${responseText}`);
+        const chunk = file.slice(offset, offset + DriveGraphService.CHUNK_SIZE);
+        const bytes = new Uint8Array(await chunk.arrayBuffer());
+        return request('drive.uploadChunk', { driveId, sessionId, offset, total: file.size, bytes });
     }
 
     /** DELETE an upload session to abort / clean up a large-file upload. */
-    async cancelUploadSession(uploadUrl: string): Promise<void> {
-        try { await fetch(uploadUrl, { method: 'DELETE' }); } catch { /* ignore cleanup errors */ }
+    async cancelUploadSession(driveId: string, sessionId: string): Promise<void> {
+        try {
+            await request('drive.cancelUploadSession', { driveId, sessionId });
+        } catch {
+            // Best-effort cleanup; cancellation failures are logged by the host.
+        }
     }
 
     // ── Recycle bin ───────────────────────────────────────────────────────────
@@ -236,7 +168,7 @@ export class DriveGraphService {
 
     // ── URLs ──────────────────────────────────────────────────────────────────
 
-    /** Return the `webUrl` of the drive root or a specific folder item. */
+    /** Return the `webUrl` of the drive root, folder, or file. */
     async getItemWebUrl(driveId: string, itemId?: string): Promise<string> {
         return request('drive.getItemWebUrl', { driveId, itemId });
     }
@@ -246,8 +178,23 @@ export class DriveGraphService {
         return request('drive.getDownloadUrl', { driveId, itemId });
     }
 
+    /** Ask the host to save authenticated content using its native Save As dialog. */
+    async download(driveId: string, itemId: string): Promise<void> {
+        return request('drive.download', { driveId, itemId });
+    }
+
     /** Fetch an embeddable preview URL for a drive item. */
     async getPreviewUrl(driveId: string, itemId: string): Promise<string> {
         return request('drive.getPreviewUrl', { driveId, itemId });
+    }
+
+    /** Open Graph-streamed PDF content using the host's temporary local viewer. */
+    async openPdf(driveId: string, itemId: string): Promise<void> {
+        return request('drive.openPdf', { driveId, itemId });
+    }
+
+    /** Open Graph-streamed MP4 content using the host's temporary local player. */
+    async openVideo(driveId: string, itemId: string): Promise<void> {
+        return request('drive.openVideo', { driveId, itemId });
     }
 }

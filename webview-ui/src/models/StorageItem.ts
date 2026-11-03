@@ -45,6 +45,7 @@ export interface UploadFile {
     /** Bytes uploaded so far */
     uploaded: number;
     status: UploadStatus;
+    phase?: 'preparing' | 'sending';
     /** Error message when status === 'failed' */
     error?: string;
 }

@@ -35,6 +35,39 @@ async function createLocallyTrackedContainer(
 }
 
 test.describe('Containers', () => {
+    test('creation cannot be dismissed or submitted again while the request is pending', async ({ storage, page }) => {
+        let release: () => void = () => undefined;
+        const pending = new Promise<void>(resolve => { release = resolve; });
+        let creates = 0;
+        await page.route(url => CONTAINER_COLLECTION.test(url.pathname), async route => {
+            if (route.request().method() !== 'POST') { await route.fallback(); return; }
+            creates++;
+            await pending;
+            await route.fulfill({
+                status: 500,
+                json: { error: { code: 'serverError', message: 'Creation failed' } },
+            });
+        });
+        await storage.tid(TID.actionNewContainer).click();
+        await storage.tid(TID.newContainerNameInput).fill('Pending container');
+        await storage.tid(TID.modalConfirm).click();
+        try {
+            await expect(storage.tid('modal-cancel')).toBeDisabled();
+            await expect(storage.tid(TID.modalConfirm)).toBeDisabled();
+            await storage.tid(TID.newContainerNameInput).press('Enter');
+            await page.keyboard.press('Escape');
+            await page.mouse.click(1, 1);
+            await expect(storage.tid(TID.modal)).toBeVisible();
+            expect(creates).toBe(1);
+        } finally {
+            release();
+        }
+        await expect(storage.tid('modal-cancel')).toBeEnabled();
+        await expect(storage.tid(TID.modalConfirm)).toBeEnabled();
+        await storage.tid('modal-cancel').click();
+        await expect(storage.tid(TID.modal)).toHaveCount(0);
+    });
+
     test('navigates into a newly created container', async ({ storage }) => {
         const name = `ct-create-${Date.now()}`;
         await storage.createContainer(
@@ -342,6 +375,8 @@ test.describe('Containers', () => {
     });
 
     test('does not let a late pre-create collection response erase the created row', async ({ storage, page }) => {
+        await expect(storage.row('Seed Container')).toBeVisible();
+        await expect(storage.tid(TID.navRefresh)).toBeEnabled();
         const mock = await installContainerConsistencyMock(page);
         mock.freezeContainerCollection();
         const delayed = mock.delayNextContainerCollection();

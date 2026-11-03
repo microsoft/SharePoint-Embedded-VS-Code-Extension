@@ -88,6 +88,8 @@ export class NetworkLoggingMiddleware implements Graph.Middleware {
             } else if (typeof rawBody.byteLength === 'number') {
                 // Binary upload payload — record its size instead of its contents.
                 requestBody = `[${rawBody.byteLength} bytes]`;
+            } else if (typeof rawBody.size === 'number' && typeof rawBody.stream === 'function') {
+                requestBody = `[${rawBody.size} bytes]`;
             } else {
                 try {
                     requestBody = JSON.stringify(rawBody);
@@ -107,7 +109,12 @@ export class NetworkLoggingMiddleware implements Graph.Middleware {
 
             // Clone the response so the SDK's own handler can still read the body.
             const response = context.response;
-            if (response && typeof response.clone === 'function') {
+            const isFileDownload = /\/drives\/[^/?#]+\/items\/[^/?#]+\/content(?:Stream)?(?:[?#]|$)/.test(url)
+                && method === 'GET';
+            if (isFileDownload) {
+                // Cloning a file response would buffer the entire download and log its contents.
+                responseBody = '[File download body omitted]';
+            } else if (response && typeof response.clone === 'function') {
                 try {
                     responseBody = await response.clone().text();
                 } catch {

@@ -5,6 +5,7 @@
 
 import { z } from 'zod';
 import { StorageExplorerOperation } from './protocol';
+import { UPLOAD_CHUNK_SIZE } from './UploadSessionService';
 
 /**
  * Runtime validation for every operation the Storage Explorer webview may request.
@@ -124,7 +125,23 @@ export const OPERATION_SCHEMAS = {
         contentType: z.string(),
         bytes,
     }),
-    'drive.createUploadSession': z.object({ driveId: id, parentId: nullableParentId, fileName: z.string().min(1) }),
+    'drive.createUploadSession': z.object({
+        driveId: id,
+        parentId: nullableParentId,
+        fileName: z.string().min(1),
+        fileSize: z.number().int().positive().max(250_000_000_000).optional(),
+        contentType: z.string().max(256).optional(),
+    }),
+    'drive.uploadChunk': z.object({
+        driveId: id,
+        sessionId: z.string().uuid(),
+        offset: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
+        total: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
+        bytes: bytes.refine(value => value.byteLength > 0 && value.byteLength <= UPLOAD_CHUNK_SIZE, {
+            message: 'Invalid upload chunk size',
+        }),
+    }),
+    'drive.cancelUploadSession': z.object({ driveId: id, sessionId: z.string().uuid() }),
     'drive.listRecycleBin': z.object({ containerId: id }),
     'drive.restoreFromRecycleBin': z.object({ containerId: id, itemId: id }),
     'drive.permanentlyDelete': z.object({ containerId: id, itemId: id }),
@@ -136,7 +153,10 @@ export const OPERATION_SCHEMAS = {
     'drive.deleteVersion': z.object({ driveId: id, itemId: id, versionId: id }),
     'drive.getItemWebUrl': z.object({ driveId: id, itemId: optionalId }),
     'drive.getDownloadUrl': z.object({ driveId: id, itemId: id }),
+    'drive.download': z.object({ driveId: id, itemId: id }),
     'drive.getPreviewUrl': z.object({ driveId: id, itemId: id }),
+    'drive.openPdf': z.object({ driveId: id, itemId: id }),
+    'drive.openVideo': z.object({ driveId: id, itemId: id }),
 
     // ── permissions ───────────────────────────────────────────────────────────
     'permissions.listItemPermissions': z.object({ driveId: id, itemId: id }),

@@ -190,6 +190,8 @@ export const OPERATION_REQUIRED_CAPABILITIES: Record<StorageExplorerOperation, r
     'drive.delete': ['delete'],
     'drive.uploadSmall': ['writeContent'],
     'drive.createUploadSession': ['writeContent'],
+    'drive.uploadChunk': ['writeContent'],
+    'drive.cancelUploadSession': ['writeContent'],
     'drive.listRecycleBin': ['read'],
     'drive.restoreFromRecycleBin': ['write'],
     'drive.permanentlyDelete': ['delete'],
@@ -201,7 +203,10 @@ export const OPERATION_REQUIRED_CAPABILITIES: Record<StorageExplorerOperation, r
     'drive.deleteVersion': ['delete'],
     'drive.getItemWebUrl': ['read'],
     'drive.getDownloadUrl': ['readContent'],
+    'drive.download': ['readContent'],
     'drive.getPreviewUrl': ['readContent'],
+    'drive.openPdf': ['readContent'],
+    'drive.openVideo': ['readContent'],
 
     // ── permissions ───────────────────────────────────────────────────────────
     'permissions.listItemPermissions': ['enumeratePermissions'],

@@ -166,11 +166,21 @@ test.describe('AC-16 — denied interactions are actionable, not empty', () => {
         await expect(harness.view.tid(TID.actionDownload)).toHaveAttribute('aria-disabled', 'true');
         await expect(harness.view.tid(TID.actionDownload)).toHaveAttribute('title', /readContent app permission/i);
         await expect(harness.view.row('File 2.docx')).toBeVisible();
+
+        await expect(harness.view.tid(TID.actionOpenDropdown)).toHaveAttribute('aria-disabled', 'true');
+        await harness.view.tid(TID.actionOpenDropdown).click({ force: true });
+        await expect(page.getByTestId('permission-notice')).toContainText('readContent app permission');
+        await page.getByRole('button', { name: 'OK', exact: true }).click();
+        await harness.view.openRowMenu('File 2.docx');
+        await harness.view.clickMenuItem('open-in-browser');
+        const messages = await page.evaluate(() => window.__SPE_TEST_POSTED__ ?? []);
+        expect(messages.some(message => message.op === 'drive.getItemWebUrl')).toBe(false);
+        expect(messages.some(message => message.command === 'openExternal')).toBe(false);
     });
 });
 
 test.describe('AC-17 — first-container onboarding', () => {
-    test('an empty ready list offers Create your first container and shows it immediately', async ({ page }) => {
+    test('an empty ready list offers Create your first container and opens it immediately', async ({ page }) => {
         const state = seedState({ containers: 0 });
         const harness = await openStorageExplorer(page, state);
         const view = harness.view;
@@ -186,7 +196,12 @@ test.describe('AC-17 — first-container onboarding', () => {
         await view.tid(TID.newContainerNameInput).fill('My First Container');
         await view.confirmModal();
 
-        // Visible immediately, at the top, without a refresh.
+        await expect(view.tid(TID.breadcrumbItem(1))).toHaveText('My First Container');
+        await expect(view.tid(TID.actionUpload)).toBeVisible();
+        await expect(cta).toHaveCount(0);
+
+        await view.breadcrumbTo(0);
+        // Visible at the top on returning to the list, without a manual refresh.
         await expect(view.row('My First Container')).toBeVisible({ timeout: 15_000 });
         expect((await view.rowNames())[0]).toBe('My First Container');
         await expect(cta).toHaveCount(0);

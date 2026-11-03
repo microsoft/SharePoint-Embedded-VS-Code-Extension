@@ -53,6 +53,160 @@ async function denyContainerList(page: Page, status = 403): Promise<void> {
 const test = base;
 
 test.describe('Failed container listing', () => {
+    test('keeps loading through a transient initial access denial and recovers automatically', async ({ page }) => {
+        const storage = await boot(page, seedState());
+        let attempts = 0;
+        await page.route(url => CONTAINERS_LIST.test(url.pathname + url.search), async route => {
+            if (route.request().method() !== 'GET') { await route.fallback(); return; }
+            attempts++;
+            if (attempts <= 2) {
+                await route.fulfill({ status: 403, json: { error: { code: 'accessDenied', message: 'Access denied' } } });
+            } else {
+                await route.fallback();
+            }
+        });
+        await page.goto('/');
+        await expect.poll(() => attempts).toBeGreaterThanOrEqual(1);
+        await expect(storage.tid('list-loading')).toBeVisible();
+        await expect(storage.tid('list-error')).toHaveCount(0);
+        await expect(storage.tid('filelist-empty')).toHaveCount(0);
+        await expect(storage.row('Seed Container')).toBeVisible();
+        expect(attempts).toBe(3);
+        await expect(storage.tid('list-error')).toHaveCount(0);
+    });
+
+    test('shows the existing Retry experience after 30 seconds of initial access denial', async ({ page }) => {
+        await page.clock.install();
+        const storage = await boot(page, seedState());
+        let attempts = 0;
+        await page.route(url => CONTAINERS_LIST.test(url.pathname + url.search), async route => {
+            attempts++;
+            await route.fulfill({ status: 403, json: { error: { code: 'accessDenied', message: 'Access denied' } } });
+        });
+        await page.goto('/');
+        await expect.poll(() => attempts).toBeGreaterThanOrEqual(1);
+        await expect(storage.tid('list-loading')).toBeVisible();
+        // Let the RPC deliver the denial before moving past its backoff timer.
+        await page.waitForTimeout(100);
+        await page.clock.fastForward(29_000);
+        await expect(storage.tid('list-loading')).toBeVisible();
+        await expect(storage.tid('list-error')).toHaveCount(0);
+        await page.clock.fastForward(1100);
+        await expect(storage.tid('list-error-retry')).toHaveText('Retry');
+        await expect(storage.tid('list-error-message')).toContainText('Access denied');
+        await expect(storage.tid('list-loading')).toHaveCount(0);
+
+        await page.unrouteAll({ behavior: 'ignoreErrors' });
+        await installGraphMock(page, { state: seedState() });
+        await storage.tid('list-error-retry').click();
+        await expect(storage.row('Seed Container')).toBeVisible();
+    });
+
+    test('retries transient access denials on every refresh after a successful container load', async ({ page }) => {
+        const storage = await boot(page, seedState());
+        await page.goto('/');
+        await expect(storage.row('Seed Container')).toBeVisible();
+
+        let attempts = 0;
+        let denialsRemaining = 0;
+        await page.route(url => CONTAINERS_LIST.test(url.pathname + url.search), async route => {
+            if (route.request().method() !== 'GET') { await route.fallback(); return; }
+            attempts++;
+            if (denialsRemaining > 0) {
+                denialsRemaining--;
+                await route.fulfill({ status: 403, json: { error: { code: 'accessDenied', message: 'Access denied' } } });
+            } else {
+                await route.fallback();
+            }
+        });
+
+        for (let refresh = 0; refresh < 2; refresh++) {
+            denialsRemaining = 2;
+            const previousAttempts = attempts;
+            await storage.tid(TID.navRefresh).click();
+            await expect.poll(() => attempts).toBeGreaterThan(previousAttempts);
+            await expect(storage.tid('list-loading')).toBeVisible();
+            await expect(storage.tid('list-error')).toHaveCount(0);
+            await expect(storage.tid('filelist-empty')).toHaveCount(0);
+            await expect.poll(() => attempts).toBe(previousAttempts + 3);
+            await expect(storage.tid('list-loading')).toHaveCount(0);
+            await expect(storage.row('Seed Container')).toBeVisible();
+            await expect(storage.tid('list-error')).toHaveCount(0);
+        }
+    });
+
+    test('gives refresh and manual Retry their own 30-second access-denial window', async ({ page }) => {
+        await page.clock.install();
+        const state = seedState();
+        const storage = await boot(page, state);
+        await page.goto('/');
+        await expect(storage.row('Seed Container')).toBeVisible();
+
+        let attempts = 0;
+        await page.route(url => CONTAINERS_LIST.test(url.pathname + url.search), async route => {
+            if (route.request().method() !== 'GET') { await route.fallback(); return; }
+            attempts++;
+            await route.fulfill({ status: 403, json: { error: { code: 'accessDenied', message: 'Access denied' } } });
+        });
+
+        for (const trigger of [TID.navRefresh, 'list-error-retry']) {
+            const previousAttempts = attempts;
+            await storage.tid(trigger).click();
+            await expect.poll(() => attempts).toBeGreaterThan(previousAttempts);
+            await expect(storage.tid('list-loading')).toBeVisible();
+            await page.waitForTimeout(100);
+            await page.clock.fastForward(29_000);
+            await expect(storage.tid('list-loading')).toBeVisible();
+            await expect(storage.tid('list-error')).toHaveCount(0);
+            await page.clock.fastForward(1100);
+            await expect(storage.tid('list-error-message')).toContainText('Access denied');
+            await expect(storage.tid('list-error-retry')).toHaveText('Retry');
+            await expect(storage.tid('list-loading')).toHaveCount(0);
+        }
+
+        await page.unrouteAll({ behavior: 'ignoreErrors' });
+        await installGraphMock(page, { state });
+        await storage.tid('list-error-retry').click();
+        await expect(storage.row('Seed Container')).toBeVisible();
+    });
+
+    test('stops retrying a denied refresh when the user leaves the container list', async ({ page }) => {
+        await page.clock.install();
+        const storage = await boot(page, seedState());
+        await page.goto('/');
+        await expect(storage.row('Seed Container')).toBeVisible();
+
+        let attempts = 0;
+        await page.route(url => CONTAINERS_LIST.test(url.pathname + url.search), async route => {
+            if (route.request().method() !== 'GET') { await route.fallback(); return; }
+            attempts++;
+            await route.fulfill({ status: 403, json: { error: { code: 'accessDenied', message: 'Access denied' } } });
+        });
+        await storage.tid(TID.navRefresh).click();
+        await expect.poll(() => attempts).toBe(1);
+        await expect(storage.tid('list-loading')).toBeVisible();
+        await storage.openDeletedContainers();
+        await expect(storage.tid('list-loading')).toHaveCount(0);
+        await page.clock.fastForward(31_000);
+        expect(attempts).toBe(1);
+        await expect(storage.tid('list-error')).toHaveCount(0);
+    });
+
+    test('refreshes action permissions when an external grant lands during the initial retry', async ({ page }) => {
+        const state = seedState();
+        const grants = new Map(state.appPermissionGrants);
+        state.appPermissionGrants.clear();
+        const storage = await boot(page, state);
+        await page.goto('/');
+        await expect(storage.tid('permission-banner')).toBeVisible();
+        await expect(storage.tid('list-loading')).toBeVisible();
+        for (const [id, grant] of grants) { state.appPermissionGrants.set(id, grant); }
+        await expect(storage.row('Seed Container')).toBeVisible();
+        await expect(storage.tid('permission-banner')).toHaveCount(0);
+        await storage.tid('action-new-container').click();
+        await expect(page.getByRole('dialog', { name: 'New container', exact: true })).toBeVisible();
+    });
+
     test('shows a permissions state — not "this folder is empty" — when the extension app has no grant', async ({ page }) => {
         const state = seedState();
         // No grant for the extension app: exactly the tenant state that produces the 403.
@@ -63,7 +217,7 @@ test.describe('Failed container listing', () => {
         await page.goto('/');
         await storage.waitUntilReady();
 
-        await expect(storage.tid('list-error')).toBeVisible({ timeout: 30_000 });
+        await expect(storage.tid('list-error')).toBeVisible({ timeout: 40_000 });
         await expect(storage.tid('list-error-title')).toHaveText('Permissions required');
         await expect(storage.tid('list-error-message')).toContainText('read permission on this container type');
         await expect(storage.tid('list-error-retry')).toHaveText('Grant permissions');
@@ -109,7 +263,7 @@ test.describe('Failed container listing', () => {
 
         await page.goto('/');
         await storage.waitUntilReady();
-        await expect(storage.tid('list-error-retry')).toHaveText('Grant permissions');
+        await expect(storage.tid('list-error-retry')).toHaveText('Grant permissions', { timeout: 40_000 });
 
         // Access is restored once the grant exists, so drop the override first.
         await page.unrouteAll({ behavior: 'ignoreErrors' });
@@ -170,7 +324,7 @@ test.describe('Failed container listing', () => {
 
         await page.goto('/');
         await storage.waitUntilReady();
-        await expect(storage.tid('list-error-retry')).toHaveText('Grant permissions');
+        await expect(storage.tid('list-error-retry')).toHaveText('Grant permissions', { timeout: 40_000 });
 
         await storage.tid('list-error-retry').click();
 

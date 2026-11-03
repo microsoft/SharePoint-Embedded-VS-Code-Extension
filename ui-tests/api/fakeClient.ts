@@ -20,6 +20,9 @@ export interface RecordedCall {
     top?: number;
     headers: Record<string, string>;
     body?: unknown;
+    options?: Record<string, unknown>;
+    responseType?: string;
+    middlewareOptions?: unknown[];
 }
 
 export type Responder = (call: RecordedCall) => unknown;
@@ -40,6 +43,13 @@ class FakeRequest {
     header(k: string, v: string) { this.call.headers[k] = v; return this; }
     headers(h: Record<string, string>) { Object.assign(this.call.headers, h); return this; }
     query(_q: unknown) { return this; }
+    responseType(value: string) { this.call.responseType = value; return this; }
+    middlewareOptions(value: unknown[]) { this.call.middlewareOptions = value; return this; }
+    option(key: string, value: unknown) {
+        this.call.options ??= {};
+        this.call.options[key] = value;
+        return this;
+    }
 
     private finish(method: RecordedCall['method'], body?: unknown) {
         this.call.method = method;

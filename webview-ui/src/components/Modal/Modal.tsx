@@ -7,26 +7,27 @@ interface ModalProps {
     cancelLabel?: string;
     danger?: boolean;
     confirmDisabled?: boolean;
+    cancelDisabled?: boolean;
     onConfirm: () => void;
     onCancel: () => void;
     children: React.ReactNode;
 }
 
 export function Modal({
-    title, confirmLabel, cancelLabel = 'Cancel', danger, confirmDisabled,
+    title, confirmLabel, cancelLabel = 'Cancel', danger, confirmDisabled, cancelDisabled,
     onConfirm, onCancel, children,
 }: ModalProps) {
     useEffect(() => {
         function handleKeyDown(e: KeyboardEvent) {
-            if (e.key === 'Escape') onCancel();
+            if (e.key === 'Escape' && !cancelDisabled) onCancel();
         }
         document.addEventListener('keydown', handleKeyDown);
         return () => document.removeEventListener('keydown', handleKeyDown);
-    }, [onCancel]);
+    }, [onCancel, cancelDisabled]);
 
     return ReactDOM.createPortal(
         <div
-            onClick={onCancel}
+            onClick={() => { if (!cancelDisabled) onCancel(); }}
             style={{
                 position: 'fixed',
                 inset: 0,
@@ -73,7 +74,7 @@ export function Modal({
 
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
                     {cancelLabel && (
-                        <button className="action-btn" data-testid="modal-cancel" onClick={onCancel}>
+                        <button className="action-btn" data-testid="modal-cancel" disabled={cancelDisabled} onClick={onCancel}>
                             {cancelLabel}
                         </button>
                     )}

@@ -24,6 +24,9 @@ import { serializeError, StorageExplorerApi } from '../../src/services/StorageEx
 import { diagnoseAccessDenied } from '../../src/services/StorageExplorer/accessDenied';
 import { REQUIRED_DELEGATED_PERMISSIONS } from '../../src/utils/ExtensionAppPermissionScopes';
 import type { ContainerTypeAppPermission } from '../../src/models/schemas';
+import type { StagedUploadFile } from '../../src/services/StorageExplorer/StagedGraphUploadService';
+import { driveItemToStorageItem } from '../../src/services/StorageExplorer/mappers';
+import type { DriveItem } from '@microsoft/microsoft-graph-types';
 
 export interface TestHostOptions {
     /** Container type the emulated panel is bound to (injected into scoped operations). */
@@ -116,7 +119,36 @@ export function installTestHost(options: TestHostOptions): void {
     // The production panel hands the API a grant reader, so operation authorization runs in the
     // host before Graph is touched. Omitting it here would silently authorize every operation in
     // the harness and let a missing-permission test pass without the denial path ever running.
-    const api = new StorageExplorerApi(options.containerTypeId, client, readGrantedScopes);
+    const api = new StorageExplorerApi(options.containerTypeId, client, readGrantedScopes, undefined, {
+        getIdentity: () => 'standalone-test-host',
+        onNetworkRequest: request => toWebview({ command: 'networkLog', request }),
+        createStagingFile: async (): Promise<StagedUploadFile> => {
+            // Browser-only stand-in; production uses a disk-backed Blob in the extension host.
+            const parts: Uint8Array[] = [];
+            return {
+                append: async bytes => { parts.push(bytes); },
+                upload: async (target, signal) => {
+                    const endpoint = target.parentId
+                        ? `/drives/${target.driveId}/items/${target.parentId}:/${encodeURIComponent(target.fileName)}:/content`
+                        : `/drives/${target.driveId}/root:/${encodeURIComponent(target.fileName)}:/content`;
+                    const item: DriveItem = await client.api(endpoint)
+                        .header('Content-Type', target.contentType)
+                        .query({ '@microsoft.graph.conflictBehavior': 'rename' })
+                        .option('signal', signal)
+                        .put(new Blob(parts, { type: target.contentType }));
+                    return driveItemToStorageItem(item);
+                },
+                dispose: async () => { parts.length = 0; },
+            };
+        },
+        acquireToken: async () => {
+            // Never reuse a Graph token for SharePoint, including in live harness mode.
+            if (!options.token.endsWith('.sig')) {
+                throw new Error('Authenticated SharePoint uploads require the VS Code extension host.');
+            }
+            return 'TEST-ONLY-SHAREPOINT-TOKEN';
+        },
+    });
 
     /**
      * Mirror of `hasExtensionAppPermissions()` from the extension host, which cannot be
@@ -156,6 +188,34 @@ export function installTestHost(options: TestHostOptions): void {
         try {
             const result = await api.execute(message.op, message.params, {
                 onProgress: data => toWebview({ command: 'rpc/progress', requestId, data }),
+                openPdf: async (driveId, itemId, authorize) => {
+                    if (!options.token.endsWith('.sig')) {
+                        throw new Error('PDF viewing requires the VS Code extension host.');
+                    }
+                    await authorize();
+                    posted.push({ command: 'pdfOpened', driveId, itemId });
+                },
+                openVideo: async (driveId, itemId, authorize) => {
+                    if (!options.token.endsWith('.sig')) {
+                        throw new Error('Video preview requires the VS Code extension host.');
+                    }
+                    await authorize();
+                    posted.push({ command: 'videoOpened', driveId, itemId });
+                },
+                saveDownload: async (name, source) => {
+                    if (!options.token.endsWith('.sig')) {
+                        throw new Error('Saving downloads requires the VS Code extension host.');
+                    }
+                    // Mock-only stand-in for the host's disk stream and native Save As dialog.
+                    const chunks: Uint8Array[] = [];
+                    for await (const chunk of source(new AbortController().signal)) { chunks.push(chunk); }
+                    const url = URL.createObjectURL(new Blob(chunks));
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.download = name;
+                    link.click();
+                    setTimeout(() => URL.revokeObjectURL(url), 0);
+                },
             });
             toWebview({ command: 'rpc/response', requestId, ok: true, result });
         } catch (error) {

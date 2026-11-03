@@ -17,6 +17,9 @@ function scopeKey(scope: CollectionScope): string {
 import { DriveGraphService } from '../api/services/DriveGraphService';
 import { openUrl } from '../utils/openUrl';
 import { onExtensionMessage, postToExtension } from '../utils/vsbridge';
+import { isOfficeFile } from '../components/FileList/fileListUtils';
+import { RpcError } from '../api/rpc';
+import { isAccessDeniedError } from '../../../src/services/StorageExplorer/accessDenied';
 
 /** See `MissingExtensionPermissionsCode` in the host protocol — kept in sync by the annotation. */
 const MISSING_EXTENSION_PERMISSIONS_CODE: MissingExtensionPermissionsCode = 'missingExtensionAppPermissions';
@@ -46,6 +49,9 @@ function officeDesktopScheme(fileName: string): string | null {
     if (['docx', 'doc', 'docm'].includes(ext)) return 'ms-word';
     if (['xlsx', 'xls', 'xlsm'].includes(ext)) return 'ms-excel';
     if (['pptx', 'ppt', 'pptm'].includes(ext)) return 'ms-powerpoint';
+    if (ext === 'odt') return 'ms-word';
+    if (ext === 'ods') return 'ms-excel';
+    if (ext === 'odp') return 'ms-powerpoint';
     return null;
 }
 
@@ -178,6 +184,7 @@ interface StorageExplorerContextValue {
     restoreRecycledItem: (item: StorageItem) => Promise<void>;
     permanentlyDeleteItem: (item: StorageItem) => Promise<void>;
     previewItem: (item: StorageItem) => Promise<void>;
+    openInBrowser: (item: StorageItem) => Promise<void>;
     downloadItem: (item: StorageItem) => Promise<void>;
     openInDesktopApp: (item: StorageItem) => Promise<void>;
     /** The driveId (= containerId) for the currently open container, or null at root */
@@ -206,7 +213,7 @@ const StorageExplorerContext = createContext<StorageExplorerContextValue | null>
 export function StorageExplorerProvider({ children }: { children: React.ReactNode }) {
     // Panel state injected by the extension host (immutable for this session)
     const panelState = window.__STORAGE_EXPLORER_STATE__ ?? {
-        appName: 'Storage Explorer',
+        appName: 'Content',
         tenantDomain: '',
         containerTypeId: '',
         registrationId: '',
@@ -231,7 +238,7 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
     }, []);
 
     if (!apiRef.current) {
-        apiRef.current = createStorageExplorerApi(handleNetworkRequest);
+        apiRef.current = createStorageExplorerApi();
     }
 
     // Graph traffic is issued by the extension host, so its network log entries
@@ -299,10 +306,11 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
     const uploadContexts = useRef<Map<string, { driveId: string; parentId: string | null }>>(new Map());
     /** Next byte offset for resumable chunked uploads. */
     const uploadOffsets = useRef<Map<string, number>>(new Map());
-    /** Pre-authenticated session URL for large-file uploads. */
+    /** Opaque host-side session handle for large-file uploads. */
     const uploadSessions = useRef<Map<string, string>>(new Map());
     /** Control signal for each in-progress upload loop. */
     const uploadStates = useRef<Map<string, 'running' | 'paused' | 'cancelled'>>(new Map());
+    const runningUploads = useRef(new Set<string>());
 
     const lastId = path[path.length - 1]?.id ?? null;
 
@@ -420,9 +428,39 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
         if (currentViewMode.kind === 'normal') {
             if (!containerTypeId) { setIsLoading(false); return; }
             const key = scopeKey({ kind: 'containers' });
-            apiRef.current!.containers.list()
+            let retriedDenial = false;
+            const listContainers = async () => {
+                const deadline = Date.now() + 30_000;
+                let lastError: unknown;
+                do {
+                    let timer: ReturnType<typeof setTimeout> | undefined;
+                    try {
+                        if (!lastError) { return await apiRef.current!.containers.list(); }
+                        return await Promise.race([
+                            apiRef.current!.containers.list(),
+                            new Promise<never>((_, reject) => {
+                                timer = setTimeout(() => reject(lastError), Math.max(0, deadline - Date.now()));
+                            }),
+                        ]);
+                    } catch (error) {
+                        if (!isCurrent() || !(error instanceof RpcError)
+                            || !(error.code === MISSING_EXTENSION_PERMISSIONS_CODE || isAccessDeniedError(error))
+                            || Date.now() >= deadline) {
+                            throw error;
+                        }
+                        retriedDenial = true;
+                        lastError = error;
+                    } finally {
+                        clearTimeout(timer);
+                    }
+                    await new Promise(resolve => setTimeout(resolve, Math.min(2000, Math.max(0, deadline - Date.now()))));
+                    if (!isCurrent() || Date.now() >= deadline) { throw lastError; }
+                } while (true);
+            };
+            listContainers()
                 .then(page => {
                     if (!isCurrent()) { return; }
+                    if (retriedDenial) { void refreshAuthorization(); }
                     const items = page.items;
                     const authoritativeIds = new Set(items.map(item => item.id));
                     setRootItems(items.filter(item => !deletedContainerIdsRef.current.has(item.id)));
@@ -446,7 +484,11 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
                     setLoadError(toLoadFailure(err));
                     if (err?.code === MISSING_EXTENSION_PERMISSIONS_CODE) { void refreshAuthorization(); }
                 })
-                .finally(() => { if (isCurrent()) { setIsLoading(false); } });
+                .finally(() => {
+                    if (isCurrent()) {
+                        setIsLoading(false);
+                    }
+                });
         } else if (currentViewMode.kind === 'deleted-containers') {
             if (!containerTypeId) { setIsLoading(false); return; }
             const key = scopeKey({ kind: 'deletedContainers' });
@@ -471,6 +513,8 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
     // panelState is stable (injected once at mount)
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [beginLoad, isReady, refreshAuthorization]);
+
+    useEffect(() => () => { loadSeqRef.current++; }, []);
 
     /**
      * Load the first page of drive items whenever we navigate into a container/folder.
@@ -814,20 +858,45 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
     }, [currentDriveId, currentParentId, requireOperation]);
 
     const previewItem = useCallback(async (item: StorageItem) => {
-        if (!requireOperation('drive.getPreviewUrl')) { return; }
+        const isPdf = item.mimeType?.toLowerCase() === 'application/pdf' || /\.pdf$/i.test(item.name);
+        const isMp4 = item.mimeType?.toLowerCase() === 'video/mp4' || /\.mp4$/i.test(item.name);
+        const operation = isPdf ? 'drive.openPdf' : isMp4 ? 'drive.openVideo' : 'drive.getPreviewUrl';
+        if (!requireOperation(operation)) { return; }
         if (!currentDriveId) return;
+        if (isPdf || isMp4) {
+            try {
+                if (isPdf) {
+                    await apiRef.current!.drive.openPdf(currentDriveId, item.id);
+                } else {
+                    await apiRef.current!.drive.openVideo(currentDriveId, item.id);
+                }
+            } catch {
+                // The host presents preview failures through a native notification.
+            }
+            return;
+        }
         const url = await apiRef.current!.drive.getPreviewUrl(currentDriveId, item.id);
         openUrl(url);
     }, [currentDriveId, requireOperation]);
 
-    const downloadItem = useCallback(async (item: StorageItem) => {
-        if (!requireOperation('drive.getDownloadUrl')) { return; }
+    const openInBrowser = useCallback(async (item: StorageItem) => {
+        if (!isOfficeFile(item)) { return; }
+        // Preserve the readContent gate even though the launch URL comes from metadata.
+        if (!requireOperation('drive.getPreviewUrl')) { return; }
         if (!currentDriveId) return;
-        // Use cached downloadUrl if present; otherwise fetch on demand.
-        // SPE does not always return @microsoft.graph.downloadUrl in listing
-        // responses (notably absent for Office files), so we fetch it lazily.
-        const url = item.downloadUrl ?? await apiRef.current!.drive.getDownloadUrl(currentDriveId, item.id);
+        const url = await apiRef.current!.drive.getItemWebUrl(currentDriveId, item.id);
         openUrl(url);
+    }, [currentDriveId, requireOperation]);
+
+    const downloadItem = useCallback(async (item: StorageItem) => {
+        if (!requireOperation('drive.download')) { return; }
+        if (!currentDriveId) return;
+        try {
+            await apiRef.current!.drive.download(currentDriveId, item.id);
+        } catch (error) {
+            // The host surfaces the actionable failure through a native notification.
+            console.error('[StorageExplorer] Download failed:', error);
+        }
     }, [currentDriveId, requireOperation]);
 
     const openInDesktopApp = useCallback(async (item: StorageItem) => {
@@ -1100,39 +1169,54 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
     }
 
     async function runUpload(id: string) {
+        if (runningUploads.current.has(id)) return;
         const file = uploadFiles.current.get(id);
         const ctx = uploadContexts.current.get(id);
         if (!file || !ctx) return;
         const { driveId, parentId } = ctx;
 
+        runningUploads.current.add(id);
         uploadStates.current.set(id, 'running');
-        setUploads(prev => prev.map(u => u.id === id ? { ...u, status: 'uploading' as UploadStatus, error: undefined } : u));
+        const staged = file.size > DriveGraphService.SMALL_FILE_THRESHOLD
+            && file.size <= DriveGraphService.GRAPH_UPLOAD_LIMIT;
+        setUploads(prev => prev.map(u => u.id === id ? {
+            ...u, status: 'uploading' as UploadStatus, error: undefined,
+            phase: staged ? 'preparing' as const : undefined,
+        } : u));
 
         try {
             if (file.size <= DriveGraphService.SMALL_FILE_THRESHOLD) {
                 // ── Simple single-PUT upload ─────────────────────────────────
                 const item = await apiRef.current!.drive.uploadSmall(driveId, parentId, file);
-                if (uploadStates.current.get(id) === 'cancelled') return;
+                if (!uploadFiles.current.has(id)) return;
                 addToFolderCache(driveId, parentId, item);
                 updateContainerInCurrentSession(driveId, { status: 'active' });
                 setUploads(prev => prev.map(u => u.id === id ? { ...u, uploaded: file.size, status: 'completed' as UploadStatus } : u));
                 cleanupUploadRefs(id);
             } else {
-                // ── Session-based chunked upload ─────────────────────────────
-                let sessionUrl = uploadSessions.current.get(id);
-                if (!sessionUrl) {
-                    sessionUrl = await apiRef.current!.drive.createUploadSession(driveId, parentId, file.name);
-                    uploadSessions.current.set(id, sessionUrl);
+                // ── Bounded host staging or remote upload-session chunks ─────
+                let sessionId = uploadSessions.current.get(id);
+                if (!sessionId) {
+                    sessionId = await apiRef.current!.drive.createUploadSession(driveId, parentId, file);
+                    if (!uploadFiles.current.has(id)) {
+                        void apiRef.current!.drive.cancelUploadSession(driveId, sessionId);
+                        return;
+                    }
+                    uploadSessions.current.set(id, sessionId);
                 }
-                if (uploadStates.current.get(id) === 'cancelled') return;
+                if (!uploadFiles.current.has(id)) return;
 
                 let offset = uploadOffsets.current.get(id) ?? 0;
                 while (offset < file.size) {
                     const state = uploadStates.current.get(id);
-                    if (state === 'cancelled') return;
+                    if (!uploadFiles.current.has(id) || state === 'cancelled') return;
                     if (state === 'paused') return; // resumeUpload() will call runUpload() again
 
-                    const result = await apiRef.current!.drive.uploadChunk(sessionUrl, file, offset, driveId);
+                    if (staged && offset + DriveGraphService.CHUNK_SIZE >= file.size) {
+                        setUploads(prev => prev.map(u => u.id === id ? { ...u, phase: 'sending', uploaded: 0 } : u));
+                    }
+                    const result = await apiRef.current!.drive.uploadChunk(sessionId, file, offset, driveId);
+                    if (!uploadFiles.current.has(id)) return;
                     offset = result.nextOffset;
                     uploadOffsets.current.set(id, offset);
                     setUploads(prev => prev.map(u => u.id === id ? { ...u, uploaded: Math.min(offset, file.size) } : u));
@@ -1154,11 +1238,13 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
                 }
             }
         } catch (err: any) {
-            if (uploadStates.current.get(id) === 'cancelled') return;
+            if (!uploadFiles.current.has(id)) return;
             setUploads(prev => prev.map(u => u.id === id ? {
                 ...u, status: 'failed' as UploadStatus,
                 error: err?.message ?? 'Upload failed.',
             } : u));
+        } finally {
+            runningUploads.current.delete(id);
         }
     }
 
@@ -1191,23 +1277,26 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
     }
 
     function resumeUpload(id: string) {
+        uploadStates.current.set(id, 'running');
         setUploads(prev => prev.map(u => u.id === id && u.status === 'paused' ? { ...u, status: 'uploading' as UploadStatus } : u));
         void runUpload(id);
     }
 
     function cancelUpload(id: string) {
         uploadStates.current.set(id, 'cancelled');
-        const sessionUrl = uploadSessions.current.get(id);
-        if (sessionUrl) void apiRef.current!.drive.cancelUploadSession(sessionUrl);
+        const sessionId = uploadSessions.current.get(id);
+        const ctx = uploadContexts.current.get(id);
+        if (sessionId && ctx) void apiRef.current!.drive.cancelUploadSession(ctx.driveId, sessionId);
         cleanupUploadRefs(id);
         setUploads(prev => prev.filter(u => u.id !== id));
     }
 
     function retryUpload(id: string) {
         // Cancel any existing session and restart from byte 0
-        const sessionUrl = uploadSessions.current.get(id);
-        if (sessionUrl) {
-            void apiRef.current!.drive.cancelUploadSession(sessionUrl);
+        const sessionId = uploadSessions.current.get(id);
+        const ctx = uploadContexts.current.get(id);
+        if (sessionId && ctx) {
+            void apiRef.current!.drive.cancelUploadSession(ctx.driveId, sessionId);
             uploadSessions.current.delete(id);
         }
         uploadOffsets.current.delete(id);
@@ -1224,8 +1313,9 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
 
     function dismissUpload(id: string) {
         uploadStates.current.set(id, 'cancelled');
-        const sessionUrl = uploadSessions.current.get(id);
-        if (sessionUrl) void apiRef.current!.drive.cancelUploadSession(sessionUrl);
+        const sessionId = uploadSessions.current.get(id);
+        const ctx = uploadContexts.current.get(id);
+        if (sessionId && ctx) void apiRef.current!.drive.cancelUploadSession(ctx.driveId, sessionId);
         cleanupUploadRefs(id);
         setUploads(prev => prev.filter(u => u.id !== id));
     }
@@ -1279,6 +1369,7 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
         renameItem,
         deleteItem,
         previewItem,
+        openInBrowser,
         downloadItem,
         openInDesktopApp,
         currentDriveId,

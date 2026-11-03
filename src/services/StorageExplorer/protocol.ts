@@ -10,7 +10,7 @@
  * so it must stay free of any runtime code and of any environment-specific imports
  * (no `vscode`, no DOM globals, no Node globals). Types only.
  *
- * Security note: the delegated Microsoft Graph bearer token never crosses this
+ * Security note: Microsoft Graph and SharePoint bearer tokens never cross this
  * boundary. The webview sends *intent* (a named operation plus its parameters) and
  * the extension host performs the Graph call. See `StorageExplorerApi` on the host.
  */
@@ -170,7 +170,7 @@ export type ContainerCustomProperties = Record<string, FileStorageContainerCusto
 
 export type CurrentUser = Pick<User, 'id' | 'displayName' | 'mail' | 'userPrincipalName'>;
 
-/** Result of a single chunk PUT against a pre-authenticated upload session URL. */
+/** Result of a single host-side upload-session chunk PUT. */
 export interface UploadChunkResult {
     done: boolean;
     nextOffset: number;
@@ -297,7 +297,16 @@ export interface StorageExplorerOperations {
         };
         result: StorageItem;
     };
-    'drive.createUploadSession': { params: { driveId: string; parentId: string | null; fileName: string }; result: string };
+    /** Opaque handle: local staging up to 250 MB, otherwise a host-only upload session. */
+    'drive.createUploadSession': {
+        params: { driveId: string; parentId: string | null; fileName: string; fileSize?: number; contentType?: string };
+        result: string;
+    };
+    'drive.uploadChunk': {
+        params: { driveId: string; sessionId: string; offset: number; total: number; bytes: Uint8Array };
+        result: UploadChunkResult;
+    };
+    'drive.cancelUploadSession': { params: { driveId: string; sessionId: string }; result: void };
     'drive.listRecycleBin': { params: { containerId: string }; result: PagedResult<StorageItem> };
     'drive.restoreFromRecycleBin': { params: { containerId: string; itemId: string }; result: void };
     'drive.permanentlyDelete': { params: { containerId: string; itemId: string }; result: void };
@@ -309,7 +318,13 @@ export interface StorageExplorerOperations {
     'drive.deleteVersion': { params: { driveId: string; itemId: string; versionId: string }; result: void };
     'drive.getItemWebUrl': { params: { driveId: string; itemId?: string }; result: string };
     'drive.getDownloadUrl': { params: { driveId: string; itemId: string }; result: string };
+    /** Host-owned Save As dialog and streaming download; returns no path, URL, or file bytes. */
+    'drive.download': { params: { driveId: string; itemId: string }; result: void };
     'drive.getPreviewUrl': { params: { driveId: string; itemId: string }; result: string };
+    /** Host opens a temporary, Graph-backed PDF viewer; returns no URL or file bytes. */
+    'drive.openPdf': { params: { driveId: string; itemId: string }; result: void };
+    /** Host opens a temporary, Graph-backed MP4 player; returns no URL or file bytes. */
+    'drive.openVideo': { params: { driveId: string; itemId: string }; result: void };
 
     // ── permissions ───────────────────────────────────────────────────────────
     'permissions.listItemPermissions': { params: { driveId: string; itemId: string }; result: Permission[] };
@@ -416,7 +431,7 @@ export interface RpcProgressMessage {
     data: unknown;
 }
 
-/** Host-side Graph traffic, forwarded so the webview's Network drawer stays populated. */
+/** Redacted host-side Graph and upload traffic for the webview's Network drawer. */
 export interface NetworkLogMessage {
     command: 'networkLog';
     request: NetworkRequest;

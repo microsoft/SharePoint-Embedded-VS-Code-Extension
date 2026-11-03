@@ -26,7 +26,7 @@ const CONTENT_OPERATIONS_IN_DRIVE: readonly StorageExplorerOperation[] = [
     'drive.uploadSmall',
     'drive.createFolder',
     'drive.createFile',
-    'drive.getDownloadUrl',
+    'drive.download',
 ];
 
 export function FileList() {
@@ -326,7 +326,7 @@ function EmptyFolderState({ isContainerRoot }: { isContainerRoot: boolean }) {
                 {isContainerRoot ? 'This container is empty' : 'This folder is empty'}
             </span>
             <span style={{ fontSize: 12, opacity: 0.75, maxWidth: 420 }}>
-                Drop in your first file, or create one without leaving the editor.
+                Add your first file....
             </span>
 
             <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>

@@ -104,7 +104,11 @@ function createStub(): VscodeStub {
         /* eslint-enable @typescript-eslint/naming-convention */
         // `vscode.l10n.t` returns the source string when no bundle is loaded, which is exactly
         // what the host does at development time — so assertions read the authored English.
-        l10n: { t: (message: string) => message },
+        l10n: {
+            t: (message: string, ...args: unknown[]) =>
+                message.replace(/\{(\d+)\}/g, (placeholder: string, index: string) =>
+                    Number(index) < args.length ? String(args[Number(index)]) : placeholder),
+        },
         commands: {
             executeCommand: async (command: string, ...args: unknown[]) => {
                 executed.push({ command, args });

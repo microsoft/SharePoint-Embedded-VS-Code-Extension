@@ -31,7 +31,7 @@ export function getItemIconColor(item: StorageItem): string {
     return 'var(--vscode-foreground)';
 }
 
-const OFFICE_EXTENSIONS = new Set(['docx', 'doc', 'xlsx', 'xls', 'pptx', 'ppt', 'odt', 'ods', 'odp']);
+const OFFICE_EXTENSIONS = new Set(['docx', 'doc', 'docm', 'xlsx', 'xls', 'xlsm', 'pptx', 'ppt', 'pptm', 'odt', 'ods', 'odp']);
 
 /** Returns true if the item is a file type that can be opened in Office Online / desktop. */
 export function isOfficeFile(item: StorageItem): boolean {

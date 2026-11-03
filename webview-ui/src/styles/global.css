@@ -72,6 +72,15 @@ body {
     color: var(--vscode-foreground);
 }
 
+.file-row.selected .icon-btn {
+    color: inherit;
+}
+
+.file-row.selected .icon-btn:hover {
+    background-color: var(--vscode-list-activeSelectionIconForeground, var(--vscode-list-activeSelectionForeground));
+    color: var(--vscode-list-activeSelectionBackground);
+}
+
 /* Toolbar action buttons (icon + label) */
 .action-btn {
     background: transparent;

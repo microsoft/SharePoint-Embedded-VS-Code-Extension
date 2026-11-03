@@ -90,7 +90,8 @@ function UploadRow({ upload }: { upload: UploadFile }) {
                 </span>
                 <span style={{ fontSize: 11, color, flexShrink: 0 }}>
                     {upload.status === 'uploading'
-                        ? `${p}%`
+                        ? upload.phase === 'preparing' ? `Preparing ${p}%`
+                            : upload.phase === 'sending' ? 'Uploading' : `${p}%`
                         : STATUS_LABEL[upload.status]}
                 </span>
             </div>
@@ -99,7 +100,8 @@ function UploadRow({ upload }: { upload: UploadFile }) {
             <div style={{ fontSize: 11, opacity: 0.5, marginTop: 1 }}>
                 {upload.status === 'completed'
                     ? formatBytes(upload.size)
-                    : `${formatBytes(upload.uploaded)} / ${formatBytes(upload.size)}`}
+                    : upload.phase === 'sending' && upload.status === 'uploading' ? `Uploading ${formatBytes(upload.size)}`
+                        : `${formatBytes(upload.uploaded)} / ${formatBytes(upload.size)}${upload.phase === 'preparing' ? ' staged' : ''}`}
             </div>
 
             {/* Error message */}
@@ -116,7 +118,7 @@ function UploadRow({ upload }: { upload: UploadFile }) {
 
             {/* Action buttons */}
             <div style={{ display: 'flex', gap: 4, marginTop: 5 }}>
-                {upload.status === 'uploading' && (
+                {upload.status === 'uploading' && upload.phase !== 'sending' && (
                     <RowBtn icon="codicon-debug-pause" label="Pause" testId="upload-pause" onClick={() => pauseUpload(upload.id)} />
                 )}
                 {upload.status === 'paused' && (

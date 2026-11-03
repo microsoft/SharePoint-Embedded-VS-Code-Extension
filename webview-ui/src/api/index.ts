@@ -18,16 +18,14 @@ export type { NetworkLogger };
  * None of these services hold credentials: each one forwards a named operation to
  * the extension host, which owns the delegated Microsoft Graph token.
  *
- * `onNetworkRequest` only receives entries for requests the *webview* issues itself
- * (pre-authenticated upload-session chunks). Host-side Graph traffic arrives
- * separately — see `onHostNetworkRequest`.
+ * All network traffic arrives through `onHostNetworkRequest`.
  */
-export function createStorageExplorerApi(onNetworkRequest: NetworkLogger) {
+export function createStorageExplorerApi() {
     return {
         authorization: new AuthorizationService(),
         containers: new ContainerGraphService(),
         collections: new CollectionsService(),
-        drive: new DriveGraphService(onNetworkRequest),
+        drive: new DriveGraphService(),
         permissions: new PermissionGraphService(),
         columns: new ColumnGraphService(),
         people: new PeopleGraphService(),

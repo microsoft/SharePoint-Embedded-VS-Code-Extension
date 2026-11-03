@@ -70,7 +70,9 @@ test.describe('AC-11 — the entry is always present and always says which state
         test(`${readiness}: renders a labelled, non-expandable, clickable row`, () => {
             const item = build(readiness);
 
-            expect(item.label).toBe('Storage Explorer');
+            expect(item.label).toBe('Content');
+            expect(item.command.title).toBe('Manage content');
+            expect(item.accessibilityInformation.label).toBe('Manage content for Contoso Documents');
             expect(item.collapsibleState, 'the entry has no children of its own')
                 .toBe(vscode.TreeItemCollapsibleState.None);
             expect(item.id, 'the row id must be stable per container type').toContain(CONTAINER_TYPE.id);
@@ -110,7 +112,7 @@ test.describe('AC-11 — the entry is always present and always says which state
 
         expect(item.description, 'a ready entry needs no annotation').toBeFalsy();
         expect(iconColorId(item), 'a ready entry must not be muted or warned').toBeUndefined();
-        expect(tooltipText(item)).toContain('Storage Explorer');
+        expect(tooltipText(item)).toBe('Manage containers, files, metadata, and permissions.');
     });
 
     for (const readiness of BLOCKED_STATES) {

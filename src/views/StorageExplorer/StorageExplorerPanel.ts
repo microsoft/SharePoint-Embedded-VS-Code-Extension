@@ -6,6 +6,8 @@
 import * as vscode from 'vscode';
 import { randomBytes } from 'crypto';
 import { URL } from 'url';
+import { homedir } from 'os';
+import { join } from 'path';
 import { ContainerType, ContainerTypeAppPermission, ContainerTypeRegistration } from '../../models/schemas';
 import { ext } from '../../utils/extensionVariables';
 import { AuthenticationState } from '../../services/AuthenticationState';
@@ -15,6 +17,10 @@ import { checkExtensionAppPermissions, ensureExtensionAppPermissions, readGrante
 import { missingCapabilitiesForOperation, satisfiesExtensionAppBaseline } from '../../utils/ExtensionAppPermissionScopes';
 import { DevelopmentTreeViewProvider } from '../treeview/development/DevelopmentTreeViewProvider';
 import { createGraphClient } from '../../services/StorageExplorer/graphClient';
+import { createUploadSessionOptions } from '../../services/StorageExplorer/uploadAuth';
+import type { DownloadSource } from '../../services/StorageExplorer/FileDownloadService';
+import { saveDownloadedFile } from '../../services/StorageExplorer/saveDownloadedFile';
+import { FilePreviewKind, FilePreviewService } from '../../services/StorageExplorer/FilePreviewService';
 import { evaluateExternalUrl } from '../../services/StorageExplorer/externalUrlPolicy';
 import { escapeHtmlAttribute, sanitizeCspSource, serializeJsonForHtml } from '../../services/StorageExplorer/htmlEncoding';
 import { SerializedError, StorageExplorerPanelState, StorageExplorerReadiness } from '../../services/StorageExplorer/protocol';
@@ -81,6 +87,7 @@ export class StorageExplorerPanel {
     private readonly _containerTypeId: string;
     private readonly _readiness: StorageExplorerReadiness;
     private readonly _api: StorageExplorerApi;
+    private readonly _previews: FilePreviewService;
     private readonly _disposables: vscode.Disposable[] = [];
     private _isDisposed = false;
     /** In-flight permission prompt, so a burst of failed calls raises a single dialog. */
@@ -118,13 +125,22 @@ export class StorageExplorerPanel {
         const client = createGraphClient(request => {
             this._post({ command: 'networkLog', request });
         });
+        const transferOptions = createUploadSessionOptions(request => this._post({ command: 'networkLog', request }));
+        this._previews = new FilePreviewService(client, transferOptions.getIdentity);
+        const authListener = {
+            onBeforeSignIn: () => this._previews.closeAll(),
+            onSignOut: () => this._previews.closeAll(),
+        };
+        AuthenticationState.subscribe(authListener);
+        this._disposables.push(new vscode.Disposable(() => AuthenticationState.unsubscribe(authListener)));
         this._api = new StorageExplorerApi(
             state.containerTypeId,
             client,
             // Capability gating reads the live grant on the extension host; the webview never
             // learns anything about it beyond the scope names a denied call names.
             () => this._readGrantedScopesForGating(),
-            AuthenticationState.getCurrentAccountSync()?.tenantId
+            AuthenticationState.getCurrentAccountSync()?.tenantId,
+            transferOptions
         );
 
         this._panel.webview.html = StorageExplorerPanel._buildHtml(this._panel.webview, state);
@@ -233,10 +249,20 @@ export class StorageExplorerPanel {
         try {
             const result = await this._api.execute(message.op, message.params, {
                 onProgress: data => this._post({ command: 'rpc/progress', requestId, data }),
+                saveDownload: (name, source) => this._saveDownload(name, source),
+                openPdf: (driveId, itemId, authorize) => this._openFilePreview('pdf', driveId, itemId, authorize),
+                openVideo: (driveId, itemId, authorize) => this._openFilePreview('mp4', driveId, itemId, authorize),
             });
             this._post({ command: 'rpc/response', requestId, ok: true, result });
         } catch (error) {
             const original = serializeError(error);
+            if (message.op === 'drive.download') {
+                void vscode.window.showErrorMessage(vscode.l10n.t('Download failed: {0}', original.message));
+            } else if (message.op === 'drive.openPdf') {
+                void vscode.window.showErrorMessage(vscode.l10n.t('PDF viewing failed: {0}', original.message));
+            } else if (message.op === 'drive.openVideo') {
+                void vscode.window.showErrorMessage(vscode.l10n.t('Video preview failed: {0}', original.message));
+            }
             // Log the raw failure, not the diagnosis — when the diagnosis is wrong, this is
             // the only place the underlying Graph message and code survive.
             ext.outputChannel.error(
@@ -244,8 +270,68 @@ export class StorageExplorerPanel {
                 + `${original.message}${original.code ? ` (code=${forLog(original.code, 40)})` : ''}`
                 + `${original.statusCode ? ` [HTTP ${original.statusCode}]` : ''}`
             );
-            this._post({ command: 'rpc/response', requestId, ok: false, error: await this._diagnose(original) });
+            this._post({
+                command: 'rpc/response', requestId, ok: false,
+                error: await this._diagnose(original, message.op !== 'containers.list'),
+            });
         }
+
+    }
+
+    private async _openFilePreview(
+        kind: FilePreviewKind, driveId: string, itemId: string, authorize: () => Promise<void>
+    ): Promise<void> {
+        if (vscode.env.remoteName || vscode.env.uiKind === vscode.UIKind.Web) {
+            throw new Error(kind === 'pdf'
+                ? vscode.l10n.t('Graph-backed PDF viewing requires a local VS Code desktop window. Use Download to view this PDF.')
+                : vscode.l10n.t('Video preview requires a local VS Code desktop window. Use Download to view this video.'));
+        }
+        await this._previews.open(driveId, itemId, authorize,
+            async url => vscode.env.openExternal(vscode.Uri.parse(url, true)),
+            failure => {
+                ext.outputChannel.warn(
+                    `[FilePreviewService] ${kind === 'pdf' ? 'PDF' : 'MP4'} stream failed`
+                    + (failure.statusCode ? ` [HTTP ${failure.statusCode}]` : '')
+                    + (failure.requestId ? ` [request-id=${failure.requestId}]` : '')
+                );
+                const message = failure.statusCode === 403
+                    ? vscode.l10n.t('Microsoft Graph denied access to this file (HTTP 403). Retry Preview. For persistent failures, check file access and the SharePoint Embedded output channel.')
+                    : kind === 'pdf'
+                        ? vscode.l10n.t('Could not load the PDF from Microsoft Graph. Reopen it from Content or use Download.')
+                        : vscode.l10n.t('Could not load the video from Microsoft Graph. Retry Preview from Content or use Download.');
+                void vscode.window.showErrorMessage(message);
+            }, kind);
+    }
+
+    private async _saveDownload(name: string, source: DownloadSource): Promise<void> {
+        // Graph names are untrusted too; they must not influence the default directory.
+        // eslint-disable-next-line no-control-regex
+        const safeName = name.replace(/[<>:"/\\|?*\u0000-\u001f]/g, '_').replace(/[. ]+$/, '') || 'download';
+        const destination = await vscode.window.showSaveDialog({
+            defaultUri: vscode.Uri.file(join(homedir(), safeName)),
+            saveLabel: vscode.l10n.t('Save file'),
+            title: vscode.l10n.t('Download file'),
+        });
+        if (!destination) { return; }
+        if (destination.scheme !== 'file') {
+            throw new Error(vscode.l10n.t('Choose a local file system destination for this download.'));
+        }
+        await vscode.window.withProgress({
+            location: vscode.ProgressLocation.Notification,
+            title: vscode.l10n.t('Downloading {0}', safeName),
+            cancellable: true,
+        }, async (_progress, cancellation) => {
+            const controller = new AbortController();
+            const listener = cancellation.onCancellationRequested(() => controller.abort());
+            try {
+                if (cancellation.isCancellationRequested) { controller.abort(); }
+                await saveDownloadedFile(destination.fsPath, source, controller.signal);
+            } catch (error) {
+                if (!cancellation.isCancellationRequested) { throw error; }
+            } finally {
+                listener.dispose();
+            }
+        });
     }
 
     /**
@@ -255,7 +341,7 @@ export class StorageExplorerPanel {
      * "permissions required" state instead of an empty folder, and the user is prompted
      * to grant; on success the webview is told to reload.
      */
-    private async _diagnose(serialized: SerializedError): Promise<SerializedError> {
+    private async _diagnose(serialized: SerializedError, promptForPermissions = true): Promise<SerializedError> {
         if (!this._containerTypeId) {
             return serialized;
         }
@@ -266,7 +352,8 @@ export class StorageExplorerPanel {
             // otherwise an unrelated Graph outage would be reported as a permissions problem.
             () => checkExtensionAppPermissions(this._containerTypeId)
         );
-        if (missingPermissions) {
+        // Initial container listings retry silently; the final error offers the grant action.
+        if (missingPermissions && promptForPermissions) {
             void this._promptForPermissions();
         }
         return error;
@@ -413,7 +500,7 @@ export class StorageExplorerPanel {
 
         const panel = vscode.window.createWebviewPanel(
             'speStorageExplorer',
-            `${containerType.name} – Storage Explorer`,
+            vscode.l10n.t('{0} — Content', containerType.name),
             vscode.ViewColumn.One,
             {
                 enableScripts: true,
@@ -534,7 +621,7 @@ export class StorageExplorerPanel {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="Content-Security-Policy" content="${csp}">
   <link rel="stylesheet" href="${styleUri}">
-  <title>Storage Explorer</title>
+  <title>${escapeHtmlAttribute(vscode.l10n.t('{0} — Content', state.appName))}</title>
   <script type="application/json" id="spe-state">${stateJson}</script>
   <script nonce="${nonce}">
     (function () {
@@ -560,6 +647,10 @@ export class StorageExplorerPanel {
             return;
         }
         this._isDisposed = true;
+        this._previews.dispose();
+        void this._api.dispose().catch(() => {
+            ext.outputChannel.error('[StorageExplorerPanel] temporary upload cleanup failed');
+        });
         if (StorageExplorerPanel._panels.get(this._registrationId) === this) {
             StorageExplorerPanel._panels.delete(this._registrationId);
         }

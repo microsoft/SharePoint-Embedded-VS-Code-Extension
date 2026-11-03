@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom';
 import { StorageItem, SidePanelTab, ModalState } from '../../models/StorageItem';
 import { useStorageExplorer } from '../../context/StorageExplorerContext';
 import type { StorageExplorerOperation } from '../../api/protocol';
+import { isOfficeFile } from '../FileList/fileListUtils';
 
 interface MenuAction {
     icon: string;
@@ -21,6 +22,7 @@ function getActions(
     navigateToContainerRecycleBin: (containerId: string, containerName: string) => void,
     activateContainer: (containerId: string) => Promise<void>,
     previewItem: (item: StorageItem) => Promise<void>,
+    openInBrowser: (item: StorageItem) => Promise<void>,
     downloadItem: (item: StorageItem) => Promise<void>,
     openInDesktopApp: (item: StorageItem) => Promise<void>
 ): MenuAction[] {
@@ -62,9 +64,11 @@ function getActions(
         };
         return [
             { icon: 'codicon-eye', label: 'Preview', permissionOperation: 'drive.getPreviewUrl', onClick: () => { onClose(); previewItem(item); } },
-            { icon: 'codicon-globe', label: 'Open in browser', permissionOperation: 'drive.getPreviewUrl', onClick: () => { onClose(); void previewItem(item); } },
-            { icon: 'codicon-desktop-download', label: 'Open in desktop', permissionOperation: 'drive.getItemWebUrl', onClick: () => { onClose(); openInDesktopApp(item); } },
-            { icon: 'codicon-cloud-download', label: 'Download', permissionOperation: 'drive.getDownloadUrl', onClick: () => { onClose(); downloadItem(item); } },
+            ...(isOfficeFile(item) ? [
+                { icon: 'codicon-globe', label: 'Open in browser', permissionOperation: 'drive.getPreviewUrl' as const, onClick: () => { onClose(); void openInBrowser(item); } },
+                { icon: 'codicon-desktop-download', label: 'Open in desktop', permissionOperation: 'drive.getItemWebUrl' as const, onClick: () => { onClose(); void openInDesktopApp(item); } },
+            ] : []),
+            { icon: 'codicon-cloud-download', label: 'Download', permissionOperation: 'drive.download', onClick: () => { onClose(); downloadItem(item); } },
             { ...rename, dividerBefore: true },
             del,
             { ...perms, dividerBefore: true },
@@ -128,7 +132,7 @@ interface ContextMenuProps {
 export function ContextMenu({ item, x, y, onClose }: ContextMenuProps) {
     const {
         setSidePanelTab, openModal, navigateToContainerRecycleBin, activateContainer,
-        previewItem, downloadItem, openInDesktopApp, missingPermissionMessage, requireOperation,
+        previewItem, openInBrowser, downloadItem, openInDesktopApp, missingPermissionMessage, requireOperation,
     } = useStorageExplorer();
     const ref = useRef<HTMLDivElement>(null);
 
@@ -149,7 +153,7 @@ export function ContextMenu({ item, x, y, onClose }: ContextMenuProps) {
 
     const actions = getActions(
         item, onClose, setSidePanelTab, openModal, navigateToContainerRecycleBin,
-        activateContainer, previewItem, downloadItem, openInDesktopApp,
+        activateContainer, previewItem, openInBrowser, downloadItem, openInDesktopApp,
     );
 
     // Clamp to viewport

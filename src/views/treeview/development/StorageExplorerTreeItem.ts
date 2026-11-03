@@ -24,16 +24,19 @@ export class StorageExplorerTreeItem extends vscode.TreeItem {
         public readonly registration: ContainerTypeRegistration | null,
         public readonly readiness: StorageExplorerReadiness
     ) {
-        super(vscode.l10n.t('Storage Explorer'), vscode.TreeItemCollapsibleState.None);
+        super(vscode.l10n.t('Content'), vscode.TreeItemCollapsibleState.None);
         this.id = `spe-storage-explorer-${containerType.id}`;
         this.contextValue = `spe:storageExplorerTreeItem-${readiness}`;
+        this.accessibilityInformation = {
+            label: vscode.l10n.t('Manage content for {0}', containerType.name),
+        };
 
         // Every state opens the panel. A blocked panel renders the onboarding surface and
         // issues no container or file operations, so clicking is always safe — and always
         // more useful than a row that does nothing.
         this.command = {
             command: 'spe.ContainerType.openStorageExplorer',
-            title: vscode.l10n.t('Open Storage Explorer'),
+            title: vscode.l10n.t('Manage content'),
             arguments: [this],
         };
 
@@ -41,7 +44,7 @@ export class StorageExplorerTreeItem extends vscode.TreeItem {
             case 'ready':
                 this.iconPath = new vscode.ThemeIcon('database');
                 this.tooltip = new vscode.MarkdownString(vscode.l10n.t(
-                    '**Storage Explorer**\n\nBrowse containers, create folders, and upload files for this container type.'
+                    'Manage containers, files, metadata, and permissions.'
                 ));
                 break;
 
@@ -52,7 +55,7 @@ export class StorageExplorerTreeItem extends vscode.TreeItem {
                     new vscode.ThemeColor('list.warningForeground')
                 );
                 this.tooltip = new vscode.MarkdownString(vscode.l10n.t(
-                    '**Storage Explorer is not available yet.**\n\nThis container type is not registered on your local tenant. Right-click the container type and choose **Register on local tenant** to continue.'
+                    'Manage containers, files, metadata, and permissions.\n\n**Content is not available yet.**\n\nThis container type is not registered on your local tenant. Right-click the container type and choose **Register on local tenant** to continue.'
                 ));
                 break;
 
@@ -63,7 +66,7 @@ export class StorageExplorerTreeItem extends vscode.TreeItem {
                     new vscode.ThemeColor('list.warningForeground')
                 );
                 this.tooltip = new vscode.MarkdownString(vscode.l10n.t(
-                    '**Storage Explorer needs permissions.**\n\nThe SharePoint Embedded extension app does not have the delegated permissions it needs on this container type. Right-click the container type and choose **Grant extension app permissions** to continue.'
+                    'Manage containers, files, metadata, and permissions.\n\n**Content needs permissions.**\n\nThe SharePoint Embedded extension app does not have the delegated permissions it needs on this container type. Right-click the container type and choose **Grant extension app permissions** to continue.'
                 ));
                 break;
 
@@ -74,7 +77,7 @@ export class StorageExplorerTreeItem extends vscode.TreeItem {
                     new vscode.ThemeColor('list.warningForeground')
                 );
                 this.tooltip = new vscode.MarkdownString(vscode.l10n.t(
-                    '**Storage Explorer is unavailable until billing is set up.**\n\nContainers cannot be created or read for this container type yet. Right-click the container type and choose **Attach billing** to finish setup.'
+                    'Manage containers, files, metadata, and permissions.\n\n**Content is unavailable until billing is set up.**\n\nContainers cannot be created or read for this container type yet. Right-click the container type and choose **Attach billing** to finish setup.'
                 ));
                 break;
         }

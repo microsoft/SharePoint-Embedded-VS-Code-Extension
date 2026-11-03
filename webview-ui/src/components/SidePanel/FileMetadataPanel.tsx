@@ -83,6 +83,14 @@ function TypeChip({ col }: { col: ColumnDefinition }) {
 // ── Type-aware read-only value display ────────────────────────────────────────
 
 function formatFieldValue(col: ColumnDefinition, value: string): React.ReactNode {
+    if (col.isDeletable === false && (col.name === 'FileSizeDisplay' || col.name === 'File_x0020_Size') && /^\d+$/.test(value)) {
+        const bytes = Number(value);
+        if (Number.isSafeInteger(bytes)) {
+            const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+            const index = bytes === 0 ? 0 : Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+            return `${parseFloat((bytes / Math.pow(1024, index)).toFixed(1))} ${units[index]}`;
+        }
+    }
     const colType = getColumnTypeName(col);
     if (colType === 'boolean') {
         const isTrue = value === 'true';
@@ -97,11 +105,11 @@ function formatFieldValue(col: ColumnDefinition, value: string): React.ReactNode
         );
     }
     if (colType === 'dateTime' && value) {
-        try {
-            return new Date(value + 'T00:00:00').toLocaleDateString();
-        } catch {
-            return value;
-        }
+        const date = new Date(/^\d{4}-\d{2}-\d{2}$/.test(value) ? `${value}T00:00:00` : value);
+        if (Number.isNaN(date.getTime())) return value;
+        return col.dateTime?.format === 'dateTime'
+            ? date.toLocaleString()
+            : date.toLocaleDateString();
     }
     if (colType === 'currency' && value) {
         const num = parseFloat(value);

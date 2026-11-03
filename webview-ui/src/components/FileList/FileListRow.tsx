@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { StorageItem } from '../../models/StorageItem';
-import { getItemIcon, getItemIconColor, formatSize } from './fileListUtils';
+import { getItemIcon, getItemIconColor, formatSize, isOfficeFile } from './fileListUtils';
 import { ContextMenu } from '../ContextMenu/ContextMenu';
 import { useStorageExplorer } from '../../context/StorageExplorerContext';
 
@@ -16,14 +16,15 @@ export function FileListRow({ item, isSelected, onSelect, onNavigate, colTemplat
     const [isHovered, setIsHovered] = useState(false);
     const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
     const {
-        previewItem, downloadItem, selectedIds, toggleSelected,
-        missingPermissionMessage, requireOperation,
+        previewItem, openInBrowser, downloadItem, selectedIds, toggleSelected,
+        missingPermissionMessage,
     } = useStorageExplorer();
 
     const icon = getItemIcon(item);
     const iconColor = getItemIconColor(item);
     const showInlineActions = isHovered || isSelected;
     const isFile = item.kind === 'file';
+    const isOffice = isOfficeFile(item);
     const readContentMessage = missingPermissionMessage('drive.getPreviewUrl');
 
     const rowBg = isSelected
@@ -43,7 +44,7 @@ export function FileListRow({ item, isSelected, onSelect, onNavigate, colTemplat
 
     function handleDoubleClick() {
         if (item.kind !== 'file') { onNavigate(item); return; }
-        void previewItem(item);
+        void (isOffice ? openInBrowser(item) : previewItem(item));
     }
 
     function handleContextMenuBtn(e: React.MouseEvent) {
@@ -58,6 +59,7 @@ export function FileListRow({ item, isSelected, onSelect, onNavigate, colTemplat
             <div
                 data-testid={`file-row-${item.name}`}
                 data-item-id={item.id}
+                className={isSelected ? 'file-row selected' : 'file-row'}
                 style={{
                     display: 'grid',
                     gridTemplateColumns: colTemplate,
@@ -88,7 +90,7 @@ export function FileListRow({ item, isSelected, onSelect, onNavigate, colTemplat
                 <div style={{ display: 'flex', alignItems: 'center', gap: 0, padding: '4px 8px 4px 0', overflow: 'hidden', minWidth: 0 }}>
                     <span
                         className={`codicon ${icon}`}
-                        style={{ fontSize: 16, color: iconColor, flexShrink: 0, marginRight: 6 }}
+                        style={{ fontSize: 16, color: isSelected ? 'inherit' : iconColor, flexShrink: 0, marginRight: 6 }}
                     />
                     <span
                         style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}
@@ -122,19 +124,18 @@ export function FileListRow({ item, isSelected, onSelect, onNavigate, colTemplat
                             <span className="codicon codicon-ellipsis" />
                         </button>
 
-                        {/* Open (Office only — open in browser) */}
-                        <button
+                        {/* Open in browser */}
+                        {isOffice && <button
                             className="icon-btn"
                             title={readContentMessage ?? 'Open in browser'}
-                            aria-disabled={!isFile || !!readContentMessage}
-                            style={{ fontSize: 14, padding: '2px 4px', opacity: isFile && !readContentMessage ? 1 : 0.25 }}
-                            disabled={!isFile}
+                            aria-disabled={!!readContentMessage}
+                            style={{ fontSize: 14, padding: '2px 4px', opacity: !readContentMessage ? 1 : 0.25 }}
                             onClick={() => {
-                                void previewItem(item);
+                                void openInBrowser(item);
                             }}
                         >
                             <span className="codicon codicon-globe" />
-                        </button>
+                        </button>}
 
                         {/* Preview */}
                         <button
@@ -151,12 +152,12 @@ export function FileListRow({ item, isSelected, onSelect, onNavigate, colTemplat
                         {/* Download */}
                         <button
                             className="icon-btn"
-                            title={missingPermissionMessage('drive.getDownloadUrl') ?? 'Download'}
-                            aria-disabled={!isFile || !!missingPermissionMessage('drive.getDownloadUrl')}
+                            title={missingPermissionMessage('drive.download') ?? 'Download'}
+                            aria-disabled={!isFile || !!missingPermissionMessage('drive.download')}
                             style={{
                                 fontSize: 14,
                                 padding: '2px 4px',
-                                opacity: isFile && !missingPermissionMessage('drive.getDownloadUrl') ? 1 : 0.25,
+                                opacity: isFile && !missingPermissionMessage('drive.download') ? 1 : 0.25,
                             }}
                             disabled={!isFile}
                             onClick={() => { downloadItem(item); }}

@@ -5,9 +5,19 @@
 
 import * as Graph from '@microsoft/microsoft-graph-client';
 import type { DriveItem } from '@microsoft/microsoft-graph-types';
-import { DriveItemDetails, DriveItemVersion, StorageItem } from './protocol';
+import { z } from 'zod';
+import { DriveItemDetails, DriveItemVersion, StorageItem, UploadChunkResult } from './protocol';
 import { driveItemToStorageItem, RecycleBinItem, recycleBinItemToStorageItem } from './mappers';
 import { DEFAULT_PAGE_SIZE, GraphPage, mapCollectionPage, RawCollectionResponse } from './pagination';
+import { UploadSessionOptions, UploadSessionService } from './UploadSessionService';
+import { GRAPH_UPLOAD_LIMIT, StagedGraphUploadService } from './StagedGraphUploadService';
+import { FileDownloadService, SaveDownload } from './FileDownloadService';
+
+const downloadItemSchema = z.object({
+    name: z.string().min(1),
+    size: z.number().int().nonnegative(),
+    file: z.object({}),
+});
 
 const SELECT =
     'id,name,file,folder,size,lastModifiedDateTime,createdDateTime,webUrl,@microsoft.graph.downloadUrl';
@@ -37,15 +47,21 @@ function toBinaryBody(bytes: Uint8Array): any {
 /**
  * Drive item operations for the Storage Explorer, executed on the extension host.
  *
- * Chunked-upload traffic is intentionally NOT handled here: `createUploadSession`
- * returns a pre-authenticated session URL that carries no `Authorization` header,
- * so the webview PUTs the chunks itself without ever holding a bearer token.
+ * Upload-session URLs and any SharePoint bearer tokens remain on the host.
  */
 export class DriveGraphService {
-    /** Upper bound for single-PUT uploads. Files above this use the session API. */
+    /** Upper bound for a one-message upload; larger files cross the boundary in chunks. */
     public static readonly SMALL_FILE_THRESHOLD = 10 * 1024 * 1024; // 10 MiB
 
-    public constructor(private readonly _client: Graph.Client) { }
+    private readonly _uploads: UploadSessionService;
+    private readonly _staged: StagedGraphUploadService;
+    private readonly _downloads: FileDownloadService;
+
+    public constructor(private readonly _client: Graph.Client, uploads?: UploadSessionOptions) {
+        this._uploads = new UploadSessionService(uploads);
+        this._staged = new StagedGraphUploadService(() => this._uploads.getIdentity(), uploads?.createStagingFile);
+        this._downloads = new FileDownloadService({ getIdentity: () => this._uploads.getIdentity() });
+    }
 
     /**
      * List the **first page** of children of a drive root (itemId undefined) or a folder.
@@ -218,27 +234,49 @@ export class DriveGraphService {
     }
 
     /**
-     * Create a session for uploading a large file.
-     * Returns the pre-authenticated uploadUrl (valid for ~24 hours). The URL requires
-     * no `Authorization` header, so the caller can PUT chunks without a bearer token.
+     * Stage files up to 250 MB for one Graph PUT; larger files need an upload session.
+     * Older callers omitting size retain session behavior. All handles are panel-local.
      */
     public async createUploadSession(
         driveId: string,
         parentId: string | null,
-        fileName: string
+        fileName: string,
+        fileSize?: number,
+        contentType = 'application/octet-stream'
     ): Promise<string> {
+        if (fileSize !== undefined && fileSize <= GRAPH_UPLOAD_LIMIT) {
+            return this._staged.create({ driveId, parentId, fileName, size: fileSize, contentType });
+        }
         const path = parentId
             ? `/drives/${driveId}/items/${parentId}:/${encodeURIComponent(fileName)}:/createUploadSession`
             : `/drives/${driveId}/root:/${encodeURIComponent(fileName)}:/createUploadSession`;
-        const resp = await this._client.api(path).post({
+        const identity = this._uploads.getIdentity();
+        const resp: unknown = await this._client.api(path).post({
             // eslint-disable-next-line @typescript-eslint/naming-convention -- OData annotation name
             item: { '@microsoft.graph.conflictBehavior': 'rename' },
         });
-        const uploadUrl: string = resp?.uploadUrl ?? '';
-        if (!uploadUrl) {
-            throw new Error('createUploadSession: no uploadUrl in response.');
+        return this._uploads.register(driveId, resp, identity);
+    }
+
+    public async uploadChunk(driveId: string, sessionId: string, offset: number,
+        total: number, bytes: Uint8Array): Promise<UploadChunkResult> {
+        if (this._staged.has(sessionId)) {
+            return this._staged.uploadChunk(driveId, sessionId, offset, total, bytes);
         }
-        return uploadUrl;
+        const result = await this._uploads.uploadChunk(driveId, sessionId, offset, total, bytes);
+        const item = result.itemId ? await this.get(driveId, result.itemId).catch(() => null) : undefined;
+        return { done: result.done, nextOffset: result.nextOffset, item: item ?? undefined };
+    }
+
+    public async cancelUploadSession(driveId: string, sessionId: string): Promise<void> {
+        if (this._staged.has(sessionId)) { return this._staged.cancel(driveId, sessionId); }
+        return this._uploads.cancel(driveId, sessionId);
+    }
+
+    public async dispose(): Promise<void> {
+        this._downloads.dispose();
+        this._uploads.dispose();
+        await this._staged.dispose();
     }
 
     // ── Recycle bin ───────────────────────────────────────────────────────────
@@ -331,6 +369,27 @@ export class DriveGraphService {
     }
 
     // ── URLs ──────────────────────────────────────────────────────────────────
+
+    /** Save fresh, authenticated content without returning URLs or bytes to the webview. */
+    public async download(driveId: string, itemId: string, save?: SaveDownload): Promise<void> {
+        if (!save) { throw new Error('File downloads require the VS Code Save As dialog.'); }
+        const identity = this._downloads.getIdentity();
+        const path = `/drives/${driveId}/items/${itemId}`;
+        const response: unknown = await this._client.api(path).select('name,size,file').get();
+        const parsed = downloadItemSchema.safeParse(response);
+        if (!parsed.success) { throw new Error('Graph did not return downloadable file details.'); }
+        const item = parsed.data;
+        await save(item.name, signal => this._downloads.readGraph(
+            // contentStream is a download-only beta exception: v1.0 content can redirect to SharePoint.
+            downloadSignal => this._client.api(`${path}/contentStream`)
+                .version('beta')
+                .responseType(Graph.ResponseType.RAW)
+                .middlewareOptions([new Graph.RedirectHandlerOptions(0)])
+                .option('signal', downloadSignal)
+                .get(),
+            item.size, identity, signal
+        ));
+    }
 
     /**
      * Return the `webUrl` of the drive root or a specific folder item.

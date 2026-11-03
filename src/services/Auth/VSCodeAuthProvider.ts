@@ -112,17 +112,30 @@ export class VSCodeAuthProvider {
         return pending;
     }
 
+    /** Never opens account, consent, or sign-in UI. Used by already-authorized uploads. */
+    public getTokenSilently(account?: vscode.AuthenticationSessionAccountInformation): Promise<string> {
+        const resolvedAccount = account ?? this._currentSession?.account;
+        const key = `silent-only|${resolvedAccount?.id ?? ''}|${this._fullScopes.join(' ')}`;
+        const existing = this._inFlight.get(key);
+        if (existing) { return existing; }
+        const pending = this._acquireToken(this._fullScopes, false, resolvedAccount, true)
+            .finally(() => this._inFlight.delete(key));
+        this._inFlight.set(key, pending);
+        return pending;
+    }
+
     private async _acquireToken(
         scopes: string[],
         createIfNone: boolean,
-        account: vscode.AuthenticationSessionAccountInformation | undefined
+        account: vscode.AuthenticationSessionAccountInformation | undefined,
+        silent = false
     ): Promise<string> {
         try {
             const session = await Perf.track('auth', `getSession (${createIfNone ? 'interactive' : 'silent'})`, () =>
                 Promise.resolve(vscode.authentication.getSession(
                     VSCodeAuthProvider.PROVIDER_ID,
                     scopes,
-                    { createIfNone, account }
+                    silent ? { silent: true, account } : { createIfNone, account }
                 ))
             );
 

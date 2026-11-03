@@ -8,6 +8,8 @@ import type { ColumnDefinition, FileStorageContainerSettings, Permission } from 
 import { ColumnGraphService } from './ColumnGraphService';
 import { ContainerGraphService } from './ContainerGraphService';
 import { DriveGraphService } from './DriveGraphService';
+import type { UploadSessionOptions } from './UploadSessionService';
+import type { SaveDownload } from './FileDownloadService';
 import { MeGraphService } from './MeGraphService';
 import { PeopleGraphService } from './PeopleGraphService';
 import { PermissionGraphService } from './PermissionGraphService';
@@ -63,6 +65,12 @@ export type GrantedScopesReader = () => Promise<readonly ContainerTypeAppPermiss
 export interface OperationContext {
     /** Emit an incremental payload while the operation is still running. */
     onProgress: (data: unknown) => void;
+    /** Native host capability, not a webview-supplied destination or callback. */
+    saveDownload?: SaveDownload;
+    /** Native PDF capability; URLs and transport never enter the webview. */
+    openPdf?: (driveId: string, itemId: string, authorize: () => Promise<void>) => Promise<void>;
+    /** Native MP4 capability; uses the same host-only transport and readContent gate. */
+    openVideo?: (driveId: string, itemId: string, authorize: () => Promise<void>) => Promise<void>;
 }
 
 type OperationHandlers = {
@@ -144,11 +152,12 @@ export class StorageExplorerApi {
         private readonly _containerTypeId: string,
         client: Graph.Client,
         readGrantedScopes?: GrantedScopesReader,
-        private readonly _tenantId?: string
+        private readonly _tenantId?: string,
+        uploads?: UploadSessionOptions
     ) {
         this._readGrantedScopes = readGrantedScopes;
         this._containers = new ContainerGraphService(client);
-        this._drive = new DriveGraphService(client);
+        this._drive = new DriveGraphService(client, uploads);
         this._permissions = new PermissionGraphService(client);
         this._columns = new ColumnGraphService(client);
         this._people = new PeopleGraphService(client);
@@ -162,6 +171,10 @@ export class StorageExplorerApi {
      */
     public invalidateGrantedScopes(): void {
         // No cached grant remains to invalidate.
+    }
+
+    public async dispose(): Promise<void> {
+        await this._drive.dispose();
     }
 
     /**
@@ -442,7 +455,10 @@ export class StorageExplorerApi {
             'drive.delete': p => drive.delete(p.driveId, p.itemId),
             'drive.uploadSmall': p =>
                 drive.uploadSmall(p.driveId, p.parentId, p.fileName, p.contentType, p.bytes),
-            'drive.createUploadSession': p => drive.createUploadSession(p.driveId, p.parentId, p.fileName),
+            'drive.createUploadSession': p =>
+                drive.createUploadSession(p.driveId, p.parentId, p.fileName, p.fileSize, p.contentType),
+            'drive.uploadChunk': p => drive.uploadChunk(p.driveId, p.sessionId, p.offset, p.total, p.bytes),
+            'drive.cancelUploadSession': p => drive.cancelUploadSession(p.driveId, p.sessionId),
             'drive.listRecycleBin': p => this._listFirstPage(
                 { kind: 'recycleBin', containerId: p.containerId },
                 () => drive.listRecycleBin(p.containerId)
@@ -458,7 +474,16 @@ export class StorageExplorerApi {
             'drive.deleteVersion': p => drive.deleteVersion(p.driveId, p.itemId, p.versionId),
             'drive.getItemWebUrl': p => drive.getItemWebUrl(p.driveId, p.itemId),
             'drive.getDownloadUrl': p => drive.getDownloadUrl(p.driveId, p.itemId),
+            'drive.download': (p, context) => drive.download(p.driveId, p.itemId, context.saveDownload),
             'drive.getPreviewUrl': p => drive.getPreviewUrl(p.driveId, p.itemId),
+            'drive.openPdf': async (p, context) => {
+                if (!context.openPdf) { throw new Error('PDF viewing requires the VS Code extension host.'); }
+                await context.openPdf(p.driveId, p.itemId, () => this._assertAuthorized('drive.openPdf'));
+            },
+            'drive.openVideo': async (p, context) => {
+                if (!context.openVideo) { throw new Error('Video preview requires the VS Code extension host.'); }
+                await context.openVideo(p.driveId, p.itemId, () => this._assertAuthorized('drive.openVideo'));
+            },
 
             // ── permissions ───────────────────────────────────────────────────
             'permissions.listItemPermissions': p => permissions.listItemPermissions(p.driveId, p.itemId),
