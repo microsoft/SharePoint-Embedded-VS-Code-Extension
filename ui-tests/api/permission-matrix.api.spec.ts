@@ -37,6 +37,12 @@ interface Case {
 
 const CASES: Case[] = [
     {
+        scope: 'readContent',
+        op: 'drive.getPreviewUrl',
+        params: { driveId: DRIVE_ID, itemId: ITEM_ID, hideBanner: false },
+        reachedGraph: (c) => c.method === 'POST' && c.path === `/drives/${DRIVE_ID}/items/${ITEM_ID}/preview`,
+    },
+    {
         scope: 'read',
         op: 'containers.list',
         params: {},
@@ -123,6 +129,9 @@ const ALL_SCOPES = [
 function hostWith(granted: string[]) {
     const fake = new FakeGraphClient();
     fake.responder = (call) => {
+        if (call.path.endsWith('/preview') && call.method === 'POST') {
+            return { getUrl: 'https://contoso.sharepoint.com/_layouts/15/embed.aspx?example=preview' };
+        }
         if (call.path.endsWith('/storage/fileStorage/containers') && call.method === 'GET') {
             return { value: [{ id: CONTAINER_ID, displayName: 'C', containerTypeId: CONTAINER_TYPE_ID }] };
         }

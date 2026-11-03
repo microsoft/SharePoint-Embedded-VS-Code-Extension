@@ -20,7 +20,6 @@ import { createGraphClient } from '../../services/StorageExplorer/graphClient';
 import { createUploadSessionOptions } from '../../services/StorageExplorer/uploadAuth';
 import type { DownloadSource } from '../../services/StorageExplorer/FileDownloadService';
 import { saveDownloadedFile } from '../../services/StorageExplorer/saveDownloadedFile';
-import { FilePreviewKind, FilePreviewService } from '../../services/StorageExplorer/FilePreviewService';
 import { evaluateExternalUrl } from '../../services/StorageExplorer/externalUrlPolicy';
 import { escapeHtmlAttribute, sanitizeCspSource, serializeJsonForHtml } from '../../services/StorageExplorer/htmlEncoding';
 import { SerializedError, StorageExplorerPanelState, StorageExplorerReadiness } from '../../services/StorageExplorer/protocol';
@@ -87,7 +86,7 @@ export class StorageExplorerPanel {
     private readonly _containerTypeId: string;
     private readonly _readiness: StorageExplorerReadiness;
     private readonly _api: StorageExplorerApi;
-    private readonly _previews: FilePreviewService;
+    private _previewGeneration = 0;
     private readonly _disposables: vscode.Disposable[] = [];
     private _isDisposed = false;
     /** In-flight permission prompt, so a burst of failed calls raises a single dialog. */
@@ -126,10 +125,9 @@ export class StorageExplorerPanel {
             this._post({ command: 'networkLog', request });
         });
         const transferOptions = createUploadSessionOptions(request => this._post({ command: 'networkLog', request }));
-        this._previews = new FilePreviewService(client, transferOptions.getIdentity);
         const authListener = {
-            onBeforeSignIn: () => this._previews.closeAll(),
-            onSignOut: () => this._previews.closeAll(),
+            onBeforeSignIn: () => { this._previewGeneration++; },
+            onSignOut: () => { this._previewGeneration++; },
         };
         AuthenticationState.subscribe(authListener);
         this._disposables.push(new vscode.Disposable(() => AuthenticationState.unsubscribe(authListener)));
@@ -201,7 +199,7 @@ export class StorageExplorerPanel {
      * unvalidated URL here is both an exfiltration channel and — for schemes such as
      * `file:`, `vscode:` or `command:` — a local-action primitive.
      */
-    private static async _handleOpenExternal(rawUrl: unknown): Promise<void> {
+    private static async _handleOpenExternal(rawUrl: unknown): Promise<boolean> {
         const decision = evaluateExternalUrl(rawUrl);
         if (!decision.allowed) {
             ext.outputChannel.warn(
@@ -210,7 +208,7 @@ export class StorageExplorerPanel {
             void vscode.window.showWarningMessage(
                 vscode.l10n.t('Blocked an attempt to open an unexpected external link ({0}).', decision.description)
             );
-            return;
+            return false;
         }
 
         // Only the scheme and host are logged: SPO download and preview URLs carry
@@ -222,12 +220,14 @@ export class StorageExplorerPanel {
             // different authority than the one that was validated, do not proceed.
             if (uri.scheme === 'https' && uri.authority.toLowerCase() !== new URL(decision.url).hostname) {
                 ext.outputChannel.warn('[StorageExplorerPanel] blocked openExternal: URI authority mismatch');
-                return;
+                return false;
             }
-            await vscode.env.openExternal(uri);
-            ext.outputChannel.info('[StorageExplorerPanel] openExternal succeeded');
-        } catch (error) {
-            ext.outputChannel.error(`[StorageExplorerPanel] openExternal failed: ${error}`);
+            const opened = await vscode.env.openExternal(uri);
+            if (opened) { ext.outputChannel.info('[StorageExplorerPanel] openExternal succeeded'); }
+            return opened;
+        } catch {
+            ext.outputChannel.error('[StorageExplorerPanel] openExternal failed');
+            return false;
         }
     }
 
@@ -247,11 +247,16 @@ export class StorageExplorerPanel {
         }
 
         try {
+            const previewGeneration = this._previewGeneration;
             const result = await this._api.execute(message.op, message.params, {
                 onProgress: data => this._post({ command: 'rpc/progress', requestId, data }),
                 saveDownload: (name, source) => this._saveDownload(name, source),
-                openPdf: (driveId, itemId, authorize) => this._openFilePreview('pdf', driveId, itemId, authorize),
-                openVideo: (driveId, itemId, authorize) => this._openFilePreview('mp4', driveId, itemId, authorize),
+                openPreview: async url => {
+                    if (this._isDisposed || previewGeneration !== this._previewGeneration) {
+                        throw new Error(vscode.l10n.t('The preview session expired or the account changed. Reopen the file.'));
+                    }
+                    return StorageExplorerPanel._handleOpenExternal(url);
+                },
             });
             this._post({ command: 'rpc/response', requestId, ok: true, result });
         } catch (error) {
@@ -262,6 +267,11 @@ export class StorageExplorerPanel {
                 void vscode.window.showErrorMessage(vscode.l10n.t('PDF viewing failed: {0}', original.message));
             } else if (message.op === 'drive.openVideo') {
                 void vscode.window.showErrorMessage(vscode.l10n.t('Video preview failed: {0}', original.message));
+            } else if (message.op === 'drive.getPreviewUrl') {
+                void vscode.window.showErrorMessage(vscode.l10n.t(
+                    'Could not create a file preview: {0} Select Preview again to request a fresh link.',
+                    original.message
+                ));
             }
             // Log the raw failure, not the diagnosis — when the diagnosis is wrong, this is
             // the only place the underlying Graph message and code survive.
@@ -276,31 +286,6 @@ export class StorageExplorerPanel {
             });
         }
 
-    }
-
-    private async _openFilePreview(
-        kind: FilePreviewKind, driveId: string, itemId: string, authorize: () => Promise<void>
-    ): Promise<void> {
-        if (vscode.env.remoteName || vscode.env.uiKind === vscode.UIKind.Web) {
-            throw new Error(kind === 'pdf'
-                ? vscode.l10n.t('Graph-backed PDF viewing requires a local VS Code desktop window. Use Download to view this PDF.')
-                : vscode.l10n.t('Video preview requires a local VS Code desktop window. Use Download to view this video.'));
-        }
-        await this._previews.open(driveId, itemId, authorize,
-            async url => vscode.env.openExternal(vscode.Uri.parse(url, true)),
-            failure => {
-                ext.outputChannel.warn(
-                    `[FilePreviewService] ${kind === 'pdf' ? 'PDF' : 'MP4'} stream failed`
-                    + (failure.statusCode ? ` [HTTP ${failure.statusCode}]` : '')
-                    + (failure.requestId ? ` [request-id=${failure.requestId}]` : '')
-                );
-                const message = failure.statusCode === 403
-                    ? vscode.l10n.t('Microsoft Graph denied access to this file (HTTP 403). Retry Preview. For persistent failures, check file access and the SharePoint Embedded output channel.')
-                    : kind === 'pdf'
-                        ? vscode.l10n.t('Could not load the PDF from Microsoft Graph. Reopen it from Content or use Download.')
-                        : vscode.l10n.t('Could not load the video from Microsoft Graph. Retry Preview from Content or use Download.');
-                void vscode.window.showErrorMessage(message);
-            }, kind);
     }
 
     private async _saveDownload(name: string, source: DownloadSource): Promise<void> {
@@ -647,7 +632,6 @@ export class StorageExplorerPanel {
             return;
         }
         this._isDisposed = true;
-        this._previews.dispose();
         void this._api.dispose().catch(() => {
             ext.outputChannel.error('[StorageExplorerPanel] temporary upload cleanup failed');
         });

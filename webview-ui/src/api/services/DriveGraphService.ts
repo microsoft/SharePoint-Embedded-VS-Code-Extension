@@ -183,17 +183,17 @@ export class DriveGraphService {
         return request('drive.download', { driveId, itemId });
     }
 
-    /** Fetch an embeddable preview URL for a drive item. */
-    async getPreviewUrl(driveId: string, itemId: string): Promise<string> {
-        return request('drive.getPreviewUrl', { driveId, itemId });
+    /** Fetch a fresh preview URL, optionally leaving the service URL unmodified. */
+    async getPreviewUrl(driveId: string, itemId: string, hideBanner?: boolean): Promise<string> {
+        return request('drive.getPreviewUrl', { driveId, itemId, hideBanner });
     }
 
-    /** Open Graph-streamed PDF content using the host's temporary local viewer. */
+    /** Compatibility route: open a fresh Graph /preview URL in the browser. */
     async openPdf(driveId: string, itemId: string): Promise<void> {
         return request('drive.openPdf', { driveId, itemId });
     }
 
-    /** Open Graph-streamed MP4 content using the host's temporary local player. */
+    /** Compatibility route: open a fresh Graph /preview URL in the browser. */
     async openVideo(driveId: string, itemId: string): Promise<void> {
         return request('drive.openVideo', { driveId, itemId });
     }

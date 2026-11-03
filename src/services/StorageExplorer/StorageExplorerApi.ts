@@ -67,10 +67,8 @@ export interface OperationContext {
     onProgress: (data: unknown) => void;
     /** Native host capability, not a webview-supplied destination or callback. */
     saveDownload?: SaveDownload;
-    /** Native PDF capability; URLs and transport never enter the webview. */
-    openPdf?: (driveId: string, itemId: string, authorize: () => Promise<void>) => Promise<void>;
-    /** Native MP4 capability; uses the same host-only transport and readContent gate. */
-    openVideo?: (driveId: string, itemId: string, authorize: () => Promise<void>) => Promise<void>;
+    /** Open a Graph-issued preview URL through the host's external URL allow-list. */
+    openPreview?: (url: string) => Promise<boolean>;
 }
 
 type OperationHandlers = {
@@ -175,6 +173,16 @@ export class StorageExplorerApi {
 
     public async dispose(): Promise<void> {
         await this._drive.dispose();
+    }
+
+    /** Compatibility routes use the same service preview as the webview, never file bytes. */
+    private async _openPreview(driveId: string, itemId: string, context: OperationContext): Promise<void> {
+        if (!context.openPreview) { throw new Error('File preview requires the VS Code extension host.'); }
+        const url = await this._drive.getPreviewUrl(driveId, itemId, false);
+        await this._assertAuthorized('drive.getPreviewUrl');
+        if (!await context.openPreview(url)) {
+            throw new Error('Could not open the file preview. Select Preview again to request a fresh link.');
+        }
     }
 
     /**
@@ -475,14 +483,12 @@ export class StorageExplorerApi {
             'drive.getItemWebUrl': p => drive.getItemWebUrl(p.driveId, p.itemId),
             'drive.getDownloadUrl': p => drive.getDownloadUrl(p.driveId, p.itemId),
             'drive.download': (p, context) => drive.download(p.driveId, p.itemId, context.saveDownload),
-            'drive.getPreviewUrl': p => drive.getPreviewUrl(p.driveId, p.itemId),
+            'drive.getPreviewUrl': p => drive.getPreviewUrl(p.driveId, p.itemId, p.hideBanner),
             'drive.openPdf': async (p, context) => {
-                if (!context.openPdf) { throw new Error('PDF viewing requires the VS Code extension host.'); }
-                await context.openPdf(p.driveId, p.itemId, () => this._assertAuthorized('drive.openPdf'));
+                await this._openPreview(p.driveId, p.itemId, context);
             },
             'drive.openVideo': async (p, context) => {
-                if (!context.openVideo) { throw new Error('Video preview requires the VS Code extension host.'); }
-                await context.openVideo(p.driveId, p.itemId, () => this._assertAuthorized('drive.openVideo'));
+                await this._openPreview(p.driveId, p.itemId, context);
             },
 
             // ── permissions ───────────────────────────────────────────────────

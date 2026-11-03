@@ -154,7 +154,7 @@ export const OPERATION_SCHEMAS = {
     'drive.getItemWebUrl': z.object({ driveId: id, itemId: optionalId }),
     'drive.getDownloadUrl': z.object({ driveId: id, itemId: id }),
     'drive.download': z.object({ driveId: id, itemId: id }),
-    'drive.getPreviewUrl': z.object({ driveId: id, itemId: id }),
+    'drive.getPreviewUrl': z.object({ driveId: id, itemId: id, hideBanner: z.boolean().default(true) }),
     'drive.openPdf': z.object({ driveId: id, itemId: id }),
     'drive.openVideo': z.object({ driveId: id, itemId: id }),
 

@@ -4,45 +4,99 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { test, expect } from '@playwright/test';
-import type { Client } from '@microsoft/microsoft-graph-client';
-import { FilePreviewService } from '../../src/services/StorageExplorer/FilePreviewService';
 import { seedState } from '../helpers/graphMock';
 import { openStorageExplorer } from '../helpers/mock/harness';
-import { FakeGraphClient } from '../api/fakeClient';
-import { MP4_FIXTURE } from '../helpers/mp4Fixture';
+import { isVideoFile } from '../../webview-ui/src/components/FileList/fileListUtils';
+import type { StorageItem } from '../../webview-ui/src/models/StorageItem';
 
 test.use({ channel: 'chromium' });
 
-test('all MP4 preview controls request the host player instead of a SharePoint embed session', async ({ page }) => {
+for (const name of ['Clip.MP4', 'Clip.mov', 'Clip.webm', 'Clip.mkv']) {
+    test(`all ${name} preview controls open fresh, unmodified SharePoint preview URLs`, async ({ page }) => {
+        const state = seedState();
+        const item = state.addDriveItem(state.containers[0].id, { name });
+        const previewUrl = 'https://contoso.sharepoint.com/_layouts/15/embed.aspx?example=preview';
+        const previewUrls: string[] = [];
+        const { view } = await openStorageExplorer(page, state);
+        await page.route('https://graph.microsoft.com/v1.0/drives/*/items/*/preview', async route => {
+            expect(route.request().method()).toBe('POST');
+            const getUrl = `${previewUrl}-${previewUrls.length + 1}`;
+            previewUrls.push(getUrl);
+            await route.fulfill({ json: { getUrl } });
+        });
+        await view.openContainer('Seed Container');
+        await view.select(item.name);
+        const opened = () => page.evaluate(() =>
+            window.__SPE_TEST_POSTED__?.filter(message => message.command === 'openExternal').length ?? 0);
+
+        await view.tid('action-preview').click();
+        await expect.poll(opened).toBe(1);
+        await view.row(item.name).dblclick();
+        await expect.poll(opened).toBe(2);
+        await view.row(item.name).getByTitle('Preview', { exact: true }).click();
+        await expect.poll(opened).toBe(3);
+        await view.openRowMenu(item.name);
+        await view.clickMenuItem('preview');
+        await expect.poll(opened).toBe(4);
+        await expect(view.tid('action-open-dropdown')).toBeDisabled();
+
+        const messages = await page.evaluate(() => window.__SPE_TEST_POSTED__ ?? []);
+        const requests = messages.filter(message => message.command === 'rpc/request' && message.op === 'drive.getPreviewUrl');
+        expect(requests).toHaveLength(4);
+        for (const request of requests) {
+            expect(request.params).toEqual({ driveId: state.containers[0].id, itemId: item.id, hideBanner: false });
+        }
+        expect(messages.filter(message => message.command === 'openExternal').map(message => message.url))
+            .toEqual(previewUrls);
+        expect(previewUrls).toHaveLength(4);
+        expect(new Set(previewUrls).size).toBe(4);
+        expect(messages.some(message =>
+            message.command === 'videoOpened'
+            || ['drive.getItemWebUrl', 'drive.openVideo', 'drive.download'].includes(String(message.op))
+        )).toBe(false);
+    });
+}
+
+test('video classification supports MIME types and filename fallbacks without classifying source code as video', () => {
+    const file: StorageItem = { id: 'i1', name: 'Clip', kind: 'file', modifiedAt: '', type: 'File', size: '' };
+    expect(isVideoFile({ ...file, mimeType: 'VIDEO/MP4' })).toBe(true);
+    expect(isVideoFile({ ...file, mimeType: 'video/quicktime; codecs=avc1' })).toBe(true);
+    expect(isVideoFile({ ...file, name: 'Clip.MP4' })).toBe(true);
+    expect(isVideoFile({ ...file, name: 'Clip.mov', mimeType: 'application/octet-stream' })).toBe(true);
+    expect(isVideoFile({ ...file, name: 'app.ts', mimeType: 'text/typescript' })).toBe(false);
+    expect(isVideoFile({ ...file, name: 'app.ts' })).toBe(false);
+    expect(isVideoFile({ ...file, name: 'Clip.ts', mimeType: 'video/mp2t' })).toBe(true);
+    expect(isVideoFile({ ...file, name: 'Clip.mp4', kind: 'folder' })).toBe(false);
+});
+
+test('a failed video preview does not open a URL and the next attempt requests a fresh preview', async ({ page }) => {
     const state = seedState();
-    const item = state.addDriveItem(state.containers[0].id, { name: 'Clip.MP4' });
+    const item = state.addDriveItem(state.containers[0].id, { name: 'Clip.mp4' });
+    const pageErrors: string[] = [];
+    page.on('pageerror', error => pageErrors.push(error.message));
     const { view } = await openStorageExplorer(page, state);
+    const previewUrl = 'https://contoso.sharepoint.com/_layouts/15/embed.aspx?example=fresh';
+    let attempts = 0;
+    await page.route('https://graph.microsoft.com/v1.0/drives/*/items/*/preview', async route => {
+        attempts++;
+        await route.fulfill(attempts === 1
+            ? { status: 403, json: { error: { code: 'accessDenied', message: 'Access denied' } } }
+            : { json: { getUrl: previewUrl } });
+    });
     await view.openContainer('Seed Container');
     await view.select(item.name);
-    const opened = () => page.evaluate(() =>
-        window.__SPE_TEST_POSTED__?.filter(message => message.command === 'videoOpened').length ?? 0);
-
+    const failed = page.waitForResponse(response => response.url().endsWith('/preview') && response.status() === 403);
     await view.tid('action-preview').click();
-    await expect.poll(opened).toBe(1);
-    await view.row(item.name).dblclick();
-    await expect.poll(opened).toBe(2);
-    await view.row(item.name).getByTitle('Preview', { exact: true }).click();
-    await expect.poll(opened).toBe(3);
-    await view.openRowMenu(item.name);
-    await view.clickMenuItem('preview');
-    await expect.poll(opened).toBe(4);
-    await expect(view.tid('action-open-dropdown')).toBeDisabled();
-
-    const messages = await page.evaluate(() => window.__SPE_TEST_POSTED__ ?? []);
-    const requests = messages.filter(message => message.command === 'rpc/request' && message.op === 'drive.openVideo');
-    expect(requests).toHaveLength(4);
-    for (const request of requests) {
-        expect(request.params).toEqual({ driveId: state.containers[0].id, itemId: item.id });
-    }
-    expect(messages.some(message =>
-        message.command === 'openExternal'
-        || ['drive.getItemWebUrl', 'drive.getPreviewUrl', 'drive.download'].includes(String(message.op))
-    )).toBe(false);
+    await failed;
+    expect(await page.evaluate(() =>
+        (window.__SPE_TEST_POSTED__ ?? []).filter(message => message.command === 'openExternal')
+    )).toHaveLength(0);
+    await view.tid('action-preview').click();
+    await expect.poll(() => page.evaluate(() =>
+        (window.__SPE_TEST_POSTED__ ?? []).filter(message => message.command === 'openExternal').map(message => message.url)
+    )).toEqual([previewUrl]);
+    expect(attempts).toBe(2);
+    expect(pageErrors).toEqual([]);
 });
 
 test('MP4 preview remains blocked without readContent', async ({ page }) => {
@@ -56,51 +110,8 @@ test('MP4 preview remains blocked without readContent', async ({ page }) => {
     await view.row(item.name).dblclick();
     await expect(page.getByTestId('permission-notice')).toContainText('readContent');
     const messages = await page.evaluate(() => window.__SPE_TEST_POSTED__ ?? []);
-    expect(messages.some(message => message.op === 'drive.openVideo' || message.command === 'videoOpened')).toBe(false);
-});
-
-test('the native browser player decodes, plays, and seeks an MP4 served by the host Graph stream', async ({ page }) => {
-    const content = new Uint8Array(MP4_FIXTURE);
-    const fake = new FakeGraphClient();
-    fake.responder = call => {
-        if (!call.path.endsWith('/contentStream')) {
-            return { name: 'Clip.mp4', size: content.length, file: { mimeType: 'video/mp4' } };
-        }
-        const range = /^bytes=(\d+)-(\d+)$/.exec(call.headers.Range ?? '');
-        return range
-            ? new Response(content.slice(Number(range[1]), Number(range[2]) + 1), {
-                status: 206, headers: { 'Content-Range': `bytes ${range[1]}-${range[2]}/${content.length}` },
-            })
-            : new Response(content);
-    };
-    const service = new FilePreviewService(fake as unknown as Client, () => 'test-identity');
-    let url = '';
-    let failures = 0;
-    try {
-        await service.open('d1', 'i1', async () => undefined, async target => {
-            url = target;
-            return true;
-        }, () => { failures++; }, 'mp4');
-        const response = await page.goto(url);
-        expect(response?.headers()['content-type']).toBe('video/mp4');
-        const video = page.locator('video');
-        await expect(video).toBeVisible();
-        await video.evaluate(async (element: HTMLVideoElement) => {
-            element.muted = true;
-            await element.play();
-        });
-        await expect.poll(() => video.evaluate((element: HTMLVideoElement) => element.videoWidth)).toBe(2);
-        await expect.poll(() => video.evaluate((element: HTMLVideoElement) => element.currentTime)).toBeGreaterThan(0);
-        await video.evaluate((element: HTMLVideoElement) => {
-            element.pause();
-            element.currentTime = 0.01;
-        });
-        await expect.poll(() => video.evaluate((element: HTMLVideoElement) => !element.seeking && element.currentTime === 0.01)).toBe(true);
-        expect(await video.evaluate((element: HTMLVideoElement) => element.error)).toBeNull();
-        expect(failures).toBe(0);
-        expect(fake.calls.some(call => call.path.endsWith('/contentStream') && call.version === 'beta')).toBe(true);
-        expect(fake.calls.some(call => call.path.endsWith('/preview'))).toBe(false);
-    } finally {
-        service.dispose();
-    }
+    expect(messages.some(message =>
+        ['drive.getPreviewUrl', 'drive.openVideo'].includes(String(message.op))
+        || message.command === 'openExternal' || message.command === 'videoOpened'
+    )).toBe(false);
 });

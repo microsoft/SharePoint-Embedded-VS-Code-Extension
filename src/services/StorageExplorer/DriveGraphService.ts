@@ -19,6 +19,8 @@ const downloadItemSchema = z.object({
     file: z.object({}),
 });
 
+const previewResponseSchema = z.object({ getUrl: z.string().url() });
+
 const SELECT =
     'id,name,file,folder,size,lastModifiedDateTime,createdDateTime,webUrl,@microsoft.graph.downloadUrl';
 // List select deliberately OMITS `@microsoft.graph.downloadUrl`: it's an expensive per-item
@@ -427,19 +429,26 @@ export class DriveGraphService {
     }
 
     /**
-     * Fetch an embeddable preview URL for a drive item.
-     * POSTs to /driveItem/preview and returns getUrl with ?nb=true appended
-     * to suppress the OneDrive banner in SPE.
+     * Fetch a fresh preview URL on every call; never cache these short-lived links.
+     * Set hideBanner=false to preserve Graph's getUrl verbatim for media previews.
      */
-    public async getPreviewUrl(driveId: string, itemId: string): Promise<string> {
+    public async getPreviewUrl(driveId: string, itemId: string, hideBanner = true): Promise<string> {
         const resp = await this._client
             .api(`/drives/${driveId}/items/${itemId}/preview`)
             .post({});
-        const getUrl: string = resp?.getUrl ?? '';
-        if (!getUrl) {
-            throw new Error('No preview URL returned from API.');
+        const parsed = previewResponseSchema.safeParse(resp);
+        if (!parsed.success) {
+            throw new Error('No valid preview URL returned from API.');
         }
-        const separator = getUrl.indexOf('?') !== -1 ? '&' : '?';
-        return `${getUrl}${separator}nb=true`;
+        const { getUrl } = parsed.data;
+        if (!hideBanner || new URL(getUrl).searchParams.has('nb')) {
+            return getUrl;
+        }
+        // Append without reserializing the token-bearing query string.
+        const fragmentIndex = getUrl.indexOf('#');
+        const base = fragmentIndex === -1 ? getUrl : getUrl.slice(0, fragmentIndex);
+        const fragment = fragmentIndex === -1 ? '' : getUrl.slice(fragmentIndex);
+        const separator = base.includes('?') ? '&' : '?';
+        return `${base}${separator}nb=true${fragment}`;
     }
 }

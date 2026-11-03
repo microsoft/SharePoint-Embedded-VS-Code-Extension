@@ -37,6 +37,11 @@ node_modules/**
 # --- Docs / tests / dev artifacts (not needed at runtime) ---
 docs/**
 ui-tests/**
+**/test-results/**
+**/test-results-api/**
+**/playwright-report/**
+**/playwright/.cache/**
+**/blob-report/**
 out/test/**
 CLAUDE.md
 storage-explorer-prd.md

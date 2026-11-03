@@ -70,7 +70,7 @@ test.describe('AC-11 — the entry is always present and always says which state
         test(`${readiness}: renders a labelled, non-expandable, clickable row`, () => {
             const item = build(readiness);
 
-            expect(item.label).toBe('Content');
+            expect(item.label).toBe('Manage content...');
             expect(item.command.title).toBe('Manage content');
             expect(item.accessibilityInformation.label).toBe('Manage content for Contoso Documents');
             expect(item.collapsibleState, 'the entry has no children of its own')

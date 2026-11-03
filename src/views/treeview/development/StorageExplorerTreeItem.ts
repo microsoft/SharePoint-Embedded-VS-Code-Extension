@@ -24,7 +24,7 @@ export class StorageExplorerTreeItem extends vscode.TreeItem {
         public readonly registration: ContainerTypeRegistration | null,
         public readonly readiness: StorageExplorerReadiness
     ) {
-        super(vscode.l10n.t('Content'), vscode.TreeItemCollapsibleState.None);
+        super(vscode.l10n.t('Manage content...'), vscode.TreeItemCollapsibleState.None);
         this.id = `spe-storage-explorer-${containerType.id}`;
         this.contextValue = `spe:storageExplorerTreeItem-${readiness}`;
         this.accessibilityInformation = {

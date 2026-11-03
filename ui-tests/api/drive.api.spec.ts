@@ -7,6 +7,7 @@ import { test, expect } from '@playwright/test';
 import { Client } from '@microsoft/microsoft-graph-client';
 import { DriveGraphService } from '../../src/services/StorageExplorer/DriveGraphService';
 import { FakeGraphClient } from './fakeClient';
+import { OPERATION_SCHEMAS } from '../../src/services/StorageExplorer/operationSchemas';
 
 function svc() {
     const fake = new FakeGraphClient();
@@ -183,5 +184,54 @@ test.describe('DriveGraphService', () => {
         // The service appends `?nb=true` (suppress the preview nav bar).
         expect(url).toContain('https://x/preview');
         expect(url).toContain('nb=true');
+    });
+
+    test('getPreviewUrl(false) preserves the exact service URL and requests a fresh link every time', async () => {
+        const { fake, s } = svc();
+        const urls = [
+            'https://contoso.sharepoint.com/_layouts/15/embed.aspx?access_token=synthetic%2b%2F%3D+value&uniqueId=1',
+            'https://contoso.sharepoint.com/_layouts/15/embed.aspx?access_token=synthetic%252F&uniqueId=1#player',
+        ];
+        fake.responder = () => ({ getUrl: urls[fake.calls.length - 1] });
+        expect(await s.getPreviewUrl('d1', 'item1', false)).toBe(urls[0]);
+        expect(await s.getPreviewUrl('d1', 'item1', false)).toBe(urls[1]);
+        expect(fake.calls).toHaveLength(2);
+        for (const call of fake.calls) {
+            expect(call).toMatchObject({ method: 'POST', path: '/drives/d1/items/item1/preview', body: {} });
+        }
+    });
+
+    test('banner suppression preserves query encoding, fragments, and existing banner settings', async () => {
+        const { fake, s } = svc();
+        const base = 'https://contoso.sharepoint.com/_layouts/15/embed.aspx?example=a%2bb+%2F';
+        fake.responder = () => ({ getUrl: `${base}#player` });
+        expect(await s.getPreviewUrl('d1', 'item1')).toBe(`${base}&nb=true#player`);
+        fake.responder = () => ({ getUrl: `${base}&nb=false#player` });
+        expect(await s.getPreviewUrl('d1', 'item1')).toBe(`${base}&nb=false#player`);
+    });
+
+    test('preview banner option is validated and defaults to existing behavior', () => {
+        const schema = OPERATION_SCHEMAS['drive.getPreviewUrl'];
+        const params = { driveId: 'd1', itemId: 'item1' };
+        expect(schema.parse(params)).toEqual({ ...params, hideBanner: true });
+        expect(schema.parse({ ...params, hideBanner: false })).toEqual({ ...params, hideBanner: false });
+        expect(schema.safeParse({ ...params, hideBanner: 'false' }).success).toBe(false);
+    });
+
+    test('malformed preview responses fail without including response data in the error', async () => {
+        const { fake, s } = svc();
+        for (const response of [null, {}, { getUrl: '' }, { getUrl: 123 }, { getUrl: 'not-a-url' }]) {
+            fake.responder = () => response;
+            await expect(s.getPreviewUrl('d1', 'item1', false)).rejects.toThrow('No valid preview URL returned from API.');
+        }
+    });
+
+    test('preview authorization failures propagate without falling back to another endpoint', async () => {
+        const { fake, s } = svc();
+        const error = Object.assign(new Error('Access denied'), { code: 'accessDenied', statusCode: 403 });
+        fake.responder = () => { throw error; };
+        await expect(s.getPreviewUrl('d1', 'item1', false)).rejects.toBe(error);
+        expect(fake.calls).toHaveLength(1);
+        expect(fake.last.path).toBe('/drives/d1/items/item1/preview');
     });
 });

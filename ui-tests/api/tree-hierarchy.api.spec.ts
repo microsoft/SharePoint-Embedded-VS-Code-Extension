@@ -121,7 +121,7 @@ test.describe('AC-10 — exactly one Storage Explorer entry per container type',
 
             const entries = children.filter((child) => child instanceof StorageExplorerTreeItem);
             expect(entries, `${label} must expose Storage Explorer exactly once`).toHaveLength(1);
-            expect(entries[0].label).toBe('Content');
+            expect(entries[0].label).toBe('Manage content...');
             expect(
                 entries[0].collapsibleState,
                 'the entry opens a panel; it must not look like an expandable sub-tree'

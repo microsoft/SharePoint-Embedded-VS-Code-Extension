@@ -40,6 +40,20 @@ export function isOfficeFile(item: StorageItem): boolean {
     return OFFICE_EXTENSIONS.has(ext);
 }
 
+const VIDEO_EXTENSIONS = new Set([
+    '3g2', '3gp', '3gpp', 'asf', 'avi', 'm2ts', 'm4v', 'mkv', 'mov', 'mp4',
+    'mpeg', 'mpg', 'mts', 'ogv', 'vob', 'webm', 'wmv',
+]);
+
+/** Classify media for preview routing, not as a guarantee of service codec support. */
+export function isVideoFile(item: StorageItem): boolean {
+    if (item.kind !== 'file') return false;
+    const mimeType = item.mimeType?.toLowerCase().split(';')[0].trim();
+    if (mimeType?.startsWith('video/')) return true;
+    if (mimeType && mimeType !== 'application/octet-stream') return false;
+    return VIDEO_EXTENSIONS.has(item.name.split('.').pop()?.toLowerCase() ?? '');
+}
+
 /** Human-readable file size formatting. */
 export function formatSize(size: string): string {
     return size || '—';

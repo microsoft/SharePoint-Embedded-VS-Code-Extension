@@ -320,10 +320,10 @@ export interface StorageExplorerOperations {
     'drive.getDownloadUrl': { params: { driveId: string; itemId: string }; result: string };
     /** Host-owned Save As dialog and streaming download; returns no path, URL, or file bytes. */
     'drive.download': { params: { driveId: string; itemId: string }; result: void };
-    'drive.getPreviewUrl': { params: { driveId: string; itemId: string }; result: string };
-    /** Host opens a temporary, Graph-backed PDF viewer; returns no URL or file bytes. */
+    'drive.getPreviewUrl': { params: { driveId: string; itemId: string; hideBanner?: boolean }; result: string };
+    /** Compatibility route: host opens a fresh Graph /preview URL; returns no file bytes. */
     'drive.openPdf': { params: { driveId: string; itemId: string }; result: void };
-    /** Host opens a temporary, Graph-backed MP4 player; returns no URL or file bytes. */
+    /** Compatibility route: host opens a fresh Graph /preview URL; returns no file bytes. */
     'drive.openVideo': { params: { driveId: string; itemId: string }; result: void };
 
     // ── permissions ───────────────────────────────────────────────────────────

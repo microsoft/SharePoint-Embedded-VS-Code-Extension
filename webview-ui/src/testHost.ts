@@ -188,19 +188,9 @@ export function installTestHost(options: TestHostOptions): void {
         try {
             const result = await api.execute(message.op, message.params, {
                 onProgress: data => toWebview({ command: 'rpc/progress', requestId, data }),
-                openPdf: async (driveId, itemId, authorize) => {
-                    if (!options.token.endsWith('.sig')) {
-                        throw new Error('PDF viewing requires the VS Code extension host.');
-                    }
-                    await authorize();
-                    posted.push({ command: 'pdfOpened', driveId, itemId });
-                },
-                openVideo: async (driveId, itemId, authorize) => {
-                    if (!options.token.endsWith('.sig')) {
-                        throw new Error('Video preview requires the VS Code extension host.');
-                    }
-                    await authorize();
-                    posted.push({ command: 'videoOpened', driveId, itemId });
+                openPreview: async url => {
+                    posted.push({ command: 'openExternal', url });
+                    return true;
                 },
                 saveDownload: async (name, source) => {
                     if (!options.token.endsWith('.sig')) {

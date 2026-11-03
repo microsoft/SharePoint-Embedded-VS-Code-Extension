@@ -17,7 +17,7 @@ function scopeKey(scope: CollectionScope): string {
 import { DriveGraphService } from '../api/services/DriveGraphService';
 import { openUrl } from '../utils/openUrl';
 import { onExtensionMessage, postToExtension } from '../utils/vsbridge';
-import { isOfficeFile } from '../components/FileList/fileListUtils';
+import { isOfficeFile, isVideoFile } from '../components/FileList/fileListUtils';
 import { RpcError } from '../api/rpc';
 import { isAccessDeniedError } from '../../../src/services/StorageExplorer/accessDenied';
 
@@ -859,24 +859,17 @@ export function StorageExplorerProvider({ children }: { children: React.ReactNod
 
     const previewItem = useCallback(async (item: StorageItem) => {
         const isPdf = item.mimeType?.toLowerCase() === 'application/pdf' || /\.pdf$/i.test(item.name);
-        const isMp4 = item.mimeType?.toLowerCase() === 'video/mp4' || /\.mp4$/i.test(item.name);
-        const operation = isPdf ? 'drive.openPdf' : isMp4 ? 'drive.openVideo' : 'drive.getPreviewUrl';
-        if (!requireOperation(operation)) { return; }
+        if (!requireOperation('drive.getPreviewUrl')) { return; }
         if (!currentDriveId) return;
-        if (isPdf || isMp4) {
-            try {
-                if (isPdf) {
-                    await apiRef.current!.drive.openPdf(currentDriveId, item.id);
-                } else {
-                    await apiRef.current!.drive.openVideo(currentDriveId, item.id);
-                }
-            } catch {
-                // The host presents preview failures through a native notification.
-            }
-            return;
+        try {
+            const url = await apiRef.current!.drive.getPreviewUrl(
+                currentDriveId, item.id, isPdf || isVideoFile(item) ? false : undefined,
+            );
+            openUrl(url);
+        } catch (error) {
+            // The host shows RPC failures as native notifications. Do not open a stale URL.
+            if (!(error instanceof RpcError)) throw error;
         }
-        const url = await apiRef.current!.drive.getPreviewUrl(currentDriveId, item.id);
-        openUrl(url);
     }, [currentDriveId, requireOperation]);
 
     const openInBrowser = useCallback(async (item: StorageItem) => {
