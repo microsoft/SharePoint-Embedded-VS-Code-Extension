@@ -17,6 +17,8 @@ import { DevelopmentTreeViewProvider } from '../../views/treeview/development/De
 import { AdminConsentHelper } from '../../utils/AdminConsentHelper';
 import { clientId } from '../../client';
 import { REQUIRED_DELEGATED_PERMISSIONS } from '../../utils/ExtensionAppPermissions';
+import { openStorageExplorerWhenReady } from './StorageExplorerHandoff';
+import { StorageExplorerTreeItem } from '../../views/treeview/development/StorageExplorerTreeItem';
 
 /**
  * Command to register a container type on the local tenant
@@ -174,7 +176,10 @@ export class RegisterOnLocalTenant extends Command {
 
         // Extract container type
         let containerType: ContainerType;
-        if (commandProps instanceof ContainerTypeTreeItem) {
+        if (
+            commandProps instanceof ContainerTypeTreeItem
+            || commandProps instanceof StorageExplorerTreeItem
+        ) {
             containerType = commandProps.containerType;
         } else if (commandProps) {
             containerType = commandProps as ContainerType;
@@ -745,8 +750,13 @@ export class RegisterOnLocalTenant extends Command {
                 );
             }
 
-            // Refresh tree view
-            DevelopmentTreeViewProvider.instance.refresh();
+            // Refresh tree view, and hand off to Storage Explorer when registration was the
+            // last missing step (the extension-app grant is included above by default).
+            if (verified) {
+                await openStorageExplorerWhenReady(containerType, registration);
+            } else {
+                DevelopmentTreeViewProvider.instance.refresh();
+            }
 
             return registration;
 
@@ -838,4 +848,4 @@ export class RegisterOnLocalTenant extends Command {
 }
 
 // Accept both old and new ContainerType models for backward compatibility
-export type RegistrationCommandProps = ContainerTypeTreeItem | ContainerType;
+export type RegistrationCommandProps = ContainerTypeTreeItem | StorageExplorerTreeItem | ContainerType;

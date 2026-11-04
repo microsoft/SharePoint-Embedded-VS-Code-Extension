@@ -20,10 +20,13 @@ export class SignIn extends Command {
             await AuthenticationState.signIn();
             TelemetryProvider.instance.send(new SignInEvent());
         } catch (error: any) {
-            const message = vscode.l10n.t(`Failed to sign in, please try again: {0}`, error.message || error);
+            const errorMessage = error?.message || String(error);
+            const message = errorMessage.includes('platform_broker_error')
+                ? vscode.l10n.t('Microsoft sign-in failed. SharePoint Embedded supports work or school accounts only. If you selected a personal Microsoft account, try again and choose a work or school account.')
+                : vscode.l10n.t('Failed to sign in, please try again: {0}', errorMessage);
             vscode.window.showErrorMessage(message);
             vscode.commands.executeCommand('setContext', 'spe:isLoggingIn', false);
-            TelemetryProvider.instance.send(new SignInFailure(error.message));
+            TelemetryProvider.instance.send(new SignInFailure(errorMessage));
         }
     }
 }

@@ -6,13 +6,13 @@
     "type": "git",
     "url": "https://github.com/microsoft/SharePoint-Embedded-VS-Code-Extension"
   },
-  "version": "1.0.6",
+  "version": "1.0.7",
   "author": "Microsoft Corporation",
   "publisher": "SharepointEmbedded",
   "preview": false,
   "icon": "media/sharepoint-embedded-icon.png",
   "engines": {
-    "vscode": "^1.94.0"
+    "vscode": "^1.101.0"
   },
   "categories": [
     "Snippets",
@@ -23,9 +23,16 @@
   "main": "./out/extension.js",
   "l10n": "./l10n",
   "activationEvents": [
-    "onUri"
+    "onUri",
+    "onMcpServerDefinitionProvider:sharepointEmbedded.speMcp"
   ],
   "contributes": {
+    "mcpServerDefinitionProviders": [
+      {
+        "id": "sharepointEmbedded.speMcp",
+        "label": "SharePoint Embedded"
+      }
+    ],
     "icons": {
       "spe-m365": {
         "description": "Microsoft 365 icon in command tree view",
@@ -97,12 +104,12 @@
       {
         "view": "spe-welcome",
         "contents": "Loading SharePoint Embedded...",
-        "when": "!spe:isActivated && !spe:isLoggedIn && !spe:isLoggingIn"
+        "when": "!spe:isLoggedIn && !spe:isLoggingIn && !spe:signInReady"
       },
       {
         "view": "spe-welcome",
         "contents": "Sign into your Microsoft 365 tenant to get started.\n[Sign into Microsoft 365](command:spe.login) \n\n\n If you don't have a Microsoft 365 tenant, [get your own tenant with the Microsoft 365 Developer Program](https://developer.microsoft.com/en-us/microsoft-365/dev-program).",
-        "when": "spe:isActivated && !spe:isLoggedIn && !spe:isLoggingIn"
+        "when": "!spe:isLoggedIn && !spe:isLoggingIn && spe:signInReady"
       },
       {
         "view": "spe-development",
@@ -297,6 +304,16 @@
           "group": "5@1"
         },
         {
+          "when": "viewItem =~ /spe:localRegistrationTreeItem/",
+          "command": "spe.ContainerType.openStorageExplorer",
+          "group": "1@1"
+        },
+        {
+          "when": "viewItem =~ /spe:localRegistrationTreeItem/",
+          "command": "spe.ContainerType.openStorageExplorer",
+          "group": "inline@1"
+        },
+        {
           "when": "viewItem =~ /spe:containerTypeTreeItem.*/",
           "command": "spe.ContainerType.viewProperties",
           "group": "5@2"
@@ -382,69 +399,29 @@
           "group": "inline@1"
         },
         {
-          "when": "viewItem == spe:containersTreeItem",
-          "command": "spe.Containers.create",
+          "when": "viewItem =~ /spe:storageExplorerTreeItem.*/",
+          "command": "spe.ContainerType.openStorageExplorer",
           "group": "1@1"
         },
         {
-          "when": "viewItem =~ /spe:containersTreeItem.*/",
-          "command": "spe.refresh",
-          "group": "2@1"
-        },
-        {
-          "when": "viewItem =~ /spe:containersTreeItem.*/",
-          "command": "spe.refresh",
-          "group": "inline@1"
-        },
-        {
-          "when": "viewItem =~ /spe:containerTreeItem.*/",
-          "command": "spe.Container.rename",
-          "group": "1@1"
-        },
-        {
-          "when": "viewItem =~ /spe:containerTreeItem.*/",
-          "command": "spe.Container.editDescription",
+          "when": "viewItem == spe:storageExplorerTreeItem-unregistered",
+          "command": "spe.ContainerType.registerOnLocalTenant",
           "group": "1@2"
         },
         {
-          "when": "viewItem =~ /spe:containerTreeItem.*/",
-          "command": "spe.Container.recycle",
-          "group": "1@3"
-        },
-        {
-          "when": "viewItem =~ /spe:containerTreeItem.*/",
-          "command": "spe.Container.copyId",
-          "group": "2@1"
-        },
-        {
-          "when": "viewItem =~ /spe:containerTreeItem.*/",
-          "command": "spe.Container.viewProperties",
-          "group": "2@2"
-        },
-        {
-          "when": "viewItem =~ /spe:recycledContainerTreeItem.*/",
-          "command": "spe.RecycledContainer.restore",
-          "group": "1@1"
-        },
-        {
-          "when": "viewItem =~ /spe:recycledContainerTreeItem.*/",
-          "command": "spe.RecycledContainer.delete",
+          "when": "viewItem == spe:storageExplorerTreeItem-missingPermissions",
+          "command": "spe.ContainerType.grantExtensionAppPermissions",
           "group": "1@2"
         },
         {
-          "when": "viewItem =~ /spe:recycledContainerTreeItem.*/",
-          "command": "spe.RecycledContainer.copyId",
-          "group": "2@1"
+          "when": "viewItem == spe:storageExplorerTreeItem-billingBlocked",
+          "command": "spe.ContainerType.attachBilling",
+          "group": "1@2"
         },
         {
-          "when": "viewItem == spe:recycledContainersTreeItem",
+          "when": "viewItem =~ /spe:storageExplorerTreeItem.*/",
           "command": "spe.refresh",
           "group": "2@1"
-        },
-        {
-          "when": "viewItem == spe:recycledContainersTreeItem",
-          "command": "spe.refresh",
-          "group": "inline@1"
         }
       ]
     },
@@ -523,6 +500,11 @@
       {
         "command": "spe.ContainerType.browseGraphExplorer",
         "title": "%commands.spe.ContainerType.browseGraphExplorer%"
+      },
+      {
+        "command": "spe.ContainerType.openStorageExplorer",
+        "title": "%commands.spe.ContainerType.openStorageExplorer%",
+        "icon": "$(database)"
       },
       {
         "command": "spe.ContainerType.viewProperties",
@@ -638,19 +620,40 @@
     ]
   },
   "scripts": {
-    "vscode:prepublish": "npm run esbuild-base -- --minify",
-    "compile": "tsc -p ./",
+    "vscode:prepublish": "npm run build:webview && npm run build:mcp && npm run esbuild-base -- --minify",
+    "build:webview": "cd webview-ui && npm run build",
+    "build:mcp": "node tools/build-mcp-server.mjs",
+    "watch:webview": "cd webview-ui && npm run watch",
+    "postinstall": "cd webview-ui && npm install",
+    "compile": "npm run build:mcp && tsc -p ./",
     "watch": "tsc -watch -p ./",
     "pretest": "npm run compile && npm run lint",
     "lint": "eslint src --ext ts",
     "test": "node ./out/test/runTest.js",
+    "test:ui": "playwright test -c ui-tests/playwright.config.ts",
+    "typecheck:tests": "tsc -p ui-tests/tsconfig.json --noEmit",
+    "pretest:api": "npm run typecheck:tests",
+    "test:api": "playwright test -c ui-tests/playwright.api.config.ts",
+    "test:perf": "playwright test -c ui-tests/playwright.perf.config.ts",
+    "explore": "playwright test -c ui-tests/playwright.explore.config.ts",
+    "test:ui:report": "playwright show-report ui-tests/playwright-report",
     "bundle": "npm install -g @vscode/vsce && vsce package",
     "esbuild-base": "esbuild ./src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node",
     "esbuild": "npm run esbuild-base -- --sourcemap",
     "esbuild-watch": "npm run esbuild-base -- --sourcemap --watch",
-    "test-compile": "tsc -p ./"
+    "test-compile": "tsc -p ./",
+    "agent:build": "tsc -p tools/agent-loop/tsconfig.json",
+    "agent:validate": "npm run agent:build --silent && node tools/agent-loop/dist/cli.js validate",
+    "agent:plan": "npm run agent:build --silent && node tools/agent-loop/dist/cli.js plan",
+    "agent:run": "npm run agent:build --silent && node tools/agent-loop/dist/cli.js run",
+    "agent:test": "npm run agent:build --silent && node --test tools/agent-loop/dist/agentProfiles.test.js tools/agent-loop/dist/contract.test.js tools/agent-loop/dist/copilot.test.js tools/agent-loop/dist/sdkPreflight.test.js tools/agent-loop/dist/orchestrator.test.js tools/agent-loop/dist/paths.test.js",
+    "agent:test:sdk-smoke": "npm run agent:build --silent && node --test tools/agent-loop/dist/copilot.smoke.test.js"
   },
   "devDependencies": {
+    "@github/copilot-sdk": "1.0.10-preview.0",
+    "@microsoft/microsoft-graph-types": "^2.43.1",
+    "@microsoft/spe-mcp": "0.2.0-alpha.2",
+    "@playwright/test": "^1.49.1",
     "@types/chai": "^4.3.11",
     "@types/glob": "^8.1.0",
     "@types/jsrsasign": "^10.5.8",
@@ -661,11 +664,12 @@
     "@types/temp": "^0.9.4",
     "@types/tmp": "^0.2.6",
     "@types/uuid": "^9.0.3",
-    "@types/vscode": "^1.94.0",
+    "@types/vscode": "1.101.0",
     "@typescript-eslint/eslint-plugin": "^5.59.8",
     "@typescript-eslint/parser": "^5.59.8",
     "@vscode/test-cli": "^0.0.4",
     "@vscode/test-electron": "^2.3.9",
+    "ajv": "^8.17.1",
     "chai": "^4.4.0",
     "esbuild": "^0.25.0",
     "eslint": "^8.41.0",

@@ -10,6 +10,7 @@ import { ContainerType } from '../../models/schemas';
 import { GraphProvider } from '../../services/Graph/GraphProvider';
 import { DevelopmentTreeViewProvider } from '../../views/treeview/development/DevelopmentTreeViewProvider';
 import { ProgressWaitNotification } from '../../views/notifications/ProgressWaitNotification';
+import { StorageExplorerPanel } from '../../views/StorageExplorer/StorageExplorerPanel';
 
 // Static class that handles the delete container type command
 export class DeleteContainerType extends Command {
@@ -91,6 +92,7 @@ export class DeleteContainerType extends Command {
             }
 
             await graphProvider.containerTypes.delete(id);
+            StorageExplorerPanel.closeForContainerType(id);
 
             progressWindow.hide();
             vscode.window.showInformationMessage(
@@ -121,6 +123,7 @@ export class DeleteContainerType extends Command {
                 errorMessage = vscode.l10n.t(
                     'Container type not found. It may have already been deleted.'
                 );
+                StorageExplorerPanel.closeForContainerType(id);
                 // Still refresh the tree view since it's gone
                 DevelopmentTreeViewProvider.getInstance().refresh();
             }

@@ -10,10 +10,15 @@ import { IChildrenProvidingTreeItem } from "./IDataProvidingTreeItem";
 import { LocalRegistrationTreeItem } from "./LocalRegistrationTreeItem";
 import { Logger } from "../../../utils/Logger";
 import { blockBillingInvalid, tintBillingInvalid } from "./BillingDecorationProvider";
+import { StorageExplorerTreeItem } from "./StorageExplorerTreeItem";
+import { computeStorageExplorerReadiness, isBillingInvalid } from "./storageExplorerReadiness";
+import type { StorageExplorerReadiness } from "../../../services/StorageExplorer/protocol";
 
 export class ContainerTypeTreeItem extends IChildrenProvidingTreeItem {
     public readonly registration: ContainerTypeRegistration | null;
     public readonly subtreeBillingInvalid: boolean;
+    /** Whether Storage Explorer can operate on this container type, and if not, why. */
+    public readonly storageExplorerReadiness: StorageExplorerReadiness;
 
     constructor(
         public readonly containerType: ContainerType,
@@ -75,7 +80,7 @@ export class ContainerTypeTreeItem extends IChildrenProvidingTreeItem {
         // CT row reflects DTC registration state too.
         const ctBillingInvalid = (isStandard || isDirectToCustomer) && containerType.billingStatus !== 'valid';
         const regBillingInvalid = !!registration && registration.billingStatus !== 'valid';
-        this.subtreeBillingInvalid = ctBillingInvalid || regBillingInvalid;
+        this.subtreeBillingInvalid = isBillingInvalid(containerType, registration);
         const billingInvalid = this.subtreeBillingInvalid;
         Logger.log(`[ContainerTypeTreeItem] ${containerType.name}: classification=${classification ?? '(undef)'} billingStatus=${containerType.billingStatus ?? '(undef)'} ctBillingInvalid=${ctBillingInvalid} regBillingInvalid=${regBillingInvalid}`);
         if (billingInvalid) {
@@ -115,6 +120,14 @@ export class ContainerTypeTreeItem extends IChildrenProvidingTreeItem {
         if (registration && hasExtensionPermissions) {
             this.contextValue += "-extensionPermissionsGranted";
         }
+
+        // Readiness drives the Storage Explorer row below, and is computed by the same
+        // helper the post-setup hand-off uses so the tree and the panel never disagree.
+        this.storageExplorerReadiness = computeStorageExplorerReadiness(
+            containerType,
+            registration,
+            hasExtensionPermissions
+        );
     }
 
     public async getChildren(): Promise<vscode.TreeItem[]> {
@@ -134,6 +147,14 @@ export class ContainerTypeTreeItem extends IChildrenProvidingTreeItem {
             if (this.registration) {
                 children.push(new LocalRegistrationTreeItem(this.containerType, this.registration, this.subtreeBillingInvalid));
             }
+
+            // Always last, and always present: a container type that is not ready yet needs
+            // this row most, because it is what names the next step.
+            children.push(new StorageExplorerTreeItem(
+                this.containerType,
+                this.registration,
+                this.storageExplorerReadiness
+            ));
         } catch (error) {
             console.error('Error loading container type children:', error);
         }

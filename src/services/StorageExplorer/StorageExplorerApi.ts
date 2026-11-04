@@ -1,0 +1,538 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import * as Graph from '@microsoft/microsoft-graph-client';
+import type { ColumnDefinition, FileStorageContainerSettings, Permission } from '@microsoft/microsoft-graph-types';
+import { ColumnGraphService } from './ColumnGraphService';
+import { ContainerGraphService } from './ContainerGraphService';
+import { DriveGraphService } from './DriveGraphService';
+import type { UploadSessionOptions } from './UploadSessionService';
+import type { SaveDownload } from './FileDownloadService';
+import { MeGraphService } from './MeGraphService';
+import { PeopleGraphService } from './PeopleGraphService';
+import { PermissionGraphService } from './PermissionGraphService';
+import { isStorageExplorerOperation, OPERATION_SCHEMAS } from './operationSchemas';
+import { ContinuationStore, GraphPage } from './pagination';
+import {
+    AuthorizationSnapshot,
+    CollectionScope,
+    OperationParams,
+    OperationResult,
+    PagedResult,
+    SerializedError,
+    StorageExplorerOperation,
+    StorageItem,
+} from './protocol';
+import type { ContainerTypeAppPermission } from '../../models/schemas';
+import {
+    missingCapabilitiesForOperation,
+    OPERATION_REQUIRED_CAPABILITIES,
+    StorageExplorerCapability,
+} from '../../utils/ExtensionAppPermissionScopes';
+import {
+    getPendingCreatedContainerIds,
+    recordPendingCreatedContainer,
+    removePendingCreatedContainer,
+} from './pendingCreatedContainers';
+
+/** `SerializedError.code` the webview matches to render "permissions required". */
+const MISSING_EXTENSION_PERMISSIONS_CODE = 'missingExtensionAppPermissions';
+
+/**
+ * Raised when the extension app's grant on this container type does not cover the requested
+ * operation. Thrown *before* any Graph call, so a denied interaction costs zero requests and
+ * cannot be mistaken for an empty collection.
+ *
+ * Carries scope names only — never the grant, the principal, or any other tenant detail.
+ */
+export class MissingContainerTypePermissionError extends Error {
+    public readonly code = MISSING_EXTENSION_PERMISSIONS_CODE;
+    public constructor(public readonly requiredScopes: string[]) {
+        super(
+            `This action needs the SharePoint Embedded extension app to have `
+            + `${requiredScopes.join(', ')} permission on this container type.`
+        );
+        this.name = 'MissingContainerTypePermissionError';
+    }
+}
+
+/** Reads the extension app's currently granted delegated scopes on a container type. */
+export type GrantedScopesReader = () => Promise<readonly ContainerTypeAppPermission[]>;
+
+/** Per-request facilities handed to an operation handler. */
+export interface OperationContext {
+    /** Emit an incremental payload while the operation is still running. */
+    onProgress: (data: unknown) => void;
+    /** Native host capability, not a webview-supplied destination or callback. */
+    saveDownload?: SaveDownload;
+    /** Open a Graph-issued preview URL through the host's external URL allow-list. */
+    openPreview?: (url: string) => Promise<boolean>;
+}
+
+type OperationHandlers = {
+    [K in StorageExplorerOperation]: (
+        params: OperationParams<K>,
+        context: OperationContext
+    ) => Promise<OperationResult<K>>;
+};
+
+/** Convert a thrown value into a structured-clone-safe envelope for the webview. */
+export function serializeError(error: unknown): SerializedError {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const err = error as any;
+    const statusCode = typeof err?.statusCode === 'number' ? err.statusCode : undefined;
+    const code = typeof err?.code === 'string' ? err.code : undefined;
+    const message = typeof err?.message === 'string' && err.message
+        ? err.message
+        : String(error);
+    // Scope *names* only, and only when the host itself denied the call.
+    const requiredScopes = Array.isArray(err?.requiredScopes)
+        ? (err.requiredScopes as unknown[]).filter((scope): scope is string => typeof scope === 'string')
+        : undefined;
+    return { message, statusCode, code, requiredScopes };
+}
+
+/**
+ * Executes Storage Explorer Graph operations on the extension host.
+ *
+ * One instance is created per open panel and is bound to that panel's container
+ * type. The webview can only invoke the operations enumerated in
+ * `StorageExplorerOperations`; it never receives a bearer token, and it cannot
+ * influence which container type is queried.
+ *
+ * The Graph client is injected (see `createGraphClient`) so this class has no
+ * dependency on `vscode` and can be driven with a stub client in tests.
+ */
+export class StorageExplorerApi {
+    private readonly _containers: ContainerGraphService;
+    private readonly _drive: DriveGraphService;
+    private readonly _permissions: PermissionGraphService;
+    private readonly _columns: ColumnGraphService;
+    private readonly _people: PeopleGraphService;
+    private readonly _me: MeGraphService;
+    private readonly _handlers: OperationHandlers;
+
+    /** Graph `@odata.nextLink` values for this panel. The webview only ever sees opaque ids. */
+    private readonly _continuations = new ContinuationStore();
+
+    /**
+     * Containers already proven to belong to `_containerTypeId`.
+     *
+     * Populated from every container listing/creation this panel performs, so the common
+     * path costs nothing; ids the webview supplies out of the blue are verified lazily.
+     */
+    private readonly _containersInScope = new Set<string>();
+    private readonly _pendingScopeChecks = new Map<string, Promise<void>>();
+
+    /**
+     * Grant lookup backing the capability matrix.
+     *
+     * The grant belongs to the *extension app*, not to the panel's Graph session, so only the
+     * caller that knows which app the extension runs as can read it. Both real hosts inject
+     * one: `StorageExplorerPanel` on the extension host, and the standalone harness in
+     * `testHost.ts`. When it is absent there is no capability policy to evaluate and the
+     * matrix is not applied — every other host-side guard (operation allow-list, parameter
+     * schemas, container-type scoping) still runs.
+     */
+    private readonly _readGrantedScopes: GrantedScopesReader | undefined;
+
+    /**
+     * @param _containerTypeId Container type this panel was opened for. Injected into every
+     *   container-type-scoped operation instead of being accepted from the webview.
+     * @param client Authenticated Graph client; its token stays in the host process.
+     * @param readGrantedScopes Reads the extension app's delegated scopes on this container
+     *   type. Supplied by every real host; see `_readGrantedScopes`.
+     * @param _tenantId Scopes the volatile pending-container registry to the signed-in tenant.
+     */
+    public constructor(
+        private readonly _containerTypeId: string,
+        client: Graph.Client,
+        readGrantedScopes?: GrantedScopesReader,
+        private readonly _tenantId?: string,
+        uploads?: UploadSessionOptions
+    ) {
+        this._readGrantedScopes = readGrantedScopes;
+        this._containers = new ContainerGraphService(client);
+        this._drive = new DriveGraphService(client, uploads);
+        this._permissions = new PermissionGraphService(client);
+        this._columns = new ColumnGraphService(client);
+        this._people = new PeopleGraphService(client);
+        this._me = new MeGraphService(client);
+        this._handlers = this._buildHandlers();
+    }
+
+    /**
+     * Retained for grant-flow callers. Authorization reads are intentionally live now, so
+     * externally removed scopes cannot remain authorized for the lifetime of an open panel.
+     */
+    public invalidateGrantedScopes(): void {
+        // No cached grant remains to invalidate.
+    }
+
+    public async dispose(): Promise<void> {
+        await this._drive.dispose();
+    }
+
+    /** Compatibility routes use the same service preview as the webview, never file bytes. */
+    private async _openPreview(driveId: string, itemId: string, context: OperationContext): Promise<void> {
+        if (!context.openPreview) { throw new Error('File preview requires the VS Code extension host.'); }
+        const url = await this._drive.getPreviewUrl(driveId, itemId, false);
+        await this._assertAuthorized('drive.getPreviewUrl');
+        if (!await context.openPreview(url)) {
+            throw new Error('Could not open the file preview. Select Preview again to request a fresh link.');
+        }
+    }
+
+    /**
+     * Validate and run a single operation requested by the webview.
+     * Throws when the operation is unknown or its parameters fail validation.
+     */
+    public async execute(
+        operation: unknown,
+        rawParams: unknown,
+        context: OperationContext
+    ): Promise<unknown> {
+        if (!isStorageExplorerOperation(operation)) {
+            throw new Error(`Unsupported Storage Explorer operation: ${String(operation)}`);
+        }
+
+        const schema = OPERATION_SCHEMAS[operation];
+        const params = schema.parse(rawParams ?? {});
+
+        // Authorize before anything else touches Graph: a denied interaction must cost zero
+        // requests, so it can never be confused with an empty collection.
+        await this._assertAuthorized(operation);
+
+        // Every container-scoped operation names its target with `containerId` or `driveId`
+        // (in SPE these are the same value). Confirm the target belongs to this panel's
+        // container type before touching Graph, so a compromised webview cannot use the
+        // panel as a proxy into containers the user opened elsewhere.
+        const scoped = params as { containerId?: unknown; driveId?: unknown };
+        if (typeof scoped.containerId === 'string') {
+            await this._assertContainerInScope(scoped.containerId);
+        }
+        if (typeof scoped.driveId === 'string' && scoped.driveId !== scoped.containerId) {
+            await this._assertContainerInScope(scoped.driveId);
+        }
+
+        const handler = this._handlers[operation] as unknown as (
+            p: unknown,
+            c: OperationContext
+        ) => Promise<unknown>;
+        return handler(params, context);
+    }
+
+    /**
+     * Reject an operation the extension app has no grant for, naming the missing scopes.
+     *
+     * Gating happens here rather than in each service so no operation can be added without
+     * passing through the matrix. Operations that need no container-type capability skip the
+     * grant lookup entirely.
+     *
+     * Fails closed once a policy exists: an empty, absent, or unreadable grant authorizes
+     * nothing.
+     */
+    private async _assertAuthorized(operation: StorageExplorerOperation): Promise<void> {
+        const readGrantedScopes = this._readGrantedScopes;
+        if (!readGrantedScopes) { return; }
+
+        const required = missingCapabilitiesForOperation(operation, []);
+        if (required.length === 0) { return; }
+
+        // Read on every operation. App permissions can be edited outside this panel, and a
+        // panel-lifetime cache would continue authorizing removed scopes until VS Code reloads.
+        const granted = await readGrantedScopes();
+        const missing = missingCapabilitiesForOperation(operation, granted);
+        if (missing.length > 0) {
+            throw new MissingContainerTypePermissionError(missing as StorageExplorerCapability[]);
+        }
+    }
+
+    /** Return operation-level missing scopes without exposing the underlying grant document. */
+    private async _getAuthorizationSnapshot(): Promise<AuthorizationSnapshot> {
+        const granted = this._readGrantedScopes ? await this._readGrantedScopes() : [];
+        const missingScopesByOperation: Record<string, string[]> = {};
+        for (const operation of Object.keys(OPERATION_REQUIRED_CAPABILITIES) as StorageExplorerOperation[]) {
+            const missing = missingCapabilitiesForOperation(operation, granted);
+            if (missing.length > 0) {
+                missingScopesByOperation[operation] = missing;
+            }
+        }
+        return { missingScopesByOperation };
+    }
+
+    /** Start (or restart) a first-page listing, retiring the view's earlier continuations. */
+    private async _listFirstPage(
+        scope: CollectionScope,
+        fetch: () => Promise<GraphPage<StorageItem>>
+    ): Promise<PagedResult<StorageItem>> {
+        const generation = this._continuations.beginListing(scope);
+        const { items, nextLink } = await fetch();
+        const continuation = this._continuations.issue(scope, nextLink, generation);
+        return continuation ? { items, continuation } : { items };
+    }
+
+    /**
+     * Fetch exactly one further page for a continuation this panel issued.
+     *
+     * The webview supplies an opaque id plus the view it believes it is in; the host owns the
+     * Graph link and rejects a token that belongs to another view or to a superseded listing.
+     */
+    private async _loadMore(
+        token: string,
+        claimedScope: CollectionScope
+    ): Promise<PagedResult<StorageItem>> {
+        const { scope, nextLink, generation } = this._continuations.redeem(token, claimedScope);
+        let page: GraphPage<StorageItem>;
+        try {
+            page = await this._fetchNextPage(scope, nextLink);
+        } catch (error) {
+            // The token was consumed on redemption; give it back so a retry resumes from the
+            // same page instead of skipping it. This also releases the view's in-flight hold.
+            this._continuations.reinstate(token, { scope, nextLink, generation });
+            throw error;
+        }
+        const items = page.items;
+        // The page is now the caller's; release the hold before minting its successor so the
+        // next click is honoured and no earlier token can still be replayed.
+        this._continuations.settle(scope);
+        if (scope.kind === 'containers' || scope.kind === 'deletedContainers') {
+            this._trackInScope(items);
+        }
+        const continuation = this._continuations.issue(scope, page.nextLink, generation);
+        return continuation ? { items, continuation } : { items };
+    }
+
+    private _fetchNextPage(
+        scope: CollectionScope,
+        nextLink: string
+    ): Promise<GraphPage<StorageItem>> {
+        switch (scope.kind) {
+            case 'containers': return this._containers.listNextPage(nextLink);
+            case 'deletedContainers': return this._containers.listDeletedNextPage(nextLink);
+            case 'driveChildren': return this._drive.listChildrenNextPage(nextLink);
+            case 'recycleBin': return this._drive.listRecycleBinNextPage(nextLink);
+        }
+    }
+
+    /** Record containers this panel legitimately surfaced, then pass the value through. */
+    private _trackInScope<T extends StorageItem | StorageItem[] | null>(result: T): T {
+        if (Array.isArray(result)) {
+            for (const item of result) {
+                if (item?.id) { this._containersInScope.add(item.id); }
+            }
+        } else if (result?.id) {
+            this._containersInScope.add(result.id);
+        }
+        return result;
+    }
+
+    /**
+     * Supplement an eventually-consistent collection response with containers created by this
+     * extension host. The registry stores identifiers and timestamps only; current properties
+     * are always read directly from Graph.
+     */
+    private async _mergePendingCreatedContainers(items: StorageItem[]): Promise<StorageItem[]> {
+        if (!this._tenantId) { return items; }
+
+        const authoritativeIds = new Set(items.map(item => item.id));
+        const pendingIds = getPendingCreatedContainerIds(this._tenantId, this._containerTypeId);
+
+        for (const containerId of pendingIds) {
+            if (authoritativeIds.has(containerId)) {
+                removePendingCreatedContainer(this._tenantId, this._containerTypeId, containerId);
+            }
+        }
+
+        const unresolvedIds = pendingIds.filter(containerId => !authoritativeIds.has(containerId));
+        const resolved = await Promise.all(unresolvedIds.map(async containerId => {
+            try {
+                const container = await this._containers.get(containerId);
+                if (container && container.containerTypeId === this._containerTypeId) {
+                    return container;
+                }
+            } catch (error) {
+                console.warn('[StorageExplorerApi] Pending container reconciliation failed; retaining it for retry.');
+            }
+            return null;
+        }));
+
+        return [...resolved.filter((item): item is StorageItem => item !== null), ...items];
+    }
+
+    /** Throw unless `containerId` belongs to the container type this panel is bound to. */
+    private async _assertContainerInScope(containerId: string): Promise<void> {
+        if (this._containersInScope.has(containerId)) { return; }
+
+        let pending = this._pendingScopeChecks.get(containerId);
+        if (!pending) {
+            pending = this._verifyContainerScope(containerId);
+            this._pendingScopeChecks.set(containerId, pending);
+            // Clear the cache entry either way; a rejected check must not be memoized.
+            const clear = (): void => { this._pendingScopeChecks.delete(containerId); };
+            pending.then(clear, clear);
+        }
+        await pending;
+    }
+
+    private async _verifyContainerScope(containerId: string): Promise<void> {
+        const container = await this._containers.get(containerId);
+        if (!container || container.containerTypeId !== this._containerTypeId) {
+            throw new Error(
+                `Container ${containerId} is not part of container type ${this._containerTypeId}.`
+            );
+        }
+        this._containersInScope.add(containerId);
+    }
+
+    /* eslint-disable @typescript-eslint/naming-convention -- keys are dotted operation ids, not identifiers */
+    private _buildHandlers(): OperationHandlers {
+        const containers = this._containers;
+        const drive = this._drive;
+        const permissions = this._permissions;
+        const columns = this._columns;
+        const people = this._people;
+        const me = this._me;
+
+        return {
+            // ── authorization ─────────────────────────────────────────────────
+            'authorization.get': () => this._getAuthorizationSnapshot(),
+
+            // ── containers ────────────────────────────────────────────────────
+            'containers.list': async () => this._listFirstPage(
+                { kind: 'containers' },
+                async () => {
+                    const page = await containers.list(this._containerTypeId);
+                    page.items = await this._mergePendingCreatedContainers(page.items);
+                    this._trackInScope(page.items);
+                    return page;
+                }
+            ),
+            'containers.get': p => containers.get(p.containerId),
+            'containers.create': async p => {
+                const created = this._trackInScope(
+                    await containers.create(this._containerTypeId, p.displayName, p.description)
+                );
+                if (this._tenantId) {
+                    recordPendingCreatedContainer(this._tenantId, this._containerTypeId, created.id);
+                }
+                return created;
+            },
+            'containers.activate': p => containers.activate(p.containerId),
+            'containers.rename': p => containers.rename(p.containerId, p.displayName),
+            'containers.updateDescription': p => containers.updateDescription(p.containerId, p.description),
+            'containers.delete': async p => {
+                await containers.delete(p.containerId);
+                if (this._tenantId) {
+                    removePendingCreatedContainer(this._tenantId, this._containerTypeId, p.containerId);
+                }
+            },
+            'containers.listDeleted': async () => this._listFirstPage(
+                { kind: 'deletedContainers' },
+                async () => {
+                    const page = await containers.listDeleted(this._containerTypeId);
+                    this._trackInScope(page.items);
+                    return page;
+                }
+            ),
+            'containers.restore': p => containers.restore(p.containerId),
+            'containers.permanentlyDelete': p => containers.permanentlyDelete(p.containerId),
+            'containers.getSettings': p => containers.getSettings(p.containerId),
+            'containers.updateSettings': p =>
+                containers.updateSettings(p.containerId, p.settings as Partial<FileStorageContainerSettings>),
+            'containers.getCustomProperties': p => containers.getCustomProperties(p.containerId),
+            'containers.setCustomProperty': p =>
+                containers.setCustomProperty(p.containerId, p.key, p.value, p.isSearchable),
+            'containers.deleteCustomProperty': p => containers.deleteCustomProperty(p.containerId, p.key),
+
+            // ── collections ───────────────────────────────────────────────────
+            'collections.loadMore': p => this._loadMore(p.continuation, p.scope as CollectionScope),
+
+            // ── drive ─────────────────────────────────────────────────────────
+            'drive.listChildren': p => this._listFirstPage(
+                { kind: 'driveChildren', containerId: p.driveId, itemId: p.itemId },
+                () => drive.listChildren(p.driveId, p.itemId)
+            ),
+            'drive.get': p => drive.get(p.driveId, p.itemId),
+            'drive.getDetailedDriveItem': p => drive.getDetailedDriveItem(p.driveId, p.itemId),
+            'drive.createFolder': p => drive.createFolder(p.driveId, p.parentId, p.name),
+            'drive.createFile': p => drive.createFile(p.driveId, p.parentId, p.name),
+            'drive.rename': p => drive.rename(p.driveId, p.itemId, p.newName),
+            'drive.delete': p => drive.delete(p.driveId, p.itemId),
+            'drive.uploadSmall': p =>
+                drive.uploadSmall(p.driveId, p.parentId, p.fileName, p.contentType, p.bytes),
+            'drive.createUploadSession': p =>
+                drive.createUploadSession(p.driveId, p.parentId, p.fileName, p.fileSize, p.contentType),
+            'drive.uploadChunk': p => drive.uploadChunk(p.driveId, p.sessionId, p.offset, p.total, p.bytes),
+            'drive.cancelUploadSession': p => drive.cancelUploadSession(p.driveId, p.sessionId),
+            'drive.listRecycleBin': p => this._listFirstPage(
+                { kind: 'recycleBin', containerId: p.containerId },
+                () => drive.listRecycleBin(p.containerId)
+            ),
+            'drive.restoreFromRecycleBin': p => drive.restoreFromRecycleBin(p.containerId, p.itemId),
+            'drive.permanentlyDelete': p => drive.permanentlyDelete(p.containerId, p.itemId),
+            'drive.getFields': p => drive.getFields(p.driveId, p.itemId),
+            'drive.updateFields': p => drive.updateFields(p.driveId, p.itemId, p.fields),
+            'drive.listVersions': p => drive.listVersions(p.driveId, p.itemId),
+            'drive.getVersionDownloadUrl': p =>
+                drive.getVersionDownloadUrl(p.driveId, p.itemId, p.versionId),
+            'drive.restoreVersion': p => drive.restoreVersion(p.driveId, p.itemId, p.versionId),
+            'drive.deleteVersion': p => drive.deleteVersion(p.driveId, p.itemId, p.versionId),
+            'drive.getItemWebUrl': p => drive.getItemWebUrl(p.driveId, p.itemId),
+            'drive.getDownloadUrl': p => drive.getDownloadUrl(p.driveId, p.itemId),
+            'drive.download': (p, context) => drive.download(p.driveId, p.itemId, context.saveDownload),
+            'drive.getPreviewUrl': p => drive.getPreviewUrl(p.driveId, p.itemId, p.hideBanner),
+            'drive.openPdf': async (p, context) => {
+                await this._openPreview(p.driveId, p.itemId, context);
+            },
+            'drive.openVideo': async (p, context) => {
+                await this._openPreview(p.driveId, p.itemId, context);
+            },
+
+            // ── permissions ───────────────────────────────────────────────────
+            'permissions.listItemPermissions': p => permissions.listItemPermissions(p.driveId, p.itemId),
+            'permissions.createSharingLink': p =>
+                permissions.createSharingLink(
+                    p.driveId, p.itemId, p.type, p.scope, p.expirationDate, p.preventDownload
+                ),
+            'permissions.inviteToItem': p =>
+                permissions.inviteToItem(
+                    p.driveId, p.itemId, p.emails, p.role, p.requireSignIn, p.sendInvitation, p.expirationDate
+                ),
+            'permissions.updateItemPermission': p =>
+                permissions.updateItemPermission(
+                    p.driveId, p.itemId, p.permissionId, p.patch as Partial<Permission>
+                ),
+            'permissions.deleteItemPermission': p =>
+                permissions.deleteItemPermission(p.driveId, p.itemId, p.permissionId),
+            'permissions.listContainerPermissions': p => permissions.listContainerPermissions(p.containerId),
+            'permissions.addContainerPermission': p =>
+                permissions.addContainerPermission(p.containerId, p.member, p.role),
+            'permissions.updateContainerPermission': p =>
+                permissions.updateContainerPermission(p.containerId, p.permissionId, p.role),
+            'permissions.deleteContainerPermission': p =>
+                permissions.deleteContainerPermission(p.containerId, p.permissionId),
+
+            // ── columns ───────────────────────────────────────────────────────
+            'columns.listContainerColumns': p => columns.listContainerColumns(p.containerId),
+            'columns.createContainerColumn': p =>
+                columns.createContainerColumn(p.containerId, p.column as Partial<ColumnDefinition>),
+            'columns.updateContainerColumn': p =>
+                columns.updateContainerColumn(p.containerId, p.columnId, p.column as Partial<ColumnDefinition>),
+            'columns.deleteContainerColumn': p => columns.deleteContainerColumn(p.containerId, p.columnId),
+            'columns.getItemFields': p => columns.getItemFields(p.driveId, p.itemId),
+            'columns.updateItemFields': p => columns.updateItemFields(p.driveId, p.itemId, p.fields),
+
+            // ── people ────────────────────────────────────────────────────────
+            'people.searchUsers': p => people.searchUsers(p.query),
+            'people.searchGroups': p => people.searchGroups(p.query),
+            'people.search': p => people.search(p.query),
+
+            // ── me ────────────────────────────────────────────────────────────
+            'me.get': () => me.get(),
+        };
+    }
+    /* eslint-enable @typescript-eslint/naming-convention */
+}

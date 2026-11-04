@@ -1,0 +1,27 @@
+{
+  "name": "storage-explorer-webview",
+  "private": true,
+  "version": "0.0.1",
+  "scripts": {
+    "build": "vite build",
+    "watch": "vite build --watch",
+    "dev": "vite",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@tanstack/react-virtual": "^3.14.5",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@microsoft/microsoft-graph-client": "^3.0.7",
+    "@microsoft/microsoft-graph-types": "^2.43.1",
+    "@types/react": "^18.3.1",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.1",
+    "@vscode/codicons": "^0.0.36",
+    "typescript": "^5.5.4",
+    "vite": "^5.4.0",
+    "zod": "^4.3.5"
+  }
+}

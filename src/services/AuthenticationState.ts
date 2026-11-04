@@ -5,7 +5,9 @@
 
 import * as vscode from 'vscode';
 import { decodeJwt, checkJwtForGlobalAdmin } from '../utils/token';
+import { Perf } from '../utils/Perf';
 import { GraphAuthProvider, ARMAuthProvider, AppAuthProviderFactory } from './Auth';
+import { clearPendingCreatedContainers } from './StorageExplorer/pendingCreatedContainers';
 
 /**
  * Authentication state change events
@@ -44,6 +46,8 @@ export interface AuthStateChangeListener {
  * Centralized authentication state manager using GraphAuthProvider
  */
 export class AuthenticationState {
+    private static readonly _MICROSOFT_CONSUMER_TENANT_ID = '9188040d-6c67-4c5b-b112-36a304b66dad';
+
     private static _instance: AuthenticationState;
     private static readonly _listeners: AuthStateChangeListener[] = [];
     private static _currentAccount: AuthenticatedAccount | undefined;
@@ -116,6 +120,11 @@ export class AuthenticationState {
             // Get additional account info from token
             const decodedToken = decodeJwt(session.accessToken);
 
+            if (decodedToken.tid?.toLowerCase() === AuthenticationState._MICROSOFT_CONSUMER_TENANT_ID) {
+                await graphAuth.signOut();
+                throw new Error('SharePoint Embedded requires a Microsoft 365 work or school account.');
+            }
+
             const account: AuthenticatedAccount = {
                 id: session.account.id,
                 username: session.account.label,
@@ -156,6 +165,7 @@ export class AuthenticationState {
         try {
             AuthenticationState._isSigningIn = true;
             AuthenticationState._signInAbortController = new AbortController();
+            Perf.beginSession('interactive sign-in');
             AuthenticationState._notifyBeforeSignIn();
 
             const graphAuth = GraphAuthProvider.getInstance();
@@ -199,6 +209,10 @@ export class AuthenticationState {
         } finally {
             AuthenticationState._isSigningIn = false;
             AuthenticationState._signInAbortController = undefined;
+            // The dev tree keeps fetching after this point (VS Code asks for the
+            // container-type children once the view is visible), so close the perf
+            // session on an idle window rather than here.
+            Perf.endSessionWhenIdle();
         }
     }
 
@@ -280,6 +294,7 @@ export class AuthenticationState {
         GraphAuthProvider.resetInstance();
         ARMAuthProvider.resetInstance();
         AppAuthProviderFactory.clearAll();
+        clearPendingCreatedContainers();
         GraphAuthProvider.getInstance(tenantId);
         ARMAuthProvider.getInstance(tenantId);
         return await AuthenticationState.signIn();
@@ -298,6 +313,7 @@ export class AuthenticationState {
             GraphAuthProvider.resetInstance(); // also resets GraphProvider
             ARMAuthProvider.resetInstance();
             AppAuthProviderFactory.clearAll();
+            clearPendingCreatedContainers();
 
             AuthenticationState._currentAccount = undefined;
 
@@ -309,6 +325,8 @@ export class AuthenticationState {
             await vscode.commands.executeCommand('setContext', 'spe:isLoggedIn', false);
             // Compat: clear spe:isAdmin for stale cached package.json from <= 1.0.2
             vscode.commands.executeCommand('setContext', 'spe:isAdmin', false);
+            // Signed out — the welcome view should offer sign-in (not "Loading...").
+            AuthenticationState._setSignInReady(true);
 
         } catch (error) {
             console.error('Sign out failed:', error);
@@ -344,6 +362,11 @@ export class AuthenticationState {
      * Initialize authentication state (check if already signed in)
      */
     public static async initialize(): Promise<void> {
+        // Mark sign-in as in progress so a manual `signIn()` triggered during
+        // startup (e.g. an errant click) no-ops instead of running a second,
+        // conflicting sign-in flow. Reset in the finally below.
+        AuthenticationState._isSigningIn = true;
+        Perf.beginSession('startup session restore');
         try {
             const isSignedIn = await AuthenticationState.isSignedIn();
             if (isSignedIn) {
@@ -357,14 +380,28 @@ export class AuthenticationState {
                     AuthenticationState._notifyBeforeSignIn();
                     await AuthenticationState._notifySignIn(account);
                     vscode.commands.executeCommand('setContext', 'spe:isLoggingIn', false);
+                    // Signed in — the dev tree takes over; keep the sign-in prompt hidden.
+                    AuthenticationState._setSignInReady(false);
+                    return;
                 }
             }
+            // Concluded there is no usable account — now (and only now) reveal
+            // the sign-in prompt. Doing this only on a definitive "no account"
+            // result is what prevents the prompt from flashing during restore.
+            AuthenticationState._setSignInReady(true);
         } catch (error) {
             console.error('Failed to initialize authentication state:', error);
             vscode.commands.executeCommand('setContext', 'spe:isLoggedIn', false);
             vscode.commands.executeCommand('setContext', 'spe:isLoggingIn', false);
             // Compat: clear spe:isAdmin for stale cached package.json from <= 1.0.2
             vscode.commands.executeCommand('setContext', 'spe:isAdmin', false);
+            // Auth check failed — let the user sign in manually.
+            AuthenticationState._setSignInReady(true);
+        } finally {
+            AuthenticationState._isSigningIn = false;
+            // Tree loading continues past this point — close on an idle window so the
+            // summary covers the whole restore-to-populated-tree path.
+            Perf.endSessionWhenIdle();
         }
     }
 
@@ -391,6 +428,13 @@ export class AuthenticationState {
     }
 
     // Notification methods
+    private static _setSignInReady(ready: boolean): void {
+        // Reveal (true) or hide (false) the welcome sign-in prompt. Set true
+        // ONLY once we've concluded there is no signed-in account, so it never
+        // flashes while a session is still being restored at startup.
+        vscode.commands.executeCommand('setContext', 'spe:signInReady', ready);
+    }
+
     private static _notifyBeforeSignIn(): void {
         // Notify listeners BEFORE setting isLoggingIn — listeners lock the
         // dev tree to return [] so stale items never flash when it becomes visible.
@@ -399,6 +443,8 @@ export class AuthenticationState {
                 listener.onBeforeSignIn();
             }
         });
+        // A sign-in is starting — hide the sign-in prompt.
+        AuthenticationState._setSignInReady(false);
         vscode.commands.executeCommand('setContext', 'spe:isLoggingIn', true);
     }
 
@@ -418,6 +464,8 @@ export class AuthenticationState {
                 listener.onSignInFailed();
             }
         });
+        // Sign-in didn't complete — show the sign-in prompt.
+        AuthenticationState._setSignInReady(true);
     }
 
     private static _notifySignOut(): void {

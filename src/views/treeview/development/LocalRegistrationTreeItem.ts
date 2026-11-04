@@ -7,9 +7,7 @@ import * as vscode from "vscode";
 import { IChildrenProvidingTreeItem } from "./IDataProvidingTreeItem";
 import { ContainerType, ContainerTypeRegistration } from "../../../models/schemas";
 import { AuthenticationState } from "../../../services/AuthenticationState";
-import { ContainersTreeItem } from "./ContainersTreeItem";
 import { GuestAppsTreeItem } from "./GuestAppsTreeItem";
-import { RecycledContainersTreeItem } from "./RecycledContainersTreeItem";
 import { Logger } from "../../../utils/Logger";
 
 export class LocalRegistrationTreeItem extends IChildrenProvidingTreeItem {
@@ -106,14 +104,10 @@ export class LocalRegistrationTreeItem extends IChildrenProvidingTreeItem {
         const guestApps = new GuestAppsTreeItem(this._containerType.id, this._containerType.owningAppId, this._effectiveBillingInvalid);
         children.push(guestApps);
 
-        // Skip containers / recycled containers entirely when billing isn't
-        // set up — neither node works without billing, so showing them just
-        // adds noise. Guest apps stay so users can still inspect permissions.
-        if (!this._effectiveBillingInvalid) {
-            children.push(new ContainersTreeItem(this._containerType.id, this));
-            children.push(new RecycledContainersTreeItem(this._containerType.id, this));
-        }
-
+        // Containers and recycled containers are no longer tree nodes: the Storage Explorer
+        // row under the container type owns browsing, and duplicating it here produced two
+        // divergent views of the same data (and eagerly enumerated every container just to
+        // draw a collapsed node).
         return children;
     }
 }

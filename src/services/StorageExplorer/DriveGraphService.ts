@@ -1,0 +1,454 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import * as Graph from '@microsoft/microsoft-graph-client';
+import type { DriveItem } from '@microsoft/microsoft-graph-types';
+import { z } from 'zod';
+import { DriveItemDetails, DriveItemVersion, StorageItem, UploadChunkResult } from './protocol';
+import { driveItemToStorageItem, RecycleBinItem, recycleBinItemToStorageItem } from './mappers';
+import { DEFAULT_PAGE_SIZE, GraphPage, mapCollectionPage, RawCollectionResponse } from './pagination';
+import { UploadSessionOptions, UploadSessionService } from './UploadSessionService';
+import { GRAPH_UPLOAD_LIMIT, StagedGraphUploadService } from './StagedGraphUploadService';
+import { FileDownloadService, SaveDownload } from './FileDownloadService';
+
+const downloadItemSchema = z.object({
+    name: z.string().min(1),
+    size: z.number().int().nonnegative(),
+    file: z.object({}),
+});
+
+const previewResponseSchema = z.object({ getUrl: z.string().url() });
+
+const SELECT =
+    'id,name,file,folder,size,lastModifiedDateTime,createdDateTime,webUrl,@microsoft.graph.downloadUrl';
+// List select deliberately OMITS `@microsoft.graph.downloadUrl`: it's an expensive per-item
+// computed property that makes Graph shrink the page size, and it's fetched lazily on download
+// (see getDownloadUrl). Keeping it out lets listing pages come back full-size and fast.
+const LIST_SELECT = 'id,name,file,folder,size,lastModifiedDateTime,createdDateTime,webUrl';
+
+/**
+ * Wrap raw bytes in a payload the Graph SDK will pass through untouched.
+ *
+ * The SDK's `serializeContent` only recognises `Buffer`, `Blob`, `File`, `FormData`,
+ * `ArrayBuffer`, and strings — a bare `Uint8Array` would be JSON-stringified. `Buffer`
+ * is used on the extension host; the `Blob` fallback keeps this module runnable in a
+ * browser (the standalone webview test harness) where `Buffer` does not exist.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function toBinaryBody(bytes: Uint8Array): any {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const g = globalThis as any;
+    if (typeof g.Buffer !== 'undefined') {
+        return g.Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    }
+    return new g.Blob([bytes]);
+}
+
+/**
+ * Drive item operations for the Storage Explorer, executed on the extension host.
+ *
+ * Upload-session URLs and any SharePoint bearer tokens remain on the host.
+ */
+export class DriveGraphService {
+    /** Upper bound for a one-message upload; larger files cross the boundary in chunks. */
+    public static readonly SMALL_FILE_THRESHOLD = 10 * 1024 * 1024; // 10 MiB
+
+    private readonly _uploads: UploadSessionService;
+    private readonly _staged: StagedGraphUploadService;
+    private readonly _downloads: FileDownloadService;
+
+    public constructor(private readonly _client: Graph.Client, uploads?: UploadSessionOptions) {
+        this._uploads = new UploadSessionService(uploads);
+        this._staged = new StagedGraphUploadService(() => this._uploads.getIdentity(), uploads?.createStagingFile);
+        this._downloads = new FileDownloadService({ getIdentity: () => this._uploads.getIdentity() });
+    }
+
+    /**
+     * List the **first page** of children of a drive root (itemId undefined) or a folder.
+     * driveId is the container ID (container.id === driveId).
+     *
+     * `@odata.nextLink` is deliberately not followed. Walking every page turned opening a
+     * large folder into an unbounded chain of Graph calls, and the extra pages were fetched
+     * whether or not the user ever scrolled to them. The link comes back on the page, whose
+     * owner surfaces it as an explicit "Load more".
+     *
+     * @param onPage Receives the page's items as soon as they are mapped, so a caller can
+     *   render them without waiting for its own post-processing.
+     */
+    public async listChildren(
+        driveId: string,
+        itemId?: string,
+        onPage?: (items: StorageItem[]) => void
+    ): Promise<GraphPage<StorageItem>> {
+        const path = itemId
+            ? `/drives/${driveId}/items/${itemId}/children`
+            : `/drives/${driveId}/root/children`;
+
+        const response: RawCollectionResponse<DriveItem> = await this._client
+            .api(path)
+            .select(LIST_SELECT)
+            .top(DEFAULT_PAGE_SIZE)
+            .get();
+        const page = mapCollectionPage(response, driveItemToStorageItem);
+        onPage?.(page.items);
+        return page;
+    }
+
+    /** Fetch one further page of drive children from a server-provided link. */
+    public async listChildrenNextPage(nextLink: string): Promise<GraphPage<StorageItem>> {
+        const response: RawCollectionResponse<DriveItem> = await this._client.api(nextLink).get();
+        return mapCollectionPage(response, driveItemToStorageItem);
+    }
+
+    /** Get a single drive item by ID. */
+    public async get(driveId: string, itemId: string): Promise<StorageItem | null> {
+        const item: DriveItem = await this._client
+            .api(`/drives/${driveId}/items/${itemId}`)
+            .select(SELECT)
+            .get();
+        return item ? driveItemToStorageItem(item) : null;
+    }
+
+    /**
+     * Fetch rich details for a single drive item used by the properties panel.
+     * Includes facets (publication, malware, audio, image, photo, video),
+     * SharePoint IDs, WebDAV URL, parent reference, and optionally the
+     * retention label (fetched in a separate call so errors don't block).
+     */
+    public async getDetailedDriveItem(driveId: string, itemId: string): Promise<DriveItemDetails> {
+        const detailSelect = [
+            'id', 'name', 'file', 'folder', 'size',
+            'lastModifiedDateTime', 'createdDateTime',
+            'webUrl', 'webDavUrl', 'parentReference',
+            'sharepointIds', 'publication', 'malware',
+            'audio', 'image', 'photo', 'video',
+            '@microsoft.graph.downloadUrl',
+        ].join(',');
+        const raw = await this._client
+            .api(`/drives/${driveId}/items/${itemId}`)
+            .select(detailSelect)
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            .get() as any;
+
+        // Retention label is a navigation property — fetch separately so
+        // a 404 (no label) or unsupported error doesn't break the whole call.
+        let retentionLabel: DriveItemDetails['retentionLabel'] = null;
+        try {
+            retentionLabel = await this._client
+                .api(`/drives/${driveId}/items/${itemId}/retentionLabel`)
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                .get() as any;
+        } catch {
+            // no label or endpoint not available — leave null
+        }
+
+        return {
+            id: raw.id ?? '',
+            name: raw.name ?? '',
+            isFolder: !!raw.folder,
+            size: raw.size,
+            createdDateTime: raw.createdDateTime,
+            lastModifiedDateTime: raw.lastModifiedDateTime,
+            webUrl: raw.webUrl,
+            webDavUrl: raw.webDavUrl,
+            downloadUrl: raw['@microsoft.graph.downloadUrl'],
+            mimeType: raw.file?.mimeType,
+            childCount: raw.folder?.childCount,
+            parentId: raw.parentReference?.id,
+            sharepointIds: raw.sharepointIds,
+            publication: raw.publication,
+            malware: raw.malware,
+            retentionLabel,
+            audio: raw.audio,
+            image: raw.image,
+            photo: raw.photo,
+            video: raw.video,
+        };
+    }
+
+    /**
+     * Create a new folder.
+     * parentId null → create under drive root.
+     */
+    public async createFolder(driveId: string, parentId: string | null, name: string): Promise<StorageItem> {
+        const path = parentId
+            ? `/drives/${driveId}/items/${parentId}/children`
+            : `/drives/${driveId}/root/children`;
+        const created: DriveItem = await this._client.api(path).post({
+            name,
+            folder: {},
+            // eslint-disable-next-line @typescript-eslint/naming-convention -- OData annotation name
+            '@microsoft.graph.conflictBehavior': 'rename',
+        });
+        return driveItemToStorageItem(created);
+    }
+
+    /**
+     * Create a new empty file (any type, including Office documents).
+     * SharePoint initialises Office files from their templates on first open.
+     * parentId null → create under drive root.
+     */
+    public async createFile(driveId: string, parentId: string | null, name: string): Promise<StorageItem> {
+        const path = parentId
+            ? `/drives/${driveId}/items/${parentId}:/${encodeURIComponent(name)}:/content`
+            : `/drives/${driveId}/root:/${encodeURIComponent(name)}:/content`;
+        const created: DriveItem = await this._client
+            .api(path)
+            .header('Content-Type', 'application/octet-stream')
+            .put(toBinaryBody(new Uint8Array(0)));
+        return driveItemToStorageItem(created);
+    }
+
+    /** Rename a drive item. */
+    public async rename(driveId: string, itemId: string, newName: string): Promise<void> {
+        await this._client
+            .api(`/drives/${driveId}/items/${itemId}`)
+            .patch({ name: newName });
+    }
+
+    /** Move a drive item to the recycle bin. */
+    public async delete(driveId: string, itemId: string): Promise<void> {
+        await this._client
+            .api(`/drives/${driveId}/items/${itemId}`)
+            .delete();
+    }
+
+    // ── Upload ────────────────────────────────────────────────────────────────
+
+    /** Upload a file <= SMALL_FILE_THRESHOLD in a single PUT request. */
+    public async uploadSmall(
+        driveId: string,
+        parentId: string | null,
+        fileName: string,
+        contentType: string,
+        bytes: Uint8Array
+    ): Promise<StorageItem> {
+        const path = parentId
+            ? `/drives/${driveId}/items/${parentId}:/${encodeURIComponent(fileName)}:/content`
+            : `/drives/${driveId}/root:/${encodeURIComponent(fileName)}:/content`;
+        const created: DriveItem = await this._client
+            .api(path)
+            .header('Content-Type', contentType || 'application/octet-stream')
+            .put(toBinaryBody(bytes));
+        return driveItemToStorageItem(created);
+    }
+
+    /**
+     * Stage files up to 250 MB for one Graph PUT; larger files need an upload session.
+     * Older callers omitting size retain session behavior. All handles are panel-local.
+     */
+    public async createUploadSession(
+        driveId: string,
+        parentId: string | null,
+        fileName: string,
+        fileSize?: number,
+        contentType = 'application/octet-stream'
+    ): Promise<string> {
+        if (fileSize !== undefined && fileSize <= GRAPH_UPLOAD_LIMIT) {
+            return this._staged.create({ driveId, parentId, fileName, size: fileSize, contentType });
+        }
+        const path = parentId
+            ? `/drives/${driveId}/items/${parentId}:/${encodeURIComponent(fileName)}:/createUploadSession`
+            : `/drives/${driveId}/root:/${encodeURIComponent(fileName)}:/createUploadSession`;
+        const identity = this._uploads.getIdentity();
+        const resp: unknown = await this._client.api(path).post({
+            // eslint-disable-next-line @typescript-eslint/naming-convention -- OData annotation name
+            item: { '@microsoft.graph.conflictBehavior': 'rename' },
+        });
+        return this._uploads.register(driveId, resp, identity);
+    }
+
+    public async uploadChunk(driveId: string, sessionId: string, offset: number,
+        total: number, bytes: Uint8Array): Promise<UploadChunkResult> {
+        if (this._staged.has(sessionId)) {
+            return this._staged.uploadChunk(driveId, sessionId, offset, total, bytes);
+        }
+        const result = await this._uploads.uploadChunk(driveId, sessionId, offset, total, bytes);
+        const item = result.itemId ? await this.get(driveId, result.itemId).catch(() => null) : undefined;
+        return { done: result.done, nextOffset: result.nextOffset, item: item ?? undefined };
+    }
+
+    public async cancelUploadSession(driveId: string, sessionId: string): Promise<void> {
+        if (this._staged.has(sessionId)) { return this._staged.cancel(driveId, sessionId); }
+        return this._uploads.cancel(driveId, sessionId);
+    }
+
+    public async dispose(): Promise<void> {
+        this._downloads.dispose();
+        this._uploads.dispose();
+        await this._staged.dispose();
+    }
+
+    // ── Recycle bin ───────────────────────────────────────────────────────────
+
+    /** List the **first page** of the drive's recycle bin via the SPE-specific API. */
+    public async listRecycleBin(containerId: string): Promise<GraphPage<StorageItem>> {
+        const response: RawCollectionResponse<RecycleBinItem> = await this._client
+            .api(`/storage/fileStorage/containers/${containerId}/recycleBin/items`)
+            .top(DEFAULT_PAGE_SIZE)
+            .get();
+        return mapCollectionPage(response, recycleBinItemToStorageItem);
+    }
+
+    /** Fetch one further page of recycle-bin items from a server-provided link. */
+    public async listRecycleBinNextPage(nextLink: string): Promise<GraphPage<StorageItem>> {
+        const response: RawCollectionResponse<RecycleBinItem> = await this._client.api(nextLink).get();
+        return mapCollectionPage(response, recycleBinItemToStorageItem);
+    }
+
+    /** Restore an item from the SPE container recycle bin. Uses beta endpoint. */
+    public async restoreFromRecycleBin(containerId: string, itemId: string): Promise<void> {
+        await this._client
+            .api(`https://graph.microsoft.com/beta/storage/fileStorage/containers/${containerId}/recycleBin/items/restore`)
+            .post({ ids: [itemId] });
+    }
+
+    /** Permanently delete an item from the SPE container recycle bin. Uses beta endpoint. */
+    public async permanentlyDelete(containerId: string, itemId: string): Promise<void> {
+        await this._client
+            .api(`https://graph.microsoft.com/beta/storage/fileStorage/containers/${containerId}/recycleBin/items/delete`)
+            .post({ ids: [itemId] });
+    }
+
+    // ── List item fields ──────────────────────────────────────────────────────
+
+    /** Get the listItem fields (custom metadata) for a drive item. */
+    public async getFields(driveId: string, itemId: string): Promise<Record<string, unknown>> {
+        return this._client
+            .api(`/drives/${driveId}/items/${itemId}/listItem/fields`)
+            .get();
+    }
+
+    /** Update the listItem fields (custom metadata) for a drive item. */
+    public async updateFields(
+        driveId: string,
+        itemId: string,
+        fields: Record<string, unknown>
+    ): Promise<void> {
+        await this._client
+            .api(`/drives/${driveId}/items/${itemId}/listItem/fields`)
+            .patch(fields);
+    }
+
+    // ── Versions ──────────────────────────────────────────────────────────────
+
+    /** List version history for a drive item. */
+    public async listVersions(driveId: string, itemId: string): Promise<DriveItemVersion[]> {
+        const resp = await this._client
+            .api(`/drives/${driveId}/items/${itemId}/versions`)
+            .get();
+        return resp.value ?? [];
+    }
+
+    /** Get a pre-authenticated download URL for a specific version. */
+    public async getVersionDownloadUrl(driveId: string, itemId: string, versionId: string): Promise<string> {
+        const raw = await this._client
+            .api(`/drives/${driveId}/items/${itemId}/versions/${versionId}`)
+            .select('@microsoft.graph.downloadUrl')
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            .get() as any;
+        const url: string = raw?.['@microsoft.graph.downloadUrl'] ?? '';
+        if (!url) {
+            throw new Error('Download URL not available for this version.');
+        }
+        return url;
+    }
+
+    /** Restore a prior version, making it the current version. */
+    public async restoreVersion(driveId: string, itemId: string, versionId: string): Promise<void> {
+        await this._client
+            .api(`/drives/${driveId}/items/${itemId}/versions/${versionId}/restoreVersion`)
+            .post({});
+    }
+
+    /** Permanently delete a specific version of a drive item. */
+    public async deleteVersion(driveId: string, itemId: string, versionId: string): Promise<void> {
+        await this._client
+            .api(`/drives/${driveId}/items/${itemId}/versions/${versionId}`)
+            .delete();
+    }
+
+    // ── URLs ──────────────────────────────────────────────────────────────────
+
+    /** Save fresh, authenticated content without returning URLs or bytes to the webview. */
+    public async download(driveId: string, itemId: string, save?: SaveDownload): Promise<void> {
+        if (!save) { throw new Error('File downloads require the VS Code Save As dialog.'); }
+        const identity = this._downloads.getIdentity();
+        const path = `/drives/${driveId}/items/${itemId}`;
+        const response: unknown = await this._client.api(path).select('name,size,file').get();
+        const parsed = downloadItemSchema.safeParse(response);
+        if (!parsed.success) { throw new Error('Graph did not return downloadable file details.'); }
+        const item = parsed.data;
+        await save(item.name, signal => this._downloads.readGraph(
+            // contentStream is a download-only beta exception: v1.0 content can redirect to SharePoint.
+            downloadSignal => this._client.api(`${path}/contentStream`)
+                .version('beta')
+                .responseType(Graph.ResponseType.RAW)
+                .middlewareOptions([new Graph.RedirectHandlerOptions(0)])
+                .option('signal', downloadSignal)
+                .get(),
+            item.size, identity, signal
+        ));
+    }
+
+    /**
+     * Return the `webUrl` of the drive root or a specific folder item.
+     * Used to build Office desktop URI schemes (ms-word:ofe|u|{folderUrl}/{fileName}).
+     */
+    public async getItemWebUrl(driveId: string, itemId?: string): Promise<string> {
+        const path = itemId
+            ? `/drives/${driveId}/items/${itemId}`
+            : `/drives/${driveId}/root`;
+        const item = await this._client.api(path).select('webUrl').get();
+        const url: string = item?.webUrl ?? '';
+        if (!url) {
+            throw new Error('webUrl not available for this item.');
+        }
+        return url;
+    }
+
+    /**
+     * Fetch a pre-authenticated download URL for a drive item.
+     * Graph returns the `@microsoft.graph.downloadUrl` annotation reliably when
+     * fetching a single item, even for Office files where it may be absent from
+     * listing responses.
+     */
+    public async getDownloadUrl(driveId: string, itemId: string): Promise<string> {
+        const raw = await this._client
+            .api(`/drives/${driveId}/items/${itemId}`)
+            .select('@microsoft.graph.downloadUrl')
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            .get() as any;
+        const url: string = raw?.['@microsoft.graph.downloadUrl'] ?? '';
+        if (!url) {
+            throw new Error('Download URL not available for this file.');
+        }
+        return url;
+    }
+
+    /**
+     * Fetch a fresh preview URL on every call; never cache these short-lived links.
+     * Set hideBanner=false to preserve Graph's getUrl verbatim for media previews.
+     */
+    public async getPreviewUrl(driveId: string, itemId: string, hideBanner = true): Promise<string> {
+        const resp = await this._client
+            .api(`/drives/${driveId}/items/${itemId}/preview`)
+            .post({});
+        const parsed = previewResponseSchema.safeParse(resp);
+        if (!parsed.success) {
+            throw new Error('No valid preview URL returned from API.');
+        }
+        const { getUrl } = parsed.data;
+        if (!hideBanner || new URL(getUrl).searchParams.has('nb')) {
+            return getUrl;
+        }
+        // Append without reserializing the token-bearing query string.
+        const fragmentIndex = getUrl.indexOf('#');
+        const base = fragmentIndex === -1 ? getUrl : getUrl.slice(0, fragmentIndex);
+        const fragment = fragmentIndex === -1 ? '' : getUrl.slice(fragmentIndex);
+        const separator = base.includes('?') ? '&' : '?';
+        return `${base}${separator}nb=true${fragment}`;
+    }
+}

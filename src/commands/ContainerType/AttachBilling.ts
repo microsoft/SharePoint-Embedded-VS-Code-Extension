@@ -11,6 +11,7 @@ import { DevelopmentTreeViewProvider } from '../../views/treeview/development/De
 import { attachBillingToContainerType } from '../ContainerTypes/attachBillingToContainerType';
 import { promptDirectToCustomerBillingSetup } from '../ContainerTypes/promptDirectToCustomerBillingSetup';
 import { GraphProvider } from '../../services/Graph/GraphProvider';
+import { StorageExplorerTreeItem } from '../../views/treeview/development/StorageExplorerTreeItem';
 
 /**
  * Attach billing to a container type whose billing isn't set up yet.
@@ -30,7 +31,7 @@ export class AttachBilling extends Command {
     public static readonly COMMAND = 'ContainerType.attachBilling';
 
     public static async run(
-        treeItem?: ContainerTypeTreeItem | LocalRegistrationTreeItem
+        treeItem?: ContainerTypeTreeItem | LocalRegistrationTreeItem | StorageExplorerTreeItem
     ): Promise<void> {
         if (!treeItem?.containerType) {
             vscode.window.showErrorMessage(
