@@ -87,3 +87,37 @@ Each run retains:
 
 Raw logs are evidence, not the human review surface. `run.json`, validation results, and the final
 review result are the synthesized handoff.
+
+## GitHub feature requests
+
+Use the [SPE feature request form](../../.github/ISSUE_TEMPLATE/feature-request.yml) with the title
+`Feature-Request: SPE VSC Extension - <feature name>`. The
+[intake workflow](../../.github/workflows/feature-intake.yml) triages opened, edited, and reopened
+requests. It applies `needs-info` when the problem, expected behavior, testable acceptance criteria,
+or UI impact are missing; it never grants `agent-ready` itself.
+
+Maintainers review the current request, remove `needs-info` once the gaps are resolved, and apply
+`agent-ready`. Only applying that label starts implementation; editing an issue never grants
+approval. If the request changes before implementation or handoff, or if you need to retry a run,
+review the current issue and remove and reapply `agent-ready`.
+
+To enable the workflow on the default branch, create the `needs-info` and `agent-ready` repository
+labels and set the repository Actions variable `FEATURE_REQUEST_APPROVERS` to the approved GitHub
+usernames (comma-separated). Create the `feature-agent` Actions environment, restrict deployments
+to the default branch, and add `COPILOT_GITHUB_TOKEN` as an environment secret. Use an
+organization-approved Copilot CLI credential with only
+Copilot Requests access and no repository write grants. Do not copy private material into the
+public issue form. No Azure service connection or private repository is required.
+
+The pilot can edit selected webview, utility, localization, and test files; maintainers should route
+changes to auth, Graph/RPC, dependencies, and CI manually. Validation runs in offline containers
+without Actions or Copilot credentials. A separate job applies the review patch to a temporary Git
+index without executing it, checks the changed paths and file modes, and opens one draft PR per issue
+from `feature-agent/issue-<number>`. It never overwrites an existing branch or merges a PR. The
+review patch and base SHA are also available in the Actions run.
+
+Enable **Allow GitHub Actions to create and approve pull requests** in **Settings > Actions >
+General > Workflow permissions** if repository and organization policy permit it. Keep the default
+workflow token read-only; the publisher requests write permissions for its own job only. The
+workflow does not approve PRs. GitHub may require a maintainer to approve PR workflows started by
+`GITHUB_TOKEN`. VSIX packaging and screenshots are not part of this stage.

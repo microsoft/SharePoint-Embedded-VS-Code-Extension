@@ -40,6 +40,7 @@ import {
 import { assertChangedPathsAllowed, matchesAny } from './paths';
 import { outputTail, runShellCommand } from './process';
 import { runSdkPreflight, SdkPreflightResult } from './sdkPreflight';
+import { runValidationCommand } from './validationSandbox';
 import {
     AuthorityPolicy,
     LoadedContract,
@@ -539,7 +540,7 @@ async function runValidation(context: RunContext): Promise<ValidationResult[]> {
             );
             const stdoutPath = path.join(checkDir, `${check.id}.stdout.log`);
             const stderrPath = path.join(checkDir, `${check.id}.stderr.log`);
-            const processResult = await runShellCommand(check.command, {
+            const processResult = await runValidationCommand(check.command, {
                 cwd: context.run.integrationWorktree!,
                 timeoutMs: check.timeoutMinutes * 60_000,
                 stdoutPath,

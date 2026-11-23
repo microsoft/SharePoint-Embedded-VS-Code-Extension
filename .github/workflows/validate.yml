@@ -47,7 +47,9 @@ jobs:
         run: npm run build:webview
 
       - name: Test agent loop
-        run: npm run agent:test
+        run: |
+          npm run agent:test
+          node --test tools/agent-loop/feature-issue.test.mjs tools/agent-loop/publish-feature.test.mjs
 
   api-tests:
     name: API tests

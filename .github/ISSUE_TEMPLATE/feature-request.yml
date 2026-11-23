@@ -1,0 +1,36 @@
+name: SPE VS Code extension feature request
+description: Request a feature or improvement to the SharePoint Embedded extension.
+title: "Feature-Request: SPE VSC Extension - "
+body:
+  - type: markdown
+    attributes:
+      value: This issue is public. Do not include internal links, customer or tenant data, credentials, or confidential roadmap details.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: Who needs this and what is hard to do today?
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Expected behavior
+      description: Describe the desired user experience and anything explicitly out of scope.
+    validations:
+      required: true
+  - type: textarea
+    id: criteria
+    attributes:
+      label: Acceptance criteria
+      description: List observable outcomes as Markdown bullets or checkboxes, one per line.
+      placeholder: "- When no container is selected, the action is disabled."
+    validations:
+      required: true
+  - type: textarea
+    id: ui
+    attributes:
+      label: UI impact
+      description: Describe the visible change and the scenario to capture, or say "None".
+    validations:
+      required: true
