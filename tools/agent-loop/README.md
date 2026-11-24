@@ -99,11 +99,11 @@ questions. Reply by editing the issue description rather than in a comment. Each
 is reviewed until it passes, at which point the workflow clears `needs-info`. If the model is
 unavailable or returns invalid output, readiness remains blocked; rerun triage to retry.
 
-When a new revision passes readiness review, the same Actions run starts implementation
-automatically if both the issue author and the account that triggered the review are listed in
-`FEATURE_REQUEST_APPROVERS`. Other requests wait for an approved maintainer to apply `agent-ready`.
-An edit invalidates the old readiness result. To retry implementation on an already-reviewed
-revision, apply `agent-ready` (remove and reapply it if present).
+When the current revision passes, the bot comment says **Ready for `agent-ready` (awaiting
+maintainer approval)**. Implementation never starts from readiness review alone, regardless of
+who filed the issue. An approved maintainer must apply `agent-ready` to start implementation.
+Editing the issue invalidates the previous readiness result. After an edit or failed run, wait for
+readiness and remove and reapply `agent-ready` if it is already present.
 
 To enable the workflow on the default branch, create the `needs-info` and `agent-ready` repository
 labels and set the repository Actions variable `FEATURE_REQUEST_APPROVERS` to the approved GitHub

@@ -65,6 +65,7 @@ test('an incomplete request gets one comment, then semantic questions, then a re
     f.current.body = issue.body.replace('Restore selection.', 'Restore selection only when the item is still present; otherwise clear it.');
     await publishReview(f.github, await prepareReview(f.github), parseReadiness('{"questions":[]}'));
     assert.ok(f.comments[0].body.startsWith(`<!-- spe-feature-readiness:v1 ${reviewRevision(f.current)} ready -->`));
+    assert.match(f.comments[0].body, /Ready for `agent-ready` \(awaiting maintainer approval\)/);
     assert.equal(f.comments.length, 1);
     assert.deepEqual(f.current.labels, [{ name: 'enhancement' }]);
 });
@@ -74,8 +75,7 @@ test('a stale result cannot overwrite feedback and an unavailable review can be 
     const plan = await prepareReview(f.github);
     f.current.body += '\nEdited.';
     const stale = await publishReview(f.github, plan, parseReadiness('{"questions":[]}'));
-    assert.match(stale.message, /no stale review/);
-    assert.equal(stale.autoStart, false);
+    assert.match(stale, /no stale review/);
     assert.equal(f.writes.length, 0);
     const next = await prepareReview(f.github);
     await publishReview(f.github, next, { status: 'unavailable', feedback: [] });
@@ -92,21 +92,15 @@ test('malformed or unsafe model output never becomes a readiness verdict', () =>
     }
 });
 
-test('only a fresh trust-eligible readiness pass requests automatic implementation', async () => {
+test('readiness ignores superseded events and never adds agent-ready for the issue author', async () => {
     const user = { id: 123, login: 'maintainer', type: 'User' };
     const initial = { ...issue, user };
     const event = { action: 'edited', issue: initial, sender: user };
-    const approvers = new Set(['maintainer']);
     const f = fixture(initial);
     assert.equal((await prepareReview(f.github, { ...event, issue: { ...initial, body: 'Old draft' } })).kind, 'ignored');
     const plan = await prepareReview(f.github, event);
-    assert.equal((await publishReview(f.github, plan, parseReadiness('{"questions":[]}'), { event, approvers })).autoStart, true);
-    assert.match(f.comments[0].body, /start automatically/);
-    assert.equal((await publishReview(f.github, await prepareReview(f.github, event), undefined, { event, approvers })).autoStart, false);
-
-    const external = fixture(initial);
-    const editedByOutsider = { ...event, sender: { id: 456, login: 'outsider', type: 'User' } };
-    assert.equal((await publishReview(external.github, await prepareReview(external.github, editedByOutsider),
-        parseReadiness('{"questions":[]}'), { event: editedByOutsider, approvers })).autoStart, false);
-    assert.match(external.comments[0].body, /approved maintainer can apply `agent-ready`/);
+    await publishReview(f.github, plan, parseReadiness('{"questions":[]}'));
+    await publishReview(f.github, await prepareReview(f.github, event));
+    assert.deepEqual(f.writes, [['POST', '/repos/owner/repo/issues/8/comments']]);
+    assert.deepEqual(f.current.labels, [{ name: 'enhancement' }]);
 });

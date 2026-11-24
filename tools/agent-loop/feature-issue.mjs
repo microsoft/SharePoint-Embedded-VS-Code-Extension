@@ -59,35 +59,25 @@ export function assessIssue(issue) {
     return missing.length ? { status: 'incomplete', missing } : { status: 'complete', title, problem, behavior, criteria, impact };
 }
 
-export const approvalAccounts = (value) => new Set((value ?? '').toLowerCase().split(/[\s,]+/).filter(Boolean));
+const approvalAccounts = (value) => new Set((value ?? '').toLowerCase().split(/[\s,]+/).filter(Boolean));
 const allowedAccount = (user, approvers) => user?.type === 'User' &&
     typeof user.login === 'string' && approvers.has(user.login.toLowerCase());
 export const matchesIssueEvent = (event, current) => event.issue?.id === current.id &&
     event.issue.number === current.number && event.issue.title === current.title && event.issue.body === current.body;
 
-export function canAutoStart(event, current, approvers) {
-    return ['opened', 'edited', 'reopened'].includes(event.action) && matchesIssueEvent(event, current) &&
-        allowedAccount(current.user, approvers) && allowedAccount(event.sender, approvers) &&
-        Number.isSafeInteger(current.user.id) && current.user.id > 0 && event.issue.user?.id === current.user.id;
-}
-
 export function approval(event, current, approvers) {
+    if (event.action !== 'labeled' || event.label?.name !== READY || !allowedAccount(event.sender, approvers)) {
+        return { approved: false, reason: 'An approved maintainer must apply agent-ready.' };
+    }
     if (!matchesIssueEvent(event, current)) {
         return { approved: false, reason: 'Issue text changed after this event. Wait for readiness review of the current version.' };
     }
     const brief = assessIssue(current);
-    if (brief.status !== 'complete' || hasLabel(current, NEEDS_INFO)) {
-        return { approved: false, reason: 'Issue must be open, complete, and not labeled needs-info.' };
+    if (brief.status !== 'complete' || !hasLabel(current, READY) || !hasLabel(event.issue, READY) ||
+        hasLabel(current, NEEDS_INFO) || hasLabel(event.issue, NEEDS_INFO)) {
+        return { approved: false, reason: 'Issue must be open, complete, and labeled agent-ready without needs-info.' };
     }
-    if (event.action === 'labeled') {
-        if (event.label?.name !== READY || !allowedAccount(event.sender, approvers) ||
-            !hasLabel(current, READY) || !hasLabel(event.issue, READY) || hasLabel(event.issue, NEEDS_INFO)) {
-            return { approved: false, reason: 'agent-ready must be applied by an approved maintainer to a ready issue.' };
-        }
-        return { approved: true, brief };
-    }
-    if (canAutoStart(event, current, approvers)) return { approved: true, brief };
-    return { approved: false, reason: 'Requests from or last edited by other accounts need an approved maintainer to apply agent-ready.' };
+    return { approved: true, brief };
 }
 
 const productPaths = [
@@ -216,7 +206,7 @@ export async function intake({ event, mode, env, fetcher = fetch }) {
     if (!decision.approved) return { approved: false, message: decision.reason };
     const review = await readReadinessComment(github);
     if (review?.status !== 'ready' || review.revision !== reviewRevision(current)) {
-        return { approved: false, message: 'The current issue revision has not passed readiness review.' };
+        return { approved: false, message: 'The current issue revision has not passed readiness review. Wait for review, then reapply agent-ready.' };
     }
     if (mode === 'authorize') {
         return { approved: true, message: 'Feature approved.', contract: compileContract(event.issue.number, env.GITHUB_SHA, decision.brief) };

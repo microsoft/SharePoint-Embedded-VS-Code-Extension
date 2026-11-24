@@ -3,7 +3,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { approvalAccounts, assessIssue, canAutoStart, hasLabel, issueClient, matchesIssueEvent, NEEDS_INFO,
+import { assessIssue, hasLabel, issueClient, matchesIssueEvent, NEEDS_INFO,
     readReadinessComment, reviewMarker, reviewRevision } from './feature-issue.mjs';
 
 const fields = ['Problem', 'Expected behavior', 'Acceptance criteria', 'UI impact'];
@@ -80,12 +80,10 @@ async function askCopilot(brief, env) {
     }
 }
 
-function commentBody(revision, result, autoStart) {
+function commentBody(revision, result) {
     const lines = result.feedback.map((line) => `- ${line.replace(/[\\`*_{}\[\]()#+.!|~]/g, '\\$&')}`);
     const text = result.status === 'ready'
-        ? [autoStart
-            ? 'The current issue has enough detail. The feature agent can start automatically in this Actions run.'
-            : 'The current issue has enough detail. An approved maintainer can apply `agent-ready`. If it is already present, remove and reapply it.']
+        ? ['**Ready for `agent-ready` (awaiting maintainer approval).** The current issue has enough detail. Implementation has not been started by this review. Apply `agent-ready` to start it. If the label is already present from an earlier attempt, remove and reapply it.']
         : result.status === 'unavailable'
             ? ['The automated readiness reviewer is unavailable. A maintainer can rerun this workflow. Implementation remains blocked.']
             : ['Please address these points in the **issue description**. The next edit will trigger another review.', '', ...lines];
@@ -105,23 +103,22 @@ export async function prepareReview(github, event) {
     return { kind: 'model', revision, brief };
 }
 
-export async function publishReview(github, plan, modelResult, { event, approvers = new Set() } = {}) {
+export async function publishReview(github, plan, modelResult) {
     const current = await github();
     if (assessIssue(current).status === 'ignored' || reviewRevision(current) !== plan.revision) {
-        return { message: 'Issue changed or closed; no stale review was posted.', autoStart: false };
+        return 'Issue changed or closed; no stale review was posted.';
     }
     const prior = await readReadinessComment(github);
     const reusable = prior?.revision === plan.revision && prior.status !== 'unavailable';
     const result = plan.kind === 'cached' ? undefined : (plan.result ?? modelResult);
     if (!reusable && !result) throw new Error('No readiness verdict is available.');
     const status = reusable ? prior.status : result.status;
-    const autoStart = !reusable && status === 'ready' && Boolean(event && canAutoStart(event, current, approvers));
     if (status !== 'ready' && !hasLabel(current, NEEDS_INFO)) {
         const labels = await github('/labels', { method: 'POST', body: { labels: [NEEDS_INFO] } });
         if (!labels.some(({ name }) => name === NEEDS_INFO)) throw new Error('The needs-info repository label is missing.');
     }
     if (!reusable) {
-        const body = commentBody(plan.revision, result, autoStart);
+        const body = commentBody(plan.revision, result);
         if (prior?.body !== body) {
             if (prior) await github('', { method: 'PATCH', commentId: prior.id, body: { body } });
             else await github('/comments', { method: 'POST', body: { body } });
@@ -133,7 +130,7 @@ export async function publishReview(github, plan, modelResult, { event, approver
             await github(`/labels/${NEEDS_INFO}`, { method: 'DELETE', missingOk: true });
         }
     }
-    return { message: `Feature request readiness: ${status}.`, autoStart };
+    return `Feature request readiness: ${status}.`;
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
@@ -169,12 +166,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
                     result = { status: 'unavailable', feedback: [] };
                 }
             }
-            const outcome = await publishReview(github, plan, result, {
-                event: env.GITHUB_RUN_ATTEMPT === '1' ? event : undefined,
-                approvers: approvalAccounts(env.FEATURE_REQUEST_APPROVERS),
-            });
-            console.log(outcome.message);
-            await writeFile(env.GITHUB_OUTPUT, `auto-start=${outcome.autoStart}\n`, { flag: 'a' });
+            console.log(await publishReview(github, plan, result));
         } else {
             throw new Error('Expected prepare, review, or publish.');
         }
