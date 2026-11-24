@@ -73,7 +73,9 @@ test('a stale result cannot overwrite feedback and an unavailable review can be 
     const f = fixture(issue);
     const plan = await prepareReview(f.github);
     f.current.body += '\nEdited.';
-    assert.match(await publishReview(f.github, plan, parseReadiness('{"questions":[]}')), /no stale review/);
+    const stale = await publishReview(f.github, plan, parseReadiness('{"questions":[]}'));
+    assert.match(stale.message, /no stale review/);
+    assert.equal(stale.autoStart, false);
     assert.equal(f.writes.length, 0);
     const next = await prepareReview(f.github);
     await publishReview(f.github, next, { status: 'unavailable', feedback: [] });
@@ -88,4 +90,23 @@ test('malformed or unsafe model output never becomes a readiness verdict', () =>
         '{"questions":[{"field":"Problem","question":"Go to https://example.com"}]}']) {
         assert.throws(() => parseReadiness(output));
     }
+});
+
+test('only a fresh trust-eligible readiness pass requests automatic implementation', async () => {
+    const user = { id: 123, login: 'maintainer', type: 'User' };
+    const initial = { ...issue, user };
+    const event = { action: 'edited', issue: initial, sender: user };
+    const approvers = new Set(['maintainer']);
+    const f = fixture(initial);
+    assert.equal((await prepareReview(f.github, { ...event, issue: { ...initial, body: 'Old draft' } })).kind, 'ignored');
+    const plan = await prepareReview(f.github, event);
+    assert.equal((await publishReview(f.github, plan, parseReadiness('{"questions":[]}'), { event, approvers })).autoStart, true);
+    assert.match(f.comments[0].body, /start automatically/);
+    assert.equal((await publishReview(f.github, await prepareReview(f.github, event), undefined, { event, approvers })).autoStart, false);
+
+    const external = fixture(initial);
+    const editedByOutsider = { ...event, sender: { id: 456, login: 'outsider', type: 'User' } };
+    assert.equal((await publishReview(external.github, await prepareReview(external.github, editedByOutsider),
+        parseReadiness('{"questions":[]}'), { event: editedByOutsider, approvers })).autoStart, false);
+    assert.match(external.comments[0].body, /approved maintainer can apply `agent-ready`/);
 });

@@ -59,21 +59,35 @@ export function assessIssue(issue) {
     return missing.length ? { status: 'incomplete', missing } : { status: 'complete', title, problem, behavior, criteria, impact };
 }
 
+export const approvalAccounts = (value) => new Set((value ?? '').toLowerCase().split(/[\s,]+/).filter(Boolean));
+const allowedAccount = (user, approvers) => user?.type === 'User' &&
+    typeof user.login === 'string' && approvers.has(user.login.toLowerCase());
+export const matchesIssueEvent = (event, current) => event.issue?.id === current.id &&
+    event.issue.number === current.number && event.issue.title === current.title && event.issue.body === current.body;
+
+export function canAutoStart(event, current, approvers) {
+    return ['opened', 'edited', 'reopened'].includes(event.action) && matchesIssueEvent(event, current) &&
+        allowedAccount(current.user, approvers) && allowedAccount(event.sender, approvers) &&
+        Number.isSafeInteger(current.user.id) && current.user.id > 0 && event.issue.user?.id === current.user.id;
+}
+
 export function approval(event, current, approvers) {
-    if (event.action !== 'labeled' || event.label?.name !== READY || event.sender?.type !== 'User' ||
-        typeof event.sender.login !== 'string' || !approvers.has(event.sender.login.toLowerCase())) {
-        return { approved: false, reason: 'agent-ready was not applied by an approved maintainer.' };
-    }
-    if (event.issue?.id !== current.id || event.issue.number !== current.number ||
-        event.issue.title !== current.title || event.issue.body !== current.body) {
-        return { approved: false, reason: 'Issue text changed after approval. Reapply agent-ready after reviewing the edit.' };
+    if (!matchesIssueEvent(event, current)) {
+        return { approved: false, reason: 'Issue text changed after this event. Wait for readiness review of the current version.' };
     }
     const brief = assessIssue(current);
-    if (brief.status !== 'complete' || !hasLabel(current, READY) ||
-        hasLabel(current, NEEDS_INFO) || !hasLabel(event.issue, READY) || hasLabel(event.issue, NEEDS_INFO)) {
-        return { approved: false, reason: 'Issue must be open, complete, and labeled agent-ready without needs-info.' };
+    if (brief.status !== 'complete' || hasLabel(current, NEEDS_INFO)) {
+        return { approved: false, reason: 'Issue must be open, complete, and not labeled needs-info.' };
     }
-    return { approved: true, brief };
+    if (event.action === 'labeled') {
+        if (event.label?.name !== READY || !allowedAccount(event.sender, approvers) ||
+            !hasLabel(current, READY) || !hasLabel(event.issue, READY) || hasLabel(event.issue, NEEDS_INFO)) {
+            return { approved: false, reason: 'agent-ready must be applied by an approved maintainer to a ready issue.' };
+        }
+        return { approved: true, brief };
+    }
+    if (canAutoStart(event, current, approvers)) return { approved: true, brief };
+    return { approved: false, reason: 'Requests from or last edited by other accounts need an approved maintainer to apply agent-ready.' };
 }
 
 const productPaths = [
@@ -197,12 +211,12 @@ export async function intake({ event, mode, env, fetcher = fetch }) {
     if (!['authorize', 'confirm'].includes(mode)) throw new Error('Unknown feature intake mode.');
     const github = issueClient(event, env, fetcher);
     const current = await github();
-    const approvers = new Set((env.FEATURE_REQUEST_APPROVERS ?? '').toLowerCase().split(/[\s,]+/).filter(Boolean));
+    const approvers = approvalAccounts(env.FEATURE_REQUEST_APPROVERS);
     const decision = approval(event, current, approvers);
     if (!decision.approved) return { approved: false, message: decision.reason };
     const review = await readReadinessComment(github);
     if (review?.status !== 'ready' || review.revision !== reviewRevision(current)) {
-        return { approved: false, message: 'The current issue revision has not passed readiness review. Wait for review, then reapply agent-ready.' };
+        return { approved: false, message: 'The current issue revision has not passed readiness review.' };
     }
     if (mode === 'authorize') {
         return { approved: true, message: 'Feature approved.', contract: compileContract(event.issue.number, env.GITHUB_SHA, decision.brief) };

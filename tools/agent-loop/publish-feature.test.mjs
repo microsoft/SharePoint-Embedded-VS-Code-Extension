@@ -93,7 +93,7 @@ test('publishes one draft from an isolated index and recovers an already-pushed 
     const options = { event, env, directory, run,
         fetcher: async (url) => Response.json(url.includes('/comments?') ? [review] : current) };
     current = { ...issue, body: `${issue.body}\nEdited` };
-    await assert.rejects(publish(options), /changed after approval/);
+    await assert.rejects(publish(options), /Issue text changed/);
     assert.equal(pushes, 0);
     current = issue;
     await assert.rejects(publish(options), /simulated API failure/);

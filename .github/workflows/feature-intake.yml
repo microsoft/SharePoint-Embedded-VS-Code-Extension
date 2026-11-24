@@ -14,6 +14,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 8
     environment: feature-agent
+    outputs:
+      auto-start: ${{ steps.feedback.outputs.auto-start }}
     concurrency:
       group: feature-readiness-${{ github.event.issue.number }}
       cancel-in-progress: false
@@ -52,15 +54,20 @@ jobs:
           AGENT_LOOP_MODEL: ${{ vars.AGENT_LOOP_MODEL || 'gpt-6.2-sol' }}
         run: node tools/agent-loop/review-feature.mjs review
       - name: Update the readiness comment and needs-info label
+        id: feedback
         if: steps.readiness.outputs.kind != 'ignored'
         env:
           GH_TOKEN: ${{ github.token }}
+          FEATURE_REQUEST_APPROVERS: ${{ vars.FEATURE_REQUEST_APPROVERS }}
         run: node tools/agent-loop/review-feature.mjs publish
 
   implement:
+    needs: triage
     if: >-
+      always() && !cancelled() && github.run_attempt == 1 &&
       startsWith(github.event.issue.title, 'Feature-Request: SPE VSC Extension -') &&
-      github.event.action == 'labeled' && github.event.label.name == 'agent-ready' && github.run_attempt == 1
+      ((needs.triage.result == 'success' && needs.triage.outputs.auto-start == 'true') ||
+      (github.event.action == 'labeled' && github.event.label.name == 'agent-ready'))
     runs-on: ubuntu-latest
     timeout-minutes: 120
     concurrency:

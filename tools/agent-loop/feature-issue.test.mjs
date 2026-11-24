@@ -93,3 +93,25 @@ test('authorization and handoff require a bot readiness pass for the exact issue
     assert.equal((await intake({ event, mode: 'confirm', env, fetcher })).approved, false);
     assert.equal((await intake({ event: { ...event, issue: current }, mode: 'authorize', env, fetcher })).approved, false);
 });
+
+test('a trusted author and editor can start without agent-ready, but only after the matched revision passes', async () => {
+    const owner = { id: 123, login: 'Owner', type: 'User' };
+    const approvedIssue = { ...issue, labels: [], user: owner };
+    const autoEvent = { action: 'edited', issue: { ...approvedIssue, labels: [{ name: 'needs-info' }] }, sender: owner };
+    const comment = {
+        id: 1, user: { id: 41898282, type: 'Bot' },
+        body: `${reviewMarker} ${reviewRevision(approvedIssue)} ready -->\nReady.`,
+    };
+    const fetcher = async (url) => Response.json(url.includes('/comments?') ? [comment] : approvedIssue);
+    assert.equal((await intake({ event: autoEvent, mode: 'authorize', env, fetcher })).approved, true);
+    assert.equal((await intake({ event: autoEvent, mode: 'confirm', env, fetcher })).approved, true);
+    for (const denied of [
+        { ...autoEvent, sender: { ...owner, login: 'outsider' } },
+        { ...autoEvent, sender: { ...owner, type: 'Bot' } },
+        { ...autoEvent, issue: { ...autoEvent.issue, user: { ...owner, id: 456 } } },
+    ]) assert.equal((await intake({ event: denied, mode: 'authorize', env, fetcher })).approved, false);
+    const outsideIssue = { ...approvedIssue, user: { ...owner, login: 'outsider', id: 456 } };
+    assert.equal(approval({ ...autoEvent, issue: outsideIssue }, outsideIssue, approvers).approved, false);
+    comment.body = comment.body.replace(' ready -->', ' needs-info -->');
+    assert.equal((await intake({ event: autoEvent, mode: 'authorize', env, fetcher })).approved, false);
+});
