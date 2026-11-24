@@ -95,14 +95,15 @@ Use the [SPE feature request form](../../.github/ISSUE_TEMPLATE/feature-request.
 [intake workflow](../../.github/workflows/feature-intake.yml) triages opened, edited, and reopened
 requests. It checks the form, then uses a text-only Copilot session to look for ambiguity and
 missing verification details. It adds `needs-info` and keeps one bot comment with specific
-requests. Each one names the gap, explains why it matters, says what to add, and gives an example
-the author can adapt. Basic gaps, such as "the notification works" without an observable result,
-get feedback without calling Copilot. The comment identifies form checks or the Copilot model
-setting used to review the request. Reply by editing the issue description rather than in a comment. Each
+requests. Copilot reviews each form finding against the whole description, even for incomplete
+requests. It drops unsupported advisory findings, keeps required form corrections, and explains
+each remaining gap, why it matters, what to add, and an example the author can adapt. The
+comment identifies the model setting used. Reply by editing the issue description rather than in a comment. Each
 revision is reviewed until it passes, at which point the workflow clears `needs-info`.
-A reviewer failure is not an author action: the bot gives a safe failure category and links to
-the failed Actions run without labeling the request `needs-info`. A maintainer can rerun triage
-after addressing the error. Implementation still requires a readiness pass for the current issue.
+If Copilot fails, the bot gives a safe failure category and links to the failed Actions run.
+It only uses `needs-info` in that case if required form corrections actually remain, and
+identifies them as not reviewed by Copilot. A maintainer can rerun triage after addressing the
+error. Implementation still requires a readiness pass for the current issue.
 
 To exercise the actual reviewer locally, run `npm run agent:build`, point
 `AGENT_LOOP_COPILOT_COMMAND` at a native Copilot CLI **1.0.106** executable, then run

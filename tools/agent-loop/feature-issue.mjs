@@ -7,7 +7,7 @@ export const TITLE_PREFIX = 'Feature-Request: SPE VSC Extension -';
 const READY = 'agent-ready';
 export const NEEDS_INFO = 'needs-info';
 const HEADINGS = ['Problem', 'Expected behavior', 'Acceptance criteria', 'UI impact'];
-const MAX_BODY = 12_000;
+export const MAX_BODY = 12_000;
 const MAX_CRITERIA = 12;
 
 const isFeature = (issue) => typeof issue?.title === 'string' && issue.title.startsWith(TITLE_PREFIX);
@@ -37,6 +37,7 @@ export function assessIssue(issue) {
     if (!isFeature(issue) || issue.state !== 'open' || issue.pull_request) return { status: 'ignored' };
     const title = issue.title.slice(TITLE_PREFIX.length).trim();
     const missing = [];
+    const advisory = [];
     if (issue.title[TITLE_PREFIX.length] !== ' ' || title.length < 5 || title.length > 120 || !description(title)) {
         missing.push(guidance('Title', 'The feature name is missing or outside the 5-120 character limit.',
             'A clear title lets maintainers identify the requested change at a glance.',
@@ -91,13 +92,13 @@ export function assessIssue(issue) {
             isNotification ? 'When the operation succeeds, exactly one success notice is shown.'
                 : 'When a user refreshes the list, the selected row remains selected if it still exists.'));
         if (isNotification && description(behavior) && !/\b(?:success(?:ful(?:ly)?)?|succeed(?:s|ed)?|confirm(?:s|ed|ation)?)\b/i.test(behavior)) {
-            missing.push(guidance('Expected behavior', 'The vague test does not establish when the notification should appear.',
+            advisory.push(guidance('Expected behavior', 'The vague test does not establish when the notification should appear.',
                 'A success message shown before confirmation could mislead the user.',
                 'Confirm the trigger and describe what happens while the operation is pending, fails or is canceled.',
                 'Show the notice only after the operation confirms success. Show no success notice if it fails or is canceled.'));
         }
         if (isNotification && /^(?:(?:a|the)\s+)?(?:success\s+)?(?:notification|toast)(?:\s+(?:appears|is shown))?[.!]?$/i.test(impact)) {
-            missing.push(guidance('UI impact', 'The notification needs a testable placement and message.',
+            advisory.push(guidance('UI impact', 'The notification needs a testable placement and message.',
                 'The reviewer needs to know where to look and what text to verify.',
                 'Specify the notification location and give an example of its text. Mention whether it is dismissible if relevant.',
                 'Show a dismissible notice above the list: Container Demo created successfully.'));
@@ -109,7 +110,7 @@ export function assessIssue(issue) {
             'Describe what changes on screen and where, or write None for a non-visual change.',
             'A dismissible success notice appears inside Storage Explorer above the container list.'));
     }
-    return missing.length ? { status: 'incomplete', missing } : { status: 'complete', title, problem, behavior, criteria, impact };
+    return missing.length ? { status: 'incomplete', missing, advisory } : { status: 'complete', title, problem, behavior, criteria, impact };
 }
 
 const approvalAccounts = (value) => new Set((value ?? '').toLowerCase().split(/[\s,]+/).filter(Boolean));
