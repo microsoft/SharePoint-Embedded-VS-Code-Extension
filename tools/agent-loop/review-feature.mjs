@@ -7,6 +7,9 @@ import { assessIssue, hasLabel, issueClient, matchesIssueEvent, NEEDS_INFO,
     readReadinessComment, reviewMarker, reviewRevision } from './feature-issue.mjs';
 
 const fields = ['Problem', 'Expected behavior', 'Acceptance criteria', 'UI impact'];
+const feedbackKeys = ['field', 'gap', 'why', 'add', 'example'];
+const feedbackText = (value) => typeof value === 'string' && value.trim().length > 0 && value.length <= 320 &&
+    !/[\u0000-\u001f\u007f@<>]|https?:|www\.|github_pat_|gh[pousr]_/i.test(value);
 const require = createRequire(import.meta.url);
 const reviewerFailures = {
     setup: 'The runner could not prepare the Copilot CLI or SDK.',
@@ -45,8 +48,10 @@ export function reviewPrompt(brief) {
         'Check that it identifies an affected user and concrete problem, describes what should happen and when, and includes observable pass/fail acceptance criteria.',
         'Ask about relevant failure states, constraints, and visible UI changes only when they would otherwise require material assumptions. Do not invent requirements.',
         'Do not assume Azure, tenant data, credentials, or repository access. Do not provide exploit or attack guidance.',
-        'Return only a JSON object with a single key "questions": an array of zero to five objects, each with "field" and "question" strings.',
-        `Allowed field names: ${fields.join(', ')}. Questions must be short, actionable plain text, at most 240 characters, with no mentions or URLs.`,
+        'Return only a JSON object with a single key "questions": an array of zero to five objects. Each object must have exactly these string keys: "field", "gap", "why", "add", "example".',
+        `Use one of these section names for "field": ${fields.join(', ')}.`,
+        'For each material gap, describe what is missing in "gap", what a developer or tester would otherwise have to assume in "why", and exactly what the author should add in "add".',
+        'In "example", give a brief, concrete example of an edit, clearly illustrative rather than a decision made for the author. Do not repeat details the issue already answers. Use plain text, at most 320 characters per value, with no mentions or URLs.',
         'Return {"questions":[]} only when a developer could implement the bounded request and a tester could verify it without material assumptions.',
         JSON.stringify({ title: brief.title, problem: brief.problem, expectedBehavior: brief.behavior, criteria: brief.criteria, uiImpact: brief.impact }),
     ].join('\n');
@@ -56,13 +61,13 @@ export function parseReadiness(text) {
     const trimmed = text.trim();
     const result = JSON.parse(/^```(?:json)?\r?\n([\s\S]*?)\r?\n```$/i.exec(trimmed)?.[1] ?? trimmed);
     if (!result || Object.keys(result).length !== 1 || !Array.isArray(result.questions) || result.questions.length > 5 ||
-        result.questions.some((item) => !item || Object.keys(item).length !== 2 || !fields.includes(item.field) ||
-            typeof item.question !== 'string' || !item.question.trim() || item.question.length > 240 ||
-            /[\u0000-\u001f\u007f@<>]|https?:|www\.|github_pat_|gh[pousr]_/i.test(item.question))) {
+        result.questions.some((item) => !item || Object.keys(item).length !== feedbackKeys.length ||
+            !fields.includes(item.field) || !feedbackKeys.every(key => feedbackText(item[key])))) {
         throw new Error('The reviewer returned invalid readiness feedback.');
     }
-    const feedback = result.questions.map((item) => `${item.field}: ${item.question.trim()}`);
-    return { status: feedback.length ? 'needs-info' : 'ready', feedback: [...new Set(feedback)] };
+    const feedback = result.questions.map(item => Object.fromEntries(feedbackKeys.map(key => [key, item[key].trim()])));
+    return { status: feedback.length ? 'needs-info' : 'ready', feedback: feedback.filter((item, index) =>
+        feedback.findIndex(other => other.field === item.field && other.gap === item.gap) === index) };
 }
 
 async function askCopilot(brief, env, { useLocalLogin = false } = {}) {
@@ -113,7 +118,7 @@ async function askCopilot(brief, env, { useLocalLogin = false } = {}) {
         const response = await session.sendAndWait({ prompt: reviewPrompt(brief) }, 90_000);
         stage = 'response';
         if (typeof response?.data?.content !== 'string' || permissionRequested) throw new ReadinessFailure('response');
-        return parseReadiness(response.data.content);
+        return { ...parseReadiness(response.data.content), model };
     } catch (cause) {
         error = new ReadinessFailure(classifyFailure(cause, stage));
         throw error;
@@ -148,8 +153,16 @@ const smokeBrief = {
     impact: 'A dismissible success notice appears inside the Storage Explorer webview above the container list.',
 };
 
+const escapeMarkdown = (value) => value.replace(/[\\`*_{}\[\]()#+|~]/g, '\\$&');
+
 function commentBody(revision, result, runUrl) {
-    const lines = result.feedback.map((line) => `- ${line.replace(/[\\`*_{}\[\]()#+|~]/g, '\\$&')}`);
+    const lines = result.feedback.flatMap(({ field, gap, why, add, example }, index) => [
+        `${index + 1}. **${escapeMarkdown(field)}:** ${escapeMarkdown(gap)}`,
+        `   - **Why it matters:** ${escapeMarkdown(why)}`,
+        `   - **What to add:** ${escapeMarkdown(add)}`,
+        `   - **Example (adapt as needed):** ${escapeMarkdown(example)}`,
+        '',
+    ]);
     const runLink = runUrl ? ` See the [Actions run](${runUrl}).` : '';
     const text = result.status === 'ready'
         ? ['**Ready for `agent-ready` (awaiting maintainer approval).** The current issue has enough detail. Implementation has not been started by this review. Apply `agent-ready` to start it. If the label is already present from an earlier attempt, remove and reapply it.']
@@ -157,7 +170,11 @@ function commentBody(revision, result, runUrl) {
             ? ['**Review could not finish — no author action required.**', '',
                 `${reviewerFailures[result.failure]} A maintainer can retry once the reviewer is healthy.${runLink} Do not apply \`agent-ready\` until this comment reports a pass.`]
             : ['**Changes requested.** Please address these points in the **issue description** (not in a reply). The next edit triggers another review.', '', ...lines];
-    return [`${reviewMarker} ${revision} ${result.status} -->`, '### Feature request readiness', '', ...text].join('\n');
+    const source = result.model && /^[a-z0-9][a-z0-9._-]{0,79}$/i.test(result.model)
+        ? `_Reviewed by GitHub Copilot (model setting: \`${result.model}\`)._`
+        : result.status === 'needs-info' ? '_Found by automated form checks; no AI model used for this feedback._' : '';
+    return [`${reviewMarker} ${revision} ${result.status} -->`, '### Feature request readiness', '', ...text,
+        ...(source ? ['', source] : [])].join('\n');
 }
 
 export async function prepareReview(github, event) {

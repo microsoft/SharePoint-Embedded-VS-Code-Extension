@@ -46,8 +46,9 @@ test('an incomplete request gets one comment, then semantic questions, then a re
     assert.equal(staticPlan.kind, 'static');
     await publishReview(f.github, staticPlan);
     assert.match(f.comments[0].body, /Please address these points/);
-    assert.match(f.comments[0].body, /Describe the problem/);
+    assert.match(f.comments[0].body, /Describe who encounters the problem/);
     assert.match(f.comments[0].body, /testable acceptance criteria/);
+    assert.match(f.comments[0].body, /no AI model used/);
     await publishReview(f.github, await prepareReview(f.github));
     assert.equal(f.writes.length, 2);
 
@@ -55,9 +56,18 @@ test('an incomplete request gets one comment, then semantic questions, then a re
     const modelPlan = await prepareReview(f.github);
     assert.equal(modelPlan.kind, 'model');
     assert.match(reviewPrompt(modelPlan.brief), /untrusted requirements data/);
-    const questions = parseReadiness('{"questions":[{"field":"Expected behavior","question":"What should happen when the selected item has disappeared?"}]}');
-    await publishReview(f.github, modelPlan, questions);
+    const questions = parseReadiness(JSON.stringify({ questions: [{
+        field: 'Expected behavior', gap: 'No outcome is stated when the selected item has disappeared.',
+        why: 'The developer cannot tell whether to clear selection or select another row.',
+        add: 'Say what should happen after refresh if the selected item is missing.',
+        example: 'Clear selection and leave the refreshed list visible.',
+    }] }));
+    await publishReview(f.github, modelPlan, { ...questions, model: 'gpt-6.2-sol' });
     assert.match(f.comments[0].body, /selected item has disappeared/);
+    assert.match(f.comments[0].body, /Why it matters:.*cannot tell/);
+    assert.match(f.comments[0].body, /What to add:.*after refresh/);
+    assert.match(f.comments[0].body, /Clear selection and leave the refreshed list visible/);
+    assert.match(f.comments[0].body, /model setting: `gpt-6.2-sol`/);
     assert.equal(f.comments.length, 1);
     await publishReview(f.github, await prepareReview(f.github));
     assert.equal(f.writes.length, 3);
@@ -101,7 +111,18 @@ test('a vague notification request gets concrete questions without invoking the 
     assert.match(f.comments[0].body, /observable result/);
     assert.match(f.comments[0].body, /fails or is canceled/);
     assert.match(f.comments[0].body, /example of its text/);
+    assert.match(f.comments[0].body, /Container Demo created successfully/);
+    assert.match(f.comments[0].body, /no AI model used/);
     assert.ok(f.current.labels.some(({ name }) => name === 'needs-info'));
+});
+
+test('static feedback does not re-request notification timing or placement already specified', async () => {
+    const f = fixture({ ...issue, title: `${TITLE_PREFIX} Confirm container creation`,
+        body: '### Problem\nCreation is unconfirmed.\n### Expected behavior\nShow a notice only after create succeeds.\n' +
+            '### Acceptance criteria\n- The notification works.\n### UI impact\nShow a dismissible notice above the container list.' });
+    const plan = await prepareReview(f.github);
+    assert.equal(plan.kind, 'static');
+    assert.deepEqual(plan.result.feedback.map(({ field }) => field), ['Acceptance criteria']);
 });
 
 test('reviewer diagnostics classify errors without propagating raw SDK text', () => {
@@ -113,10 +134,15 @@ test('reviewer diagnostics classify errors without propagating raw SDK text', ()
 });
 
 test('malformed or unsafe model output never becomes a readiness verdict', () => {
+    const feedback = { field: 'Problem', gap: 'Missing context', why: 'Impact is unclear',
+        add: 'Say what blocks the user', example: 'Developers cannot finish creating a container' };
     for (const output of ['{"questions":null}', '{"questions":[],"approved":true}',
-        '{"questions":[{"field":"Other","question":"Please clarify."}]}',
-        '{"questions":[{"field":"Problem","question":"Contact @someone."}]}',
-        '{"questions":[{"field":"Problem","question":"Go to https://example.com"}]}']) {
+        ...[
+            { field: 'Problem', question: 'Please clarify.' },
+            { ...feedback, field: 'Other' },
+            { ...feedback, example: 'Contact @someone.' },
+            { ...feedback, add: 'Go to https://example.com' },
+        ].map(item => JSON.stringify({ questions: [item] }))]) {
         assert.throws(() => parseReadiness(output));
     }
 });
