@@ -104,7 +104,7 @@ test('a stale result cannot overwrite feedback and an unavailable review can be 
     assert.equal(outcome.failure, 'credential');
     assert.match(f.comments[0].body, /no author action required/);
     assert.match(f.comments[0].body, /credential is missing, expired, or was rejected/);
-    assert.ok(f.comments[0].body.includes(runUrl));
+    assert.equal(f.comments[0].body.match(/\[Actions run\]\(([^)\r\n]+)\)/)?.[1], runUrl);
     assert.deepEqual(f.current.labels, [{ name: 'enhancement' }]);
     assert.equal((await prepareReview(f.github)).kind, 'model');
 });
