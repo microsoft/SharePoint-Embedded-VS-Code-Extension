@@ -80,6 +80,7 @@ jobs:
       auto-publish: ${{ steps.agent.outputs.auto-publish }}
       review-files: ${{ steps.agent.outputs.review-files }}
       vsix-url: ${{ steps.vsix.outputs.artifact-url }}
+      vsix-id: ${{ steps.vsix.outputs.artifact-id }}
     env:
       FEATURE_REQUEST_APPROVERS: ${{ vars.FEATURE_REQUEST_APPROVERS }}
       AGENT_LOOP_MODEL: ${{ vars.AGENT_LOOP_MODEL || 'gpt-6.2-sol' }}
@@ -297,9 +298,12 @@ jobs:
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
-      - name: Post the feature handoff on the issue
+      - name: Update the issue description with the feature delivery
         env:
           GH_TOKEN: ${{ github.token }}
+          FEATURE_REQUEST_APPROVERS: ${{ vars.FEATURE_REQUEST_APPROVERS }}
+          PATCH_ARTIFACT_ID: ${{ needs.implement.outputs.artifact-id }}
+          VSIX_ARTIFACT_ID: ${{ needs.implement.outputs.vsix-id }}
           REVIEW_FILES: ${{ needs.implement.outputs.review-files }}
           AUTO_PUBLISH: ${{ needs.implement.outputs.auto-publish }}
           BRANCH_PUSHED: ${{ needs.publish.outputs.branch-pushed }}

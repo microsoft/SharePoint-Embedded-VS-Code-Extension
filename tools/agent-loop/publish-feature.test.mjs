@@ -6,7 +6,8 @@ import { join } from 'node:path';
 import test from 'node:test';
 import { reviewMarker, reviewRevision, TITLE_PREFIX } from './feature-issue.mjs';
 import { publish, validateStagedDiff } from './publish-feature.mjs';
-import { classifyFeatureHandoff, postFeatureHandoff } from './feature-handoff.mjs';
+import { classifyFeatureHandoff, updateFeatureHandoff } from './feature-handoff.mjs';
+import { appendIssueDelivery, splitIssueDelivery } from './issue-delivery-section.mjs';
 
 const repository = 'owner/repo';
 const issue = {
@@ -46,28 +47,53 @@ test('flagging sensitive changes is independent of delivering the reviewed patch
     assert.throws(() => classifyFeatureHandoff(row('src/utils/example.ts', '120000')));
 });
 
-test('the issue handoff reports a pushed branch even when opening the draft PR fails', async () => {
-    let comment;
+test('the issue description reports the branch and direct downloads without changing readiness', async () => {
+    let current = { ...issue };
     const methods = [];
     const env = {
         GITHUB_REPOSITORY: repository, GITHUB_RUN_ID: '42', GH_TOKEN: 'mock',
+        FEATURE_REQUEST_APPROVERS: 'maintainer', PATCH_ARTIFACT_ID: '122', VSIX_ARTIFACT_ID: '123',
         REVIEW_FILES: '["src/services/Auth/GraphAuthProvider.ts"]', AUTO_PUBLISH: 'true', BRANCH_PUSHED: 'true',
     };
-    const fetcher = async (_url, init) => {
-        if (init.method === 'GET') return Response.json(comment ? [comment] : []);
+    const fetcher = async (url, init) => {
+        assert.equal(new URL(url).pathname, '/repos/owner/repo/issues/8');
+        if (init.method === 'GET') return Response.json(current);
         methods.push(init.method);
-        comment = { id: 1, user: { id: 41898282, type: 'Bot' }, ...JSON.parse(init.body) };
-        return Response.json(comment);
+        current = { ...current, ...JSON.parse(init.body) };
+        return Response.json(current);
     };
-    await postFeatureHandoff(event, env, fetcher);
-    await postFeatureHandoff(event, env, fetcher);
-    assert.deepEqual(methods, ['POST']);
-    assert.match(comment.body, /Branch pushed:.*feature-agent\/issue-8/);
-    assert.match(comment.body, /No draft PR was opened/);
-    assert.match(comment.body, /GraphAuthProvider\.ts/);
-    await postFeatureHandoff(event, { ...env, DRAFT_PR_NUMBER: '19' }, fetcher);
-    assert.deepEqual(methods, ['POST', 'PATCH']);
-    assert.match(comment.body, /Draft PR: \[#19\]/);
+    await updateFeatureHandoff(event, env, fetcher);
+    await updateFeatureHandoff(event, env, fetcher);
+    assert.deepEqual(methods, ['PATCH']);
+    assert.equal(splitIssueDelivery(current.body).requirements, issue.body);
+    assert.equal(reviewRevision(current), reviewRevision(issue));
+    for (const [label, artifactId] of [['the testable VSIX and checksum', 123], ['the reviewed patch', 122]]) {
+        const link = current.body.match(new RegExp(`\\[Download ${label}\\]\\(([^)]+)\\)`))?.[1];
+        const url = new URL(link);
+        assert.equal(url.origin, 'https://github.com');
+        assert.equal(url.pathname, `/owner/repo/actions/runs/42/artifacts/${artifactId}`);
+    }
+    assert.match(current.body, /Branch pushed:.*feature-agent\/issue-8/);
+    assert.match(current.body, /No draft PR was opened/);
+    assert.match(current.body, /GraphAuthProvider\.ts/);
+    await updateFeatureHandoff(event, { ...env, GITHUB_RUN_ID: '43', DRAFT_PR_NUMBER: '19' }, fetcher);
+    assert.deepEqual(methods, ['PATCH', 'PATCH']);
+    assert.match(current.body, /Draft PR: \[#19\]/);
+    assert.equal(current.body.match(/^## Feature agent delivery$/gm).length, 1);
+    await updateFeatureHandoff(event, env, fetcher);
+    assert.equal(splitIssueDelivery(current.body).runId, '43');
+    current.body = current.body.replace('Unclear prompt.', 'Updated problem.');
+    await updateFeatureHandoff(event, { ...env, GITHUB_RUN_ID: '44' }, fetcher);
+    assert.deepEqual(methods, ['PATCH', 'PATCH']);
+    assert.match(current.body, /Updated problem\./);
+});
+
+test('delivery parsing does not discard author text after the managed section', () => {
+    const requirements = `${issue.body}\n`;
+    const body = appendIssueDelivery(requirements, '42', '## Feature agent delivery\n\nA run link.');
+    assert.equal(splitIssueDelivery(body).requirements, requirements);
+    const edited = `${body}\n\nNew author text.`;
+    assert.equal(splitIssueDelivery(edited).requirements, `${requirements}\n\nNew author text.`);
 });
 
 test('publishes one draft from an isolated index and recovers an already-pushed identical commit', async (t) => {

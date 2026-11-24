@@ -2,6 +2,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { dirname } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { splitIssueDelivery } from './issue-delivery-section.mjs';
 
 export const TITLE_PREFIX = 'Feature-Request: SPE VSC Extension -';
 const READY = 'agent-ready';
@@ -44,7 +45,7 @@ export function assessIssue(issue) {
             'Keep the required prefix and name the action or outcome you want.',
             `${TITLE_PREFIX} Confirm successful container creation`));
     }
-    const body = issue.body ?? '';
+    const body = splitIssueDelivery(issue.body).requirements ?? '';
     if (typeof body !== 'string' || body.length > MAX_BODY) {
         missing.push(guidance('Issue description', 'The description must be text and no longer than 12,000 characters.',
             'The reviewer needs a bounded brief it can read in full.',
@@ -117,7 +118,8 @@ const approvalAccounts = (value) => new Set((value ?? '').toLowerCase().split(/[
 const allowedAccount = (user, approvers) => user?.type === 'User' &&
     typeof user.login === 'string' && approvers.has(user.login.toLowerCase());
 export const matchesIssueEvent = (event, current) => event.issue?.id === current.id &&
-    event.issue.number === current.number && event.issue.title === current.title && event.issue.body === current.body;
+    event.issue.number === current.number && event.issue.title === current.title &&
+    splitIssueDelivery(event.issue.body).requirements === splitIssueDelivery(current.body).requirements;
 
 export function approval(event, current, approvers) {
     if (event.action !== 'labeled' || event.label?.name !== READY || !allowedAccount(event.sender, approvers)) {
@@ -243,7 +245,7 @@ export function compileContract(issueNumber, baseCommit, brief) {
 }
 
 export function reviewRevision(issue) {
-    return createHash('sha256').update(JSON.stringify([issue.id, issue.title, issue.body])).digest('hex');
+    return createHash('sha256').update(JSON.stringify([issue.id, issue.title, splitIssueDelivery(issue.body).requirements])).digest('hex');
 }
 
 export const reviewMarker = '<!-- spe-feature-readiness:v1';

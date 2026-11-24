@@ -3,6 +3,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { splitIssueDelivery } from './issue-delivery-section.mjs';
 import { assessIssue, hasLabel, issueClient, matchesIssueEvent, MAX_BODY, NEEDS_INFO,
     readReadinessComment, reviewMarker, reviewRevision } from './feature-issue.mjs';
 
@@ -179,7 +180,7 @@ function canReuseReview(review, revision) {
 }
 
 function reviewInput(issue, assessment) {
-    const description = typeof issue.body === 'string' ? issue.body : '';
+    const description = splitIssueDelivery(issue.body).requirements ?? '';
     const findings = [
         ...(assessment.missing ?? []).map(item => ({ ...item, required: true })),
         ...(assessment.advisory ?? []).map(item => ({ ...item, required: false })),

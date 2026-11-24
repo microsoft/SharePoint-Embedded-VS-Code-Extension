@@ -148,8 +148,11 @@ client configuration, and generated output stay outside the edit scope.
 
 The workflow pushes eligible application changes, including changes to authentication, permissions,
 and Graph services. It then attempts to open a draft PR using the repository token. A blocked PR
-does not undo a successful push. The issue handoff links to the run and reports the branch or PR
-outcome, with a list of sensitive changes to review before merging or installing the VSIX.
+does not undo a successful push. On success, the **Feature agent delivery** section in the issue
+description gives direct links to the testable VSIX, checksum, and patch. It also reports the
+branch or PR outcome and lists sensitive changes to review before merging or installing the VSIX.
+The workflow replaces its own section on a later successful run without changing the feature
+requirements or invalidating their readiness review.
 Changes to CI, build controls, or the agent harness still receive a reviewed patch and VSIX, but
 require manual publication so the candidate cannot change the remote execution environment.
 Neither route merges or publishes a release.
