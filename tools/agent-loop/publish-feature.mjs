@@ -106,23 +106,22 @@ export async function publish({ event, env, directory, run = execute, fetcher = 
         await rm(scratch, { recursive: true, force: true });
     }
     if (!sha.test(commit)) throw new Error('Could not create a commit for the reviewed patch.');
-    if (existing.length) {
-        if (existing[0].head?.sha !== commit) throw new Error('An existing pull request has different changes.');
-        await onBranch();
-        return { url: existing[0].html_url, number: existing[0].number, created: false };
-    }
-
-    await requireApproval();
     const ref = `refs/heads/${branch}`;
     const upstream = `https://github.com/${env.GITHUB_REPOSITORY}.git`;
     const remote = git(['ls-remote', '--refs', upstream, ref]).trim();
-    if (!remote) {
+    const [remoteCommit, remoteRef, ...extra] = remote.split('\t');
+    if (remote && (!sha.test(remoteCommit) || remoteRef !== ref || extra.length)) {
+        throw new Error('Unexpected issue branch lookup response.');
+    }
+    if (remoteCommit !== commit) {
+        await requireApproval();
         git(['-c', 'credential.helper=', '-c', 'credential.helper=!gh auth git-credential',
-            'push', '--no-verify', `--force-with-lease=${ref}:`, upstream, `${commit}:${ref}`]);
-    } else if (remote !== `${commit}\t${ref}`) {
-        throw new Error('The issue branch already has different changes. It will not be overwritten.');
+            'push', '--no-verify', `--force-with-lease=${ref}:${remoteCommit}`, upstream, `${commit}:${ref}`]);
     }
     await onBranch();
+    if (existing.length) {
+        return { url: existing[0].html_url, number: existing[0].number, created: false };
+    }
 
     await requireApproval();
     const runUrl = `https://github.com/${env.GITHUB_REPOSITORY}/actions/runs/${env.GITHUB_RUN_ID}`;

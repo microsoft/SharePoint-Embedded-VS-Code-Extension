@@ -153,7 +153,7 @@ test('a fresh approved run reports pickup, progress, and failure on the same iss
     assert.doesNotMatch(current.body, /Download the testable VSIX/);
 });
 
-test('publishes one draft from an isolated index and recovers an already-pushed identical commit', async (t) => {
+test('publishes from an isolated index, replaces the issue branch, and reuses an open PR', async (t) => {
     const directory = await mkdtemp(join(tmpdir(), 'spe-publish-test-'));
     t.after(() => rm(directory, { recursive: true, force: true }));
     const repositoryPath = join(directory, 'repo');
@@ -180,7 +180,9 @@ test('publishes one draft from an isolated index and recovers an already-pushed 
     const ref = 'refs/heads/feature-agent/issue-8';
     const url = `https://github.com/${repository}/pull/19`;
     let remote = '';
+    let updateBeforePush;
     let pushes = 0;
+    let attempts = 0;
     let posts = 0;
     let pr;
     let prResponse = { status: 403, message: 'GitHub Actions is not permitted to create or approve pull requests.' };
@@ -190,9 +192,13 @@ test('publishes one draft from an isolated index and recovers an already-pushed 
         assert.equal(args[0], '--no-pager');
         if (args[1] === 'ls-remote') return remote;
         if (args.includes('push')) {
-            assert.ok(args.includes(`--force-with-lease=${ref}:`));
-            const head = args.at(-1).split(':')[0];
-            assert.match(git(['show', `${head}:${authPath}`]), /New/);
+            attempts++;
+            const lease = args.find(arg => arg.startsWith('--force-with-lease='));
+            if (updateBeforePush) remote = updateBeforePush;
+            if (lease !== `--force-with-lease=${ref}:${remote.split('\t')[0]}`) throw new Error('stale lease');
+            const [head, destination] = args.at(-1).split(':');
+            assert.equal(destination, ref);
+            assert.equal(git(['rev-parse', `${head}^`]).trim(), base);
             remote = `${head}\t${ref}\n`;
             pushes++;
             return '';
@@ -230,14 +236,32 @@ test('publishes one draft from an isolated index and recovers an already-pushed 
     current = issue;
     assert.deepEqual(await publish(options), { policyBlocked: true });
     assert.equal(branchConfirmed, true);
+    const initialCommit = remote.split('\t')[0];
+    assert.match(git(['show', `${initialCommit}:${authPath}`]), /New/);
+    remote = `${base}\t${ref}\n`;
+    assert.deepEqual(await publish(options), { policyBlocked: true });
+    assert.equal(remote, `${initialCommit}\t${ref}\n`);
     prResponse = { status: 403, message: 'Resource not accessible by integration' };
     await assert.rejects(publish(options), /failed \(HTTP 403\).*branch was pushed/);
     prResponse = { status: 422, message: 'Validation Failed' };
     await assert.rejects(publish(options), /failed \(HTTP 422\)/);
     prResponse = null;
     assert.deepEqual(await publish(options), { url, number: 19, created: true });
+    await writeFile(file, 'export const prompt = "Latest";\n');
+    await writeFile(join(directory, 'feature.patch'), git(['diff', '--binary']));
+    git(['restore', authPath]);
+    branchConfirmed = false;
+    updateBeforePush = `${base}\t${ref}\n`;
+    await assert.rejects(publish(options), /stale lease/);
+    assert.equal(branchConfirmed, false);
+    assert.equal(remote, updateBeforePush);
+    updateBeforePush = undefined;
     assert.deepEqual(await publish(options), { url, number: 19, created: false });
-    assert.equal(pushes, 1);
+    const latestCommit = remote.split('\t')[0];
+    assert.match(git(['show', `${latestCommit}:${authPath}`]), /Latest/);
+    assert.deepEqual(await publish(options), { url, number: 19, created: false });
+    assert.equal(pushes, 3);
+    assert.equal(attempts, 4);
     assert.equal(posts, 1);
     assert.equal(git(['status', '--porcelain']), '');
 });

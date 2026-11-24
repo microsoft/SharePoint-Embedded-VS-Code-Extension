@@ -148,7 +148,11 @@ network access for candidate scripts. Credentials, local Git metadata and settin
 client configuration, and generated output stay outside the edit scope.
 
 The workflow pushes eligible application changes, including changes to authentication, permissions,
-and Graph services. It then attempts to open a draft PR using the repository token. A blocked PR
+and Graph services. An approved retry replaces `feature-agent/issue-<number>` with the new reviewed
+commit and updates any open PR from that branch to the default branch. Keep manual edits on a
+separate branch; the retry replaces the old branch contents. If the branch moves between lookup
+and push, Git rejects the update. If there's no open PR, the workflow attempts to open a draft
+using the repository token. A blocked PR
 does not undo a successful push. If GitHub explicitly denies PR creation by Actions policy, the
 publisher warns instead of failing and the issue includes a link to open the PR manually.
 Unexpected PR API errors still fail the publishing job. After `agent-ready`, the **Feature agent delivery** section in
