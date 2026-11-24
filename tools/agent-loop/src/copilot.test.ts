@@ -21,6 +21,33 @@ import {
     type SdkSessionLike
 } from './sdkPreflight';
 import { WorkerResult } from './types';
+import { FEATURE_EDITOR, featureEditor } from './featureEditor';
+
+test('feature workers receive a scoped editor but the reviewer does not', async () => {
+    const implementer = { ...await buildInvocationOptions('implementer'), trustedFeatureInstructions: true };
+    const reviewer = { ...await buildInvocationOptions('reviewer'), trustedFeatureInstructions: true };
+    assert.deepEqual(buildSdkSessionConfig(implementer, '').availableTools, ['view', 'grep', 'glob', FEATURE_EDITOR]);
+    assert.equal(buildSdkSessionConfig(reviewer, '').tools, undefined);
+    const request = { kind: 'custom-tool', toolName: FEATURE_EDITOR };
+    assert.equal((await createSdkPermissionHandler(implementer)(request, { sessionId: 'test' })).kind, 'approve-once');
+    assert.equal((await createSdkPermissionHandler(reviewer)(request, { sessionId: 'test' })).kind, 'reject');
+});
+
+test('feature editor creates and edits only authorized files', async t => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'spe-editor-'));
+    t.after(() => rm(root, { recursive: true, force: true }));
+    let enabled = true;
+    const { handler } = featureEditor(root, file => file.startsWith('src/'), () => enabled);
+    await handler({ file: 'src/example.ts', oldText: '', newText: 'const x = 1;\r\n' });
+    await handler({ file: path.join(root, 'src', 'example.ts'), oldText: 'const x = 1;\n', newText: 'const x = 2;\n' });
+    for (const file of ['package.json', 'src/../other.ts', 'src/NUL.txt', 'src/file.', path.resolve(root, '..', 'src', 'outside.ts')]) {
+        await assert.rejects(handler({ file, oldText: '', newText: 'not allowed' }), /authorized worktree/);
+    }
+    await assert.rejects(handler({ file: 'src/example.ts', oldText: 'absent', newText: 'not allowed' }), /match exactly once/);
+    enabled = false;
+    await assert.rejects(handler({ file: 'src/example.ts', oldText: 'const x', newText: 'not allowed' }), /authorized worktree/);
+    assert.equal(await readFile(path.join(root, 'src', 'example.ts'), 'utf8'), 'const x = 2;\r\n');
+});
 
 interface MockSessionConfig {
     availableTools?: string[];

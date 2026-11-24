@@ -47,8 +47,9 @@ be a native `copilot.exe`; PowerShell and batch shims cannot host the server. Se
 
 Before any worktree is created, preflight verifies the SDK package, executable, authentication,
 custom-agent profiles, requested model and reasoning effort, and the runtime's canonical built-in
-tools. Read-only workers receive only `view`, `grep`, and `glob`; mutable workers additionally
-receive `create` and `edit`.
+tools. Read-only workers receive only `view`, `grep`, and `glob`. GitHub feature workers edit
+through `spe_edit_file`, a host-defined editor that enforces the task and worker path rules
+even when the pinned runtime exposes only read tools. Local non-feature runs use `create` and `edit`.
 
 The SDK streams session, tool, sub-agent, completion, error, and permission-decision events directly
 into each worker evidence log. A default-deny permission callback rejects shell, URL, MCP, memory,
