@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import test from 'node:test';
-import { approval, assessIssue, compileContract, intake, TITLE_PREFIX } from './feature-issue.mjs';
+import { approval, assessIssue, compileContract, intake, reviewMarker, reviewRevision, TITLE_PREFIX } from './feature-issue.mjs';
 
 const require = createRequire(import.meta.url);
 const body = [
@@ -71,35 +71,25 @@ test('maps issue text to requirements only and produces a contract accepted by t
     validateContractInvariants(process.cwd(), contract, require('../../.agent/policies/default-authority.json'));
 });
 
-test('triage adds needs-info without changing unrelated labels, and is idempotent', async () => {
-    const incomplete = { ...issue, body: null, labels: [{ name: 'enhancement' }] };
-    const calls = [];
-    const fetcher = async (url, init) => {
-        calls.push([url, init.method, init.body]);
-        if (init.method === 'POST') {
-            incomplete.labels.push({ name: 'needs-info' });
-            return Response.json(incomplete.labels);
-        }
-        return Response.json(incomplete);
-    };
-    const args = { event, mode: 'triage', env, fetcher };
-    await intake(args);
-    await intake(args);
-    assert.deepEqual(calls, [
-        ['https://api.github.com/repos/owner/repo/issues/42', 'GET', undefined],
-        ['https://api.github.com/repos/owner/repo/issues/42/labels', 'POST', '{"labels":["needs-info"]}'],
-        ['https://api.github.com/repos/owner/repo/issues/42', 'GET', undefined],
-    ]);
-});
-
-test('authorization and handoff read the live issue; neither writes labels', async () => {
+test('authorization and handoff require a bot readiness pass for the exact issue content', async () => {
     let current = issue;
-    const fetcher = async (_url, init) => {
+    let comments = [{ id: 1, user: { id: 11, type: 'User' }, body: `${reviewMarker} ${reviewRevision(issue)} ready -->\nReady.` }];
+    const fetcher = async (url, init) => {
         assert.equal(init.method, 'GET');
-        return Response.json(current);
+        return Response.json(url.includes('/comments?') ? comments : current);
     };
+    assert.equal((await intake({ event, mode: 'authorize', env, fetcher })).approved, false);
+    comments[0].user = { id: 41898282, type: 'Bot' };
+    const ready = comments[0].body;
+    comments[0].body = ready.replace(' ready -->', ' needs-info -->');
+    assert.equal((await intake({ event, mode: 'authorize', env, fetcher })).approved, false);
+    comments[0].body = ready;
     const result = await intake({ event, mode: 'authorize', env, fetcher });
     assert.equal(result.contract.taskId, 'github-issue-42');
+    comments.push({ ...comments[0], id: 2 });
+    await assert.rejects(intake({ event, mode: 'confirm', env, fetcher }), /invalid or duplicated/);
+    comments.pop();
     current = { ...issue, body: `${body}\n\nEdited since authorization.` };
     assert.equal((await intake({ event, mode: 'confirm', env, fetcher })).approved, false);
+    assert.equal((await intake({ event: { ...event, issue: current }, mode: 'authorize', env, fetcher })).approved, false);
 });

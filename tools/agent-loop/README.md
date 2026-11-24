@@ -93,13 +93,16 @@ review result are the synthesized handoff.
 Use the [SPE feature request form](../../.github/ISSUE_TEMPLATE/feature-request.yml) with the title
 `Feature-Request: SPE VSC Extension - <feature name>`. The
 [intake workflow](../../.github/workflows/feature-intake.yml) triages opened, edited, and reopened
-requests. It applies `needs-info` when the problem, expected behavior, testable acceptance criteria,
-or UI impact are missing; it never grants `agent-ready` itself.
+requests. It checks the form, then uses a text-only Copilot session to look for ambiguity and
+missing verification details. It adds `needs-info` and keeps one bot comment with specific
+questions. Reply by editing the issue description rather than in a comment. Each content revision
+is reviewed until it passes, at which point the workflow clears `needs-info`. If the model is
+unavailable or returns invalid output, readiness remains blocked; rerun triage to retry.
 
-Maintainers review the current request, remove `needs-info` once the gaps are resolved, and apply
-`agent-ready`. Only applying that label starts implementation; editing an issue never grants
-approval. If the request changes before implementation or handoff, or if you need to retry a run,
-review the current issue and remove and reapply `agent-ready`.
+After the bot reports that a revision is ready, an approved maintainer reviews the issue and
+applies `agent-ready`. Readiness alone never starts implementation. Editing the issue invalidates
+the prior readiness result and approval. After an edit or failed implementation run, wait for
+readiness and remove and reapply `agent-ready` to approve the current revision.
 
 To enable the workflow on the default branch, create the `needs-info` and `agent-ready` repository
 labels and set the repository Actions variable `FEATURE_REQUEST_APPROVERS` to the approved GitHub

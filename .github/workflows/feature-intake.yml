@@ -10,9 +10,13 @@ jobs:
   triage:
     if: >-
       startsWith(github.event.issue.title, 'Feature-Request: SPE VSC Extension -') &&
-      (github.event.action != 'labeled' || github.event.label.name == 'agent-ready')
+      github.event.action != 'labeled'
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 8
+    environment: feature-agent
+    concurrency:
+      group: feature-readiness-${{ github.event.issue.number }}
+      cancel-in-progress: false
     permissions:
       contents: read
       issues: write
@@ -20,14 +24,43 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           persist-credentials: false
-      - name: Label incomplete requests
+      - name: Read issue and check for an existing review
+        id: readiness
         env:
           GH_TOKEN: ${{ github.token }}
-        run: node tools/agent-loop/feature-issue.mjs triage
+        run: node tools/agent-loop/review-feature.mjs prepare
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        id: reviewer-node
+        if: steps.readiness.outputs.kind == 'model'
+        continue-on-error: true
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - name: Prepare the text-only readiness reviewer
+        id: setup-reviewer
+        if: steps.reviewer-node.outcome == 'success'
+        continue-on-error: true
+        run: |
+          npm ci --ignore-scripts
+          npm run agent:build
+          npm install --global @github/copilot-linux-x64@1.0.114-0
+          printf 'AGENT_LOOP_COPILOT_COMMAND=%s\n' "$(command -v copilot-linux-x64)" >> "$GITHUB_ENV"
+      - name: Review the public requirement brief
+        if: steps.setup-reviewer.outcome == 'success'
+        env:
+          COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+          AGENT_LOOP_MODEL: ${{ vars.AGENT_LOOP_MODEL || 'gpt-6.2-sol' }}
+        run: node tools/agent-loop/review-feature.mjs review
+      - name: Update the readiness comment and needs-info label
+        if: steps.readiness.outputs.kind != 'ignored'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node tools/agent-loop/review-feature.mjs publish
 
   implement:
-    needs: triage
-    if: github.event.action == 'labeled' && github.event.label.name == 'agent-ready' && github.run_attempt == 1
+    if: >-
+      startsWith(github.event.issue.title, 'Feature-Request: SPE VSC Extension -') &&
+      github.event.action == 'labeled' && github.event.label.name == 'agent-ready' && github.run_attempt == 1
     runs-on: ubuntu-latest
     timeout-minutes: 120
     concurrency:

@@ -4,26 +4,26 @@ title: "Feature-Request: SPE VSC Extension - "
 body:
   - type: markdown
     attributes:
-      value: This issue is public. Do not include internal links, customer or tenant data, credentials, or confidential roadmap details.
+      value: This issue is public and reviewed by Copilot. Do not include internal links, customer or tenant data, credentials, or confidential roadmap details. If the reviewer asks for more detail, edit this issue description to trigger another review.
   - type: textarea
     id: problem
     attributes:
       label: Problem
-      description: Who needs this and what is hard to do today?
+      description: Identify the affected user, what they are trying to do, and the current obstacle.
     validations:
       required: true
   - type: textarea
     id: behavior
     attributes:
       label: Expected behavior
-      description: Describe the desired user experience and anything explicitly out of scope.
+      description: Describe the trigger, expected outcome, relevant failure cases, and anything explicitly out of scope.
     validations:
       required: true
   - type: textarea
     id: criteria
     attributes:
       label: Acceptance criteria
-      description: List observable outcomes as Markdown bullets or checkboxes, one per line.
+      description: List pass/fail outcomes as Markdown bullets or checkboxes, one per line. Include the conditions and what a tester should observe.
       placeholder: "- When no container is selected, the action is disabled."
     validations:
       required: true

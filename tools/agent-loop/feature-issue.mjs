@@ -1,16 +1,17 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 import { dirname } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 export const TITLE_PREFIX = 'Feature-Request: SPE VSC Extension -';
 const READY = 'agent-ready';
-const NEEDS_INFO = 'needs-info';
+export const NEEDS_INFO = 'needs-info';
 const HEADINGS = ['Problem', 'Expected behavior', 'Acceptance criteria', 'UI impact'];
 const MAX_BODY = 12_000;
 const MAX_CRITERIA = 12;
 
 const isFeature = (issue) => typeof issue?.title === 'string' && issue.title.startsWith(TITLE_PREFIX);
-const hasLabel = (issue, name) => issue.labels.some((label) => label.name.toLowerCase() === name);
+export const hasLabel = (issue, name) => issue.labels.some((label) => label.name.toLowerCase() === name);
 const description = (value) => /[\p{L}\p{N}]/u.test(value) && !/^(?:_no response_|n\/?a|tbd|todo|none)[.!]?$/i.test(value);
 
 function extractSections(body) {
@@ -36,10 +37,11 @@ export function assessIssue(issue) {
     if (issue.title[TITLE_PREFIX.length] !== ' ' || title.length < 5 || title.length > 120 || !description(title)) {
         missing.push('Use the title prefix followed by a feature name (5-120 characters).');
     }
-    if (typeof issue.body !== 'string' || issue.body.length > MAX_BODY) {
+    const body = issue.body ?? '';
+    if (typeof body !== 'string' || body.length > MAX_BODY) {
         return { status: 'incomplete', missing: [...missing, 'Provide the feature form within 12,000 characters.'] };
     }
-    const sections = extractSections(issue.body);
+    const sections = extractSections(body);
     if (!sections) return { status: 'incomplete', missing: [...missing, 'Use each feature form heading only once.'] };
     const get = (heading) => sections.get(heading)?.join('\n').trim() ?? '';
     const problem = get('Problem');
@@ -145,40 +147,65 @@ export function compileContract(issueNumber, baseCommit, brief) {
     };
 }
 
-export async function intake({ event, mode, env, fetcher = fetch }) {
-    if (!['triage', 'authorize', 'confirm'].includes(mode)) throw new Error('Unknown feature intake mode.');
+export function reviewRevision(issue) {
+    return createHash('sha256').update(JSON.stringify([issue.id, issue.title, issue.body])).digest('hex');
+}
+
+export const reviewMarker = '<!-- spe-feature-readiness:v1';
+const reviewPattern = /^<!-- spe-feature-readiness:v1 ([a-f0-9]{64}) (ready|needs-info|unavailable) -->\r?\n/;
+const githubActionsBotId = 41898282;
+
+export async function readReadinessComment(github) {
+    let review;
+    for (let page = 1; page <= 10; page++) {
+        const comments = await github(`/comments?per_page=100&page=${page}`);
+        for (const comment of comments) {
+            if (comment.user?.id !== githubActionsBotId || comment.user.type !== 'Bot' || !comment.body?.startsWith(reviewMarker)) continue;
+            const meta = reviewPattern.exec(comment.body);
+            if (!meta || review || !Number.isSafeInteger(comment.id) || comment.id <= 0) {
+                throw new Error('Readiness comment is invalid or duplicated; ask a maintainer to resolve it.');
+            }
+            review = { id: comment.id, body: comment.body, revision: meta[1], status: meta[2] };
+        }
+        if (comments.length < 100) return review;
+    }
+    throw new Error('Issue comment history exceeded the readiness review limit.');
+}
+
+export function issueClient(event, env, fetcher = fetch) {
     const issueNumber = event.issue?.number;
     if (!Number.isSafeInteger(issueNumber) || issueNumber < 1 ||
         !/^[\w.-]+\/[\w.-]+$/.test(env.GITHUB_REPOSITORY ?? '') || !env.GH_TOKEN) {
         throw new Error('Feature intake requires a GitHub issue event and repository token.');
     }
-    const path = `https://api.github.com/repos/${env.GITHUB_REPOSITORY}/issues/${issueNumber}`;
-    async function github(suffix = '', body) {
-        const response = await fetcher(path + suffix, {
-            method: body ? 'POST' : 'GET',
+    const root = `https://api.github.com/repos/${env.GITHUB_REPOSITORY}/issues`;
+    return async (suffix = '', { method = 'GET', body, commentId, missingOk = false } = {}) => {
+        const path = commentId ? `${root}/comments/${commentId}` : `${root}/${issueNumber}${suffix}`;
+        const response = await fetcher(path, {
+            method,
             headers: { Authorization: `Bearer ${env.GH_TOKEN}`, Accept: 'application/vnd.github+json',
                 'X-GitHub-Api-Version': '2022-11-28', ...(body && { 'Content-Type': 'application/json' }) },
             body: body && JSON.stringify(body), redirect: 'error', signal: AbortSignal.timeout(15_000),
         });
+        if (response.status === 404 && missingOk) return undefined;
         if (!response.ok) throw new Error(`GitHub issue API returned HTTP ${response.status}.`);
-        return response.json();
-    }
+        return response.status === 204 ? undefined : response.json();
+    };
+}
+
+export async function intake({ event, mode, env, fetcher = fetch }) {
+    if (!['authorize', 'confirm'].includes(mode)) throw new Error('Unknown feature intake mode.');
+    const github = issueClient(event, env, fetcher);
     const current = await github();
-    if (mode === 'triage') {
-        const result = assessIssue(current);
-        if (result.status === 'incomplete' && !hasLabel(current, NEEDS_INFO)) {
-            const labels = await github('/labels', { labels: [NEEDS_INFO] });
-            if (!labels.some(({ name }) => name === NEEDS_INFO)) {
-                throw new Error('Create the needs-info repository label before enabling triage.');
-            }
-        }
-        return { message: result.status === 'incomplete' ? result.missing.join(' ') : `Feature intake: ${result.status}.` };
-    }
     const approvers = new Set((env.FEATURE_REQUEST_APPROVERS ?? '').toLowerCase().split(/[\s,]+/).filter(Boolean));
     const decision = approval(event, current, approvers);
     if (!decision.approved) return { approved: false, message: decision.reason };
+    const review = await readReadinessComment(github);
+    if (review?.status !== 'ready' || review.revision !== reviewRevision(current)) {
+        return { approved: false, message: 'The current issue revision has not passed readiness review. Wait for review, then reapply agent-ready.' };
+    }
     if (mode === 'authorize') {
-        return { approved: true, message: 'Feature approved.', contract: compileContract(issueNumber, env.GITHUB_SHA, decision.brief) };
+        return { approved: true, message: 'Feature approved.', contract: compileContract(event.issue.number, env.GITHUB_SHA, decision.brief) };
     }
     return { approved: true, message: 'Approval still matches the current issue.' };
 }
@@ -194,5 +221,5 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
         await mkdir(dirname(contractPath), { recursive: true });
         await writeFile(contractPath, JSON.stringify(result.contract));
     }
-    if (mode !== 'triage') await writeFile(env.GITHUB_OUTPUT, `approved=${result.approved}\n`, { flag: 'a' });
+    await writeFile(env.GITHUB_OUTPUT, `approved=${result.approved}\n`, { flag: 'a' });
 }

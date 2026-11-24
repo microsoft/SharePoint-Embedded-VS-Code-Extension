@@ -4,7 +4,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
-import { TITLE_PREFIX } from './feature-issue.mjs';
+import { reviewMarker, reviewRevision, TITLE_PREFIX } from './feature-issue.mjs';
 import { publish, validateStagedDiff } from './publish-feature.mjs';
 
 const repository = 'owner/repo';
@@ -89,7 +89,9 @@ test('publishes one draft from an isolated index and recovers an already-pushed 
         pr = { html_url: url };
         return JSON.stringify(pr);
     };
-    const options = { event, env, directory, run, fetcher: async () => Response.json(current) };
+    const review = { id: 1, user: { id: 41898282, type: 'Bot' }, body: `${reviewMarker} ${reviewRevision(issue)} ready -->\nReady.` };
+    const options = { event, env, directory, run,
+        fetcher: async (url) => Response.json(url.includes('/comments?') ? [review] : current) };
     current = { ...issue, body: `${issue.body}\nEdited` };
     await assert.rejects(publish(options), /changed after approval/);
     assert.equal(pushes, 0);
