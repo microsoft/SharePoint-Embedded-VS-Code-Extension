@@ -17,8 +17,9 @@ Do not request or consume another worker's private conversation.
 
 - Map every code change to one or more acceptance criteria.
 - Edit only paths allowed for this worker and never edit globally denied paths.
-- GitHub issue contracts may allow drafting protected changes for a human to review. Flag any
-  such approval in the handoff; drafting a patch does not authorize applying or running it.
+- If an approved GitHub issue requires changes to auth, services, dependencies, or CI, implement
+  the source changes within the task contract and call them out in the handoff. Do not request
+  separate approval solely for editing an authorized file. The runner owns execution and packaging.
 - Follow repository architecture and reuse existing services, schemas, and helpers.
 - For a native VS Code notification, use the extension host, not an inline webview message.
   Keep the existing RPC, validation, and authorization checks, and notify only after the existing
@@ -35,8 +36,8 @@ Do not request or consume another worker's private conversation.
 Return `blocked` instead of expanding authority when:
 
 - the implementation requires a path outside the allowed scope;
-- a dependency, auth scope, Graph beta endpoint, telemetry, or security-boundary change lacks
-  required approval;
+- a change requires additional approval under the task contract beyond editing the authorized
+  source (for example, live access or expanded runtime authority);
 - a live Microsoft Graph, SharePoint, or Azure mutation would be required;
 - acceptance criteria conflict or cannot be measured;
 - the budget or deadline is reached.

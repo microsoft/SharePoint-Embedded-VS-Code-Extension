@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import test from 'node:test';
 import { reviewMarker, reviewRevision, TITLE_PREFIX } from './feature-issue.mjs';
 import { publish, validateStagedDiff } from './publish-feature.mjs';
+import { classifyFeatureHandoff } from './feature-handoff.mjs';
 
 const repository = 'owner/repo';
 const issue = {
@@ -28,6 +29,19 @@ test('publication independently rejects forbidden paths and non-regular file mod
         record('src/utils/.env'), record('src/utils/example.ts', '120000'),
         record('src/utils/example.ts', '100755'), record('src/utils/../extension.ts'),
     ]) assert.throws(() => validateStagedDiff(raw));
+});
+
+test('flagging sensitive changes is independent of delivering the reviewed patch and VSIX', () => {
+    const row = (path, mode = '100644') => `:100644 ${mode} aaaaaaa bbbbbbb M\0${path}\0`;
+    const ordinary = row('webview-ui/src/components/example.tsx');
+    const workflow = '.github/workflows/validate.yml';
+    const manifest = 'package.json';
+    assert.deepEqual(classifyFeatureHandoff(ordinary), { autoPublish: true, reviewPaths: [] });
+    assert.deepEqual(classifyFeatureHandoff(ordinary + row(workflow) + row(manifest)),
+        { autoPublish: false, reviewPaths: [workflow, manifest] });
+    assert.deepEqual(classifyFeatureHandoff(row('src/utils/example.ts', '100755')),
+        { autoPublish: false, reviewPaths: ['src/utils/example.ts'] });
+    assert.throws(() => classifyFeatureHandoff(row('src/utils/example.ts', '120000')));
 });
 
 test('publishes one draft from an isolated index and recovers an already-pushed identical commit', async (t) => {

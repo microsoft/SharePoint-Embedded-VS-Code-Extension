@@ -137,19 +137,20 @@ organization-approved Copilot CLI credential with only
 Copilot Requests access and no repository write grants. Do not copy private material into the
 public issue form. No Azure service connection or private repository is required.
 
-The feature agent can draft changes across the repository, including extension and Storage
-Explorer code, manifests, authentication, and workflows. A change to a protected file is
-delivered as an **unvalidated proposal** artifact: the agent does not run the proposed code,
-build a VSIX, push a branch, or open a draft PR for that run. Review the patch before applying it
-or running any checks. Credentials, local Git metadata and settings, runtime client files, and
-generated output are outside its edit authority.
+An approved GitHub issue can change tracked source and configuration across the repository,
+including the extension host, Storage Explorer, manifests, authentication, and workflows.
+No second approval is needed for validation or a test VSIX. The runner uses its original workflow
+and packaging helper; candidate code and build scripts run only in offline containers without
+Actions or Copilot credentials. Candidate lockfiles are installed from the cache populated
+from the base checkout. If a new dependency is not cached, the run fails rather than enabling
+network access for candidate scripts. Credentials, local Git metadata and settings, runtime
+client configuration, and generated output stay outside the edit scope.
 
-Ordinary feature changes, like a native VS Code notification from the existing Storage Explorer
-create operation, continue through automated validation in offline containers
-without Actions or Copilot credentials. A separate job applies the review patch to a temporary Git
-index without executing it, checks the changed paths and file modes, and opens one draft PR per issue
-from `feature-agent/issue-<number>`. It never overwrites an existing branch or merges a PR. The
-review patch and base SHA are also available in the Actions run.
+The run summary flags sensitive and infrastructure changes for maintainer review. Those changes
+still get a reviewed patch and VSIX, but they do not get pushed automatically: publishing a branch
+with changed workflows or other sensitive code could execute it before a maintainer reviews it.
+For eligible changes the separate publisher checks the patch again and can open a draft PR when
+organization policy permits. Neither route merges or publishes a release.
 
 Feature runs default to `gpt-6.2-sol`. Set the repository Actions variable `AGENT_LOOP_MODEL`
 to another model ID available to the configured Copilot account, or to `auto` to let Copilot

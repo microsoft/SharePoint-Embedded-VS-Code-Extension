@@ -58,7 +58,7 @@ import {
 export interface RunOptions {
     contractPath: string;
     onStage?: (stage: ImplementationStage) => void;
-    needsProposalReview?: (changedPaths: string[]) => boolean;
+    featureRun?: boolean;
 }
 
 export type ImplementationStage = 'contract' | 'copilot-preflight' | 'implementation' |
@@ -72,7 +72,7 @@ interface RunContext {
     reviewValidator: (value: unknown) => string[];
     sdkRuntime: SdkPreflightResult;
     onStage?: RunOptions['onStage'];
-    needsProposalReview?: RunOptions['needsProposalReview'];
+    featureRun?: boolean;
 }
 
 export async function validateContractCommand(contractPath: string): Promise<LoadedContract> {
@@ -116,8 +116,12 @@ export async function runContract(options: RunOptions): Promise<RunRecord> {
     options.onStage?.('contract');
     const repoRoot = await findRepositoryRoot(process.cwd());
     const loaded = loadContract(repoRoot, options.contractPath);
-    if (/^github-issue-\d+$/.test(loaded.contract.taskId) && !options.needsProposalReview) {
+    if (/^github-issue-\d+$/.test(loaded.contract.taskId) && !options.featureRun) {
         throw new Error('GitHub feature contracts must be run through run-feature.');
+    }
+    if (options.featureRun && (!/^sha256:[a-f0-9]{64}$/.test(process.env.AGENT_LOOP_VALIDATION_IMAGE ?? '') ||
+        !path.isAbsolute(process.env.AGENT_LOOP_NPM_CACHE ?? ''))) {
+        throw new Error('Feature runs require an isolated validation image and an absolute npm cache path.');
     }
     const baseCommit = await resolveCommit(repoRoot, loaded.contract.baseBranch);
     await assertAgentProfilesInBase(repoRoot, baseCommit, loaded.contract.workers);
@@ -165,7 +169,7 @@ export async function runContract(options: RunOptions): Promise<RunRecord> {
         reviewValidator: createReviewResultValidator(repoRoot),
         sdkRuntime,
         onStage: options.onStage,
-        needsProposalReview: options.needsProposalReview
+        featureRun: options.featureRun
     };
 
     context.onStage?.('implementation');
@@ -177,8 +181,7 @@ export async function runContract(options: RunOptions): Promise<RunRecord> {
         const implementer = requireSingleRole(loaded.contract, 'implementer');
         const sdet = requireSingleRole(loaded.contract, 'sdet');
         const initialWorkers = await runInitialWorkers(context, implementer, sdet);
-        const proposal = await workersNeedProposal(context, initialWorkers);
-        if (!proposal) requireCompletedWorkers(initialWorkers);
+        requireCompletedWorkers(initialWorkers);
 
         assertWithinWallClock(run, loaded.contract);
         context.onStage?.('integration');
@@ -186,16 +189,11 @@ export async function runContract(options: RunOptions): Promise<RunRecord> {
         const integrationWorktree = path.join(worktreeRoot, 'integration');
         run.integrationWorktree = integrationWorktree;
         await createWorktree(repoRoot, integrationWorktree, baseCommit, integrationBranch);
-        await provisionDependencies(integrationWorktree);
+        if (!context.featureRun) await provisionDependencies(integrationWorktree);
         await integrateInitialWorkers(integrationWorktree, baseCommit, initialWorkers);
         run.integratedCommit = await currentCommit(integrationWorktree);
         await writeIntegrationResult(context, initialWorkers[0].startedAt);
         await writeRunRecord(repoRoot, run);
-        if (proposal || await integratedWorkNeedsProposal(context)) {
-            await transitionRun(repoRoot, run, 'proposal-ready');
-            return run;
-        }
-
         let validation = await runValidation(context);
         let review = await runReview(context, validation);
 
@@ -209,8 +207,7 @@ export async function runContract(options: RunOptions): Promise<RunRecord> {
             await transitionRun(repoRoot, run, 'repassing');
 
             const repassWorkers = await runRepassWorkers(context, review.findings, validation);
-            const repassProposal = await workersNeedProposal(context, repassWorkers);
-            if (!repassProposal) requireCompletedWorkers(repassWorkers);
+            requireCompletedWorkers(repassWorkers);
             for (const worker of repassWorkers) {
                 if (worker.outputCommit && worker.outputCommit !== run.integratedCommit) {
                     await cherryPick(integrationWorktree, worker.outputCommit);
@@ -220,10 +217,6 @@ export async function runContract(options: RunOptions): Promise<RunRecord> {
             run.integratedCommit = await currentCommit(integrationWorktree);
             await writeIntegrationResult(context, new Date().toISOString());
             await writeRunRecord(repoRoot, run);
-            if (repassProposal || await integratedWorkNeedsProposal(context)) {
-                await transitionRun(repoRoot, run, 'proposal-ready');
-                return run;
-            }
             validation = await runValidation(context);
             review = await runReview(context, validation);
         }
@@ -277,8 +270,7 @@ async function runInitialWorkers(
         let attempt = 1;
         implementation.status === 'blocked' && implementation.approvalRequests.length === 0 &&
         implementation.outputCommit &&
-        attempt <= context.loaded.contract.limits.maxRepasses &&
-        !await workersNeedProposal(context, [implementation]);
+        attempt <= context.loaded.contract.limits.maxRepasses;
         attempt++
     ) {
         assertWithinWallClock(context.run, context.loaded.contract);
@@ -386,7 +378,7 @@ async function runEditingAssignment(
     await writeRunRecord(context.repoRoot, context.run);
 
     await createWorktree(context.repoRoot, worktreePath, baseCommit, branch);
-    await provisionDependencies(worktreePath);
+    if (!context.featureRun) await provisionDependencies(worktreePath);
 
     try {
         const reported = await invokeEditingWorker({
@@ -400,6 +392,7 @@ async function runEditingAssignment(
             policy: context.loaded.policy,
             assignment,
             sdkRuntime: context.sdkRuntime,
+            trustedFeatureInstructions: context.featureRun,
             resultSchemaPath: path.join(
                 context.repoRoot,
                 '.agent',
@@ -421,11 +414,10 @@ async function runEditingAssignment(
         );
         await diffCheck(worktreePath);
 
-        const proposal = context.needsProposalReview?.(filesChanged) ?? false;
-        const outputCommit = (proposal && reported.status !== 'failed') || (reported.approvalRequests.length === 0 && (
+        const outputCommit = reported.approvalRequests.length === 0 && (
             reported.status === 'completed' ||
             (reported.status === 'blocked' && filesChanged.length > 0)
-        ))
+        )
             ? await createWorkerCommit(
                 worktreePath,
                 context.loaded.contract.taskId,
@@ -554,9 +546,8 @@ async function runValidation(context: RunContext): Promise<ValidationResult[]> {
     context.onStage?.('validation');
     await transitionRun(context.repoRoot, context.run, 'validating');
     const results: ValidationResult[] = [];
-    const removeClientDeclaration = await ensureValidationClientDeclaration(
-        context.run.integrationWorktree!
-    );
+    const removeClientDeclaration = context.featureRun ? async () => undefined
+        : await ensureValidationClientDeclaration(context.run.integrationWorktree!);
 
     try {
         for (const check of context.loaded.contract.requiredChecks) {
@@ -573,7 +564,7 @@ async function runValidation(context: RunContext): Promise<ValidationResult[]> {
                 timeoutMs: check.timeoutMinutes * 60_000,
                 stdoutPath,
                 stderrPath
-            });
+            }, context.featureRun ? process.env.AGENT_LOOP_NPM_CACHE : undefined);
             results.push({
                 command: check.command,
                 status: processResult.exitCode === 0 && !processResult.timedOut ? 'passed' : 'failed',
@@ -651,6 +642,7 @@ async function runReview(
         policy: context.loaded.policy,
         assignment,
         sdkRuntime: context.sdkRuntime,
+        trustedFeatureInstructions: context.featureRun,
         resultSchemaPath: path.join(
             context.repoRoot,
             '.agent',
@@ -731,22 +723,6 @@ function requireCompletedWorkers(results: WorkerResult[]): void {
             `Workers did not complete: ${incomplete.map(result => `${result.workerId}=${result.status}`).join(', ')}`
         );
     }
-}
-
-async function workersNeedProposal(context: RunContext, results: WorkerResult[]): Promise<boolean> {
-    if (!context.needsProposalReview) return false;
-    for (const worker of selectTerminalWorkerResults(results)) {
-        if (worker.outputCommit && context.needsProposalReview(await committedChangedPaths(
-            context.repoRoot, worker.baseCommit, worker.outputCommit
-        ))) return true;
-    }
-    return false;
-}
-
-async function integratedWorkNeedsProposal(context: RunContext): Promise<boolean> {
-    return context.needsProposalReview?.(await committedChangedPaths(
-        context.repoRoot, context.run.baseCommit, context.run.integratedCommit!
-    )) ?? false;
 }
 
 export async function integrateInitialWorkers(

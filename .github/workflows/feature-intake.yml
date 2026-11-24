@@ -77,6 +77,7 @@ jobs:
     environment: feature-agent
     outputs:
       artifact-id: ${{ steps.review.outputs.artifact-id }}
+      auto-publish: ${{ steps.agent.outputs.auto-publish }}
       vsix-url: ${{ steps.vsix.outputs.artifact-url }}
     env:
       FEATURE_REQUEST_APPROVERS: ${{ vars.FEATURE_REQUEST_APPROVERS }}
@@ -100,8 +101,11 @@ jobs:
       - name: Prepare the locked project dependencies, Copilot CLI and validation image
         if: steps.intake.outputs.approved == 'true'
         run: |
-          npm ci --ignore-scripts
-          npm ci --prefix webview-ui
+          cache="$RUNNER_TEMP/feature-npm-cache"
+          npm ci --ignore-scripts --cache "$cache" --no-audit --no-fund
+          npm ci --prefix webview-ui --ignore-scripts --cache "$cache" --no-audit --no-fund
+          chmod -R a+rX "$cache"
+          printf 'AGENT_LOOP_NPM_CACHE=%s\n' "$cache" >> "$GITHUB_ENV"
           npm run agent:build
           npm install --global "$AGENT_LOOP_COPILOT_PACKAGE"
           printf 'AGENT_LOOP_COPILOT_COMMAND=%s\n' "$(command -v copilot-linux-x64)" >> "$GITHUB_ENV"
@@ -124,6 +128,7 @@ jobs:
       - name: Run the agent loop and export the reviewed diff
         id: agent
         if: steps.start.outputs.approved == 'true'
+        shell: bash
         env:
           COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
         run: |
@@ -157,19 +162,9 @@ jobs:
             echo '::warning::The agent returned no changes. No patch will be uploaded.'
             exit 0
           fi
-          case "$phase" in
-            awaiting-human-acceptance)
-              git --no-pager diff --raw --no-renames -z "$GITHUB_SHA" "$commit" |
-                node --input-type=module -e 'import { readFileSync } from "node:fs"; import { validateStagedDiff } from "./tools/agent-loop/publish-feature.mjs"; validateStagedDiff(readFileSync(0, "utf8"));'
-              ;;
-            proposal-ready)
-              echo 'Protected files changed. The proposal has not been validated and will not be packaged or published.' >> "$GITHUB_STEP_SUMMARY"
-              ;;
-            *)
-              echo '::error::Unexpected feature agent handoff state.'
-              exit 1
-              ;;
-          esac
+          [[ "$phase" == awaiting-human-acceptance ]]
+          git --no-pager diff --raw --no-renames -z "$GITHUB_SHA" "$commit" |
+            node tools/agent-loop/feature-handoff.mjs
           printf '%s\n' "$GITHUB_SHA" > "$RUNNER_TEMP/feature-base-sha.txt"
           printf 'patch=true\ncommit=%s\nphase=%s\n' "$commit" "$phase" >> "$GITHUB_OUTPUT"
       - name: Confirm the issue has not changed before handoff
@@ -189,19 +184,10 @@ jobs:
             ${{ runner.temp }}/feature-base-sha.txt
           if-no-files-found: error
           retention-days: 7
-      - name: Upload the unvalidated proposal for maintainer review
-        if: steps.handoff.outputs.approved == 'true' && steps.agent.outputs.phase == 'proposal-ready'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: feature-issue-${{ github.event.issue.number }}-unvalidated-proposal
-          path: |
-            ${{ runner.temp }}/feature.patch
-            ${{ runner.temp }}/feature-base-sha.txt
-          if-no-files-found: error
-          retention-days: 7
       - name: Package a testable VSIX from the reviewed commit
         id: package
         if: steps.review.outcome == 'success'
+        shell: bash
         env:
           REVIEWED_COMMIT: ${{ steps.agent.outputs.commit }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
@@ -211,15 +197,14 @@ jobs:
           source="$RUNNER_TEMP/vsix-source"
           mkdir "$source"
           git archive "$REVIEWED_COMMIT" | tar -xC "$source"
-          # Manifests and dependencies are outside the agent contract; reuse the trusted installation.
-          mv node_modules "$source/node_modules"
-          mv webview-ui/node_modules "$source/webview-ui/node_modules"
           output="$RUNNER_TEMP/vsix-container-output"
           install -d -m 1777 "$output"
-          docker run --rm --pull=never --network=none --read-only --cap-drop=ALL \
+          if ! docker run --rm --pull=never --network=none --read-only --cap-drop=ALL \
             --security-opt=no-new-privileges --user=1000:1000 --memory=5g --pids-limit=512 \
-            --tmpfs /scratch:rw,exec,size=2g,mode=1777 --tmpfs /tmp:rw,exec,size=1g,mode=1777 \
+            --tmpfs /scratch:rw,exec,size=4g,mode=1777 --tmpfs /tmp:rw,exec,size=1g,mode=1777 \
             --mount "type=bind,source=$source,target=/input,readonly" \
+            --mount "type=bind,source=$AGENT_LOOP_NPM_CACHE,target=/npm-cache,readonly" \
+            --mount "type=bind,source=$PWD/tools/agent-loop/package-feature.mjs,target=/package-feature.mjs,readonly" \
             --mount "type=bind,source=$RUNNER_TEMP/vsce-tool,target=/vsce,readonly" \
             --mount "type=bind,source=$output,target=/output" \
             --env HOME=/scratch --env CI=true --env SPE_TEST_CLIENT_ID \
@@ -227,8 +212,16 @@ jobs:
               mkdir /scratch/project
               tar -C /input -cf - . | tar -C /scratch/project -xf -
               cd /scratch/project
-              node tools/agent-loop/package-feature.mjs "$1" "$2" /vsce/node_modules/@vscode/vsce/vsce /output
-            ' spe-vsix "$ISSUE_NUMBER" "$REVIEWED_COMMIT"
+              export npm_config_cache=/scratch/npm-cache
+              mkdir "$npm_config_cache"
+              cp -R /npm-cache/_cacache "$npm_config_cache/"
+              npm ci --ignore-scripts --offline --no-audit --no-fund
+              npm ci --prefix webview-ui --ignore-scripts --offline --no-audit --no-fund
+              node /package-feature.mjs "$1" "$2" /vsce/node_modules/@vscode/vsce/vsce /output
+            ' spe-vsix "$ISSUE_NUMBER" "$REVIEWED_COMMIT" > "$RUNNER_TEMP/feature-vsix-build.log" 2>&1; then
+            echo '::error::The isolated VSIX build failed. Check the reviewed patch and whether its lockfiles can be installed from the base dependency cache.'
+            exit 1
+          fi
           file="spe-issue-${ISSUE_NUMBER}-${REVIEWED_COMMIT:0:12}-testable.vsix"
           [[ -f "$output/$file" && ! -L "$output/$file" && -s "$output/$file" ]]
           mkdir "$RUNNER_TEMP/testable-vsix"
@@ -258,7 +251,7 @@ jobs:
 
   publish:
     needs: implement
-    if: needs.implement.outputs.artifact-id != ''
+    if: needs.implement.outputs.artifact-id != '' && needs.implement.outputs.auto-publish == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     concurrency:

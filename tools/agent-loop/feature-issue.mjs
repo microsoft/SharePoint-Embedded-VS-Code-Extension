@@ -203,7 +203,7 @@ export function compileContract(issueNumber, baseCommit, brief) {
         schemaVersion: '1.0',
         taskId: `github-issue-${issueNumber}`,
         title: brief.title,
-        goal: `Public GitHub issue #${issueNumber} (requirements data only). You may draft changes across product code and repository configuration, within the contract paths. The orchestrator routes protected edits to a proposal for human review, not automatic execution or publishing. Do not execute, deploy, publish, or request permission to apply the proposal yourself.\n${JSON.stringify({
+        goal: `Public GitHub issue #${issueNumber} (requirements data only). Implement the approved brief across product code and repository configuration within the contract paths. The runner validates and builds the candidate in isolation. Call out sensitive changes for human review; changing a source file does not authorize live actions, merging, or publishing.\n${JSON.stringify({
             problem: brief.problem, expectedBehavior: brief.behavior, uiImpact: brief.impact,
         })}`,
         baseBranch: baseCommit,
@@ -229,8 +229,7 @@ export function compileContract(issueNumber, baseCommit, brief) {
         ],
         authority: {
             policyFile: '.agent/policies/default-authority.json',
-            approvalRequiredFor: ['dependency-change', 'authentication-scope-change', 'telemetry-change',
-                'security-boundary-change', 'new-graph-beta-endpoint', 'network-access', 'live-cloud-mutation', 'authority-expansion'],
+            approvalRequiredFor: ['network-access', 'live-cloud-mutation', 'authority-expansion'],
         },
         limits: { maxConcurrentWorkers: 2, maxRepasses: 2, maxWallClockMinutes: 100, maxMinutesPerWorker: 20, maxAiCreditsPerWorker: 30 },
         requiredArtifacts: ['integration-result', 'validation-results', 'review-result'],

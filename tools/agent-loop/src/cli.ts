@@ -1,6 +1,4 @@
 import { appendFileSync } from 'node:fs';
-import { resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
 import {
     createExecutionPlan,
     runContract,
@@ -38,16 +36,15 @@ async function main(): Promise<void> {
         return;
     }
 
-    // Load the classifier from the trusted runner checkout, never from a candidate worktree.
     const result = await runContract({
         contractPath,
-        needsProposalReview: command === 'run-feature' ? await featureProposalClassifier() : undefined,
+        featureRun: command === 'run-feature',
         onStage: value => {
             stage = value;
             recordDiagnostic(`Feature agent stage: ${value}`);
         }
     });
-    const handedOff = result.phase === 'awaiting-human-acceptance' || result.phase === 'proposal-ready';
+    const handedOff = result.phase === 'awaiting-human-acceptance';
     if (diagnosticsFile && !handedOff) {
         const reason = result.errors.includes('Required validation still fails after repass budget')
             ? 'Required validation did not pass within the retry budget.'
@@ -70,14 +67,6 @@ async function main(): Promise<void> {
     if (!handedOff) {
         process.exitCode = 2;
     }
-}
-
-async function featureProposalClassifier(): Promise<(paths: string[]) => boolean> {
-    const scope = await import(pathToFileURL(resolve(__dirname, '..', 'feature-issue.mjs')).href);
-    if (typeof scope.publishablePath !== 'function') {
-        throw new Error('The feature publisher path classifier could not be loaded.');
-    }
-    return paths => paths.some(path => !scope.publishablePath(path));
 }
 
 function printUsage(): void {

@@ -3,7 +3,8 @@ import { ProcessOptions, ProcessResult, runProcess, runShellCommand } from './pr
 
 export async function runValidationCommand(
     command: string,
-    options: ProcessOptions
+    options: ProcessOptions,
+    npmCache?: string
 ): Promise<ProcessResult> {
     const image = process.env.AGENT_LOOP_VALIDATION_IMAGE;
     if (!image) {
@@ -23,12 +24,17 @@ export async function runValidationCommand(
         'run', '--rm', '--name', name, '--pull=never', '--network=none', '--read-only',
         '--cap-drop=ALL', '--security-opt=no-new-privileges', '--user=1000:1000',
         '--memory=5g', '--pids-limit=512', '--shm-size=512m',
-        '--tmpfs', '/scratch:rw,exec,size=2g,mode=1777', '--tmpfs', '/tmp:rw,exec,size=1g,mode=1777',
+        '--tmpfs', '/scratch:rw,exec,size=4g,mode=1777', '--tmpfs', '/tmp:rw,exec,size=1g,mode=1777',
         '--mount', `type=bind,source=${options.cwd},target=/input,readonly`,
+        ...(npmCache ? ['--mount', `type=bind,source=${npmCache},target=/npm-cache,readonly`] : []),
         '--env', 'HOME=/scratch', '--env', 'CI=true', '--env', 'npm_config_offline=true',
         '--entrypoint', '/bin/bash', image, '-euo', 'pipefail', '-c',
         'mkdir /scratch/project; tar -C /input --exclude=./.git -cf - . | tar -C /scratch/project -xf -; ' +
-        'cd /scratch/project; exec /bin/bash -c "$1"',
+        'cd /scratch/project; ' +
+        (npmCache ? 'export npm_config_cache=/scratch/npm-cache; mkdir "$npm_config_cache"; cp -R /npm-cache/_cacache "$npm_config_cache/"; ' +
+            'npm ci --ignore-scripts --offline --no-audit --no-fund; ' +
+            'npm ci --prefix webview-ui --ignore-scripts --offline --no-audit --no-fund; ' : '') +
+        'exec /bin/bash -c "$1"',
         'spe-validation', command
     ];
 

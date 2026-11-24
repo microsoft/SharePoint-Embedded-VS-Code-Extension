@@ -167,7 +167,6 @@ export type RunPhase =
     | 'reviewing'
     | 'repassing'
     | 'awaiting-human-acceptance'
-    | 'proposal-ready'
     | 'blocked'
     | 'failed';
 

@@ -7,16 +7,29 @@ import { intake, publishablePath } from './feature-issue.mjs';
 const sha = /^[a-f0-9]{40}$/;
 const maximumPatchBytes = 2 * 1024 * 1024;
 
-export function validateStagedDiff(raw) {
+export function reviewedDiff(raw) {
     const records = raw.split('\0');
     if (records.pop() !== '' || !records.length || records.length % 2 !== 0) {
         throw new Error('The review patch did not produce a valid, nonempty staged diff.');
     }
+    const files = [];
     for (let i = 0; i < records.length; i += 2) {
-        const modes = /^:(000000|100644) (000000|100644) [a-f0-9]+ [a-f0-9]+ [AMD]$/.exec(records[i]);
-        if (!modes || !publishablePath(records[i + 1])) {
+        const modes = /^:(000000|100644|100755) (000000|100644|100755) [a-f0-9]+ [a-f0-9]+ [AMD]$/.exec(records[i]);
+        if (!modes || !records[i + 1]) {
             throw new Error('The review patch includes files or file modes outside the publishing scope.');
         }
+        files.push({ path: records[i + 1], executable: modes[1] === '100755' || modes[2] === '100755' });
+    }
+    return files;
+}
+
+export function requiresManualPublishing(file) {
+    return file.executable || !publishablePath(file.path);
+}
+
+export function validateStagedDiff(raw) {
+    if (reviewedDiff(raw).some(requiresManualPublishing)) {
+        throw new Error('The review patch includes files or file modes outside the publishing scope.');
     }
 }
 

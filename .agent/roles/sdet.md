@@ -22,6 +22,8 @@ self-assessment.
   Storage Explorer browser harness does not render native VS Code notifications.
 - Edit only the worker's allowed test paths. Do not modify production code to make a failing test
   pass unless the contract explicitly grants a testability seam.
+- If an approved feature touches sensitive production code, add coverage within your test scope
+  and call out the relevant risks. Do not require a separate approval to write those tests.
 - Distinguish expected pre-implementation failures from test defects.
 - Do not run shell commands. Record checks as `not-run`; the orchestrator executes the complete
   validation set after integrating the independent implementation and test commits.
