@@ -142,7 +142,7 @@ test('SDK permission handler enforces read, write, and default-deny authority', 
         { kind: 'approve-once' }
     );
     assert.deepEqual(
-        await decide({ kind: 'read', path: '/webview-ui/src/App.tsx' }, invocation),
+        await decide({ kind: 'read', path: path.join(options.worktreePath, 'webview-ui', 'src', 'App.tsx') }, invocation),
         { kind: 'approve-once' }
     );
     assert.deepEqual(
@@ -187,13 +187,13 @@ test('SDK reviewer may read retained evidence but not arbitrary sibling paths', 
             }, invocation),
             { kind: 'approve-once' }
         );
-        assert.equal(
-            (await decide({
-                kind: 'read',
-                path: path.join(temporaryRoot, 'other-run', 'validation.log')
-            }, invocation)).kind,
-            'reject'
-        );
+        for (const unrelatedPath of [
+            path.join(temporaryRoot, 'other-run', 'validation.log'),
+            path.join('..', 'other-run', 'validation.log'),
+            path.join(temporaryRoot, 'evidence-other', 'validation.log')
+        ]) {
+            assert.equal((await decide({ kind: 'read', path: unrelatedPath }, invocation)).kind, 'reject');
+        }
     } finally {
         await rm(temporaryRoot, { recursive: true, force: true });
     }
