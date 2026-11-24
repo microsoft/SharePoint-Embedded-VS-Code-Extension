@@ -7,12 +7,15 @@ export const TITLE_PREFIX = 'Feature-Request: SPE VSC Extension -';
 const READY = 'agent-ready';
 export const NEEDS_INFO = 'needs-info';
 const HEADINGS = ['Problem', 'Expected behavior', 'Acceptance criteria', 'UI impact'];
-const MAX_BODY = 12_000;
+export const MAX_BODY = 12_000;
 const MAX_CRITERIA = 12;
 
 const isFeature = (issue) => typeof issue?.title === 'string' && issue.title.startsWith(TITLE_PREFIX);
 export const hasLabel = (issue, name) => issue.labels.some((label) => label.name.toLowerCase() === name);
 const description = (value) => /[\p{L}\p{N}]/u.test(value) && !/^(?:_no response_|n\/?a|tbd|todo|none)[.!]?$/i.test(value);
+const vagueCriterion = (value) => /^(?:(?:the\s+)?[a-z]+\s+)?(?:works?(?:\s+(?:as expected|correctly|properly))?|behaves? as expected|looks? good)[.!]?$/i.test(value);
+
+const guidance = (field, gap, why, add, example) => ({ field, gap, why, add, example });
 
 function extractSections(body) {
     const sections = new Map();
@@ -34,15 +37,29 @@ export function assessIssue(issue) {
     if (!isFeature(issue) || issue.state !== 'open' || issue.pull_request) return { status: 'ignored' };
     const title = issue.title.slice(TITLE_PREFIX.length).trim();
     const missing = [];
+    const advisory = [];
     if (issue.title[TITLE_PREFIX.length] !== ' ' || title.length < 5 || title.length > 120 || !description(title)) {
-        missing.push('Use the title prefix followed by a feature name (5-120 characters).');
+        missing.push(guidance('Title', 'The feature name is missing or outside the 5-120 character limit.',
+            'A clear title lets maintainers identify the requested change at a glance.',
+            'Keep the required prefix and name the action or outcome you want.',
+            `${TITLE_PREFIX} Confirm successful container creation`));
     }
     const body = issue.body ?? '';
     if (typeof body !== 'string' || body.length > MAX_BODY) {
-        return { status: 'incomplete', missing: [...missing, 'Provide the feature form within 12,000 characters.'] };
+        missing.push(guidance('Issue description', 'The description must be text and no longer than 12,000 characters.',
+            'The reviewer needs a bounded brief it can read in full.',
+            'Keep the four form headings and trim unrelated background, logs, or repeated text.',
+            'Keep a short user scenario, the intended behavior, a few test cases, and the UI impact.'));
+        return { status: 'incomplete', missing };
     }
     const sections = extractSections(body);
-    if (!sections) return { status: 'incomplete', missing: [...missing, 'Use each feature form heading only once.'] };
+    if (!sections) {
+        missing.push(guidance('Issue description', 'One or more feature form headings appear more than once.',
+            'The reviewer needs to know which version of each section to use.',
+            'Combine each duplicate section into one and retain the original form headings.',
+            'Use a single Acceptance criteria heading and put all test cases under it.'));
+        return { status: 'incomplete', missing };
+    }
     const get = (heading) => sections.get(heading)?.join('\n').trim() ?? '';
     const problem = get('Problem');
     const behavior = get('Expected behavior');
@@ -50,13 +67,50 @@ export function assessIssue(issue) {
     const criteria = (sections.get('Acceptance criteria') ?? []).map((line) =>
         /^\s*(?:[-*+]|\d+[.)])\s+(?:\[[ xX]\]\s+)?(.+?)\s*$/.exec(line)?.[1]
     ).filter((entry) => entry && description(entry) && !/^\[[ xX]\](?:\s|$)/.test(entry));
-    if (!description(problem)) missing.push('Describe the problem.');
-    if (!description(behavior)) missing.push('Describe the expected behavior.');
-    if (!criteria.length || criteria.length > MAX_CRITERIA || criteria.some((entry) => entry.length > 500)) {
-        missing.push('Provide 1-12 testable acceptance criteria as bullets (up to 500 characters each).');
+    const isNotification = /\b(?:notification|toast)\b/i.test(`${title} ${behavior} ${impact}`);
+    if (!description(problem)) {
+        missing.push(guidance('Problem', 'The problem does not identify the affected user or obstacle.',
+            'That context helps the developer distinguish the requested fix from unrelated changes.',
+            'Describe who encounters the problem, the action they take, and what is confusing or blocked today.',
+            'After submitting New Container, a developer cannot tell whether the operation succeeded.'));
     }
-    if (!description(impact) && !/^none\.?$/i.test(impact)) missing.push('Describe the UI impact, or specify None.');
-    return missing.length ? { status: 'incomplete', missing } : { status: 'complete', title, problem, behavior, criteria, impact };
+    if (!description(behavior)) {
+        missing.push(guidance('Expected behavior', 'The intended behavior is missing.',
+            'The developer needs to know when the feature should act and what it should do.',
+            'Describe the triggering action, the expected outcome, and any relevant failure or cancellation behavior.',
+            'After creation succeeds, close the dialog. On failure, keep the existing error behavior.'));
+    }
+    if (!criteria.length || criteria.length > MAX_CRITERIA || criteria.some((entry) => entry.length > 500)) {
+        missing.push(guidance('Acceptance criteria', 'The description needs 1-12 testable acceptance criteria as bullets, up to 500 characters each.',
+            'A tester needs concrete outcomes that can pass or fail.',
+            'Write one bullet per scenario, with an action or condition and the observable result.',
+            'When creation succeeds for a container named Demo, exactly one success notice appears.'));
+    } else if (criteria.some(vagueCriterion)) {
+        missing.push(guidance('Acceptance criteria', 'At least one criterion says the feature works without an observable result.',
+            'A tester could not tell from that criterion whether the implementation passes.',
+            'Replace it with the action, the condition, and the exact result to verify.',
+            isNotification ? 'When the operation succeeds, exactly one success notice is shown.'
+                : 'When a user refreshes the list, the selected row remains selected if it still exists.'));
+        if (isNotification && description(behavior) && !/\b(?:success(?:ful(?:ly)?)?|succeed(?:s|ed)?|confirm(?:s|ed|ation)?)\b/i.test(behavior)) {
+            advisory.push(guidance('Expected behavior', 'The vague test does not establish when the notification should appear.',
+                'A success message shown before confirmation could mislead the user.',
+                'Confirm the trigger and describe what happens while the operation is pending, fails or is canceled.',
+                'Show the notice only after the operation confirms success. Show no success notice if it fails or is canceled.'));
+        }
+        if (isNotification && /^(?:(?:a|the)\s+)?(?:success\s+)?(?:notification|toast)(?:\s+(?:appears|is shown))?[.!]?$/i.test(impact)) {
+            advisory.push(guidance('UI impact', 'The notification needs a testable placement and message.',
+                'The reviewer needs to know where to look and what text to verify.',
+                'Specify the notification location and give an example of its text. Mention whether it is dismissible if relevant.',
+                'Show a dismissible notice above the list: Container Demo created successfully.'));
+        }
+    }
+    if (!description(impact) && !/^none\.?$/i.test(impact)) {
+        missing.push(guidance('UI impact', 'The description does not say whether the change is visible to users.',
+            'That determines what a reviewer should look for when testing.',
+            'Describe what changes on screen and where, or write None for a non-visual change.',
+            'A dismissible success notice appears inside Storage Explorer above the container list.'));
+    }
+    return missing.length ? { status: 'incomplete', missing, advisory } : { status: 'complete', title, problem, behavior, criteria, impact };
 }
 
 const approvalAccounts = (value) => new Set((value ?? '').toLowerCase().split(/[\s,]+/).filter(Boolean));

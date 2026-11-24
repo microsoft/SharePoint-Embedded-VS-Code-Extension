@@ -95,9 +95,32 @@ Use the [SPE feature request form](../../.github/ISSUE_TEMPLATE/feature-request.
 [intake workflow](../../.github/workflows/feature-intake.yml) triages opened, edited, and reopened
 requests. It checks the form, then uses a text-only Copilot session to look for ambiguity and
 missing verification details. It adds `needs-info` and keeps one bot comment with specific
-questions. Reply by editing the issue description rather than in a comment. Each content revision
-is reviewed until it passes, at which point the workflow clears `needs-info`. If the model is
-unavailable or returns invalid output, readiness remains blocked; rerun triage to retry.
+requests. Copilot reviews each form finding against the whole description, even for incomplete
+requests. It drops unsupported advisory findings, keeps required form corrections, and explains
+each remaining gap, why it matters, what to add, and an example the author can adapt. The
+comment identifies the model setting used. Reply by editing the issue description rather than in a comment. Each
+revision is reviewed until it passes, at which point the workflow clears `needs-info`.
+If Copilot fails, the bot gives a safe failure category and links to the failed Actions run.
+It only uses `needs-info` in that case if required form corrections actually remain, and
+identifies them as not reviewed by Copilot. A maintainer can rerun triage after addressing the
+error. Implementation still requires a readiness pass for the current issue.
+
+To exercise the actual reviewer locally, run `npm run agent:build`, point
+`AGENT_LOOP_COPILOT_COMMAND` at a native Copilot CLI **1.0.106** executable, then run
+`node tools/agent-loop/review-feature.mjs smoke`. It uses a synthetic request and your local
+Copilot sign-in (or `COPILOT_GITHUB_TOKEN` if already configured) and does not touch any issue.
+The smoke command and Actions disable CLI auto-updates so they use the intended runtime. If
+changing the runtime pin, check the SDK handshake and a real synthetic review together.
+
+For example, on Windows x64:
+
+```powershell
+$cli = Join-Path $env:TEMP 'spe-copilot-1.0.106'
+npm install --prefix $cli --no-save --ignore-scripts '@github/copilot-win32-x64@1.0.106'
+$env:AGENT_LOOP_COPILOT_COMMAND = Join-Path $cli 'node_modules\@github\copilot-win32-x64\copilot.exe'
+npm run agent:build
+node tools\agent-loop\review-feature.mjs smoke
+```
 
 When the current revision passes, the bot comment says **Ready for `agent-ready` (awaiting
 maintainer approval)**. Implementation never starts from readiness review alone, regardless of
