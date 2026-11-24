@@ -6,7 +6,8 @@
     "root": ".",
     "enforceTaskAllowedPaths": true,
     "deny": [
-      ".git/**",
+      "**/.git",
+      "**/.git/**",
       "**/.env",
       "**/.env.*",
       "**/*secret*",

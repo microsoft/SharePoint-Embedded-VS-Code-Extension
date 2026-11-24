@@ -17,6 +17,8 @@ Do not request or consume another worker's private conversation.
 
 - Map every code change to one or more acceptance criteria.
 - Edit only paths allowed for this worker and never edit globally denied paths.
+- GitHub issue contracts may allow drafting protected changes for a human to review. Flag any
+  such approval in the handoff; drafting a patch does not authorize applying or running it.
 - Follow repository architecture and reuse existing services, schemas, and helpers.
 - For a native VS Code notification, use the extension host, not an inline webview message.
   Keep the existing RPC, validation, and authorization checks, and notify only after the existing

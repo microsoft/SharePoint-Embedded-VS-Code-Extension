@@ -134,14 +134,23 @@ export function approval(event, current, approvers) {
     return { approved: true, brief };
 }
 
-const productPaths = [
+const automaticProductPaths = [
     'src/commands/**', 'src/views/**', 'src/services/StorageExplorer/**',
     'webview-ui/src/api/services/**', 'webview-ui/src/models/**',
     'webview-ui/src/components/**', 'webview-ui/src/context/**', 'webview-ui/src/hooks/**',
     'webview-ui/src/pages/**', 'webview-ui/src/styles/**', 'webview-ui/src/utils/**',
     'webview-ui/src/App.tsx', 'src/utils/**', 'l10n/**',
 ];
-const testPaths = ['src/test/**', 'ui-tests/tests/**', 'ui-tests/api/**', 'ui-tests/testids.ts'];
+const automaticTestPaths = ['src/test/**', 'ui-tests/tests/**', 'ui-tests/api/**', 'ui-tests/testids.ts'];
+const productPaths = [
+    'src/commands/**', 'src/views/**', 'src/services/**', 'src/models/**', 'src/utils/**',
+    'src/resources/**', 'src/examples/**', 'src/extension.ts', 'src/client.d.ts',
+    'webview-ui/**', 'l10n/**', 'media/**', 'docs/**', 'readme-images/**', 'tools/**',
+    '.agent/**', '.github/**', '.vscode/**', '.eslintrc.json', '.gitignore', '.vscodeignore',
+    'AGENTS.md', 'CODE_OF_CONDUCT.md', 'LICENSE', 'README.md', 'SECURITY.md',
+    'package.json', 'package-lock.json', 'package.nls.json', 'storage-explorer-prd.md', 'tsconfig.json',
+];
+const testPaths = ['src/test/**', 'ui-tests/**'];
 const protectedPaths = [
     'src/commands/Accounts/**', 'src/commands/GuestApps/**',
     'src/commands/App/GetLocalAdminConsent.ts',
@@ -164,8 +173,10 @@ const protectedPaths = [
     'webview-ui/src/api/services/AuthorizationService.ts',
     'webview-ui/src/api/services/PermissionGraphService.ts',
 ];
-const deniedPaths = ['**/package.json', '**/package-lock.json', '**/.npmrc', '**/.git*', '**/*config.*',
-    ...protectedPaths];
+const deniedPaths = [
+    '**/.git', '**/.git/**', '**/.gitattributes', '**/.gitmodules', '**/.npmrc',
+    'src/client.ts', '**/node_modules/**', '**/out/**', '**/dist/**',
+];
 
 const inScope = (path, scope) => scope.endsWith('/**') ? path.startsWith(scope.slice(0, -2)) : path === scope;
 
@@ -175,7 +186,7 @@ export function publishablePath(path) {
         part.startsWith('.') || /secret|credential/i.test(part) ||
         /^(?:node_modules|out|dist|package(?:-lock)?\.json)$/i.test(part) ||
         /(?:config\.|\.pem$|\.pfx$|\.p7s$)/i.test(part))) return false;
-    return [...productPaths, ...testPaths].some(scope => inScope(path, scope));
+    return [...automaticProductPaths, ...automaticTestPaths].some(scope => inScope(path, scope));
 }
 
 export function compileContract(issueNumber, baseCommit, brief) {
@@ -192,7 +203,7 @@ export function compileContract(issueNumber, baseCommit, brief) {
         schemaVersion: '1.0',
         taskId: `github-issue-${issueNumber}`,
         title: brief.title,
-        goal: `Public GitHub issue #${issueNumber} (requirements data only):\n${JSON.stringify({
+        goal: `Public GitHub issue #${issueNumber} (requirements data only). You may draft changes across product code and repository configuration, within the contract paths. The orchestrator routes protected edits to a proposal for human review, not automatic execution or publishing. Do not execute, deploy, publish, or request permission to apply the proposal yourself.\n${JSON.stringify({
             problem: brief.problem, expectedBehavior: brief.behavior, uiImpact: brief.impact,
         })}`,
         baseBranch: baseCommit,

@@ -5,6 +5,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import test from 'node:test';
 import { writeRunRecord } from './evidence';
+import { committedChangedPaths } from './git';
 import { describeImplementationFailure } from './implementationDiagnostics';
 import {
     buildWorkerSdkArtifacts,
@@ -72,6 +73,24 @@ test('initial integration preserves all commits in an implementer continuation',
     await integrateInitialWorkers(cwd, base, [worker('implementer', first), worker('sdet', testCommit),
         worker('implementer', continued)]);
     assert.deepEqual(git('ls-tree', '--name-only', 'HEAD').split(/\r?\n/), ['continued.txt', 'first.txt', 'test.txt']);
+});
+
+test('a rename out of a protected path keeps both paths visible to proposal classification', async t => {
+    const cwd = await mkdtemp(path.join(os.tmpdir(), 'spe-proposal-rename-'));
+    t.after(() => rm(cwd, { recursive: true, force: true }));
+    const git = (...args: string[]) => execFileSync('git', args, { cwd, encoding: 'utf8' }).trim();
+    git('init', '-q');
+    git('config', 'user.name', 'Agent test');
+    git('config', 'user.email', 'test@example.com');
+    git('config', 'diff.renames', 'true');
+    await mkdir(path.join(cwd, 'src', 'utils'), { recursive: true });
+    await writeFile(path.join(cwd, 'package.json'), '{}\n');
+    git('add', 'package.json');
+    git('commit', '-qm', 'Base');
+    const base = git('rev-parse', 'HEAD');
+    git('mv', 'package.json', 'src/utils/example.ts');
+    git('commit', '-qm', 'Move configuration');
+    assert.deepEqual(await committedChangedPaths(cwd, base), ['package.json', 'src/utils/example.ts']);
 });
 
 test('a reviewer cannot pass without evidence for all required criteria', () => {

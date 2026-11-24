@@ -138,7 +138,7 @@ jobs:
           result="$RUNNER_TEMP/feature-agent-result.json"
           diagnostics=$(mktemp "$RUNNER_TEMP/feature-agent-diagnostics.XXXXXX")
           agent_status=0
-          AGENT_LOOP_DIAGNOSTICS_FILE="$diagnostics" node tools/agent-loop/dist/cli.js run \
+          AGENT_LOOP_DIAGNOSTICS_FILE="$diagnostics" node tools/agent-loop/dist/cli.js run-feature \
             .agent-runs/github-intake-contract.json > "$result" 2> "$RUNNER_TEMP/feature-agent-errors.log" || agent_status=$?
           while IFS= read -r line; do
             printf '%s\n' "$line"
@@ -148,6 +148,7 @@ jobs:
             exit "$agent_status"
           fi
           commit=$(jq -er '.integratedCommit | select(test("^[0-9a-f]{40}$"))' "$result")
+          phase=$(jq -er '.phase' "$result")
           model=$(jq -er '.model | select(test("^[a-zA-Z0-9._-]+$"))' "$result")
           printf 'Copilot model: `%s`\n' "$model" >> "$GITHUB_STEP_SUMMARY"
           git merge-base --is-ancestor "$GITHUB_SHA" "$commit"
@@ -156,10 +157,21 @@ jobs:
             echo '::warning::The agent returned no changes. No patch will be uploaded.'
             exit 0
           fi
-          git --no-pager diff --raw --no-renames -z "$GITHUB_SHA" "$commit" |
-            node --input-type=module -e 'import { readFileSync } from "node:fs"; import { validateStagedDiff } from "./tools/agent-loop/publish-feature.mjs"; validateStagedDiff(readFileSync(0, "utf8"));'
+          case "$phase" in
+            awaiting-human-acceptance)
+              git --no-pager diff --raw --no-renames -z "$GITHUB_SHA" "$commit" |
+                node --input-type=module -e 'import { readFileSync } from "node:fs"; import { validateStagedDiff } from "./tools/agent-loop/publish-feature.mjs"; validateStagedDiff(readFileSync(0, "utf8"));'
+              ;;
+            proposal-ready)
+              echo 'Protected files changed. The proposal has not been validated and will not be packaged or published.' >> "$GITHUB_STEP_SUMMARY"
+              ;;
+            *)
+              echo '::error::Unexpected feature agent handoff state.'
+              exit 1
+              ;;
+          esac
           printf '%s\n' "$GITHUB_SHA" > "$RUNNER_TEMP/feature-base-sha.txt"
-          printf 'patch=true\ncommit=%s\n' "$commit" >> "$GITHUB_OUTPUT"
+          printf 'patch=true\ncommit=%s\nphase=%s\n' "$commit" "$phase" >> "$GITHUB_OUTPUT"
       - name: Confirm the issue has not changed before handoff
         id: handoff
         if: steps.agent.outputs.patch == 'true'
@@ -168,7 +180,7 @@ jobs:
         run: node tools/agent-loop/feature-issue.mjs confirm
       - name: Upload the reviewed patch for maintainers
         id: review
-        if: steps.handoff.outputs.approved == 'true'
+        if: steps.handoff.outputs.approved == 'true' && steps.agent.outputs.phase == 'awaiting-human-acceptance'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: feature-issue-${{ github.event.issue.number }}-review
@@ -177,9 +189,19 @@ jobs:
             ${{ runner.temp }}/feature-base-sha.txt
           if-no-files-found: error
           retention-days: 7
+      - name: Upload the unvalidated proposal for maintainer review
+        if: steps.handoff.outputs.approved == 'true' && steps.agent.outputs.phase == 'proposal-ready'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: feature-issue-${{ github.event.issue.number }}-unvalidated-proposal
+          path: |
+            ${{ runner.temp }}/feature.patch
+            ${{ runner.temp }}/feature-base-sha.txt
+          if-no-files-found: error
+          retention-days: 7
       - name: Package a testable VSIX from the reviewed commit
         id: package
-        if: steps.handoff.outputs.approved == 'true'
+        if: steps.review.outcome == 'success'
         env:
           REVIEWED_COMMIT: ${{ steps.agent.outputs.commit }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
@@ -224,7 +246,7 @@ jobs:
           printf 'filename=%s\n' "$file" >> "$GITHUB_OUTPUT"
       - name: Upload testable VSIX
         id: vsix
-        if: steps.handoff.outputs.approved == 'true'
+        if: steps.package.outcome == 'success'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: spe-issue-${{ github.event.issue.number }}-testable-vsix

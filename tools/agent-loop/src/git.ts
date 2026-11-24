@@ -126,6 +126,7 @@ export async function committedChangedPaths(
     const result = await git(worktreePath, [
         'diff',
         '--name-only',
+        '--no-renames',
         '-z',
         `${baseCommit}..${headCommit}`
     ]);

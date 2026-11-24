@@ -137,13 +137,15 @@ organization-approved Copilot CLI credential with only
 Copilot Requests access and no repository write grants. Do not copy private material into the
 public issue form. No Azure service connection or private repository is required.
 
-The feature agent can edit extension commands and views, Storage Explorer host services and
-webview code, utilities, localization, and tests. For example, an approved issue can request a
-native VS Code success notification from the existing Storage Explorer create operation.
-Authentication and permission controls, standalone Graph/ARM services, RPC transport and schemas,
-dependency and extension manifests, and CI/release files remain outside the automated scope.
-New command contributions or changes to these protected areas need maintainer review outside this
-pipeline. Validation runs in offline containers
+The feature agent can draft changes across the repository, including extension and Storage
+Explorer code, manifests, authentication, and workflows. A change to a protected file is
+delivered as an **unvalidated proposal** artifact: the agent does not run the proposed code,
+build a VSIX, push a branch, or open a draft PR for that run. Review the patch before applying it
+or running any checks. Credentials, local Git metadata and settings, runtime client files, and
+generated output are outside its edit authority.
+
+Ordinary feature changes, like a native VS Code notification from the existing Storage Explorer
+create operation, continue through automated validation in offline containers
 without Actions or Copilot credentials. A separate job applies the review patch to a temporary Git
 index without executing it, checks the changed paths and file modes, and opens one draft PR per issue
 from `feature-agent/issue-<number>`. It never overwrites an existing branch or merges a PR. The

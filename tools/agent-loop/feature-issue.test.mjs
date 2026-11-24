@@ -72,7 +72,7 @@ test('maps issue text to requirements only and produces a contract accepted by t
     validateContractInvariants(process.cwd(), contract, require('../../.agent/policies/default-authority.json'));
 });
 
-test('a native Storage Explorer request can edit host and webview code and publish the reviewed diff', () => {
+test('a feature can draft protected repository changes but only ordinary product changes can be published', () => {
     const brief = assessIssue({
         ...issue,
         title: `${TITLE_PREFIX} Confirm container creation`,
@@ -115,11 +115,19 @@ test('a native Storage Explorer request can edit host and webview code and publi
         'src/services/StorageExplorer/PermissionGraphService.ts', 'src/services/StorageExplorer/operationSchemas.ts',
         'webview-ui/src/api/protocol.ts', 'webview-ui/src/api/rpc.ts', 'webview-ui/src/api/services/AuthorizationService.ts',
         'package.json', 'webview-ui/package-lock.json', '.github/workflows/feature-intake.yml',
+        '.agent/policies/default-authority.json', 'tools/agent-loop/feature-issue.mjs',
+        'tsconfig.json', 'src/extension.ts', 'src/client.d.ts',
     ]) {
-        assert.throws(() => canEdit(implementer, [path]), /outside its authority/, path);
+        assert.doesNotThrow(() => canEdit(implementer, [path]), path);
         assert.equal(publishablePath(path), false, path);
         assert.throws(() => validateStagedDiff(record(path)), /outside the publishing scope/, path);
     }
+    for (const path of ['.git/config', '.npmrc', 'src/client.ts', 'webview-ui/.env', 'webview-ui/node_modules/example/index.js']) {
+        assert.throws(() => canEdit(implementer, [path]), /outside its authority/, path);
+        assert.equal(publishablePath(path), false, path);
+    }
+    assert.doesNotThrow(() => canEdit(sdet, ['ui-tests/playwright.config.ts']));
+    assert.equal(publishablePath('ui-tests/playwright.config.ts'), false);
 });
 
 test('authorization and handoff require a bot readiness pass for the exact issue content', async () => {

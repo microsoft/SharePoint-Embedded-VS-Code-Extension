@@ -1,4 +1,6 @@
 import { appendFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import {
     createExecutionPlan,
     runContract,
@@ -19,7 +21,7 @@ function recordDiagnostic(message: string): void {
 async function main(): Promise<void> {
     const [command, contractPath] = process.argv.slice(2);
 
-    if (!command || !contractPath || !['validate', 'plan', 'run'].includes(command)) {
+    if (!command || !contractPath || !['validate', 'plan', 'run', 'run-feature'].includes(command)) {
         printUsage();
         process.exitCode = 1;
         return;
@@ -36,11 +38,17 @@ async function main(): Promise<void> {
         return;
     }
 
-    const result = await runContract({ contractPath, onStage: value => {
-        stage = value;
-        recordDiagnostic(`Feature agent stage: ${value}`);
-    } });
-    if (diagnosticsFile && result.phase !== 'awaiting-human-acceptance') {
+    // Load the classifier from the trusted runner checkout, never from a candidate worktree.
+    const result = await runContract({
+        contractPath,
+        needsProposalReview: command === 'run-feature' ? await featureProposalClassifier() : undefined,
+        onStage: value => {
+            stage = value;
+            recordDiagnostic(`Feature agent stage: ${value}`);
+        }
+    });
+    const handedOff = result.phase === 'awaiting-human-acceptance' || result.phase === 'proposal-ready';
+    if (diagnosticsFile && !handedOff) {
         const reason = result.errors.includes('Required validation still fails after repass budget')
             ? 'Required validation did not pass within the retry budget.'
             : 'Independent review did not approve the change.';
@@ -59,9 +67,17 @@ async function main(): Promise<void> {
         errors: result.errors
     }, null, 2));
 
-    if (result.phase !== 'awaiting-human-acceptance') {
+    if (!handedOff) {
         process.exitCode = 2;
     }
+}
+
+async function featureProposalClassifier(): Promise<(paths: string[]) => boolean> {
+    const scope = await import(pathToFileURL(resolve(__dirname, '..', 'feature-issue.mjs')).href);
+    if (typeof scope.publishablePath !== 'function') {
+        throw new Error('The feature publisher path classifier could not be loaded.');
+    }
+    return paths => paths.some(path => !scope.publishablePath(path));
 }
 
 function printUsage(): void {
@@ -69,7 +85,8 @@ function printUsage(): void {
         'Usage:',
         '  npm run agent:validate -- <contract.json>',
         '  npm run agent:plan -- <contract.json>',
-        '  npm run agent:run -- <contract.json>'
+        '  npm run agent:run -- <contract.json>',
+        '  node tools/agent-loop/dist/cli.js run-feature <GitHub issue contract.json>'
     ].join('\n'));
 }
 
