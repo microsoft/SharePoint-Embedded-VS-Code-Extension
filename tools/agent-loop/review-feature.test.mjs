@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { issueClient, reviewRevision, TITLE_PREFIX } from './feature-issue.mjs';
-import { parseReadiness, prepareReview, publishReview, reviewPrompt } from './review-feature.mjs';
+import { classifyFailure, parseReadiness, prepareReview, publishReview, reviewPrompt } from './review-feature.mjs';
 
 const issue = {
     id: 100, number: 8, title: `${TITLE_PREFIX} Preserve selected rows`, state: 'open',
@@ -75,12 +75,40 @@ test('a stale result cannot overwrite feedback and an unavailable review can be 
     const plan = await prepareReview(f.github);
     f.current.body += '\nEdited.';
     const stale = await publishReview(f.github, plan, parseReadiness('{"questions":[]}'));
-    assert.match(stale, /no stale review/);
+    assert.match(stale.message, /no stale review/);
     assert.equal(f.writes.length, 0);
     const next = await prepareReview(f.github);
-    await publishReview(f.github, next, { status: 'unavailable', feedback: [] });
-    assert.match(f.comments[0].body, /unavailable/);
+    f.current.labels.push({ name: 'needs-info' });
+    const runUrl = 'https://github.com/owner/repo/actions/runs/123';
+    const outcome = await publishReview(f.github, next, { status: 'unavailable', feedback: [], failure: 'credential' }, { runUrl });
+    assert.equal(outcome.status, 'unavailable');
+    assert.equal(outcome.failure, 'credential');
+    assert.match(f.comments[0].body, /no author action required/);
+    assert.match(f.comments[0].body, /credential is missing, expired, or was rejected/);
+    assert.ok(f.comments[0].body.includes(runUrl));
+    assert.deepEqual(f.current.labels, [{ name: 'enhancement' }]);
     assert.equal((await prepareReview(f.github)).kind, 'model');
+});
+
+test('a vague notification request gets concrete questions without invoking the model', async () => {
+    const f = fixture({ ...issue, title: `${TITLE_PREFIX} Confirm container creation`,
+        body: "### Problem\nI can't tell whether my container was created.\n### Expected behavior\nShow a notification when I create a container.\n" +
+            '### Acceptance criteria\n- The notification works.\n### UI impact\nA notification appears.' });
+    const plan = await prepareReview(f.github);
+    assert.equal(plan.kind, 'static');
+    const outcome = await publishReview(f.github, plan);
+    assert.equal(outcome.status, 'needs-info');
+    assert.match(f.comments[0].body, /observable result/);
+    assert.match(f.comments[0].body, /fails or is canceled/);
+    assert.match(f.comments[0].body, /example of its text/);
+    assert.ok(f.current.labels.some(({ name }) => name === 'needs-info'));
+});
+
+test('reviewer diagnostics classify errors without propagating raw SDK text', () => {
+    assert.equal(classifyFailure(new Error('HTTP 401 with private details'), 'service'), 'credential');
+    assert.equal(classifyFailure(new Error('model missing'), 'model'), 'model');
+    assert.equal(classifyFailure(new Error('timed out'), 'service'), 'service');
+    assert.deepEqual(parseReadiness('```json\n{"questions":[]}\n```'), { status: 'ready', feedback: [] });
 });
 
 test('malformed or unsafe model output never becomes a readiness verdict', () => {

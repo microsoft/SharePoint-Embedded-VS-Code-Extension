@@ -13,6 +13,7 @@ const MAX_CRITERIA = 12;
 const isFeature = (issue) => typeof issue?.title === 'string' && issue.title.startsWith(TITLE_PREFIX);
 export const hasLabel = (issue, name) => issue.labels.some((label) => label.name.toLowerCase() === name);
 const description = (value) => /[\p{L}\p{N}]/u.test(value) && !/^(?:_no response_|n\/?a|tbd|todo|none)[.!]?$/i.test(value);
+const vagueCriterion = (value) => /^(?:(?:the\s+)?[a-z]+\s+)?(?:works?(?:\s+(?:as expected|correctly|properly))?|behaves? as expected|looks? good)[.!]?$/i.test(value);
 
 function extractSections(body) {
     const sections = new Map();
@@ -54,6 +55,12 @@ export function assessIssue(issue) {
     if (!description(behavior)) missing.push('Describe the expected behavior.');
     if (!criteria.length || criteria.length > MAX_CRITERIA || criteria.some((entry) => entry.length > 500)) {
         missing.push('Provide 1-12 testable acceptance criteria as bullets (up to 500 characters each).');
+    } else if (criteria.some(vagueCriterion)) {
+        missing.push('Acceptance criteria: Replace vague criteria such as "it works" with an observable result. Specify the action, when it happens, and what a tester should see.');
+        if (/\b(?:notification|toast)\b/i.test(`${title} ${behavior} ${impact}`)) {
+            missing.push('Expected behavior: Say exactly when the notification should appear, and what should happen if the operation fails or is canceled.');
+            missing.push('UI impact: Say where the notification should appear and give an example of its text.');
+        }
     }
     if (!description(impact) && !/^none\.?$/i.test(impact)) missing.push('Describe the UI impact, or specify None.');
     return missing.length ? { status: 'incomplete', missing } : { status: 'complete', title, problem, behavior, criteria, impact };
