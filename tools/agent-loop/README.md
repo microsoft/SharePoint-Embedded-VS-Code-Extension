@@ -149,7 +149,9 @@ client configuration, and generated output stay outside the edit scope.
 
 The workflow pushes eligible application changes, including changes to authentication, permissions,
 and Graph services. It then attempts to open a draft PR using the repository token. A blocked PR
-does not undo a successful push. After `agent-ready`, the **Feature agent delivery** section in
+does not undo a successful push. If GitHub explicitly denies PR creation by Actions policy, the
+publisher warns instead of failing and the issue includes a link to open the PR manually.
+Unexpected PR API errors still fail the publishing job. After `agent-ready`, the **Feature agent delivery** section in
 the issue description links the current run and reports progress through implementation and
 packaging. If implementation fails, it reports the failed stage and links the patch if one was
 uploaded. On success it gives direct downloads for the VSIX, checksum, and patch, reports the

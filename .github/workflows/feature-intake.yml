@@ -294,6 +294,7 @@ jobs:
     outputs:
       branch-pushed: ${{ steps.publish.outputs.branch-pushed }}
       pr-number: ${{ steps.publish.outputs.pr-number }}
+      pr-policy-blocked: ${{ steps.publish.outputs.pr-policy-blocked }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
@@ -340,4 +341,5 @@ jobs:
           AUTO_PUBLISH: ${{ needs.implement.outputs.auto-publish }}
           BRANCH_PUSHED: ${{ needs.publish.outputs.branch-pushed }}
           DRAFT_PR_NUMBER: ${{ needs.publish.outputs.pr-number }}
+          PR_POLICY_BLOCKED: ${{ needs.publish.outputs.pr-policy-blocked }}
         run: node tools/agent-loop/feature-handoff.mjs report

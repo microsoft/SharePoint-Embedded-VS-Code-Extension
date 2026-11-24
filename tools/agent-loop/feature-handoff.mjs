@@ -155,8 +155,11 @@ export async function updateFeatureHandoff(event, env, fetcher = fetch) {
         throw new Error('Expected the reviewed patch and VSIX artifact IDs.');
     }
     const branch = `feature-agent/issue-${event.issue.number}`;
+    const noDraft = env.PR_POLICY_BLOCKED === 'true'
+        ? `GitHub policy blocked automatic draft PR creation. [Open a PR manually](${repoUrl}/compare/${encodeURIComponent(event.repository.default_branch)}...${branch}?expand=1).`
+        : 'No draft PR was opened by this run.';
     const delivery = /^[1-9]\d*$/.test(env.DRAFT_PR_NUMBER ?? '') ? `Draft PR: [#${env.DRAFT_PR_NUMBER}](${repoUrl}/pull/${env.DRAFT_PR_NUMBER}).`
-        : env.BRANCH_PUSHED === 'true' ? `Branch pushed: [\`${branch}\`](${repoUrl}/tree/${branch}). No draft PR was opened by this run.`
+        : env.BRANCH_PUSHED === 'true' ? `Branch pushed: [\`${branch}\`](${repoUrl}/tree/${branch}). ${noDraft}`
         : env.AUTO_PUBLISH === 'true' ? 'The publisher did not confirm a branch push. See the run for details.'
         : 'No branch was pushed automatically because the patch changes CI or build controls, or contains an unsupported file path or mode.';
     const markdown = [

@@ -54,6 +54,7 @@ test('the issue description reports the branch and direct downloads without chan
         GITHUB_REPOSITORY: repository, GITHUB_RUN_ID: '42', GH_TOKEN: 'mock',
         FEATURE_REQUEST_APPROVERS: 'maintainer', PATCH_ARTIFACT_ID: '122', VSIX_ARTIFACT_ID: '123',
         REVIEW_FILES: '["src/services/Auth/GraphAuthProvider.ts"]', AUTO_PUBLISH: 'true', BRANCH_PUSHED: 'true',
+        PR_POLICY_BLOCKED: 'true',
     };
     const fetcher = async (url, init) => {
         assert.equal(new URL(url).pathname, '/repos/owner/repo/issues/8');
@@ -74,7 +75,8 @@ test('the issue description reports the branch and direct downloads without chan
         assert.equal(url.pathname, `/owner/repo/actions/runs/42/artifacts/${artifactId}`);
     }
     assert.match(current.body, /Branch pushed:.*feature-agent\/issue-8/);
-    assert.match(current.body, /No draft PR was opened/);
+    assert.match(current.body, /GitHub policy blocked automatic draft PR creation/);
+    assert.match(current.body, /\[Open a PR manually\]/);
     assert.match(current.body, /GraphAuthProvider\.ts/);
     await updateFeatureHandoff(event, { ...env, GITHUB_RUN_ID: '43', DRAFT_PR_NUMBER: '19' }, fetcher);
     assert.deepEqual(methods, ['PATCH', 'PATCH']);
@@ -181,47 +183,58 @@ test('publishes one draft from an isolated index and recovers an already-pushed 
     let pushes = 0;
     let posts = 0;
     let pr;
-    let failBeforePr = true;
+    let prResponse = { status: 403, message: 'GitHub Actions is not permitted to create or approve pull requests.' };
     let current = issue;
     const run = (command, args, options, input) => {
-        if (command === 'git') {
-            assert.equal(args[0], '--no-pager');
-            if (args[1] === 'ls-remote') return remote;
-            if (args.includes('push')) {
-                assert.ok(args.includes(`--force-with-lease=${ref}:`));
-                const head = args.at(-1).split(':')[0];
-                assert.match(git(['show', `${head}:${authPath}`]), /New/);
-                remote = `${head}\t${ref}\n`;
-                pushes++;
-                return '';
-            }
-            return git(args, options, input);
+        assert.equal(command, 'git');
+        assert.equal(args[0], '--no-pager');
+        if (args[1] === 'ls-remote') return remote;
+        if (args.includes('push')) {
+            assert.ok(args.includes(`--force-with-lease=${ref}:`));
+            const head = args.at(-1).split(':')[0];
+            assert.match(git(['show', `${head}:${authPath}`]), /New/);
+            remote = `${head}\t${ref}\n`;
+            pushes++;
+            return '';
         }
-        assert.equal(command, 'gh');
-        if (args.includes('GET')) return JSON.stringify(pr ? [pr] : []);
-        assert.equal(args[3], `repos/${repository}/pulls`);
-        const payload = JSON.parse(input);
+        return git(args, options, input);
+    };
+    const review = { id: 1, user: { id: 41898282, type: 'Bot' }, body: `${reviewMarker} ${reviewRevision(issue)} ready -->\nReady.` };
+    const fetcher = async (target, init) => {
+        const request = new URL(target);
+        if (request.pathname !== `/repos/${repository}/pulls`) {
+            return Response.json(request.pathname.endsWith('/comments') ? [review] : current);
+        }
+        assert.equal(request.origin, 'https://api.github.com');
+        if (init.method === 'GET') {
+            assert.equal(request.searchParams.get('head'), 'owner:feature-agent/issue-8');
+            return Response.json(pr ? [pr] : []);
+        }
+        assert.equal(init.method, 'POST');
+        const payload = JSON.parse(init.body);
         assert.equal(payload.draft, true);
         assert.equal(payload.base, 'main');
         assert.equal(payload.head, 'feature-agent/issue-8');
         assert.match(payload.body, /Implements #8/);
         assert.match(payload.body, /\[Download the testable VSIX\]\(https:\/\/github\.com\/owner\/repo\/actions\/runs\/42\/artifacts\/123\)/);
-        if (failBeforePr) throw new Error('simulated API failure');
+        if (prResponse) return Response.json({ message: prResponse.message }, { status: prResponse.status });
         posts++;
         pr = { html_url: url, number: 19, head: { sha: remote.split('\t')[0] } };
-        return JSON.stringify(pr);
+        return Response.json(pr, { status: 201 });
     };
-    const review = { id: 1, user: { id: 41898282, type: 'Bot' }, body: `${reviewMarker} ${reviewRevision(issue)} ready -->\nReady.` };
     let branchConfirmed = false;
-    const options = { event, env, directory, run, onBranch: () => { branchConfirmed = true; },
-        fetcher: async (url) => Response.json(url.includes('/comments?') ? [review] : current) };
+    const options = { event, env, directory, run, onBranch: () => { branchConfirmed = true; }, fetcher };
     current = { ...issue, body: `${issue.body}\nEdited` };
     await assert.rejects(publish(options), /Issue text changed/);
     assert.equal(pushes, 0);
     current = issue;
-    await assert.rejects(publish(options), /simulated API failure/);
+    assert.deepEqual(await publish(options), { policyBlocked: true });
     assert.equal(branchConfirmed, true);
-    failBeforePr = false;
+    prResponse = { status: 403, message: 'Resource not accessible by integration' };
+    await assert.rejects(publish(options), /failed \(HTTP 403\).*branch was pushed/);
+    prResponse = { status: 422, message: 'Validation Failed' };
+    await assert.rejects(publish(options), /failed \(HTTP 422\)/);
+    prResponse = null;
     assert.deepEqual(await publish(options), { url, number: 19, created: true });
     assert.deepEqual(await publish(options), { url, number: 19, created: false });
     assert.equal(pushes, 1);
