@@ -1,16 +1,68 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, readFile } from 'node:fs/promises';
+import { execFileSync } from 'node:child_process';
+import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import test from 'node:test';
 import {
     buildWorkerSdkArtifacts,
     ensureValidationClientDeclaration,
+    enforceReviewGate,
     formatContinuationContext,
     formatValidationSummary,
+    integrateInitialWorkers,
     selectTerminalWorkerResults
 } from './orchestrator';
-import { ValidationResult, WorkerResult } from './types';
+import { ReviewResult, ValidationResult, WorkerResult } from './types';
+
+test('initial integration preserves all commits in an implementer continuation', async t => {
+    const cwd = await mkdtemp(path.join(os.tmpdir(), 'spe-integration-'));
+    t.after(() => rm(cwd, { recursive: true, force: true }));
+    const git = (...args: string[]) => execFileSync('git', args, { cwd, encoding: 'utf8' }).trim();
+    git('init', '-q');
+    git('config', 'user.name', 'Agent test');
+    git('config', 'user.email', 'test@example.com');
+    git('commit', '-q', '--allow-empty', '-m', 'Base');
+    const base = git('rev-parse', 'HEAD');
+    async function commit(message: string, file: string): Promise<string> {
+        await writeFile(path.join(cwd, file), message);
+        git('add', file);
+        git('commit', '-qm', message);
+        return git('rev-parse', 'HEAD');
+    }
+    const first = await commit('Initial implementation', 'first.txt');
+    const continued = await commit('Continuation', 'continued.txt');
+    git('switch', '--detach', '-q', base);
+    const testCommit = await commit('Tests', 'test.txt');
+    git('switch', '--detach', '-q', base);
+    const worker = (role: WorkerResult['role'], outputCommit: string): WorkerResult => ({
+        schemaVersion: '1.0', role, outputCommit, baseCommit: base, status: 'completed', runId: 'run',
+        taskId: 'task', workerId: role, startedAt: '', finishedAt: '', summary: role,
+        criteria: [], filesChanged: [], validations: [], artifacts: [], risks: [], approvalRequests: []
+    });
+    await integrateInitialWorkers(cwd, base, [worker('implementer', first), worker('sdet', testCommit),
+        worker('implementer', continued)]);
+    assert.deepEqual(git('ls-tree', '--name-only', 'HEAD').split(/\r?\n/), ['continued.txt', 'first.txt', 'test.txt']);
+});
+
+test('a reviewer cannot pass without evidence for all required criteria', () => {
+    const report = (): ReviewResult => ({
+        schemaVersion: '1.0', runId: 'run', taskId: 'task', workerId: 'reviewer', reviewedCommit: 'a'.repeat(40),
+        summary: 'Pass', decision: 'pass', findings: [],
+        criteria: [{ id: 'AC-01', status: 'satisfied', evidence: 'Regression test covers the outcome.' }],
+    });
+    const valid = report();
+    enforceReviewGate(valid, ['AC-01']);
+    assert.equal(valid.decision, 'pass');
+    const missing = report();
+    enforceReviewGate(missing, ['AC-01', 'AC-02']);
+    assert.equal(missing.decision, 'blocked');
+    const high = report();
+    high.findings.push({ id: 'F-01', severity: 'high', category: 'correctness', criterionIds: ['AC-01'],
+        rationale: 'Incorrect result', evidence: 'Regression', repassInstruction: 'Fix the result' });
+    enforceReviewGate(high, ['AC-01']);
+    assert.equal(high.decision, 'blocked');
+});
 
 test('validation handoff omits passing output and bounds failure excerpts', () => {
     const longOutput = `start-${'x'.repeat(2000)}-end`;

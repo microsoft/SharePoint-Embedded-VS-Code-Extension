@@ -26,5 +26,6 @@ Report only actionable correctness, security, reliability, architecture, or cove
 not block on subjective style preferences.
 
 Return JSON matching `.agent/schemas/review-result.schema.json`. A `changes-required` decision must
-include at least one finding with evidence and a concrete repass instruction. Only return `pass`
-when no blocking finding remains.
+include at least one finding with evidence and a concrete repass instruction. Return each contract
+criterion exactly once. Only return `pass` when every criterion is satisfied with evidence and
+no blocker or high-severity finding remains.

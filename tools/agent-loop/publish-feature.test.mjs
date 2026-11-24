@@ -24,6 +24,7 @@ test('publication independently rejects forbidden paths and non-regular file mod
     assert.doesNotThrow(() => validateStagedDiff(record('webview-ui/src/components/example.tsx')));
     for (const raw of [
         '', record('.github/workflows/validate.yml'), record('src/utils/package.json'),
+        record('src/utils/AdminConsentHelper.ts'), record('src/utils/token.ts'),
         record('src/utils/.env'), record('src/utils/example.ts', '120000'),
         record('src/utils/example.ts', '100755'), record('src/utils/../extension.ts'),
     ]) assert.throws(() => validateStagedDiff(raw));
@@ -50,6 +51,7 @@ test('publishes one draft from an isolated index and recovers an already-pushed 
     const env = {
         ...process.env, GH_TOKEN: 'mock', GITHUB_REPOSITORY: repository, GITHUB_REF: 'refs/heads/main',
         GITHUB_SHA: base, GITHUB_RUN_ID: '42', RUNNER_TEMP: directory, FEATURE_REQUEST_APPROVERS: 'maintainer',
+        TESTABLE_VSIX_URL: `https://github.com/${repository}/actions/runs/42/artifacts/123`,
     };
     const ref = 'refs/heads/feature-agent/issue-8';
     const url = `https://github.com/${repository}/pull/19`;
@@ -81,6 +83,7 @@ test('publishes one draft from an isolated index and recovers an already-pushed 
         assert.equal(payload.base, 'main');
         assert.equal(payload.head, 'feature-agent/issue-8');
         assert.match(payload.body, /Implements #8/);
+        assert.match(payload.body, /\[Download the testable VSIX\]\(https:\/\/github\.com\/owner\/repo\/actions\/runs\/42\/artifacts\/123\)/);
         if (failBeforePr) throw new Error('simulated API failure');
         posts++;
         pr = { html_url: url };

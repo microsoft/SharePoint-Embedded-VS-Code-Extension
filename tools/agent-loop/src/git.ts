@@ -42,7 +42,7 @@ export async function createWorktree(
 }
 
 export async function changedPaths(worktreePath: string): Promise<string[]> {
-    const result = await git(worktreePath, ['status', '--porcelain=v1', '-z']);
+    const result = await git(worktreePath, ['status', '--porcelain=v1', '--untracked-files=all', '-z']);
     return parsePorcelainZ(result.stdout);
 }
 
@@ -76,6 +76,11 @@ export async function cherryPick(worktreePath: string, commit: string): Promise<
         await git(worktreePath, ['cherry-pick', '--abort'], false);
         throw new Error(`Failed to integrate commit ${commit}: ${result.stderr.trim()}`);
     }
+}
+
+export async function commitsSince(worktreePath: string, base: string, head: string): Promise<string[]> {
+    await git(worktreePath, ['merge-base', '--is-ancestor', base, head]);
+    return (await git(worktreePath, ['rev-list', '--reverse', `${base}..${head}`])).stdout.trim().split(/\s+/).filter(Boolean);
 }
 
 export async function currentCommit(worktreePath: string): Promise<string> {

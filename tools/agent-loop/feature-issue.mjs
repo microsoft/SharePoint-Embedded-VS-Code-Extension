@@ -80,9 +80,15 @@ const productPaths = [
     'webview-ui/src/App.tsx', 'src/utils/**', 'l10n/**',
 ];
 const testPaths = ['src/test/**', 'ui-tests/tests/**', 'ui-tests/api/**', 'ui-tests/testids.ts'];
-const deniedPaths = ['**/package.json', '**/package-lock.json', '**/.npmrc', '**/.git*', '**/*config.*'];
+const restrictedUtilities = [
+    'src/utils/AdminConsentHelper.ts', 'src/utils/ExtensionAppPermissions.ts',
+    'src/utils/ExtensionAppPermissionScopes.ts', 'src/utils/token.ts',
+];
+const deniedPaths = ['**/package.json', '**/package-lock.json', '**/.npmrc', '**/.git*', '**/*config.*',
+    ...restrictedUtilities];
 
 export function publishablePath(path) {
+    if (restrictedUtilities.some((restricted) => restricted.toLowerCase() === path.toLowerCase())) return false;
     if (!/^[a-z0-9_./-]+$/i.test(path) || path.split('/').some((part) =>
         part.startsWith('.') || /secret|credential/i.test(part) ||
         /^(?:node_modules|out|dist|package(?:-lock)?\.json)$/i.test(part) ||

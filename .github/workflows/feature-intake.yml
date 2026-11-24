@@ -39,8 +39,11 @@ jobs:
     environment: feature-agent
     outputs:
       artifact-id: ${{ steps.review.outputs.artifact-id }}
+      vsix-url: ${{ steps.vsix.outputs.artifact-url }}
     env:
       FEATURE_REQUEST_APPROVERS: ${{ vars.FEATURE_REQUEST_APPROVERS }}
+      AGENT_LOOP_MODEL: ${{ vars.AGENT_LOOP_MODEL || 'gpt-6.2-sol' }}
+      AGENT_LOOP_REASONING_EFFORT: ${{ vars.AGENT_LOOP_REASONING_EFFORT }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
@@ -62,7 +65,8 @@ jobs:
           npm ci --ignore-scripts
           npm ci --prefix webview-ui
           npm run agent:build
-          npm install --global @github/copilot@1.0.114-0
+          npm install --global @github/copilot-linux-x64@1.0.114-0
+          printf 'AGENT_LOOP_COPILOT_COMMAND=%s\n' "$(command -v copilot-linux-x64)" >> "$GITHUB_ENV"
           playwright_version=$(node -p "require('./package-lock.json').packages['node_modules/@playwright/test'].version")
           if [[ "$playwright_version" != '1.61.1' ]]; then
             echo '::error::Update the validation image pin to match the Playwright lockfile.'
@@ -99,14 +103,18 @@ jobs:
             exit 1
           fi
           commit=$(jq -er '.integratedCommit | select(test("^[0-9a-f]{40}$"))' "$result")
+          model=$(jq -er '.model | select(test("^[a-zA-Z0-9._-]+$"))' "$result")
+          printf 'Copilot model: `%s`\n' "$model" >> "$GITHUB_STEP_SUMMARY"
           git merge-base --is-ancestor "$GITHUB_SHA" "$commit"
           git --no-pager diff --no-ext-diff --no-textconv --binary "$GITHUB_SHA" "$commit" -- > "$RUNNER_TEMP/feature.patch"
           if [[ ! -s "$RUNNER_TEMP/feature.patch" ]]; then
             echo '::warning::The agent returned no changes. No patch will be uploaded.'
             exit 0
           fi
+          git --no-pager diff --raw --no-renames -z "$GITHUB_SHA" "$commit" |
+            node --input-type=module -e 'import { readFileSync } from "node:fs"; import { validateStagedDiff } from "./tools/agent-loop/publish-feature.mjs"; validateStagedDiff(readFileSync(0, "utf8"));'
           printf '%s\n' "$GITHUB_SHA" > "$RUNNER_TEMP/feature-base-sha.txt"
-          echo 'patch=true' >> "$GITHUB_OUTPUT"
+          printf 'patch=true\ncommit=%s\n' "$commit" >> "$GITHUB_OUTPUT"
       - name: Confirm the issue has not changed before handoff
         id: handoff
         if: steps.agent.outputs.patch == 'true'
@@ -122,6 +130,62 @@ jobs:
           path: |
             ${{ runner.temp }}/feature.patch
             ${{ runner.temp }}/feature-base-sha.txt
+          if-no-files-found: error
+          retention-days: 7
+      - name: Package a testable VSIX from the reviewed commit
+        id: package
+        if: steps.handoff.outputs.approved == 'true'
+        env:
+          REVIEWED_COMMIT: ${{ steps.agent.outputs.commit }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          SPE_TEST_CLIENT_ID: ${{ vars.SPE_TEST_CLIENT_ID }}
+        run: |
+          npm install --prefix "$RUNNER_TEMP/vsce-tool" --ignore-scripts --no-save @vscode/vsce@4.1.1
+          source="$RUNNER_TEMP/vsix-source"
+          mkdir "$source"
+          git archive "$REVIEWED_COMMIT" | tar -xC "$source"
+          # Manifests and dependencies are outside the agent contract; reuse the trusted installation.
+          mv node_modules "$source/node_modules"
+          mv webview-ui/node_modules "$source/webview-ui/node_modules"
+          output="$RUNNER_TEMP/vsix-container-output"
+          install -d -m 1777 "$output"
+          docker run --rm --pull=never --network=none --read-only --cap-drop=ALL \
+            --security-opt=no-new-privileges --user=1000:1000 --memory=5g --pids-limit=512 \
+            --tmpfs /scratch:rw,exec,size=2g,mode=1777 --tmpfs /tmp:rw,exec,size=1g,mode=1777 \
+            --mount "type=bind,source=$source,target=/input,readonly" \
+            --mount "type=bind,source=$RUNNER_TEMP/vsce-tool,target=/vsce,readonly" \
+            --mount "type=bind,source=$output,target=/output" \
+            --env HOME=/scratch --env CI=true --env SPE_TEST_CLIENT_ID \
+            --entrypoint /bin/bash "$AGENT_LOOP_VALIDATION_IMAGE" -euo pipefail -c '
+              mkdir /scratch/project
+              tar -C /input -cf - . | tar -C /scratch/project -xf -
+              cd /scratch/project
+              node tools/agent-loop/package-feature.mjs "$1" "$2" /vsce/node_modules/@vscode/vsce/vsce /output
+            ' spe-vsix "$ISSUE_NUMBER" "$REVIEWED_COMMIT"
+          file="spe-issue-${ISSUE_NUMBER}-${REVIEWED_COMMIT:0:12}-testable.vsix"
+          [[ -f "$output/$file" && ! -L "$output/$file" && -s "$output/$file" ]]
+          mkdir "$RUNNER_TEMP/testable-vsix"
+          cp -- "$output/$file" "$RUNNER_TEMP/testable-vsix/$file"
+          cd "$RUNNER_TEMP/testable-vsix"
+          unzip -tq "$file"
+          entries=$(unzip -Z1 "$file")
+          for required in extension/package.json extension/out/extension.js extension/out/mcp/launcher.cjs extension/out/webviewApp/index.html; do
+            if ! grep -Fxq "$required" <<< "$entries"; then
+              echo "::error::The testable VSIX is missing $required."
+              exit 1
+            fi
+          done
+          sha256sum "$file" > "$file.sha256"
+          printf 'filename=%s\n' "$file" >> "$GITHUB_OUTPUT"
+      - name: Upload testable VSIX
+        id: vsix
+        if: steps.handoff.outputs.approved == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: spe-issue-${{ github.event.issue.number }}-testable-vsix
+          path: |
+            ${{ runner.temp }}/testable-vsix/${{ steps.package.outputs.filename }}
+            ${{ runner.temp }}/testable-vsix/${{ steps.package.outputs.filename }}.sha256
           if-no-files-found: error
           retention-days: 7
 
@@ -152,4 +216,5 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GIT_TERMINAL_PROMPT: '0'
           FEATURE_REQUEST_APPROVERS: ${{ vars.FEATURE_REQUEST_APPROVERS }}
+          TESTABLE_VSIX_URL: ${{ needs.implement.outputs.vsix-url }}
         run: node tools/agent-loop/publish-feature.mjs "$RUNNER_TEMP/feature-review"

@@ -399,6 +399,7 @@ function decidePermission<T>(
         if (
             repositoryPath === undefined ||
             matchesAny(options.policy.filesystem.deny, repositoryPath) ||
+            matchesAny(options.contract.deniedPaths, repositoryPath) ||
             !matchesAny(options.contract.allowedPaths, repositoryPath) ||
             !matchesAny(options.assignment.allowedPaths, repositoryPath)
         ) {

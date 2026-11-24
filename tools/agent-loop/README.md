@@ -116,8 +116,22 @@ index without executing it, checks the changed paths and file modes, and opens o
 from `feature-agent/issue-<number>`. It never overwrites an existing branch or merges a PR. The
 review patch and base SHA are also available in the Actions run.
 
+Feature runs default to `gpt-6.2-sol`. Set the repository Actions variable `AGENT_LOOP_MODEL`
+to another model ID available to the configured Copilot account, or to `auto` to let Copilot
+select a model. `auto` does not guarantee the newest model. Set `AGENT_LOOP_REASONING_EFFORT`
+only with an explicit model that supports the requested level. A run stops in preflight if its
+configured model is missing or disabled.
+
+The run builds `spe-issue-<number>-<commit>-testable.vsix` from the reviewed code in an offline,
+credential-free container. Download the VSIX and SHA-256 file from **Actions → Feature Request
+Intake → run → Artifacts**. The package uses the Marketplace extension ID; test in an isolated
+VS Code profile or extension directory to avoid replacing your usual installation. Without an
+approved public test application client ID in `SPE_TEST_CLIENT_ID`, the package is for install
+and UI smoke testing only; live sign-in is not configured. Never put a client secret into
+`SPE_TEST_CLIENT_ID` or use production credentials with generated code.
+
 Enable **Allow GitHub Actions to create and approve pull requests** in **Settings > Actions >
 General > Workflow permissions** if repository and organization policy permit it. Keep the default
 workflow token read-only; the publisher requests write permissions for its own job only. The
 workflow does not approve PRs. GitHub may require a maintainer to approve PR workflows started by
-`GITHUB_TOKEN`. VSIX packaging and screenshots are not part of this stage.
+`GITHUB_TOKEN`. The testable VSIX is not a Marketplace release. Screenshot capture is not wired.
