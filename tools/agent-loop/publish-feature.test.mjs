@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import test from 'node:test';
 import { reviewMarker, reviewRevision, TITLE_PREFIX } from './feature-issue.mjs';
 import { publish, validateStagedDiff } from './publish-feature.mjs';
-import { classifyFeatureHandoff, updateFeatureHandoff } from './feature-handoff.mjs';
+import { classifyFeatureHandoff, updateFeatureHandoff, watchFeatureRun } from './feature-handoff.mjs';
 import { appendIssueDelivery, splitIssueDelivery } from './issue-delivery-section.mjs';
 
 const repository = 'owner/repo';
@@ -94,6 +94,61 @@ test('delivery parsing does not discard author text after the managed section', 
     assert.equal(splitIssueDelivery(body).requirements, requirements);
     const edited = `${body}\n\nNew author text.`;
     assert.equal(splitIssueDelivery(edited).requirements, `${requirements}\n\nNew author text.`);
+});
+
+test('a fresh approved run reports pickup, progress, and failure on the same issue', async () => {
+    let current = { ...issue, body: appendIssueDelivery(issue.body, '41', '## Feature agent delivery\n\nPrevious run.') };
+    const writes = [];
+    const env = {
+        GITHUB_REPOSITORY: repository, GITHUB_RUN_ID: '42', GH_TOKEN: 'mock',
+        FEATURE_REQUEST_APPROVERS: 'maintainer',
+    };
+    const executing = 'Run the agent loop and export the reviewed diff';
+    const packaging = 'Package a testable VSIX from the reviewed commit';
+    const statuses = [
+        { status: 'queued', steps: [] },
+        { status: 'in_progress', steps: [{ name: executing, status: 'in_progress' }] },
+        { status: 'in_progress', steps: [{ name: packaging, status: 'in_progress' }] },
+        { status: 'completed', steps: [{ name: packaging, conclusion: 'failure' }] },
+    ];
+    let poll = 0;
+    const fetcher = async (url, init) => {
+        const endpoint = new URL(url).pathname;
+        if (endpoint.endsWith('/attempts/1/jobs')) return Response.json({
+            jobs: [{ name: 'implement', ...statuses[Math.min(poll++, statuses.length - 1)] }],
+        });
+        if (endpoint.endsWith('/comments')) return Response.json([{
+            id: 1, user: { id: 41898282, type: 'Bot' },
+            body: `${reviewMarker} ${reviewRevision(issue)} ready -->\nReady.`,
+        }]);
+        if (init.method === 'PATCH') {
+            current = { ...current, ...JSON.parse(init.body) };
+            writes.push(current.body);
+        }
+        return Response.json(current);
+    };
+    const rejected = { ...event, sender: { type: 'User', login: 'other-user' } };
+    await watchFeatureRun(rejected, env, fetcher, async () => {});
+    await updateFeatureHandoff(rejected, { ...env, IMPLEMENT_RESULT: 'success' }, fetcher);
+    assert.equal(writes.length, 0);
+    await watchFeatureRun(event, env, fetcher, async () => {});
+    assert.equal(writes.length, 3);
+    assert.match(writes[0], /Picked up.*Waiting for an implementation runner/);
+    assert.match(writes[1], /Implementing, testing, and reviewing the change/);
+    assert.match(writes[2], /Building the testable VSIX/);
+    await updateFeatureHandoff(event, { ...env, IMPLEMENT_RESULT: 'failure', IMPLEMENT_APPROVED: 'true', PATCH_ARTIFACT_ID: '507' }, fetcher);
+    assert.equal(writes.length, 4);
+    assert.match(current.body, /Implementation failed/);
+    assert.match(current.body, /Stopped at: \*\*Building the testable VSIX\*\*/);
+    assert.match(current.body, /No testable VSIX was delivered/);
+    assert.match(current.body, /\[Download the reviewed patch\]/);
+    assert.equal(splitIssueDelivery(current.body).runId, '42');
+    assert.equal(reviewRevision(current), reviewRevision(issue));
+    current.body = current.body.replace('Unclear prompt.', 'Updated problem.');
+    await updateFeatureHandoff(event, { ...env, IMPLEMENT_RESULT: 'success', PATCH_ARTIFACT_ID: '507', VSIX_ARTIFACT_ID: '508' }, fetcher);
+    assert.match(current.body, /Run no longer applies to this issue/);
+    assert.match(current.body, /Updated problem\./);
+    assert.doesNotMatch(current.body, /Download the testable VSIX/);
 });
 
 test('publishes one draft from an isolated index and recovers an already-pushed identical commit', async (t) => {

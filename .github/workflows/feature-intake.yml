@@ -62,6 +62,27 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: node tools/agent-loop/review-feature.mjs publish
 
+  report-progress:
+    if: >-
+      startsWith(github.event.issue.title, 'Feature-Request: SPE VSC Extension -') &&
+      github.event.action == 'labeled' && github.event.label.name == 'agent-ready' && github.run_attempt == 1
+    runs-on: ubuntu-latest
+    timeout-minutes: 130
+    permissions:
+      actions: read
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Show implementation progress in the issue description
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FEATURE_REQUEST_APPROVERS: ${{ vars.FEATURE_REQUEST_APPROVERS }}
+        run: node tools/agent-loop/feature-handoff.mjs watch
+
   implement:
     if: >-
       startsWith(github.event.issue.title, 'Feature-Request: SPE VSC Extension -') &&
@@ -76,6 +97,8 @@ jobs:
       issues: read
     environment: feature-agent
     outputs:
+      approved: ${{ steps.intake.outputs.approved }}
+      agent-stage: ${{ steps.agent.outputs.stage }}
       artifact-id: ${{ steps.review.outputs.artifact-id }}
       auto-publish: ${{ steps.agent.outputs.auto-publish }}
       review-files: ${{ steps.agent.outputs.review-files }}
@@ -149,6 +172,11 @@ jobs:
             .agent-runs/github-intake-contract.json > "$result" 2> "$RUNNER_TEMP/feature-agent-errors.log" || agent_status=$?
           while IFS= read -r line; do
             printf '%s\n' "$line"
+            case "$line" in
+              'Feature agent stage: contract'|'Feature agent stage: copilot-preflight'|'Feature agent stage: implementation'|'Feature agent stage: integration'|'Feature agent stage: validation'|'Feature agent stage: review'|'Feature agent stage: repass')
+                printf 'stage=%s\n' "${line#Feature agent stage: }" >> "$GITHUB_OUTPUT"
+                ;;
+            esac
           done < "$diagnostics"
           if (( agent_status != 0 )); then
             echo '::error::The feature agent stopped before producing a review-ready change. See the stage and diagnostic above.'
@@ -286,11 +314,12 @@ jobs:
         run: node tools/agent-loop/publish-feature.mjs "$RUNNER_TEMP/feature-review"
 
   report-handoff:
-    needs: [implement, publish]
-    if: ${{ always() && !cancelled() && needs.implement.result == 'success' && needs.implement.outputs.vsix-url != '' }}
+    needs: [report-progress, implement, publish]
+    if: ${{ always() && github.run_attempt == 1 && needs.implement.result != 'skipped' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
+      actions: read
       contents: read
       issues: write
     steps:
@@ -302,6 +331,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           FEATURE_REQUEST_APPROVERS: ${{ vars.FEATURE_REQUEST_APPROVERS }}
+          IMPLEMENT_RESULT: ${{ needs.implement.result }}
+          IMPLEMENT_APPROVED: ${{ needs.implement.outputs.approved }}
+          AGENT_STAGE: ${{ needs.implement.outputs.agent-stage }}
           PATCH_ARTIFACT_ID: ${{ needs.implement.outputs.artifact-id }}
           VSIX_ARTIFACT_ID: ${{ needs.implement.outputs.vsix-id }}
           REVIEW_FILES: ${{ needs.implement.outputs.review-files }}
