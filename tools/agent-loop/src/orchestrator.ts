@@ -57,7 +57,11 @@ import {
 
 export interface RunOptions {
     contractPath: string;
+    onStage?: (stage: ImplementationStage) => void;
 }
+
+export type ImplementationStage = 'contract' | 'copilot-preflight' | 'implementation' |
+    'integration' | 'validation' | 'review' | 'repass';
 
 interface RunContext {
     repoRoot: string;
@@ -66,6 +70,7 @@ interface RunContext {
     workerValidator: (value: unknown) => string[];
     reviewValidator: (value: unknown) => string[];
     sdkRuntime: SdkPreflightResult;
+    onStage?: RunOptions['onStage'];
 }
 
 export async function validateContractCommand(contractPath: string): Promise<LoadedContract> {
@@ -106,10 +111,12 @@ export async function createExecutionPlan(contractPath: string): Promise<object>
 }
 
 export async function runContract(options: RunOptions): Promise<RunRecord> {
+    options.onStage?.('contract');
     const repoRoot = await findRepositoryRoot(process.cwd());
     const loaded = loadContract(repoRoot, options.contractPath);
     const baseCommit = await resolveCommit(repoRoot, loaded.contract.baseBranch);
     await assertAgentProfilesInBase(repoRoot, baseCommit, loaded.contract.workers);
+    options.onStage?.('copilot-preflight');
     const sdkRuntime = await runSdkPreflight({
         repoRoot,
         contract: loaded.contract,
@@ -151,9 +158,11 @@ export async function runContract(options: RunOptions): Promise<RunRecord> {
         run,
         workerValidator: createWorkerResultValidator(repoRoot),
         reviewValidator: createReviewResultValidator(repoRoot),
-        sdkRuntime
+        sdkRuntime,
+        onStage: options.onStage
     };
 
+    context.onStage?.('implementation');
     await mkdir(worktreeRoot, { recursive: true });
     await initializeEvidence(repoRoot, loaded, run);
 
@@ -165,6 +174,7 @@ export async function runContract(options: RunOptions): Promise<RunRecord> {
         requireCompletedWorkers(initialWorkers);
 
         assertWithinWallClock(run, loaded.contract);
+        context.onStage?.('integration');
         await transitionRun(repoRoot, run, 'integrating');
         const integrationWorktree = path.join(worktreeRoot, 'integration');
         run.integrationWorktree = integrationWorktree;
@@ -184,6 +194,7 @@ export async function runContract(options: RunOptions): Promise<RunRecord> {
         ) {
             assertWithinWallClock(run, loaded.contract);
             run.repass += 1;
+            context.onStage?.('repass');
             await transitionRun(repoRoot, run, 'repassing');
 
             const repassWorkers = await runRepassWorkers(context, review.findings, validation);
@@ -522,6 +533,7 @@ async function writeIntegrationResult(context: RunContext, startedAt: string): P
 }
 
 async function runValidation(context: RunContext): Promise<ValidationResult[]> {
+    context.onStage?.('validation');
     await transitionRun(context.repoRoot, context.run, 'validating');
     const results: ValidationResult[] = [];
     const removeClientDeclaration = await ensureValidationClientDeclaration(
@@ -596,6 +608,7 @@ async function runReview(
     context: RunContext,
     validation: ValidationResult[]
 ): Promise<ReviewResult> {
+    context.onStage?.('review');
     await transitionRun(context.repoRoot, context.run, 'reviewing');
     const assignment = requireSingleRole(context.loaded.contract, 'reviewer');
     const reviewId = `review-${context.run.repass}`;

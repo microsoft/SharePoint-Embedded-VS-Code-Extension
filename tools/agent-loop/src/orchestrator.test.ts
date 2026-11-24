@@ -4,6 +4,8 @@ import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import test from 'node:test';
+import { writeRunRecord } from './evidence';
+import { describeImplementationFailure } from './implementationDiagnostics';
 import {
     buildWorkerSdkArtifacts,
     ensureValidationClientDeclaration,
@@ -13,7 +15,34 @@ import {
     integrateInitialWorkers,
     selectTerminalWorkerResults
 } from './orchestrator';
-import { ReviewResult, ValidationResult, WorkerResult } from './types';
+import { ReviewResult, RunRecord, ValidationResult, WorkerResult } from './types';
+
+test('parallel workers can persist the same run record without a temporary file collision', async t => {
+    const artifactsDir = await mkdtemp(path.join(os.tmpdir(), 'spe-run-record-'));
+    t.after(() => rm(artifactsDir, { recursive: true, force: true }));
+    const run: RunRecord = {
+        schemaVersion: '1.0', runId: 'run', taskId: 'task', contractPath: '',
+        repoRoot: artifactsDir, baseCommit: 'a'.repeat(40), integrationBranch: 'test', phase: 'implementing',
+        repass: 0, startedAt: '', updatedAt: '', artifactsDir, worktreeRoot: artifactsDir,
+        workers: [], reviewArtifacts: [], errors: [],
+        sdkRuntime: { sdkVersion: 'test', cliPath: '', cliVersion: 'test', model: 'test', availableTools: [] }
+    };
+    const writes = Array.from({ length: 20 }, () => writeRunRecord(artifactsDir, run));
+    run.phase = 'integrating';
+    await Promise.all([...writes, writeRunRecord(artifactsDir, run)]);
+    assert.deepEqual(JSON.parse(await readFile(path.join(artifactsDir, 'run.json'), 'utf8')), run);
+});
+
+test('public implementation diagnostics classify the failure without printing raw error text', () => {
+    const protocol = describeImplementationFailure('copilot-preflight', new Error('SDK protocol version mismatch: private details'));
+    assert.match(protocol, /copilot-preflight: The pinned Copilot CLI and SDK are incompatible/);
+    assert.doesNotMatch(protocol, /private details/);
+    const writeFailure = describeImplementationFailure('implementation', new Error("ENOENT: rename '/private/run.json.tmp'"));
+    assert.match(writeFailure, /implementation: The runner could not save the shared run record/);
+    assert.doesNotMatch(writeFailure, /private/);
+    assert.equal(describeImplementationFailure('review', new Error('Model-provided text')),
+        'Feature agent stopped during review: The agent could not complete this stage.');
+});
 
 test('initial integration preserves all commits in an implementer continuation', async t => {
     const cwd = await mkdtemp(path.join(os.tmpdir(), 'spe-integration-'));

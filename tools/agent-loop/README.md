@@ -125,8 +125,9 @@ node tools\agent-loop\review-feature.mjs smoke
 When the current revision passes, the bot comment says **Ready for `agent-ready` (awaiting
 maintainer approval)**. Implementation never starts from readiness review alone, regardless of
 who filed the issue. An approved maintainer must apply `agent-ready` to start implementation.
-Editing the issue invalidates the previous readiness result. After an edit or failed run, wait for
-readiness and remove and reapply `agent-ready` if it is already present.
+Editing the issue invalidates the previous readiness result. If implementation fails, open the
+`implement` job in Actions for the failed stage and a safe diagnostic. After a fix and a current
+readiness pass, remove and reapply `agent-ready` to start a new run.
 
 To enable the workflow on the default branch, create the `needs-info` and `agent-ready` repository
 labels and set the repository Actions variable `FEATURE_REQUEST_APPROVERS` to the approved GitHub

@@ -2,6 +2,8 @@ import { copyFile, mkdir, rename, writeFile } from 'node:fs/promises';
 import * as path from 'node:path';
 import { LoadedContract, RunRecord, RunPhase } from './types';
 
+const pendingRunWrites = new Map<string, Promise<void>>();
+
 export async function initializeEvidence(
     repoRoot: string,
     loaded: LoadedContract,
@@ -28,7 +30,18 @@ export async function transitionRun(
 }
 
 export async function writeRunRecord(_repoRoot: string, run: RunRecord): Promise<void> {
-    await writeJson(path.join(run.artifactsDir, 'run.json'), run);
+    const filePath = path.join(run.artifactsDir, 'run.json');
+    // Parallel workers share this file and its temporary path.
+    const previous = pendingRunWrites.get(filePath);
+    const write = (previous?.catch(() => undefined) ?? Promise.resolve()).then(() => writeJson(filePath, run));
+    pendingRunWrites.set(filePath, write);
+    try {
+        await write;
+    } finally {
+        if (pendingRunWrites.get(filePath) === write) {
+            pendingRunWrites.delete(filePath);
+        }
+    }
 }
 
 export async function writeJson(filePath: string, value: unknown): Promise<void> {

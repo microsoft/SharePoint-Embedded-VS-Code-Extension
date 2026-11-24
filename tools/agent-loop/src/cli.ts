@@ -1,8 +1,20 @@
+import { appendFileSync } from 'node:fs';
 import {
     createExecutionPlan,
     runContract,
-    validateContractCommand
+    validateContractCommand,
+    type ImplementationStage
 } from './orchestrator';
+import { describeImplementationFailure } from './implementationDiagnostics';
+
+let stage: ImplementationStage = 'contract';
+const diagnosticsFile = process.env.AGENT_LOOP_DIAGNOSTICS_FILE;
+
+function recordDiagnostic(message: string): void {
+    if (diagnosticsFile) {
+        appendFileSync(diagnosticsFile, `${message}\n`, 'utf8');
+    }
+}
 
 async function main(): Promise<void> {
     const [command, contractPath] = process.argv.slice(2);
@@ -24,7 +36,18 @@ async function main(): Promise<void> {
         return;
     }
 
-    const result = await runContract({ contractPath });
+    const result = await runContract({ contractPath, onStage: value => {
+        stage = value;
+        recordDiagnostic(`Feature agent stage: ${value}`);
+    } });
+    if (diagnosticsFile && result.phase !== 'awaiting-human-acceptance') {
+        const reason = result.errors.includes('Required validation still fails after repass budget')
+            ? 'Required validation did not pass within the retry budget.'
+            : 'Independent review did not approve the change.';
+        recordDiagnostic(`Feature agent blocked: ${reason}`);
+        process.exitCode = 2;
+        return;
+    }
     console.log(JSON.stringify({
         runId: result.runId,
         taskId: result.taskId,
@@ -51,6 +74,10 @@ function printUsage(): void {
 }
 
 main().catch(error => {
-    console.error(error instanceof Error ? error.stack ?? error.message : String(error));
     process.exitCode = 1;
+    if (diagnosticsFile) {
+        recordDiagnostic(describeImplementationFailure(stage, error));
+    } else {
+        console.error(error instanceof Error ? error.stack ?? error.message : String(error));
+    }
 });

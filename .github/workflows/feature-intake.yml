@@ -136,9 +136,16 @@ jobs:
             exit 1
           fi
           result="$RUNNER_TEMP/feature-agent-result.json"
-          if ! node tools/agent-loop/dist/cli.js run .agent-runs/github-intake-contract.json > "$result" 2> "$RUNNER_TEMP/feature-agent-errors.log"; then
-            echo '::error::The agent loop did not finish in its review-ready state. Review the request and Copilot configuration before reapplying agent-ready.'
-            exit 1
+          diagnostics=$(mktemp "$RUNNER_TEMP/feature-agent-diagnostics.XXXXXX")
+          agent_status=0
+          AGENT_LOOP_DIAGNOSTICS_FILE="$diagnostics" node tools/agent-loop/dist/cli.js run \
+            .agent-runs/github-intake-contract.json > "$result" 2> "$RUNNER_TEMP/feature-agent-errors.log" || agent_status=$?
+          while IFS= read -r line; do
+            printf '%s\n' "$line"
+          done < "$diagnostics"
+          if (( agent_status != 0 )); then
+            echo '::error::The feature agent stopped before producing a review-ready change. See the stage and diagnostic above.'
+            exit "$agent_status"
           fi
           commit=$(jq -er '.integratedCommit | select(test("^[0-9a-f]{40}$"))' "$result")
           model=$(jq -er '.model | select(test("^[a-zA-Z0-9._-]+$"))' "$result")
