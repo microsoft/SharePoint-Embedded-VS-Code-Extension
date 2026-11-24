@@ -151,7 +151,8 @@ const productPaths = [
     'package.json', 'package-lock.json', 'package.nls.json', 'storage-explorer-prd.md', 'tsconfig.json',
 ];
 const testPaths = ['src/test/**', 'ui-tests/**'];
-const protectedPaths = [
+const sensitivePaths = [
+    'src/services/**', 'src/extension.ts',
     'src/commands/Accounts/**', 'src/commands/GuestApps/**',
     'src/commands/App/GetLocalAdminConsent.ts',
     'src/commands/ContainerType/GrantExtensionAppPermissions.ts',
@@ -181,12 +182,17 @@ const deniedPaths = [
 const inScope = (path, scope) => scope.endsWith('/**') ? path.startsWith(scope.slice(0, -2)) : path === scope;
 
 export function publishablePath(path) {
-    if (protectedPaths.some(scope => inScope(path.toLowerCase(), scope.toLowerCase()))) return false;
     if (!/^[a-z0-9_./-]+$/i.test(path) || path.split('/').some((part) =>
-        part.startsWith('.') || /secret|credential/i.test(part) ||
+        !part || part.startsWith('.') || /secret|credential/i.test(part) ||
         /^(?:node_modules|out|dist|package(?:-lock)?\.json)$/i.test(part) ||
         /(?:config\.|\.pem$|\.pfx$|\.p7s$)/i.test(part))) return false;
-    return [...automaticProductPaths, ...automaticTestPaths].some(scope => inScope(path, scope));
+    if (['src/client.ts', 'src/client.d.ts', 'src/test/runtest.ts'].includes(path.toLowerCase())) return false;
+    return [...productPaths, ...testPaths].some(scope => inScope(path, scope)) && !inScope(path, 'tools/**');
+}
+
+export function sensitivePath(path) {
+    return sensitivePaths.some(scope => inScope(path.toLowerCase(), scope.toLowerCase())) ||
+        ![...automaticProductPaths, ...automaticTestPaths].some(scope => inScope(path, scope));
 }
 
 export function compileContract(issueNumber, baseCommit, brief) {
@@ -242,7 +248,7 @@ export function reviewRevision(issue) {
 
 export const reviewMarker = '<!-- spe-feature-readiness:v1';
 const reviewPattern = /^<!-- spe-feature-readiness:v1 ([a-f0-9]{64}) (ready|needs-info|unavailable) -->\r?\n/;
-const githubActionsBotId = 41898282;
+export const githubActionsBotId = 41898282;
 
 export async function readReadinessComment(github) {
     let review;

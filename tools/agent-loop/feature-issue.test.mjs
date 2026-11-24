@@ -72,7 +72,7 @@ test('maps issue text to requirements only and produces a contract accepted by t
     validateContractInvariants(process.cwd(), contract, require('../../.agent/policies/default-authority.json'));
 });
 
-test('a feature can draft protected repository changes but only ordinary product changes can be published', () => {
+test('a feature can publish application changes without automatically publishing CI controls', () => {
     const brief = assessIssue({
         ...issue,
         title: `${TITLE_PREFIX} Confirm container creation`,
@@ -96,6 +96,19 @@ test('a feature can draft protected repository changes but only ordinary product
         'src/services/StorageExplorer/StorageExplorerApi.ts',
         'src/views/StorageExplorer/StorageExplorerPanel.ts',
         'src/commands/Containers/CreateContainer.ts',
+        'src/services/Auth/GraphAuthProvider.ts',
+        'src/services/Graph/GraphProvider.ts',
+        'src/services/TelemetryProvider.ts',
+        'src/commands/Accounts/SignIn.ts',
+        'src/commands/ContainerType/GrantExtensionAppPermissions.ts',
+        'src/services/StorageExplorer/graphClient.ts',
+        'src/services/StorageExplorer/uploadAuth.ts',
+        'src/services/StorageExplorer/PermissionGraphService.ts',
+        'src/services/StorageExplorer/operationSchemas.ts',
+        'webview-ui/src/api/protocol.ts',
+        'webview-ui/src/api/rpc.ts',
+        'webview-ui/src/api/services/AuthorizationService.ts',
+        'src/extension.ts',
         'webview-ui/src/api/services/ContainerGraphService.ts',
         'webview-ui/src/context/StorageExplorerContext.tsx',
     ];
@@ -108,15 +121,9 @@ test('a feature can draft protected repository changes but only ordinary product
     assert.doesNotThrow(() => validateStagedDiff([...product, ...tests].map(record).join('')));
 
     for (const path of [
-        'src/services/Auth/GraphAuthProvider.ts', 'src/services/Graph/GraphProvider.ts',
-        'src/services/TelemetryProvider.ts', 'src/commands/Accounts/SignIn.ts',
-        'src/commands/ContainerType/GrantExtensionAppPermissions.ts',
-        'src/services/StorageExplorer/graphClient.ts', 'src/services/StorageExplorer/uploadAuth.ts',
-        'src/services/StorageExplorer/PermissionGraphService.ts', 'src/services/StorageExplorer/operationSchemas.ts',
-        'webview-ui/src/api/protocol.ts', 'webview-ui/src/api/rpc.ts', 'webview-ui/src/api/services/AuthorizationService.ts',
         'package.json', 'webview-ui/package-lock.json', '.github/workflows/feature-intake.yml',
         '.agent/policies/default-authority.json', 'tools/agent-loop/feature-issue.mjs',
-        'tsconfig.json', 'src/extension.ts', 'src/client.d.ts',
+        'tsconfig.json', 'src/client.d.ts',
     ]) {
         assert.doesNotThrow(() => canEdit(implementer, [path]), path);
         assert.equal(publishablePath(path), false, path);
@@ -128,6 +135,8 @@ test('a feature can draft protected repository changes but only ordinary product
     }
     assert.doesNotThrow(() => canEdit(sdet, ['ui-tests/playwright.config.ts']));
     assert.equal(publishablePath('ui-tests/playwright.config.ts'), false);
+    assert.doesNotThrow(() => canEdit(sdet, ['src/test/runTest.ts']));
+    assert.equal(publishablePath('src/test/runTest.ts'), false);
 });
 
 test('authorization and handoff require a bot readiness pass for the exact issue content', async () => {

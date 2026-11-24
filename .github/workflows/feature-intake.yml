@@ -78,6 +78,7 @@ jobs:
     outputs:
       artifact-id: ${{ steps.review.outputs.artifact-id }}
       auto-publish: ${{ steps.agent.outputs.auto-publish }}
+      review-files: ${{ steps.agent.outputs.review-files }}
       vsix-url: ${{ steps.vsix.outputs.artifact-url }}
     env:
       FEATURE_REQUEST_APPROVERS: ${{ vars.FEATURE_REQUEST_APPROVERS }}
@@ -251,7 +252,7 @@ jobs:
 
   publish:
     needs: implement
-    if: needs.implement.outputs.artifact-id != '' && needs.implement.outputs.auto-publish == 'true'
+    if: needs.implement.outputs.vsix-url != '' && needs.implement.outputs.artifact-id != '' && needs.implement.outputs.auto-publish == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     concurrency:
@@ -261,6 +262,9 @@ jobs:
       contents: write
       issues: read
       pull-requests: write
+    outputs:
+      branch-pushed: ${{ steps.publish.outputs.branch-pushed }}
+      pr-number: ${{ steps.publish.outputs.pr-number }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
@@ -272,9 +276,32 @@ jobs:
           path: ${{ runner.temp }}/feature-review
           merge-multiple: true
       - name: Publish draft PR from the reviewed patch
+        id: publish
         env:
           GH_TOKEN: ${{ github.token }}
           GIT_TERMINAL_PROMPT: '0'
           FEATURE_REQUEST_APPROVERS: ${{ vars.FEATURE_REQUEST_APPROVERS }}
           TESTABLE_VSIX_URL: ${{ needs.implement.outputs.vsix-url }}
         run: node tools/agent-loop/publish-feature.mjs "$RUNNER_TEMP/feature-review"
+
+  report-handoff:
+    needs: [implement, publish]
+    if: ${{ always() && !cancelled() && needs.implement.result == 'success' && needs.implement.outputs.vsix-url != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Post the feature handoff on the issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REVIEW_FILES: ${{ needs.implement.outputs.review-files }}
+          AUTO_PUBLISH: ${{ needs.implement.outputs.auto-publish }}
+          BRANCH_PUSHED: ${{ needs.publish.outputs.branch-pushed }}
+          DRAFT_PR_NUMBER: ${{ needs.publish.outputs.pr-number }}
+        run: node tools/agent-loop/feature-handoff.mjs report

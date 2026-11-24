@@ -146,11 +146,13 @@ from the base checkout. If a new dependency is not cached, the run fails rather 
 network access for candidate scripts. Credentials, local Git metadata and settings, runtime
 client configuration, and generated output stay outside the edit scope.
 
-The run summary flags sensitive and infrastructure changes for maintainer review. Those changes
-still get a reviewed patch and VSIX, but they do not get pushed automatically: publishing a branch
-with changed workflows or other sensitive code could execute it before a maintainer reviews it.
-For eligible changes the separate publisher checks the patch again and can open a draft PR when
-organization policy permits. Neither route merges or publishes a release.
+The workflow pushes eligible application changes, including changes to authentication, permissions,
+and Graph services. It then attempts to open a draft PR using the repository token. A blocked PR
+does not undo a successful push. The issue handoff links to the run and reports the branch or PR
+outcome, with a list of sensitive changes to review before merging or installing the VSIX.
+Changes to CI, build controls, or the agent harness still receive a reviewed patch and VSIX, but
+require manual publication so the candidate cannot change the remote execution environment.
+Neither route merges or publishes a release.
 
 Feature runs default to `gpt-6.2-sol`. Set the repository Actions variable `AGENT_LOOP_MODEL`
 to another model ID available to the configured Copilot account, or to `auto` to let Copilot
