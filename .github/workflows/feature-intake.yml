@@ -77,7 +77,7 @@ jobs:
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
-      - name: Show implementation progress in the issue description
+      - name: Clear human review status and show implementation progress
         env:
           GH_TOKEN: ${{ github.token }}
           FEATURE_REQUEST_APPROVERS: ${{ vars.FEATURE_REQUEST_APPROVERS }}
@@ -104,6 +104,7 @@ jobs:
       review-files: ${{ steps.agent.outputs.review-files }}
       vsix-url: ${{ steps.vsix.outputs.artifact-url }}
       vsix-id: ${{ steps.vsix.outputs.artifact-id }}
+      ux-screenshot-id: ${{ steps.ux-screenshot.outputs.artifact-id }}
     env:
       FEATURE_REQUEST_APPROVERS: ${{ vars.FEATURE_REQUEST_APPROVERS }}
       AGENT_LOOP_MODEL: ${{ vars.AGENT_LOOP_MODEL || 'gpt-6.2-sol' }}
@@ -142,6 +143,15 @@ jobs:
           image="mcr.microsoft.com/playwright:v1.61.1-noble@sha256:5b8f294aff9041b7191c34a4bab3ac270157a28774d4b0660e9743297b697e48"
           docker pull "$image"
           docker image inspect --format 'AGENT_LOOP_VALIDATION_IMAGE={{.Id}}' "$image" >> "$GITHUB_ENV"
+          desktop="$RUNNER_TEMP/feature-desktop-vscode"
+          if node -e 'require("@vscode/test-electron").downloadAndUnzipVSCode({
+            cachePath: process.argv[1], version: "1.106.3", platform: "linux-x64"
+          }).catch(error => { console.error(error.message); process.exitCode = 1; })' "$desktop"; then
+            test -x "$desktop/vscode-linux-x64-1.106.3/code"
+            printf 'AGENT_LOOP_DESKTOP_VSCODE=%s\n' "$desktop/vscode-linux-x64-1.106.3" >> "$GITHUB_ENV"
+          else
+            echo '::warning::Desktop VS Code is unavailable. Webview validation can still run.'
+          fi
           git config user.name "SPE Feature Agent"
           git config user.email "github-actions[bot]@users.noreply.github.com"
       - name: Recheck approval before implementation
@@ -167,6 +177,8 @@ jobs:
           fi
           result="$RUNNER_TEMP/feature-agent-result.json"
           diagnostics=$(mktemp "$RUNNER_TEMP/feature-agent-diagnostics.XXXXXX")
+          export AGENT_LOOP_UX_EVIDENCE_ROOT
+          AGENT_LOOP_UX_EVIDENCE_ROOT=$(mktemp -d "$RUNNER_TEMP/feature-ux.XXXXXX")
           agent_status=0
           AGENT_LOOP_DIAGNOSTICS_FILE="$diagnostics" node tools/agent-loop/dist/cli.js run-feature \
             .agent-runs/github-intake-contract.json > "$result" 2> "$RUNNER_TEMP/feature-agent-errors.log" || agent_status=$?
@@ -193,6 +205,17 @@ jobs:
             exit 0
           fi
           [[ "$phase" == awaiting-human-acceptance ]]
+          attempt=$(jq -er '.repass | select(type == "number" and . >= 0 and . == floor)' "$result")
+          preview="$AGENT_LOOP_UX_EVIDENCE_ROOT/attempt-$attempt.png"
+          if [[ -s "$preview" ]]; then
+            if [[ -f "$preview" && ! -L "$preview" && $(stat -c '%s' -- "$preview") -le 10485760 ]] &&
+                [[ $(od -An -N8 -tx1 -- "$preview" | tr -d '[:space:]') == 89504e470d0a1a0a ]] &&
+                install -m 0644 -- "$preview" "$RUNNER_TEMP/ux-preview.png"; then
+              printf 'ux-screenshot=true\n' >> "$GITHUB_OUTPUT"
+            else
+              echo '::warning::Could not stage a Playwright UX preview as a regular PNG within the 10 MiB limit.'
+            fi
+          fi
           git --no-pager diff --raw --no-renames -z "$GITHUB_SHA" "$commit" |
             node tools/agent-loop/feature-handoff.mjs
           printf '%s\n' "$GITHUB_SHA" > "$RUNNER_TEMP/feature-base-sha.txt"
@@ -212,6 +235,16 @@ jobs:
           path: |
             ${{ runner.temp }}/feature.patch
             ${{ runner.temp }}/feature-base-sha.txt
+          if-no-files-found: error
+          retention-days: 7
+      - name: Upload the Playwright UX screenshot
+        id: ux-screenshot
+        if: steps.review.outcome == 'success' && steps.agent.outputs.ux-screenshot == 'true'
+        continue-on-error: true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: feature-issue-${{ github.event.issue.number }}-ux-screenshot
+          path: ${{ runner.temp }}/ux-preview.png
           if-no-files-found: error
           retention-days: 7
       - name: Package a testable VSIX from the reviewed commit
@@ -314,8 +347,77 @@ jobs:
           TESTABLE_VSIX_URL: ${{ needs.implement.outputs.vsix-url }}
         run: node tools/agent-loop/publish-feature.mjs "$RUNNER_TEMP/feature-review"
 
+  publish-ux-preview:
+    needs: implement
+    if: needs.implement.outputs.ux-screenshot-id != '' && needs.implement.outputs.vsix-id != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    concurrency:
+      group: feature-ux-preview-${{ github.event.issue.number }}
+      cancel-in-progress: false
+    permissions:
+      actions: read
+      contents: write
+      issues: read
+    outputs:
+      commit: ${{ steps.preview.outputs.commit }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: feature-issue-${{ github.event.issue.number }}-ux-screenshot
+          path: ${{ runner.temp }}/feature-ux-input
+      - name: Confirm approval before publishing the public screenshot
+        id: approval
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FEATURE_REQUEST_APPROVERS: ${{ vars.FEATURE_REQUEST_APPROVERS }}
+        run: node tools/agent-loop/feature-issue.mjs confirm
+      - name: Publish the PNG to the issue's preview branch
+        id: preview
+        if: steps.approval.outputs.approved == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GIT_TERMINAL_PROMPT: '0'
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          [[ "$ISSUE_NUMBER" =~ ^[1-9][0-9]*$ && "$GITHUB_RUN_ID" =~ ^[1-9][0-9]*$ ]]
+          image="$RUNNER_TEMP/feature-ux-input/ux-preview.png"
+          [[ -f "$image" && ! -L "$image" && $(stat -c '%s' -- "$image") -le 10485760 ]]
+          [[ $(od -An -N8 -tx1 -- "$image" | tr -d '[:space:]') == 89504e470d0a1a0a ]]
+          scratch=$(mktemp -d "$RUNNER_TEMP/feature-ux-git.XXXXXX")
+          trap 'rm -rf -- "$scratch"' EXIT
+          git -C "$scratch" init --quiet
+          cd "$scratch"
+          ref="refs/heads/feature-agent-preview/issue-$ISSUE_NUMBER"
+          upstream="https://github.com/$GITHUB_REPOSITORY.git"
+          remote=$(git ls-remote --refs "$upstream" "$ref")
+          previous=${remote%%$'\t'*}
+          if [[ -n "$remote" ]]; then
+            [[ "$previous" =~ ^[a-f0-9]{40}$ && "$remote" == "$previous"$'\t'"$ref" ]]
+            git fetch --quiet --depth=1 --no-tags "$upstream" "$previous"
+            previous_run=$(git show -s --format=%s "$previous")
+            [[ "$previous_run" =~ ^Preview\ run\ ([1-9][0-9]*)$ ]]
+            if (( BASH_REMATCH[1] > GITHUB_RUN_ID )); then
+              echo 'A newer screenshot is already published; skipping this preview.'
+              exit 0
+            fi
+          fi
+          install -m 0644 -- "$image" ux-preview.png
+          git -c core.hooksPath=/dev/null add -- ux-preview.png
+          git -c core.hooksPath=/dev/null -c user.name='SPE Feature Agent' \
+            -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+            commit --quiet -m "Preview run $GITHUB_RUN_ID"
+          git -c credential.helper= -c 'credential.helper=!gh auth git-credential' \
+            push --no-verify "--force-with-lease=$ref:$previous" "$upstream" "HEAD:$ref"
+          printf 'commit=%s\n' "$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
   report-handoff:
-    needs: [report-progress, implement, publish]
+    needs: [report-progress, implement, publish, publish-ux-preview]
     if: ${{ always() && github.run_attempt == 1 && needs.implement.result != 'skipped' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -328,15 +430,17 @@ jobs:
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
-      - name: Update the issue description with the feature delivery
+      - name: Update the issue with feature delivery and human review status
         env:
           GH_TOKEN: ${{ github.token }}
           FEATURE_REQUEST_APPROVERS: ${{ vars.FEATURE_REQUEST_APPROVERS }}
           IMPLEMENT_RESULT: ${{ needs.implement.result }}
+          PUBLISH_RESULT: ${{ needs.publish.result }}
           IMPLEMENT_APPROVED: ${{ needs.implement.outputs.approved }}
           AGENT_STAGE: ${{ needs.implement.outputs.agent-stage }}
           PATCH_ARTIFACT_ID: ${{ needs.implement.outputs.artifact-id }}
           VSIX_ARTIFACT_ID: ${{ needs.implement.outputs.vsix-id }}
+          UX_SCREENSHOT_COMMIT: ${{ needs.publish-ux-preview.outputs.commit }}
           REVIEW_FILES: ${{ needs.implement.outputs.review-files }}
           AUTO_PUBLISH: ${{ needs.implement.outputs.auto-publish }}
           BRANCH_PUSHED: ${{ needs.publish.outputs.branch-pushed }}

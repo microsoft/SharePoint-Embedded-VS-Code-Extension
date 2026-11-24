@@ -1,9 +1,11 @@
 import { appendFileSync, readFileSync } from 'node:fs';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { pathToFileURL } from 'node:url';
-import { approval, intake, issueClient, sensitivePath } from './feature-issue.mjs';
+import { approval, hasLabel, intake, issueClient, READY, sensitivePath } from './feature-issue.mjs';
 import { appendIssueDelivery, splitIssueDelivery } from './issue-delivery-section.mjs';
 import { requiresManualPublishing, reviewedDiff } from './publish-feature.mjs';
+
+const HUMAN_REVIEW = 'ready-for-human-review';
 
 export function classifyFeatureHandoff(raw) {
     const files = reviewedDiff(raw);
@@ -20,7 +22,7 @@ function deliveryContext(event, env, fetcher) {
     return { github, repoUrl, runUrl: `${repoUrl}/actions/runs/${env.GITHUB_RUN_ID}` };
 }
 
-async function writeDelivery(event, env, github, markdown, { existingRunOnly = false, changedMarkdown } = {}) {
+async function writeDelivery(event, env, github, markdown, { existingRunOnly = false, changedMarkdown, humanReview } = {}) {
     const approvers = new Set((env.FEATURE_REQUEST_APPROVERS ?? '').toLowerCase().split(/[\s,]+/).filter(Boolean));
     const issue = await github();
     const decision = approval(event, issue, approvers);
@@ -32,6 +34,8 @@ async function writeDelivery(event, env, github, markdown, { existingRunOnly = f
         return false;
     }
     if (!decision.approved) {
+        if (humanReview && sameRun && hasLabel(issue, HUMAN_REVIEW) && !hasLabel(issue, READY) &&
+            issue.body === appendIssueDelivery(requirements, env.GITHUB_RUN_ID, markdown)) return true;
         if (!sameRun || !changedMarkdown) {
             console.log(`Skipped updating the issue description: ${decision.reason}`);
             return false;
@@ -39,9 +43,25 @@ async function writeDelivery(event, env, github, markdown, { existingRunOnly = f
         markdown = changedMarkdown;
     }
     const body = appendIssueDelivery(requirements, env.GITHUB_RUN_ID, markdown);
-    if (issue.body !== body) {
+    if (decision.approved && humanReview) {
+        // Change both status labels in one request so the handoff cannot leave both set.
+        const labels = issue.labels.map(({ name }) => name).filter(name => ![READY, HUMAN_REVIEW].includes(name.toLowerCase()));
+        const updated = await github('', { method: 'PATCH', body: { body, labels: [...labels, HUMAN_REVIEW] } });
+        if (!hasLabel(updated, HUMAN_REVIEW) || hasLabel(updated, READY)) {
+            throw new Error(`Could not switch to "${HUMAN_REVIEW}". Ensure the repository label exists.`);
+        }
+        console.log('Updated the Feature agent delivery section and marked it ready for human review.');
+    } else if (issue.body !== body) {
         await github('', { method: 'PATCH', body: { body } });
         console.log('Updated the Feature agent delivery section.');
+    }
+    if (decision.approved && humanReview === false && hasLabel(issue, HUMAN_REVIEW)) {
+        const latest = await github();
+        if (splitIssueDelivery(latest.body).runId !== env.GITHUB_RUN_ID || !approval(event, latest, approvers).approved) {
+            console.log('Skipped clearing the human review label: the issue or current run changed.');
+        } else if (hasLabel(latest, HUMAN_REVIEW)) {
+            await github(`/labels/${HUMAN_REVIEW}`, { method: 'DELETE', missingOk: true });
+        }
     }
     return true;
 }
@@ -100,7 +120,7 @@ export async function watchFeatureRun(event, env, fetcher = fetch, wait = sleep)
         return;
     }
     let status = runStatus(runUrl, '**Picked up.** Waiting for an implementation runner.');
-    if (!await writeDelivery(event, env, github, status)) return;
+    if (!await writeDelivery(event, env, github, status, { humanReview: false })) return;
     // Let the final report run even if the implementation never gets a runner.
     const until = Date.now() + 125 * 60_000;
     while (Date.now() < until) {
@@ -138,13 +158,13 @@ export async function updateFeatureHandoff(event, env, fetcher = fetch) {
         }
         await writeDelivery(event, env, github,
             runStatus(runUrl, cancelled ? '**Run cancelled.**' : '**Implementation failed.**', detail),
-            { existingRunOnly: env.IMPLEMENT_APPROVED !== 'true', changedMarkdown });
+            { existingRunOnly: env.IMPLEMENT_APPROVED !== 'true', changedMarkdown, humanReview: false });
         return;
     }
     if (!env.VSIX_ARTIFACT_ID && env.IMPLEMENT_RESULT === 'success') {
         await writeDelivery(event, env, github, runStatus(runUrl, '**Stopped without a VSIX.**',
             'The run did not produce a patch, or the issue changed and the prior approval could no longer be used.'),
-        { existingRunOnly: true, changedMarkdown });
+        { existingRunOnly: true, changedMarkdown, humanReview: false });
         return;
     }
     const files = JSON.parse(env.REVIEW_FILES || '[]');
@@ -162,18 +182,24 @@ export async function updateFeatureHandoff(event, env, fetcher = fetch) {
         : env.BRANCH_PUSHED === 'true' ? `Branch pushed: [\`${branch}\`](${repoUrl}/tree/${branch}). ${noDraft}`
         : env.AUTO_PUBLISH === 'true' ? 'The publisher did not confirm a branch push. See the run for details.'
         : 'No branch was pushed automatically because the patch changes CI or build controls, or contains an unsupported file path or mode.';
+    const humanReview = env.IMPLEMENT_RESULT === 'success' && (
+        env.PUBLISH_RESULT === 'success' ||
+        (env.PUBLISH_RESULT === 'skipped' && env.AUTO_PUBLISH === 'false')
+    );
     const markdown = [
         '## Feature agent delivery', '',
-        '**Build complete for the approved issue revision.**',
+        humanReview ? '**Ready for human review.**' : '**Build complete for the approved issue revision.**',
         `- [Download the testable VSIX and checksum](${runUrl}/artifacts/${env.VSIX_ARTIFACT_ID})`,
         `- [Download the reviewed patch](${runUrl}/artifacts/${env.PATCH_ARTIFACT_ID})`,
         `- [View the Actions run](${runUrl})`,
         '', delivery,
+        ...(/^[a-f0-9]{40}$/.test(env.UX_SCREENSHOT_COMMIT ?? '')
+            ? ['', `![Playwright UX screenshot](https://raw.githubusercontent.com/${env.GITHUB_REPOSITORY}/${env.UX_SCREENSHOT_COMMIT}/ux-preview.png)`] : []),
         '', 'Downloads require GitHub sign-in and expire after 7 days. Review the patch first, then unzip the VSIX download and use **Extensions: Install from VSIX...** in an isolated VS Code environment.',
         ...(files.length ? ['', '**Sensitive or infrastructure files to review before merging or installing:**',
             ...files.map(file => `- \`${file}\``), ...(files.length === 40 ? ['- See the patch for the full file list.'] : [])] : []),
     ].join('\n');
-    await writeDelivery(event, env, github, markdown, { changedMarkdown });
+    await writeDelivery(event, env, github, markdown, { changedMarkdown, humanReview });
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

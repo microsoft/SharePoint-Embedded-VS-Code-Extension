@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { existsSync } from 'node:fs';
-import { mkdir, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, rm, writeFile } from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import {
@@ -559,12 +559,20 @@ async function runValidation(context: RunContext): Promise<ValidationResult[]> {
             );
             const stdoutPath = path.join(checkDir, `${check.id}.stdout.log`);
             const stderrPath = path.join(checkDir, `${check.id}.stderr.log`);
+            const evidenceRoot = process.env.AGENT_LOOP_UX_EVIDENCE_ROOT;
+            let uxEvidence: { file: string; taskId: string } | undefined;
+            if (context.featureRun && check.id === 'ui' && evidenceRoot && path.isAbsolute(evidenceRoot)) {
+                const file = path.join(evidenceRoot, `attempt-${context.run.repass}.png`);
+                await writeFile(file, '', { flag: 'wx' });
+                await chmod(file, 0o666);
+                uxEvidence = { file, taskId: context.loaded.contract.taskId };
+            }
             const processResult = await runValidationCommand(check.command, {
                 cwd: context.run.integrationWorktree!,
                 timeoutMs: check.timeoutMinutes * 60_000,
                 stdoutPath,
                 stderrPath
-            }, context.featureRun ? process.env.AGENT_LOOP_NPM_CACHE : undefined);
+            }, context.featureRun ? process.env.AGENT_LOOP_NPM_CACHE : undefined, uxEvidence);
             results.push({
                 command: check.command,
                 status: processResult.exitCode === 0 && !processResult.timedOut ? 'passed' : 'failed',

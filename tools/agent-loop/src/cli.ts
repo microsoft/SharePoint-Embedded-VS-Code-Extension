@@ -60,6 +60,7 @@ async function main(): Promise<void> {
         model: result.sdkRuntime.model,
         integrationBranch: result.integrationBranch,
         integratedCommit: result.integratedCommit,
+        repass: result.repass,
         artifactsDir: result.artifactsDir,
         errors: result.errors
     }, null, 2));

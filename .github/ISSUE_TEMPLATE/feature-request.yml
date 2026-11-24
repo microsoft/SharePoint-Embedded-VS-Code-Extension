@@ -31,6 +31,10 @@ body:
     id: ui
     attributes:
       label: UI impact
-      description: Describe the visible change and the scenario to capture, or say "None".
+      description: >-
+        Name the screen, the action, and what should visibly change, or enter "None".
+        Screenshots are embedded when a webview or desktop VS Code test verifies and
+        captures that state with mock data. Native editor tabs and notifications need
+        a desktop scenario. API-only changes do not produce a screenshot.
     validations:
       required: true

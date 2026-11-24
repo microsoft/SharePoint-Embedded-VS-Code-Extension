@@ -1,10 +1,12 @@
 import { randomUUID } from 'node:crypto';
+import { join } from 'node:path';
 import { ProcessOptions, ProcessResult, runProcess, runShellCommand } from './process';
 
 export async function runValidationCommand(
     command: string,
     options: ProcessOptions,
-    npmCache?: string
+    npmCache?: string,
+    uxEvidence?: { file: string; taskId: string }
 ): Promise<ProcessResult> {
     const image = process.env.AGENT_LOOP_VALIDATION_IMAGE;
     if (!image) {
@@ -19,6 +21,8 @@ export async function runValidationCommand(
     delete env.COPILOT_GITHUB_TOKEN;
     delete env.GH_TOKEN;
     delete env.GITHUB_TOKEN;
+    const desktop = uxEvidence && process.env.AGENT_LOOP_DESKTOP_VSCODE;
+    const desktopScript = join(__dirname, '..', 'native-ux.mjs');
     // Checks can execute generated code. Give the container a scratch copy, not the runner's credentials or workspace.
     const args = [
         'run', '--rm', '--name', name, '--pull=never', '--network=none', '--read-only',
@@ -27,6 +31,13 @@ export async function runValidationCommand(
         '--tmpfs', '/scratch:rw,exec,size=4g,mode=1777', '--tmpfs', '/tmp:rw,exec,size=1g,mode=1777',
         '--mount', `type=bind,source=${options.cwd},target=/input,readonly`,
         ...(npmCache ? ['--mount', `type=bind,source=${npmCache},target=/npm-cache,readonly`] : []),
+        ...(uxEvidence ? [
+            '--mount', `type=bind,source=${uxEvidence.file},target=/ux-preview.png`,
+            '--env', 'SPE_UX_SCREENSHOT_PATH=/ux-preview.png',
+            '--env', `SPE_UX_SCREENSHOT_TASK=${uxEvidence.taskId}`,
+            '--mount', `type=bind,source=${desktopScript},target=/native-ux.mjs,readonly`,
+            ...(desktop ? ['--mount', `type=bind,source=${desktop},target=/desktop-vscode,readonly`] : [])
+        ] : []),
         '--env', 'HOME=/scratch', '--env', 'CI=true', '--env', 'npm_config_offline=true',
         '--entrypoint', '/bin/bash', image, '-euo', 'pipefail', '-c',
         'mkdir /scratch/project; tar -C /input --exclude=./.git -cf - . | tar -C /scratch/project -xf -; ' +
@@ -34,7 +45,8 @@ export async function runValidationCommand(
         (npmCache ? 'export npm_config_cache=/scratch/npm-cache; mkdir "$npm_config_cache"; cp -R /npm-cache/_cacache "$npm_config_cache/"; ' +
             'npm ci --ignore-scripts --offline --no-audit --no-fund; ' +
             'npm ci --prefix webview-ui --ignore-scripts --offline --no-audit --no-fund; ' : '') +
-        'exec /bin/bash -c "$1"',
+        '/bin/bash -c "$1"; ' +
+        (uxEvidence ? 'exec node /native-ux.mjs' : ''),
         'spe-validation', command
     ];
 

@@ -77,10 +77,13 @@ test('the issue description reports the branch and direct downloads without chan
     assert.match(current.body, /Branch pushed:.*feature-agent\/issue-8/);
     assert.match(current.body, /GitHub policy blocked automatic draft PR creation/);
     assert.match(current.body, /\[Open a PR manually\]/);
+    assert.doesNotMatch(current.body, /Playwright UX screenshot/);
     assert.match(current.body, /GraphAuthProvider\.ts/);
-    await updateFeatureHandoff(event, { ...env, GITHUB_RUN_ID: '43', DRAFT_PR_NUMBER: '19' }, fetcher);
+    const screenshotCommit = 'a'.repeat(40);
+    await updateFeatureHandoff(event, { ...env, GITHUB_RUN_ID: '43', DRAFT_PR_NUMBER: '19', UX_SCREENSHOT_COMMIT: screenshotCommit }, fetcher);
     assert.deepEqual(methods, ['PATCH', 'PATCH']);
-    assert.match(current.body, /Draft PR: \[#19\]/);
+    assert.ok(current.body.includes(`Draft PR: [#19](https://github.com/owner/repo/pull/19).\n\n` +
+        `![Playwright UX screenshot](https://raw.githubusercontent.com/owner/repo/${screenshotCommit}/ux-preview.png)`));
     assert.equal(current.body.match(/^## Feature agent delivery$/gm).length, 1);
     await updateFeatureHandoff(event, env, fetcher);
     assert.equal(splitIssueDelivery(current.body).runId, '43');
@@ -96,6 +99,81 @@ test('delivery parsing does not discard author text after the managed section', 
     assert.equal(splitIssueDelivery(body).requirements, requirements);
     const edited = `${body}\n\nNew author text.`;
     assert.equal(splitIssueDelivery(edited).requirements, `${requirements}\n\nNew author text.`);
+});
+
+test('approved retries switch between agent-ready and ready-for-human-review', async () => {
+    const label = 'ready-for-human-review';
+    const priorLabels = [...issue.labels, { name: 'enhancement' }];
+    const deliveredLabels = [{ name: 'enhancement' }, { name: label }];
+    let current = {
+        ...issue,
+        labels: [...priorLabels, { name: label }],
+        body: appendIssueDelivery(issue.body, '41', '## Feature agent delivery\n\nPrevious run.'),
+    };
+    const env = {
+        GITHUB_REPOSITORY: repository, GITHUB_RUN_ID: '42', GH_TOKEN: 'mock',
+        FEATURE_REQUEST_APPROVERS: 'maintainer', IMPLEMENT_RESULT: 'success',
+        PATCH_ARTIFACT_ID: '507', VSIX_ARTIFACT_ID: '508', AUTO_PUBLISH: 'true',
+    };
+    const review = { id: 1, user: { id: 41898282, type: 'Bot' }, body: `${reviewMarker} ${reviewRevision(issue)} ready -->\nReady.` };
+    const labelWrites = [];
+    const fetcher = async (target, init) => {
+        const path = decodeURIComponent(new URL(target).pathname);
+        if (path.includes('/actions/')) return Response.json({ jobs: [{ name: 'implement', status: 'completed' }] });
+        if (path.endsWith('/comments')) return Response.json([review]);
+        if (init.method === 'DELETE') {
+            assert.equal(path, `/repos/${repository}/issues/8/labels/${label}`);
+            current.labels = current.labels.filter(({ name }) => name !== label);
+            labelWrites.push('removed');
+            return new Response(null, { status: 204 });
+        }
+        if (init.method === 'PATCH') {
+            const { body, labels } = JSON.parse(init.body);
+            current = { ...current, body };
+            if (labels) {
+                assert.deepEqual(labels, deliveredLabels.map(({ name }) => name));
+                current.labels = labels.map(name => ({ name }));
+                labelWrites.push('switched');
+            }
+        }
+        return Response.json(current);
+    };
+    const watch = (runEnv, runEvent = event) => watchFeatureRun(runEvent, runEnv, fetcher, async () => {});
+    const report = (runEnv, overrides) => updateFeatureHandoff(event, { ...runEnv, ...overrides }, fetcher);
+
+    await watch(env, { ...event, sender: { type: 'User', login: 'other-user' } });
+    assert.deepEqual(labelWrites, []);
+    await watch(env);
+    assert.deepEqual(current.labels, priorLabels);
+    await report(env, { PUBLISH_RESULT: 'failure' });
+    assert.deepEqual(labelWrites, ['removed']);
+    assert.doesNotMatch(current.body, /Ready for human review/);
+
+    const retry = { ...env, GITHUB_RUN_ID: '43' };
+    await watch(retry);
+    await report(env, { PUBLISH_RESULT: 'success' });
+    assert.deepEqual(current.labels, priorLabels);
+    const policyBlocked = { PUBLISH_RESULT: 'success', PR_POLICY_BLOCKED: 'true', BRANCH_PUSHED: 'true', UX_SCREENSHOT_COMMIT: 'b'.repeat(40) };
+    await report(retry, policyBlocked);
+    await report(retry, policyBlocked);
+    assert.deepEqual(current.labels, deliveredLabels);
+    assert.match(current.body, /Ready for human review/);
+    assert.match(current.body, /\[Open a PR manually\]\([^\n]+\)\.\n\n!\[Playwright UX screenshot\]/);
+    assert.deepEqual(labelWrites, ['removed', 'switched']);
+
+    const manualOnly = { ...retry, GITHUB_RUN_ID: '44', AUTO_PUBLISH: 'false' };
+    current.labels = [...current.labels, { name: 'agent-ready' }];
+    await watch(manualOnly);
+    assert.deepEqual(current.labels.map(({ name }) => name).sort(), ['agent-ready', 'enhancement']);
+    await report(manualOnly, { PUBLISH_RESULT: 'skipped' });
+    assert.deepEqual(current.labels, deliveredLabels);
+    assert.deepEqual(labelWrites, ['removed', 'switched', 'removed', 'switched']);
+    const cancelled = { ...retry, GITHUB_RUN_ID: '45' };
+    current.labels = [...current.labels, { name: 'agent-ready' }];
+    await watch(cancelled);
+    await report(cancelled, { IMPLEMENT_RESULT: 'cancelled', PUBLISH_RESULT: 'skipped' });
+    assert.deepEqual(current.labels.map(({ name }) => name).sort(), ['agent-ready', 'enhancement']);
+    assert.match(current.body, /Run cancelled/);
 });
 
 test('a fresh approved run reports pickup, progress, and failure on the same issue', async () => {

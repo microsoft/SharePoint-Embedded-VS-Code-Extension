@@ -130,8 +130,8 @@ Editing the issue invalidates the previous readiness result. If implementation f
 `implement` job in Actions for the failed stage and a safe diagnostic. After a fix and a current
 readiness pass, remove and reapply `agent-ready` to start a new run.
 
-To enable the workflow on the default branch, create the `needs-info` and `agent-ready` repository
-labels and set the repository Actions variable `FEATURE_REQUEST_APPROVERS` to the approved GitHub
+To enable the workflow on the default branch, create the `needs-info`, `agent-ready`, and
+`ready-for-human-review` repository labels and set the Actions variable `FEATURE_REQUEST_APPROVERS` to the approved GitHub
 usernames (comma-separated). Create the `feature-agent` Actions environment, restrict deployments
 to the default branch, and add `COPILOT_GITHUB_TOKEN` as an environment secret. Use an
 organization-approved Copilot CLI credential with only
@@ -159,9 +159,30 @@ Unexpected PR API errors still fail the publishing job. After `agent-ready`, the
 the issue description links the current run and reports progress through implementation and
 packaging. If implementation fails, it reports the failed stage and links the patch if one was
 uploaded. On success it gives direct downloads for the VSIX, checksum, and patch, reports the
-branch or PR outcome, and lists sensitive changes to review. Remove and reapply `agent-ready`
-on the same open, ready issue to start a new run. The workflow replaces its own section without
-changing the feature requirements or invalidating their readiness review.
+branch or PR outcome, and lists sensitive changes to review. The workflow replaces its own section
+without changing the feature requirements or invalidating their readiness review. After a successful
+handoff it replaces `agent-ready` with `ready-for-human-review`, including when the PR must be
+opened manually or the patch is intentionally delivered without a branch. To retry, apply
+`agent-ready` again (remove it first if still present after a failure). GitHub may briefly show
+both labels until the approved run clears `ready-for-human-review`. Failed or cancelled runs
+do not apply `ready-for-human-review`.
+For visible changes the UI test can render with synthetic data, the issue embeds the final
+Playwright PNG directly below the PR link (or publishing status if there is no PR). The PNG
+is publicly viewable and stored on a dedicated `feature-agent-preview/issue-<number>` branch,
+not the feature branch or `main`. A new preview replaces the old one.
+In **UI impact**, name the screen, the user action, and the expected visible result (or
+write `None`). For example, "Storage Explorer webview: select a container, then confirm
+that its details panel shows the new status." A screenshot is included only when a passing
+test can assert and capture that exact state with mock data. API-only changes and OS-level
+dialogs do not produce a screenshot.
+
+For native workbench UI, add `src/test/native/github-issue-<number>.ts` exporting
+`async function run(): Promise<void>`. The feature runner loads it into desktop VS Code on
+an isolated virtual display and embeds the resulting screenshot in the same issue section.
+Trigger the real action with mocked data and call `captureWorkbench` with an assertion
+against the visible UI. For example, a test for Container Types > View Properties would
+verify that a synthetic owner is visible in the JSON editor. A desktop scenario, when
+present, must pass and takes precedence over a webview screenshot for the same issue.
 Changes to CI, build controls, or the agent harness still receive a reviewed patch and VSIX, but
 require manual publication so the candidate cannot change the remote execution environment.
 Neither route merges or publishes a release.
