@@ -1,0 +1,253 @@
+name: Feature Request Intake
+
+on:
+  issues:
+    types: [opened, edited, reopened, labeled]
+
+permissions: {}
+
+jobs:
+  triage:
+    if: >-
+      startsWith(github.event.issue.title, 'Feature-Request: SPE VSC Extension -') &&
+      github.event.action != 'labeled'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    environment: feature-agent
+    concurrency:
+      group: feature-readiness-${{ github.event.issue.number }}
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          persist-credentials: false
+      - name: Read issue and check for an existing review
+        id: readiness
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node tools/agent-loop/review-feature.mjs prepare
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        id: reviewer-node
+        if: steps.readiness.outputs.kind == 'model'
+        continue-on-error: true
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - name: Prepare the text-only readiness reviewer
+        id: setup-reviewer
+        if: steps.reviewer-node.outcome == 'success'
+        continue-on-error: true
+        run: |
+          npm ci --ignore-scripts
+          npm run agent:build
+          npm install --global @github/copilot-linux-x64@1.0.114-0
+          printf 'AGENT_LOOP_COPILOT_COMMAND=%s\n' "$(command -v copilot-linux-x64)" >> "$GITHUB_ENV"
+      - name: Review the public requirement brief
+        if: steps.setup-reviewer.outcome == 'success'
+        env:
+          COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+          AGENT_LOOP_MODEL: ${{ vars.AGENT_LOOP_MODEL || 'gpt-6.2-sol' }}
+        run: node tools/agent-loop/review-feature.mjs review
+      - name: Update the readiness comment and needs-info label
+        if: steps.readiness.outputs.kind != 'ignored'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node tools/agent-loop/review-feature.mjs publish
+
+  implement:
+    if: >-
+      startsWith(github.event.issue.title, 'Feature-Request: SPE VSC Extension -') &&
+      github.event.action == 'labeled' && github.event.label.name == 'agent-ready' && github.run_attempt == 1
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    concurrency:
+      group: feature-agent-${{ github.event.issue.number }}
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      issues: read
+    environment: feature-agent
+    outputs:
+      artifact-id: ${{ steps.review.outputs.artifact-id }}
+      vsix-url: ${{ steps.vsix.outputs.artifact-url }}
+    env:
+      FEATURE_REQUEST_APPROVERS: ${{ vars.FEATURE_REQUEST_APPROVERS }}
+      AGENT_LOOP_MODEL: ${{ vars.AGENT_LOOP_MODEL || 'gpt-6.2-sol' }}
+      AGENT_LOOP_REASONING_EFFORT: ${{ vars.AGENT_LOOP_REASONING_EFFORT }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Authorize issue and compile its task contract
+        id: intake
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node tools/agent-loop/feature-issue.mjs authorize
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        if: steps.intake.outputs.approved == 'true'
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - name: Prepare the locked project dependencies, Copilot CLI and validation image
+        if: steps.intake.outputs.approved == 'true'
+        run: |
+          npm ci --ignore-scripts
+          npm ci --prefix webview-ui
+          npm run agent:build
+          npm install --global @github/copilot-linux-x64@1.0.114-0
+          printf 'AGENT_LOOP_COPILOT_COMMAND=%s\n' "$(command -v copilot-linux-x64)" >> "$GITHUB_ENV"
+          playwright_version=$(node -p "require('./package-lock.json').packages['node_modules/@playwright/test'].version")
+          if [[ "$playwright_version" != '1.61.1' ]]; then
+            echo '::error::Update the validation image pin to match the Playwright lockfile.'
+            exit 1
+          fi
+          image="mcr.microsoft.com/playwright:v1.61.1-noble@sha256:5b8f294aff9041b7191c34a4bab3ac270157a28774d4b0660e9743297b697e48"
+          docker pull "$image"
+          docker image inspect --format 'AGENT_LOOP_VALIDATION_IMAGE={{.Id}}' "$image" >> "$GITHUB_ENV"
+          git config user.name "SPE Feature Agent"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+      - name: Recheck approval before implementation
+        id: start
+        if: steps.intake.outputs.approved == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node tools/agent-loop/feature-issue.mjs confirm
+      - name: Run the agent loop and export the reviewed diff
+        id: agent
+        if: steps.start.outputs.approved == 'true'
+        env:
+          COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+        run: |
+          if [[ -z "$COPILOT_GITHUB_TOKEN" ]]; then
+            echo '::error::Configure COPILOT_GITHUB_TOKEN in the feature-agent environment.'
+            exit 1
+          fi
+          if [[ ! "${AGENT_LOOP_VALIDATION_IMAGE:-}" =~ ^sha256:[a-f0-9]{64}$ ]]; then
+            echo '::error::The isolated validation image is unavailable.'
+            exit 1
+          fi
+          result="$RUNNER_TEMP/feature-agent-result.json"
+          if ! node tools/agent-loop/dist/cli.js run .agent-runs/github-intake-contract.json > "$result" 2> "$RUNNER_TEMP/feature-agent-errors.log"; then
+            echo '::error::The agent loop did not finish in its review-ready state. Review the request and Copilot configuration before reapplying agent-ready.'
+            exit 1
+          fi
+          commit=$(jq -er '.integratedCommit | select(test("^[0-9a-f]{40}$"))' "$result")
+          model=$(jq -er '.model | select(test("^[a-zA-Z0-9._-]+$"))' "$result")
+          printf 'Copilot model: `%s`\n' "$model" >> "$GITHUB_STEP_SUMMARY"
+          git merge-base --is-ancestor "$GITHUB_SHA" "$commit"
+          git --no-pager diff --no-ext-diff --no-textconv --binary "$GITHUB_SHA" "$commit" -- > "$RUNNER_TEMP/feature.patch"
+          if [[ ! -s "$RUNNER_TEMP/feature.patch" ]]; then
+            echo '::warning::The agent returned no changes. No patch will be uploaded.'
+            exit 0
+          fi
+          git --no-pager diff --raw --no-renames -z "$GITHUB_SHA" "$commit" |
+            node --input-type=module -e 'import { readFileSync } from "node:fs"; import { validateStagedDiff } from "./tools/agent-loop/publish-feature.mjs"; validateStagedDiff(readFileSync(0, "utf8"));'
+          printf '%s\n' "$GITHUB_SHA" > "$RUNNER_TEMP/feature-base-sha.txt"
+          printf 'patch=true\ncommit=%s\n' "$commit" >> "$GITHUB_OUTPUT"
+      - name: Confirm the issue has not changed before handoff
+        id: handoff
+        if: steps.agent.outputs.patch == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node tools/agent-loop/feature-issue.mjs confirm
+      - name: Upload the reviewed patch for maintainers
+        id: review
+        if: steps.handoff.outputs.approved == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: feature-issue-${{ github.event.issue.number }}-review
+          path: |
+            ${{ runner.temp }}/feature.patch
+            ${{ runner.temp }}/feature-base-sha.txt
+          if-no-files-found: error
+          retention-days: 7
+      - name: Package a testable VSIX from the reviewed commit
+        id: package
+        if: steps.handoff.outputs.approved == 'true'
+        env:
+          REVIEWED_COMMIT: ${{ steps.agent.outputs.commit }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          SPE_TEST_CLIENT_ID: ${{ vars.SPE_TEST_CLIENT_ID }}
+        run: |
+          npm install --prefix "$RUNNER_TEMP/vsce-tool" --ignore-scripts --no-save @vscode/vsce@4.1.1
+          source="$RUNNER_TEMP/vsix-source"
+          mkdir "$source"
+          git archive "$REVIEWED_COMMIT" | tar -xC "$source"
+          # Manifests and dependencies are outside the agent contract; reuse the trusted installation.
+          mv node_modules "$source/node_modules"
+          mv webview-ui/node_modules "$source/webview-ui/node_modules"
+          output="$RUNNER_TEMP/vsix-container-output"
+          install -d -m 1777 "$output"
+          docker run --rm --pull=never --network=none --read-only --cap-drop=ALL \
+            --security-opt=no-new-privileges --user=1000:1000 --memory=5g --pids-limit=512 \
+            --tmpfs /scratch:rw,exec,size=2g,mode=1777 --tmpfs /tmp:rw,exec,size=1g,mode=1777 \
+            --mount "type=bind,source=$source,target=/input,readonly" \
+            --mount "type=bind,source=$RUNNER_TEMP/vsce-tool,target=/vsce,readonly" \
+            --mount "type=bind,source=$output,target=/output" \
+            --env HOME=/scratch --env CI=true --env SPE_TEST_CLIENT_ID \
+            --entrypoint /bin/bash "$AGENT_LOOP_VALIDATION_IMAGE" -euo pipefail -c '
+              mkdir /scratch/project
+              tar -C /input -cf - . | tar -C /scratch/project -xf -
+              cd /scratch/project
+              node tools/agent-loop/package-feature.mjs "$1" "$2" /vsce/node_modules/@vscode/vsce/vsce /output
+            ' spe-vsix "$ISSUE_NUMBER" "$REVIEWED_COMMIT"
+          file="spe-issue-${ISSUE_NUMBER}-${REVIEWED_COMMIT:0:12}-testable.vsix"
+          [[ -f "$output/$file" && ! -L "$output/$file" && -s "$output/$file" ]]
+          mkdir "$RUNNER_TEMP/testable-vsix"
+          cp -- "$output/$file" "$RUNNER_TEMP/testable-vsix/$file"
+          cd "$RUNNER_TEMP/testable-vsix"
+          unzip -tq "$file"
+          entries=$(unzip -Z1 "$file")
+          for required in extension/package.json extension/out/extension.js extension/out/mcp/launcher.cjs extension/out/webviewApp/index.html; do
+            if ! grep -Fxq "$required" <<< "$entries"; then
+              echo "::error::The testable VSIX is missing $required."
+              exit 1
+            fi
+          done
+          sha256sum "$file" > "$file.sha256"
+          printf 'filename=%s\n' "$file" >> "$GITHUB_OUTPUT"
+      - name: Upload testable VSIX
+        id: vsix
+        if: steps.handoff.outputs.approved == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: spe-issue-${{ github.event.issue.number }}-testable-vsix
+          path: |
+            ${{ runner.temp }}/testable-vsix/${{ steps.package.outputs.filename }}
+            ${{ runner.temp }}/testable-vsix/${{ steps.package.outputs.filename }}.sha256
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    needs: implement
+    if: needs.implement.outputs.artifact-id != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    concurrency:
+      group: feature-publish-${{ github.event.issue.number }}
+      cancel-in-progress: false
+    permissions:
+      contents: write
+      issues: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          artifact-ids: ${{ needs.implement.outputs.artifact-id }}
+          path: ${{ runner.temp }}/feature-review
+          merge-multiple: true
+      - name: Publish draft PR from the reviewed patch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GIT_TERMINAL_PROMPT: '0'
+          FEATURE_REQUEST_APPROVERS: ${{ vars.FEATURE_REQUEST_APPROVERS }}
+          TESTABLE_VSIX_URL: ${{ needs.implement.outputs.vsix-url }}
+        run: node tools/agent-loop/publish-feature.mjs "$RUNNER_TEMP/feature-review"

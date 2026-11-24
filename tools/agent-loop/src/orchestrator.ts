@@ -27,6 +27,7 @@ import {
 import {
     changedPaths,
     cherryPick,
+    commitsSince,
     committedChangedPaths,
     createWorkerCommit,
     createWorktree,
@@ -40,6 +41,7 @@ import {
 import { assertChangedPathsAllowed, matchesAny } from './paths';
 import { outputTail, runShellCommand } from './process';
 import { runSdkPreflight, SdkPreflightResult } from './sdkPreflight';
+import { runValidationCommand } from './validationSandbox';
 import {
     AuthorityPolicy,
     LoadedContract,
@@ -168,11 +170,7 @@ export async function runContract(options: RunOptions): Promise<RunRecord> {
         run.integrationWorktree = integrationWorktree;
         await createWorktree(repoRoot, integrationWorktree, baseCommit, integrationBranch);
         await provisionDependencies(integrationWorktree);
-        for (const worker of initialWorkers) {
-            if (worker.outputCommit && worker.outputCommit !== baseCommit) {
-                await cherryPick(integrationWorktree, worker.outputCommit);
-            }
-        }
+        await integrateInitialWorkers(integrationWorktree, baseCommit, initialWorkers);
         run.integratedCommit = await currentCommit(integrationWorktree);
         await writeIntegrationResult(context, initialWorkers[0].startedAt);
         await writeRunRecord(repoRoot, run);
@@ -250,7 +248,7 @@ async function runInitialWorkers(
     let implementation = initial.find(result => result.role === 'implementer')!;
     for (
         let attempt = 1;
-        implementation.status === 'blocked' &&
+        implementation.status === 'blocked' && implementation.approvalRequests.length === 0 &&
         implementation.outputCommit &&
         attempt <= context.loaded.contract.limits.maxRepasses;
         attempt++
@@ -395,7 +393,7 @@ async function runEditingAssignment(
         );
         await diffCheck(worktreePath);
 
-        const outputCommit = (
+        const outputCommit = reported.approvalRequests.length === 0 && (
             reported.status === 'completed' ||
             (reported.status === 'blocked' && filesChanged.length > 0)
         )
@@ -408,6 +406,7 @@ async function runEditingAssignment(
             : null;
         const result: WorkerResult = {
             ...reported,
+            status: reported.approvalRequests.length > 0 ? 'blocked' : reported.status,
             runId: context.run.runId,
             taskId: context.loaded.contract.taskId,
             workerId: invocationId,
@@ -539,7 +538,7 @@ async function runValidation(context: RunContext): Promise<ValidationResult[]> {
             );
             const stdoutPath = path.join(checkDir, `${check.id}.stdout.log`);
             const stderrPath = path.join(checkDir, `${check.id}.stderr.log`);
-            const processResult = await runShellCommand(check.command, {
+            const processResult = await runValidationCommand(check.command, {
                 cwd: context.run.integrationWorktree!,
                 timeoutMs: check.timeoutMinutes * 60_000,
                 stdoutPath,
@@ -650,6 +649,7 @@ async function runReview(
         reviewedCommit: context.run.integratedCommit!
     };
     addValidationFindings(review, validation, context.loaded.contract);
+    enforceReviewGate(review, context.loaded.contract.acceptanceCriteria.map(criterion => criterion.id));
     assertStructuredResult(context.reviewValidator, review, `Review ${reviewId}`);
 
     const resultPath = path.join(artifactDir, 'result.json');
@@ -699,6 +699,31 @@ function requireCompletedWorkers(results: WorkerResult[]): void {
         throw new Error(
             `Workers did not complete: ${incomplete.map(result => `${result.workerId}=${result.status}`).join(', ')}`
         );
+    }
+}
+
+export async function integrateInitialWorkers(
+    worktreePath: string, baseCommit: string, results: WorkerResult[]
+): Promise<void> {
+    for (const worker of selectTerminalWorkerResults(results)) {
+        if (worker.outputCommit) {
+            for (const commit of await commitsSince(worktreePath, baseCommit, worker.outputCommit)) {
+                await cherryPick(worktreePath, commit);
+            }
+        }
+    }
+}
+
+export function enforceReviewGate(review: ReviewResult, requiredCriteria: string[]): void {
+    if (review.decision !== 'pass') {
+        return;
+    }
+    const accepted = new Set(review.criteria.filter(criterion => criterion.status === 'satisfied' && criterion.evidence.trim())
+        .map(criterion => criterion.id));
+    if (review.criteria.length !== requiredCriteria.length || !requiredCriteria.every(id => accepted.has(id)) ||
+        review.findings.some(finding => finding.severity === 'blocker' || finding.severity === 'high')) {
+        review.decision = 'blocked';
+        review.summary = 'Reviewer reported pass without satisfying every acceptance criterion or resolving all high-severity findings.';
     }
 }
 

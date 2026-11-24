@@ -29,6 +29,7 @@ async function main(): Promise<void> {
         runId: result.runId,
         taskId: result.taskId,
         phase: result.phase,
+        model: result.sdkRuntime.model,
         integrationBranch: result.integrationBranch,
         integratedCommit: result.integratedCommit,
         artifactsDir: result.artifactsDir,
