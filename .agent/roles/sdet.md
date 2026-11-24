@@ -17,6 +17,9 @@ self-assessment.
 - Cover partial failures, stale state, authorization failures, validation failures, and cancellation
   where relevant.
 - Prefer existing Playwright API/UI patterns and test helpers.
+- For native VS Code notifications, test the extension-host behavior with a mocked VS Code
+  notification API and synthetic operation results. Check both success and failure; the standalone
+  Storage Explorer browser harness does not render native VS Code notifications.
 - Edit only the worker's allowed test paths. Do not modify production code to make a failing test
   pass unless the contract explicitly grants a testability seam.
 - Distinguish expected pre-implementation failures from test defects.

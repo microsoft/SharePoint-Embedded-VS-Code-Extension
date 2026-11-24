@@ -135,26 +135,47 @@ export function approval(event, current, approvers) {
 }
 
 const productPaths = [
+    'src/commands/**', 'src/views/**', 'src/services/StorageExplorer/**',
+    'webview-ui/src/api/services/**', 'webview-ui/src/models/**',
     'webview-ui/src/components/**', 'webview-ui/src/context/**', 'webview-ui/src/hooks/**',
     'webview-ui/src/pages/**', 'webview-ui/src/styles/**', 'webview-ui/src/utils/**',
     'webview-ui/src/App.tsx', 'src/utils/**', 'l10n/**',
 ];
 const testPaths = ['src/test/**', 'ui-tests/tests/**', 'ui-tests/api/**', 'ui-tests/testids.ts'];
-const restrictedUtilities = [
+const protectedPaths = [
+    'src/commands/Accounts/**', 'src/commands/GuestApps/**',
+    'src/commands/App/GetLocalAdminConsent.ts',
+    'src/commands/ContainerType/GrantExtensionAppPermissions.ts',
+    'src/commands/ContainerType/RegisterOnLocalTenant.ts',
+    'src/views/html/**', 'src/views/treeview/account/**',
+    'src/views/treeview/development/storageExplorerReadiness.ts',
+    'src/services/StorageExplorer/graphClient.ts',
+    'src/services/StorageExplorer/uploadAuth.ts',
+    'src/services/StorageExplorer/PermissionGraphService.ts',
+    'src/services/StorageExplorer/accessDenied.ts',
+    'src/services/StorageExplorer/protocol.ts',
+    'src/services/StorageExplorer/operationSchemas.ts',
+    'src/services/StorageExplorer/externalUrlPolicy.ts',
+    'src/services/StorageExplorer/htmlEncoding.ts',
+    'src/services/StorageExplorer/networkRedaction.ts',
+    'src/services/StorageExplorer/NetworkLoggingMiddleware.ts',
     'src/utils/AdminConsentHelper.ts', 'src/utils/ExtensionAppPermissions.ts',
     'src/utils/ExtensionAppPermissionScopes.ts', 'src/utils/token.ts',
+    'webview-ui/src/api/services/AuthorizationService.ts',
+    'webview-ui/src/api/services/PermissionGraphService.ts',
 ];
 const deniedPaths = ['**/package.json', '**/package-lock.json', '**/.npmrc', '**/.git*', '**/*config.*',
-    ...restrictedUtilities];
+    ...protectedPaths];
+
+const inScope = (path, scope) => scope.endsWith('/**') ? path.startsWith(scope.slice(0, -2)) : path === scope;
 
 export function publishablePath(path) {
-    if (restrictedUtilities.some((restricted) => restricted.toLowerCase() === path.toLowerCase())) return false;
+    if (protectedPaths.some(scope => inScope(path.toLowerCase(), scope.toLowerCase()))) return false;
     if (!/^[a-z0-9_./-]+$/i.test(path) || path.split('/').some((part) =>
         part.startsWith('.') || /secret|credential/i.test(part) ||
         /^(?:node_modules|out|dist|package(?:-lock)?\.json)$/i.test(part) ||
         /(?:config\.|\.pem$|\.pfx$|\.p7s$)/i.test(part))) return false;
-    return [...productPaths, ...testPaths].some((scope) =>
-        scope.endsWith('/**') ? path.startsWith(scope.slice(0, -2)) : path === scope);
+    return [...productPaths, ...testPaths].some(scope => inScope(path, scope));
 }
 
 export function compileContract(issueNumber, baseCommit, brief) {

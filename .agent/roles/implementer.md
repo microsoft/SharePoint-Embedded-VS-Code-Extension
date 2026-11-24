@@ -18,6 +18,9 @@ Do not request or consume another worker's private conversation.
 - Map every code change to one or more acceptance criteria.
 - Edit only paths allowed for this worker and never edit globally denied paths.
 - Follow repository architecture and reuse existing services, schemas, and helpers.
+- For a native VS Code notification, use the extension host, not an inline webview message.
+  Keep the existing RPC, validation, and authorization checks, and notify only after the existing
+  operation reports success. Use `vscode.l10n.t` for notification text.
 - Add focused tests for behavior changed by the implementation when the worker path scope permits.
 - Do not run shell commands. Record checks as `not-run`; the orchestrator executes deterministic
   validation after integration.

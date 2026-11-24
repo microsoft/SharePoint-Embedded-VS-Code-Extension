@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import test from 'node:test';
-import { approval, assessIssue, compileContract, intake, reviewMarker, reviewRevision, TITLE_PREFIX } from './feature-issue.mjs';
+import { approval, assessIssue, compileContract, intake, publishablePath, reviewMarker, reviewRevision, TITLE_PREFIX } from './feature-issue.mjs';
+import { validateStagedDiff } from './publish-feature.mjs';
 
 const require = createRequire(import.meta.url);
 const body = [
@@ -69,6 +70,56 @@ test('maps issue text to requirements only and produces a contract accepted by t
     const validate = new Ajv().compile(require('../../.agent/schemas/task-contract.schema.json'));
     assert.equal(validate(contract), true, JSON.stringify(validate.errors));
     validateContractInvariants(process.cwd(), contract, require('../../.agent/policies/default-authority.json'));
+});
+
+test('a native Storage Explorer request can edit host and webview code and publish the reviewed diff', () => {
+    const brief = assessIssue({
+        ...issue,
+        title: `${TITLE_PREFIX} Confirm container creation`,
+        body: [
+            '### Problem', 'Storage Explorer does not confirm successful creation.',
+            '### Expected behavior', 'Show a native notification only after the create operation succeeds.',
+            '### Acceptance criteria', '- Success shows one notification; failure shows no success notification.',
+            '### UI impact', 'Standard VS Code notification, not an inline message.',
+        ].join('\n\n'),
+    });
+    const contract = compileContract(81, env.GITHUB_SHA, brief);
+    const policy = require('../../.agent/policies/default-authority.json');
+    const { assertChangedPathsAllowed } = require('./dist/paths.js');
+    const { validateContractInvariants } = require('./dist/contract.js');
+    validateContractInvariants(process.cwd(), contract, policy);
+    const implementer = contract.workers.find(worker => worker.role === 'implementer');
+    const sdet = contract.workers.find(worker => worker.role === 'sdet');
+    const denied = [...contract.deniedPaths, ...policy.filesystem.deny];
+    const canEdit = (worker, paths) => assertChangedPathsAllowed(paths, contract.allowedPaths, worker.allowedPaths, denied);
+    const product = [
+        'src/services/StorageExplorer/StorageExplorerApi.ts',
+        'src/views/StorageExplorer/StorageExplorerPanel.ts',
+        'src/commands/Containers/CreateContainer.ts',
+        'webview-ui/src/api/services/ContainerGraphService.ts',
+        'webview-ui/src/context/StorageExplorerContext.tsx',
+    ];
+    const tests = ['ui-tests/api/storage-explorer-notification.api.spec.ts', 'src/test/suite/extension.test.ts'];
+    assert.doesNotThrow(() => canEdit(implementer, product));
+    assert.doesNotThrow(() => canEdit(sdet, tests));
+    assert.throws(() => canEdit(sdet, product), /outside its authority/);
+    assert.throws(() => canEdit(implementer, tests), /outside its authority/);
+    const record = path => `:100644 100644 aaaaaaa bbbbbbb M\0${path}\0`;
+    assert.doesNotThrow(() => validateStagedDiff([...product, ...tests].map(record).join('')));
+
+    for (const path of [
+        'src/services/Auth/GraphAuthProvider.ts', 'src/services/Graph/GraphProvider.ts',
+        'src/services/TelemetryProvider.ts', 'src/commands/Accounts/SignIn.ts',
+        'src/commands/ContainerType/GrantExtensionAppPermissions.ts',
+        'src/services/StorageExplorer/graphClient.ts', 'src/services/StorageExplorer/uploadAuth.ts',
+        'src/services/StorageExplorer/PermissionGraphService.ts', 'src/services/StorageExplorer/operationSchemas.ts',
+        'webview-ui/src/api/protocol.ts', 'webview-ui/src/api/rpc.ts', 'webview-ui/src/api/services/AuthorizationService.ts',
+        'package.json', 'webview-ui/package-lock.json', '.github/workflows/feature-intake.yml',
+    ]) {
+        assert.throws(() => canEdit(implementer, [path]), /outside its authority/, path);
+        assert.equal(publishablePath(path), false, path);
+        assert.throws(() => validateStagedDiff(record(path)), /outside the publishing scope/, path);
+    }
 });
 
 test('authorization and handoff require a bot readiness pass for the exact issue content', async () => {
