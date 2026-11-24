@@ -107,6 +107,7 @@ test('a vague notification request gets concrete questions without invoking the 
 test('reviewer diagnostics classify errors without propagating raw SDK text', () => {
     assert.equal(classifyFailure(new Error('HTTP 401 with private details'), 'service'), 'credential');
     assert.equal(classifyFailure(new Error('model missing'), 'model'), 'model');
+    assert.equal(classifyFailure(new Error('SDK protocol version mismatch: unsupported version'), 'startup'), 'protocol');
     assert.equal(classifyFailure(new Error('timed out'), 'service'), 'service');
     assert.deepEqual(parseReadiness('```json\n{"questions":[]}\n```'), { status: 'ready', feedback: [] });
 });

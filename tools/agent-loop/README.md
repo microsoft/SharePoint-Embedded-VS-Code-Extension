@@ -102,6 +102,23 @@ A reviewer failure is not an author action: the bot gives a safe failure categor
 the failed Actions run without labeling the request `needs-info`. A maintainer can rerun triage
 after addressing the error. Implementation still requires a readiness pass for the current issue.
 
+To exercise the actual reviewer locally, run `npm run agent:build`, point
+`AGENT_LOOP_COPILOT_COMMAND` at a native Copilot CLI **1.0.106** executable, then run
+`node tools/agent-loop/review-feature.mjs smoke`. It uses a synthetic request and your local
+Copilot sign-in (or `COPILOT_GITHUB_TOKEN` if already configured) and does not touch any issue.
+The smoke command and Actions disable CLI auto-updates so they use the intended runtime. If
+changing the runtime pin, check the SDK handshake and a real synthetic review together.
+
+For example, on Windows x64:
+
+```powershell
+$cli = Join-Path $env:TEMP 'spe-copilot-1.0.106'
+npm install --prefix $cli --no-save --ignore-scripts '@github/copilot-win32-x64@1.0.106'
+$env:AGENT_LOOP_COPILOT_COMMAND = Join-Path $cli 'node_modules\@github\copilot-win32-x64\copilot.exe'
+npm run agent:build
+node tools\agent-loop\review-feature.mjs smoke
+```
+
 When the current revision passes, the bot comment says **Ready for `agent-ready` (awaiting
 maintainer approval)**. Implementation never starts from readiness review alone, regardless of
 who filed the issue. An approved maintainer must apply `agent-ready` to start implementation.

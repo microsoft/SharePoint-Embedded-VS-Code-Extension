@@ -12,6 +12,7 @@ const reviewerFailures = {
     setup: 'The runner could not prepare the Copilot CLI or SDK.',
     credential: 'The Copilot credential is missing, expired, or was rejected. A maintainer should check the feature-agent environment secret and Copilot access.',
     startup: 'The Copilot CLI or SDK session could not start.',
+    protocol: 'The Copilot CLI and SDK use incompatible protocol versions. A maintainer should check the workflow’s pinned runtime.',
     model: 'The selected Copilot model could not be loaded. A maintainer should check AGENT_LOOP_MODEL and account access.',
     service: 'Copilot did not complete the review. This can be a service, network, quota, or timeout error.',
     response: 'Copilot returned a review that could not be used.',
@@ -32,6 +33,7 @@ function failureResult(code) {
 export function classifyFailure(error, stage) {
     if (error instanceof ReadinessFailure) return error.code;
     const detail = error instanceof Error ? error.message : '';
+    if (/SDK protocol version mismatch/i.test(detail)) return 'protocol';
     if (/\b401\b|unauthenticated|bad credentials|not authenticated|token (?:is )?expired/i.test(detail)) return 'credential';
     return stage;
 }
@@ -63,8 +65,8 @@ export function parseReadiness(text) {
     return { status: feedback.length ? 'needs-info' : 'ready', feedback: [...new Set(feedback)] };
 }
 
-async function askCopilot(brief, env) {
-    if (!env.COPILOT_GITHUB_TOKEN) throw new ReadinessFailure('credential');
+async function askCopilot(brief, env, { useLocalLogin = false } = {}) {
+    if (!useLocalLogin && !env.COPILOT_GITHUB_TOKEN) throw new ReadinessFailure('credential');
     let scratch;
     let client;
     let session;
@@ -77,8 +79,15 @@ async function askCopilot(brief, env) {
         const cliPath = await resolveSdkCliPath(env.AGENT_LOOP_COPILOT_COMMAND ?? 'copilot', scratch);
         client = createSdkClient({
             cliPath, workingDirectory: scratch,
-            environment: { PATH: env.PATH, HOME: scratch, USERPROFILE: scratch, SystemRoot: env.SystemRoot,
-                TEMP: env.TEMP, TMP: env.TMP, COPILOT_GITHUB_TOKEN: env.COPILOT_GITHUB_TOKEN },
+            environment: {
+                PATH: env.PATH, HOME: useLocalLogin ? env.HOME : scratch,
+                USERPROFILE: useLocalLogin ? env.USERPROFILE : scratch, SystemRoot: env.SystemRoot,
+                LOCALAPPDATA: useLocalLogin ? env.LOCALAPPDATA : undefined,
+                APPDATA: useLocalLogin ? env.APPDATA : undefined,
+                XDG_CONFIG_HOME: useLocalLogin ? env.XDG_CONFIG_HOME : undefined,
+                TEMP: env.TEMP, TMP: env.TMP, COPILOT_GITHUB_TOKEN: env.COPILOT_GITHUB_TOKEN,
+                AGENT_LOOP_DISABLE_CLI_AUTO_UPDATE: env.AGENT_LOOP_DISABLE_CLI_AUTO_UPDATE,
+            },
         });
         await client.start();
         if (!(await client.getAuthStatus()).isAuthenticated) throw new ReadinessFailure('credential');
@@ -126,6 +135,18 @@ async function askCopilot(brief, env) {
         if (error) throw error;
     }
 }
+
+const smokeBrief = {
+    title: 'Confirm a successful container creation',
+    problem: 'Developers creating containers in Storage Explorer cannot distinguish success from the dialog simply closing.',
+    behavior: 'After the create operation confirms success, close the dialog and show a success notice. Preserve current errors on failure.',
+    criteria: [
+        'When Create succeeds for Demo, show one notice reading Container Demo created successfully.',
+        'While creation is pending, after a failure, or after canceling, no success notice is shown.',
+        'Dismissing the notice leaves Demo visible in the list and does not steal keyboard focus.',
+    ],
+    impact: 'A dismissible success notice appears inside the Storage Explorer webview above the container list.',
+};
 
 function commentBody(revision, result, runUrl) {
     const lines = result.feedback.map((line) => `- ${line.replace(/[\\`*_{}\[\]()#+|~]/g, '\\$&')}`);
@@ -185,8 +206,26 @@ export async function publishReview(github, plan, modelResult, { runUrl } = {}) 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
     const env = process.env;
     const mode = process.argv[2];
-    const planFile = join(env.RUNNER_TEMP, 'feature-readiness-plan.json');
-    const resultFile = join(env.RUNNER_TEMP, 'feature-readiness-result.json');
+    if (mode === 'smoke') {
+        try {
+            const local = env.GITHUB_ACTIONS !== 'true' && !env.COPILOT_GITHUB_TOKEN;
+            const result = await askCopilot(smokeBrief, {
+                ...env, AGENT_LOOP_MODEL: env.AGENT_LOOP_MODEL || 'gpt-6.2-sol', AGENT_LOOP_DISABLE_CLI_AUTO_UPDATE: '1',
+            }, { useLocalLogin: local });
+            console.log(`Copilot returned a valid synthetic readiness verdict: ${result.status}. No GitHub issue was changed.`);
+        } catch (error) {
+            if (!(error instanceof ReadinessFailure)) throw error;
+            console.error(`Readiness smoke failed (${error.code}): ${error.message}`);
+            process.exitCode = 1;
+        }
+    } else {
+        const planFile = join(env.RUNNER_TEMP, 'feature-readiness-plan.json');
+        const resultFile = join(env.RUNNER_TEMP, 'feature-readiness-result.json');
+        await runWorkflowMode(mode, env, planFile, resultFile);
+    }
+}
+
+async function runWorkflowMode(mode, env, planFile, resultFile) {
     if (mode === 'review') {
         const plan = JSON.parse(await readFile(planFile, 'utf8'));
         if (plan.kind !== 'model') throw new Error('Expected a model review plan.');

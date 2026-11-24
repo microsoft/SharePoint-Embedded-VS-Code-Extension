@@ -37,7 +37,7 @@ export interface SdkModelInfo {
 interface SdkModule {
     CopilotClient: new (options: Record<string, unknown>) => SdkClientLike;
     RuntimeConnection: {
-        forStdio(options: { path: string }): unknown;
+        forStdio(options: { path: string; args?: string[] }): unknown;
     };
 }
 
@@ -107,7 +107,8 @@ export function createSdkClient(options: SdkClientFactoryOptions): SdkClientLike
     const clientOptions: Record<string, unknown> = {
         mode: 'copilot-cli',
         connection: RuntimeConnection.forStdio({
-            path: options.cliPath
+            path: options.cliPath,
+            args: options.environment.AGENT_LOOP_DISABLE_CLI_AUTO_UPDATE === '1' ? ['--no-auto-update'] : undefined
         }),
         workingDirectory: options.workingDirectory,
         env: options.environment,

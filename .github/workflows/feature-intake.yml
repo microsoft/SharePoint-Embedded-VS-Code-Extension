@@ -6,6 +6,11 @@ on:
 
 permissions: {}
 
+env:
+  # Keep this CLI compatible with the protocol version in the locked Copilot SDK.
+  AGENT_LOOP_DISABLE_CLI_AUTO_UPDATE: '1'
+  AGENT_LOOP_COPILOT_PACKAGE: '@github/copilot-linux-x64@1.0.106'
+
 jobs:
   triage:
     if: >-
@@ -43,7 +48,7 @@ jobs:
         run: |
           npm ci --ignore-scripts
           npm run agent:build
-          npm install --global @github/copilot-linux-x64@1.0.114-0
+          npm install --global "$AGENT_LOOP_COPILOT_PACKAGE"
           printf 'AGENT_LOOP_COPILOT_COMMAND=%s\n' "$(command -v copilot-linux-x64)" >> "$GITHUB_ENV"
       - name: Review the public requirement brief
         if: steps.setup-reviewer.outcome == 'success'
@@ -98,7 +103,7 @@ jobs:
           npm ci --ignore-scripts
           npm ci --prefix webview-ui
           npm run agent:build
-          npm install --global @github/copilot-linux-x64@1.0.114-0
+          npm install --global "$AGENT_LOOP_COPILOT_PACKAGE"
           printf 'AGENT_LOOP_COPILOT_COMMAND=%s\n' "$(command -v copilot-linux-x64)" >> "$GITHUB_ENV"
           playwright_version=$(node -p "require('./package-lock.json').packages['node_modules/@playwright/test'].version")
           if [[ "$playwright_version" != '1.61.1' ]]; then
