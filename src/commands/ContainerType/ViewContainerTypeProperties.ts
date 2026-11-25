@@ -24,7 +24,7 @@ export class ViewContainerTypeProperties extends Command {
             const graphProvider = GraphProvider.getInstance();
             const containerType = await graphProvider.containerTypes.get(
                 containerTypeViewModel.containerType.id,
-                { noCache: true }
+                { noCache: true, expandPermissions: true }
             );
 
             if (!containerType) {

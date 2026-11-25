@@ -78,15 +78,22 @@ export class ContainerTypeService {
     /**
      * Get a specific container type by ID
      * GET /storage/fileStorage/containerTypes/{id}
+     * The permissions relationship is only available in beta.
      */
     async get(id: string, options?: {
         select?: string[];
         noCache?: boolean;
+        expandPermissions?: boolean;
     }): Promise<ContainerType | null> {
         try {
+            const expandPermissions = options?.expandPermissions === true;
             let request = this._client
                 .api(`${ContainerTypeService.BASE_PATH}/${id}`)
-                .version(ContainerTypeService.API_VERSION);
+                .version(expandPermissions ? 'beta' : ContainerTypeService.API_VERSION);
+
+            if (expandPermissions) {
+                request = request.expand('permissions');
+            }
 
             // Add cache-control header to prevent stale data
             if (options?.noCache) {
@@ -99,7 +106,10 @@ export class ContainerTypeService {
 
             Logger.log(`[ContainerTypeService.get] Fetching container type ${id}`);
             const response = await request.get();
-            Logger.log(`[ContainerTypeService.get] Response:`, JSON.stringify(response, null, 2));
+            // Do not log expanded responses containing owner IDs.
+            if (!expandPermissions) {
+                Logger.log(`[ContainerTypeService.get] Response:`, JSON.stringify(response, null, 2));
+            }
             return containerTypeSchema.parse(response);
         } catch (error: any) {
             console.error(`[ContainerTypeService.get] Error fetching ${id}:`, error);
@@ -115,9 +125,8 @@ export class ContainerTypeService {
      * POST /v1.0/storage/fileStorage/containerTypes
      *
      * The caller controls `billingClassification` via the payload — the
-     * service no longer hardcodes 'trial'. `permissions` is not a navigation
-     * property on fileStorageContainerType, so $expand=permissions is not
-     * supported; use `patchOwners` separately to set permissions.
+     * service no longer hardcodes 'trial'. Use `addOwner` separately to set
+     * permissions; the relationship is not exposed on v1.0.
      */
     async create(containerType: ContainerTypeCreate): Promise<ContainerType> {
         try {
