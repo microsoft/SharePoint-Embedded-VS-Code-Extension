@@ -59,6 +59,10 @@ test('maps issue text to requirements only and produces a contract accepted by t
     const contract = compileContract(issue.number, env.GITHUB_SHA, brief);
     assert.equal(contract.taskId, 'github-issue-42');
     assert.equal(contract.baseBranch, env.GITHUB_SHA);
+    assert.deepEqual(contract.limits, {
+        maxConcurrentWorkers: 1, maxRepasses: 2, maxReviewRepairs: 2,
+        maxWallClockMinutes: 240, maxMinutesPerWorker: 60, maxAiCreditsPerWorker: 240,
+    });
     assert.deepEqual(contract.acceptanceCriteria.map(({ description }) => description), [
         'Refresh restores the selected row.', 'A removed row is not selected.',
     ]);

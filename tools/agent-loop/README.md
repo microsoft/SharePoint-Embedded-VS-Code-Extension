@@ -145,6 +145,10 @@ validation, and independent read-only review still precede publication. An edit-
 is not a signal that the PM needs to provide more acceptance criteria. On the first failing
 required check, the editor receives the failure directly. The next revision starts the
 checks again; only a candidate with all required results passing goes to independent review.
+GitHub feature runs allow 240 AI credits per worker session, 60 minutes per worker response,
+and a 240-minute agent-loop budget. A fresh worker session has its own credit ceiling; these
+are not 240 credits for the entire issue. The implementation job allows 270 minutes for
+setup, execution, and packaging. The Actions summary records the configured limits.
 GitHub feature contracts separately budget up to two failed-check repairs and two actionable
 independent-review repairs, all within the same wall-clock budget. The revised candidate
 must pass every gate and a fresh independent review. A genuine blocked verdict still stops.

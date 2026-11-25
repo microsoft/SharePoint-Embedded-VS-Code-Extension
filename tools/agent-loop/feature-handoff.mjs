@@ -122,7 +122,7 @@ export async function watchFeatureRun(event, env, fetcher = fetch, wait = sleep)
     let status = runStatus(runUrl, '**Picked up.** Waiting for an implementation runner.');
     if (!await writeDelivery(event, env, github, status, { humanReview: false })) return;
     // Let the final report run even if the implementation never gets a runner.
-    const until = Date.now() + 125 * 60_000;
+    const until = Date.now() + 275 * 60_000;
     while (Date.now() < until) {
         const job = await getImplementationJob(env, fetcher);
         if (job?.status === 'completed') return;

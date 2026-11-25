@@ -7,6 +7,10 @@ import { splitIssueDelivery } from './issue-delivery-section.mjs';
 export const TITLE_PREFIX = 'Feature Request:';
 export const READY = 'agent-ready';
 export const NEEDS_INFO = 'needs-info';
+const FEATURE_LIMITS = Object.freeze({
+    maxConcurrentWorkers: 1, maxRepasses: 2, maxReviewRepairs: 2,
+    maxWallClockMinutes: 240, maxMinutesPerWorker: 60, maxAiCreditsPerWorker: 240,
+});
 const HEADINGS = ['Problem', 'Expected behavior', 'Acceptance criteria', 'UI impact'];
 export const MAX_BODY = 12_000;
 const MAX_CRITERIA = 12;
@@ -238,7 +242,7 @@ export function compileContract(issueNumber, baseCommit, brief) {
             policyFile: '.agent/policies/default-authority.json',
             approvalRequiredFor: ['network-access', 'live-cloud-mutation', 'authority-expansion'],
         },
-        limits: { maxConcurrentWorkers: 1, maxRepasses: 2, maxReviewRepairs: 2, maxWallClockMinutes: 100, maxMinutesPerWorker: 20, maxAiCreditsPerWorker: 30 },
+        limits: { ...FEATURE_LIMITS },
         requiredArtifacts: ['integration-result', 'validation-results', 'review-result'],
     };
 }

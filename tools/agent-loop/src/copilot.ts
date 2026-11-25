@@ -281,6 +281,9 @@ export function buildPrompt<T>(
             ? '- Report completed when your assigned edits are ready for integration, even if you cannot run checks yourself. Mark checks as not run; the orchestrator runs them and sends actionable failures back. Never claim that an unrun check passed.'
             : '',
         options.trustedFeatureInstructions && options.assignment.mayEdit
+            ? '- Treat the contract limits as ceilings, not evidence of exhaustion. Do not stop based on a guess about remaining AI credits or time. Complete the smallest correct implementation; report budget-exhausted only if a limit has actually been reached.'
+            : '',
+        options.trustedFeatureInstructions && options.assignment.mayEdit
             ? '- Try an existing service seam and a synthetic fixture before declaring a blocker. A source edit to construct a request is not a live service call. Put future merge, deployment and tenant consent concerns in risks, not approvalRequests. Use approvalRequests only for permission genuinely needed now, using the exact policy category. When blocked or failed, mark the affected criterion IDs and supply the applicable blockerCode. Never perform a prohibited operation.'
             : '',
         `- Work only in this isolated checkout and only within: ${options.assignment.allowedPaths.join(', ')}`,

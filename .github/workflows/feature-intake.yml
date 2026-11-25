@@ -85,7 +85,7 @@ jobs:
       startsWith(github.event.issue.title, 'Feature Request:') &&
       github.event.action == 'labeled' && github.event.label.name == 'agent-ready' && github.run_attempt == 1
     runs-on: ubuntu-latest
-    timeout-minutes: 130
+    timeout-minutes: 280
     permissions:
       actions: read
       contents: read
@@ -106,7 +106,7 @@ jobs:
       startsWith(github.event.issue.title, 'Feature Request:') &&
       github.event.action == 'labeled' && github.event.label.name == 'agent-ready' && github.run_attempt == 1
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 270
     concurrency:
       group: feature-agent-${{ github.event.issue.number }}
       cancel-in-progress: false
@@ -203,6 +203,8 @@ jobs:
             echo '::error::The isolated validation image is unavailable.'
             exit 1
           fi
+          jq -r '.limits | "Configured feature budget: \(.maxAiCreditsPerWorker) AI credits per worker session; \(.maxMinutesPerWorker) minutes per worker response; \(.maxWallClockMinutes) minutes for the agent loop."' \
+            .agent-runs/github-intake-contract.json | tee -a "$GITHUB_STEP_SUMMARY"
           result="$RUNNER_TEMP/feature-agent-result.json"
           diagnostics=$(mktemp "$RUNNER_TEMP/feature-agent-diagnostics.XXXXXX")
           export AGENT_LOOP_UX_EVIDENCE_ROOT
