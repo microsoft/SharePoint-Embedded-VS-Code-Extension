@@ -100,7 +100,6 @@ jobs:
       approved: ${{ steps.intake.outputs.approved }}
       agent-stage: ${{ steps.agent.outputs.stage }}
       artifact-id: ${{ steps.review.outputs.artifact-id }}
-      auto-publish: ${{ steps.agent.outputs.auto-publish }}
       review-files: ${{ steps.agent.outputs.review-files }}
       vsix-url: ${{ steps.vsix.outputs.artifact-url }}
       vsix-id: ${{ steps.vsix.outputs.artifact-id }}
@@ -314,7 +313,7 @@ jobs:
 
   publish:
     needs: implement
-    if: needs.implement.outputs.vsix-url != '' && needs.implement.outputs.artifact-id != '' && needs.implement.outputs.auto-publish == 'true'
+    if: needs.implement.outputs.vsix-url != '' && needs.implement.outputs.artifact-id != ''
     runs-on: ubuntu-latest
     timeout-minutes: 5
     concurrency:
@@ -435,14 +434,12 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           FEATURE_REQUEST_APPROVERS: ${{ vars.FEATURE_REQUEST_APPROVERS }}
           IMPLEMENT_RESULT: ${{ needs.implement.result }}
-          PUBLISH_RESULT: ${{ needs.publish.result }}
           IMPLEMENT_APPROVED: ${{ needs.implement.outputs.approved }}
           AGENT_STAGE: ${{ needs.implement.outputs.agent-stage }}
           PATCH_ARTIFACT_ID: ${{ needs.implement.outputs.artifact-id }}
           VSIX_ARTIFACT_ID: ${{ needs.implement.outputs.vsix-id }}
           UX_SCREENSHOT_COMMIT: ${{ needs.publish-ux-preview.outputs.commit }}
           REVIEW_FILES: ${{ needs.implement.outputs.review-files }}
-          AUTO_PUBLISH: ${{ needs.implement.outputs.auto-publish }}
           BRANCH_PUSHED: ${{ needs.publish.outputs.branch-pushed }}
           DRAFT_PR_NUMBER: ${{ needs.publish.outputs.pr-number }}
           PR_POLICY_BLOCKED: ${{ needs.publish.outputs.pr-policy-blocked }}

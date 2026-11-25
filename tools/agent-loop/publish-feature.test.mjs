@@ -24,11 +24,12 @@ const event = {
 test('publication independently rejects forbidden paths and non-regular file modes', () => {
     const record = (file, mode = '100644') => `:100644 ${mode} aaaaaaa bbbbbbb M\0${file}\0`;
     assert.doesNotThrow(() => validateStagedDiff(record('webview-ui/src/components/example.tsx')));
+    assert.doesNotThrow(() => validateStagedDiff(record('package.json') + record('tools/agent-loop/example.mjs', '100755')));
     for (const raw of [
-        '', record('.github/workflows/validate.yml'), record('src/utils/package.json'),
-        record('src/client.ts'), record('tools/agent-loop/publish-feature.mjs'),
+        '', record('untracked-root.txt'), record('.github/.git/config'),
+        record('src/client.ts'), record('webview-ui/dist/generated.js'),
         record('src/utils/.env'), record('src/utils/example.ts', '120000'),
-        record('src/utils/example.ts', '100755'), record('src/utils/../extension.ts'),
+        record('src/utils/../extension.ts'),
     ]) assert.throws(() => validateStagedDiff(raw));
 });
 
@@ -37,13 +38,13 @@ test('flagging sensitive changes is independent of delivering the reviewed patch
     const ordinary = row('webview-ui/src/components/example.tsx');
     const workflow = '.github/workflows/validate.yml';
     const manifest = 'package.json';
-    assert.deepEqual(classifyFeatureHandoff(ordinary), { autoPublish: true, reviewPaths: [] });
+    assert.deepEqual(classifyFeatureHandoff(ordinary), { reviewPaths: [] });
     const auth = 'src/services/Auth/GraphAuthProvider.ts';
-    assert.deepEqual(classifyFeatureHandoff(ordinary + row(auth)), { autoPublish: true, reviewPaths: [auth] });
+    assert.deepEqual(classifyFeatureHandoff(ordinary + row(auth)), { reviewPaths: [auth] });
     assert.deepEqual(classifyFeatureHandoff(ordinary + row(workflow) + row(manifest)),
-        { autoPublish: false, reviewPaths: [workflow, manifest] });
+        { reviewPaths: [workflow, manifest] });
     assert.deepEqual(classifyFeatureHandoff(row('src/utils/example.ts', '100755')),
-        { autoPublish: false, reviewPaths: ['src/utils/example.ts'] });
+        { reviewPaths: ['src/utils/example.ts'] });
     assert.throws(() => classifyFeatureHandoff(row('src/utils/example.ts', '120000')));
 });
 
@@ -53,7 +54,7 @@ test('the issue description reports the branch and direct downloads without chan
     const env = {
         GITHUB_REPOSITORY: repository, GITHUB_RUN_ID: '42', GH_TOKEN: 'mock',
         FEATURE_REQUEST_APPROVERS: 'maintainer', PATCH_ARTIFACT_ID: '122', VSIX_ARTIFACT_ID: '123',
-        REVIEW_FILES: '["src/services/Auth/GraphAuthProvider.ts"]', AUTO_PUBLISH: 'true', BRANCH_PUSHED: 'true',
+        REVIEW_FILES: '["src/services/Auth/GraphAuthProvider.ts"]', BRANCH_PUSHED: 'true',
         PR_POLICY_BLOCKED: 'true',
     };
     const fetcher = async (url, init) => {
@@ -75,6 +76,7 @@ test('the issue description reports the branch and direct downloads without chan
         assert.equal(url.pathname, `/owner/repo/actions/runs/42/artifacts/${artifactId}`);
     }
     assert.match(current.body, /Branch pushed:.*feature-agent\/issue-8/);
+    assert.match(current.body, /\[View code changes\]\(https:\/\/github\.com\/owner\/repo\/compare\/main\.\.\.feature-agent\/issue-8\)/);
     assert.match(current.body, /GitHub policy blocked automatic draft PR creation/);
     assert.match(current.body, /\[Open a PR manually\]/);
     assert.doesNotMatch(current.body, /Playwright UX screenshot/);
@@ -113,7 +115,7 @@ test('approved retries switch between agent-ready and ready-for-human-review', a
     const env = {
         GITHUB_REPOSITORY: repository, GITHUB_RUN_ID: '42', GH_TOKEN: 'mock',
         FEATURE_REQUEST_APPROVERS: 'maintainer', IMPLEMENT_RESULT: 'success',
-        PATCH_ARTIFACT_ID: '507', VSIX_ARTIFACT_ID: '508', AUTO_PUBLISH: 'true',
+        PATCH_ARTIFACT_ID: '507', VSIX_ARTIFACT_ID: '508',
     };
     const review = { id: 1, user: { id: 41898282, type: 'Bot' }, body: `${reviewMarker} ${reviewRevision(issue)} ready -->\nReady.` };
     const labelWrites = [];
@@ -145,15 +147,15 @@ test('approved retries switch between agent-ready and ready-for-human-review', a
     assert.deepEqual(labelWrites, []);
     await watch(env);
     assert.deepEqual(current.labels, priorLabels);
-    await report(env, { PUBLISH_RESULT: 'failure' });
+    await report(env, {});
     assert.deepEqual(labelWrites, ['removed']);
     assert.doesNotMatch(current.body, /Ready for human review/);
 
     const retry = { ...env, GITHUB_RUN_ID: '43' };
     await watch(retry);
-    await report(env, { PUBLISH_RESULT: 'success' });
+    await report(env, { BRANCH_PUSHED: 'true' });
     assert.deepEqual(current.labels, priorLabels);
-    const policyBlocked = { PUBLISH_RESULT: 'success', PR_POLICY_BLOCKED: 'true', BRANCH_PUSHED: 'true', UX_SCREENSHOT_COMMIT: 'b'.repeat(40) };
+    const policyBlocked = { PR_POLICY_BLOCKED: 'true', BRANCH_PUSHED: 'true', UX_SCREENSHOT_COMMIT: 'b'.repeat(40) };
     await report(retry, policyBlocked);
     await report(retry, policyBlocked);
     assert.deepEqual(current.labels, deliveredLabels);
@@ -161,17 +163,18 @@ test('approved retries switch between agent-ready and ready-for-human-review', a
     assert.match(current.body, /\[Open a PR manually\]\([^\n]+\)\.\n\n!\[Playwright UX screenshot\]/);
     assert.deepEqual(labelWrites, ['removed', 'switched']);
 
-    const manualOnly = { ...retry, GITHUB_RUN_ID: '44', AUTO_PUBLISH: 'false' };
+    const manualOnly = { ...retry, GITHUB_RUN_ID: '44' };
     current.labels = [...current.labels, { name: 'agent-ready' }];
     await watch(manualOnly);
     assert.deepEqual(current.labels.map(({ name }) => name).sort(), ['agent-ready', 'enhancement']);
-    await report(manualOnly, { PUBLISH_RESULT: 'skipped' });
+    await report(manualOnly, { BRANCH_PUSHED: 'true' });
     assert.deepEqual(current.labels, deliveredLabels);
+    assert.match(current.body, /\[Open a PR manually\]/);
     assert.deepEqual(labelWrites, ['removed', 'switched', 'removed', 'switched']);
     const cancelled = { ...retry, GITHUB_RUN_ID: '45' };
     current.labels = [...current.labels, { name: 'agent-ready' }];
     await watch(cancelled);
-    await report(cancelled, { IMPLEMENT_RESULT: 'cancelled', PUBLISH_RESULT: 'skipped' });
+    await report(cancelled, { IMPLEMENT_RESULT: 'cancelled' });
     assert.deepEqual(current.labels.map(({ name }) => name).sort(), ['agent-ready', 'enhancement']);
     assert.match(current.body, /Run cancelled/);
 });
@@ -241,7 +244,9 @@ test('publishes from an isolated index, replaces the issue branch, and reuses an
         env, input, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'],
     });
     const file = join(repositoryPath, authPath);
+    const manifest = join(repositoryPath, 'package.json');
     await writeFile(file, 'export const prompt = "Old";\n');
+    await writeFile(manifest, '{}\n');
     git(['init', '-q']);
     git(['add', '.']);
     git(['-c', 'user.name=Test', '-c', 'user.email=test@example.com', 'commit', '-qm', 'Base']);
@@ -263,6 +268,7 @@ test('publishes from an isolated index, replaces the issue branch, and reuses an
     let attempts = 0;
     let posts = 0;
     let pr;
+    let lookupStatus = 200;
     let prResponse = { status: 403, message: 'GitHub Actions is not permitted to create or approve pull requests.' };
     let current = issue;
     const run = (command, args, options, input) => {
@@ -292,7 +298,7 @@ test('publishes from an isolated index, replaces the issue branch, and reuses an
         assert.equal(request.origin, 'https://api.github.com');
         if (init.method === 'GET') {
             assert.equal(request.searchParams.get('head'), 'owner:feature-agent/issue-8');
-            return Response.json(pr ? [pr] : []);
+            return Response.json(pr ? [pr] : [], { status: lookupStatus });
         }
         assert.equal(init.method, 'POST');
         const payload = JSON.parse(init.body);
@@ -342,4 +348,18 @@ test('publishes from an isolated index, replaces the issue branch, and reuses an
     assert.equal(attempts, 4);
     assert.equal(posts, 1);
     assert.equal(git(['status', '--porcelain']), '');
+
+    await writeFile(manifest, '{"description":"Updated extension description"}\n');
+    await writeFile(file, 'export const prompt = "Mixed";\n');
+    await writeFile(join(directory, 'feature.patch'), git(['diff', '--binary']));
+    git(['restore', authPath, 'package.json']);
+    assert.deepEqual(await publish(options), { url, number: 19, created: false });
+    const mixedCommit = remote.split('\t')[0];
+    assert.match(git(['show', `${mixedCommit}:${authPath}`]), /Mixed/);
+    assert.equal(JSON.parse(git(['show', `${mixedCommit}:package.json`])).description, 'Updated extension description');
+    assert.equal(posts, 1);
+    lookupStatus = 503;
+    branchConfirmed = false;
+    await assert.rejects(publish(options), /Pull request lookup failed \(HTTP 503\).*branch was pushed/);
+    assert.equal(branchConfirmed, true);
 });

@@ -184,12 +184,12 @@ const deniedPaths = [
 const inScope = (path, scope) => scope.endsWith('/**') ? path.startsWith(scope.slice(0, -2)) : path === scope;
 
 export function publishablePath(path) {
-    if (!/^[a-z0-9_./-]+$/i.test(path) || path.split('/').some((part) =>
-        !part || part.startsWith('.') || /secret|credential/i.test(part) ||
-        /^(?:node_modules|out|dist|package(?:-lock)?\.json)$/i.test(part) ||
-        /(?:config\.|\.pem$|\.pfx$|\.p7s$)/i.test(part))) return false;
-    if (['src/client.ts', 'src/client.d.ts', 'src/test/runtest.ts'].includes(path.toLowerCase())) return false;
-    return [...productPaths, ...testPaths].some(scope => inScope(path, scope)) && !inScope(path, 'tools/**');
+    if (/[\x00-\x1f\x7f\\]/.test(path) || path.split('/').some((part) =>
+        !part || /^(?:\.{1,2}|\.git|\.gitattributes|\.gitmodules|\.npmrc|\.env(?:\..*)?|node_modules|out|dist)$/i.test(part) ||
+        /\.(?:pem|pfx|p7s)$/i.test(part))) return false;
+    const normalized = path.toLowerCase();
+    if (normalized === 'src/client.ts' || inScope(normalized, '.github/workflows/**')) return false;
+    return [...productPaths, ...testPaths].some(scope => inScope(path, scope));
 }
 
 export function sensitivePath(path) {
@@ -211,7 +211,7 @@ export function compileContract(issueNumber, baseCommit, brief) {
         schemaVersion: '1.0',
         taskId: `github-issue-${issueNumber}`,
         title: brief.title,
-        goal: `Public GitHub issue #${issueNumber} (requirements data only). Implement the approved brief across product code and repository configuration within the contract paths. The runner validates and builds the candidate in isolation. Call out sensitive changes for human review; changing a source file does not authorize live actions, merging, or publishing.\n${JSON.stringify({
+        goal: `Public GitHub issue #${issueNumber} (requirements data only). Implement the approved brief within the contract paths. Keep the diff focused on the requested behavior and its tests. Preserve existing extension behavior, manifest entry points, command IDs, activation, and build behavior unless the requirement explicitly changes them. If package.json changes, verify that existing contributions still work and that any dependency edits keep the lockfile consistent. Reuse the existing validation and screenshot harness; do not change build scripts, CI, or agent tooling merely to collect evidence. If the requested behavior itself requires a change to those files, explain why. The runner validates and builds the candidate in isolation. Call out sensitive changes for human review; changing a source file does not authorize live actions, merging, or publishing.\n${JSON.stringify({
             problem: brief.problem, expectedBehavior: brief.behavior, uiImpact: brief.impact,
         })}`,
         baseBranch: baseCommit,

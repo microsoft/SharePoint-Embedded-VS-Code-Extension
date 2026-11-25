@@ -3,14 +3,13 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import { pathToFileURL } from 'node:url';
 import { approval, hasLabel, intake, issueClient, READY, sensitivePath } from './feature-issue.mjs';
 import { appendIssueDelivery, splitIssueDelivery } from './issue-delivery-section.mjs';
-import { requiresManualPublishing, reviewedDiff } from './publish-feature.mjs';
+import { reviewedDiff } from './publish-feature.mjs';
 
 const HUMAN_REVIEW = 'ready-for-human-review';
 
 export function classifyFeatureHandoff(raw) {
     const files = reviewedDiff(raw);
-    const reviewPaths = files.filter(file => file.executable || sensitivePath(file.path)).map(({ path }) => path);
-    return { autoPublish: !files.some(requiresManualPublishing), reviewPaths };
+    return { reviewPaths: files.filter(file => file.executable || sensitivePath(file.path)).map(({ path }) => path) };
 }
 
 function deliveryContext(event, env, fetcher) {
@@ -175,17 +174,16 @@ export async function updateFeatureHandoff(event, env, fetcher = fetch) {
         throw new Error('Expected the reviewed patch and VSIX artifact IDs.');
     }
     const branch = `feature-agent/issue-${event.issue.number}`;
-    const noDraft = env.PR_POLICY_BLOCKED === 'true'
-        ? `GitHub policy blocked automatic draft PR creation. [Open a PR manually](${repoUrl}/compare/${encodeURIComponent(event.repository.default_branch)}...${branch}?expand=1).`
-        : 'No draft PR was opened by this run.';
-    const delivery = /^[1-9]\d*$/.test(env.DRAFT_PR_NUMBER ?? '') ? `Draft PR: [#${env.DRAFT_PR_NUMBER}](${repoUrl}/pull/${env.DRAFT_PR_NUMBER}).`
-        : env.BRANCH_PUSHED === 'true' ? `Branch pushed: [\`${branch}\`](${repoUrl}/tree/${branch}). ${noDraft}`
-        : env.AUTO_PUBLISH === 'true' ? 'The publisher did not confirm a branch push. See the run for details.'
-        : 'No branch was pushed automatically because the patch changes CI or build controls, or contains an unsupported file path or mode.';
-    const humanReview = env.IMPLEMENT_RESULT === 'success' && (
-        env.PUBLISH_RESULT === 'success' ||
-        (env.PUBLISH_RESULT === 'skipped' && env.AUTO_PUBLISH === 'false')
-    );
+    const compareUrl = `${repoUrl}/compare/${encodeURIComponent(event.repository.default_branch)}...${branch}`;
+    const hasBranch = env.BRANCH_PUSHED === 'true';
+    const hasPR = /^[1-9]\d*$/.test(env.DRAFT_PR_NUMBER ?? '');
+    const delivery = hasBranch ? [
+        `Branch pushed: [\`${branch}\`](${repoUrl}/tree/${branch}). [View code changes](${compareUrl}).`,
+        ...(env.PR_POLICY_BLOCKED === 'true' ? ['GitHub policy blocked automatic draft PR creation.'] : []),
+        hasPR ? `Draft PR: [#${env.DRAFT_PR_NUMBER}](${repoUrl}/pull/${env.DRAFT_PR_NUMBER}).`
+            : `[Open a PR manually](${compareUrl}?expand=1).`,
+    ].join('\n\n') : 'No feature branch was published. Use the reviewed patch to see the code; see the run for the publishing error.';
+    const humanReview = env.IMPLEMENT_RESULT === 'success' && hasBranch;
     const markdown = [
         '## Feature agent delivery', '',
         humanReview ? '**Ready for human review.**' : '**Build complete for the approved issue revision.**',
@@ -208,9 +206,9 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
         const update = process.argv[2] === 'watch' ? watchFeatureRun : updateFeatureHandoff;
         await update(event, process.env);
     } else {
-        const { autoPublish, reviewPaths } = classifyFeatureHandoff(readFileSync(0, 'utf8'));
+        const { reviewPaths } = classifyFeatureHandoff(readFileSync(0, 'utf8'));
         const files = reviewPaths.slice(0, 40).map(path => path.replace(/[^\w./-]/g, '?').slice(0, 240));
-        appendFileSync(process.env.GITHUB_OUTPUT, `auto-publish=${autoPublish}\nreview-files=${JSON.stringify(files)}\n`);
+        appendFileSync(process.env.GITHUB_OUTPUT, `review-files=${JSON.stringify(files)}\n`);
         if (reviewPaths.length) {
             appendFileSync(process.env.GITHUB_STEP_SUMMARY, [
                 '### Files for maintainer review', '',

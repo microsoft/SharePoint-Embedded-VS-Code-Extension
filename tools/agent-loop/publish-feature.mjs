@@ -23,12 +23,12 @@ export function reviewedDiff(raw) {
     return files;
 }
 
-export function requiresManualPublishing(file) {
-    return file.executable || !publishablePath(file.path);
-}
-
 export function validateStagedDiff(raw) {
-    if (reviewedDiff(raw).some(requiresManualPublishing)) {
+    const files = reviewedDiff(raw);
+    if (files.some(({ path }) => path.toLowerCase().startsWith('.github/workflows/'))) {
+        throw new Error('Workflow definitions require a maintainer push because GitHub can run them before merge. No partial branch was published.');
+    }
+    if (files.some(file => !publishablePath(file.path))) {
         throw new Error('The review patch includes files or file modes outside the publishing scope.');
     }
 }
@@ -71,12 +71,6 @@ export async function publish({ event, env, directory, run = execute, fetcher = 
         if (!decision.approved) throw new Error(decision.message);
     }
     await requireApproval();
-    const query = new URLSearchParams({ state: 'open', head: `${owner}:${branch}`, base });
-    const lookup = await pullRequestApi(`${endpoint}?${query}`);
-    if (!lookup.ok) throw new Error(`Pull request lookup failed (HTTP ${lookup.status}).`);
-    const existing = await lookup.json();
-    if (!Array.isArray(existing)) throw new Error('Unexpected pull request lookup response.');
-
     const patch = join(directory, 'feature.patch');
     const baseFile = join(directory, 'feature-base-sha.txt');
     const [patchStat, baseStat] = await Promise.all([lstat(patch), lstat(baseFile)]);
@@ -119,6 +113,11 @@ export async function publish({ event, env, directory, run = execute, fetcher = 
             'push', '--no-verify', `--force-with-lease=${ref}:${remoteCommit}`, upstream, `${commit}:${ref}`]);
     }
     await onBranch();
+    const query = new URLSearchParams({ state: 'open', head: `${owner}:${branch}`, base });
+    const lookup = await pullRequestApi(`${endpoint}?${query}`);
+    if (!lookup.ok) throw new Error(`Pull request lookup failed (HTTP ${lookup.status}). The feature branch was pushed.`);
+    const existing = await lookup.json();
+    if (!Array.isArray(existing)) throw new Error('Unexpected pull request lookup response.');
     if (existing.length) {
         return { url: existing[0].html_url, number: existing[0].number, created: false };
     }

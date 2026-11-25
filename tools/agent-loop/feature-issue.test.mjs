@@ -72,7 +72,7 @@ test('maps issue text to requirements only and produces a contract accepted by t
     validateContractInvariants(process.cwd(), contract, require('../../.agent/policies/default-authority.json'));
 });
 
-test('a feature can publish application changes without automatically publishing CI controls', () => {
+test('a feature can publish application and configuration changes within the edit scope', () => {
     const brief = assessIssue({
         ...issue,
         title: `${TITLE_PREFIX} Confirm container creation`,
@@ -121,22 +121,25 @@ test('a feature can publish application changes without automatically publishing
     assert.doesNotThrow(() => validateStagedDiff([...product, ...tests].map(record).join('')));
 
     for (const path of [
-        'package.json', 'webview-ui/package-lock.json', '.github/workflows/feature-intake.yml',
+        'package.json', 'webview-ui/package-lock.json',
         '.agent/policies/default-authority.json', 'tools/agent-loop/feature-issue.mjs',
         'tsconfig.json', 'src/client.d.ts',
     ]) {
         assert.doesNotThrow(() => canEdit(implementer, [path]), path);
-        assert.equal(publishablePath(path), false, path);
-        assert.throws(() => validateStagedDiff(record(path)), /outside the publishing scope/, path);
+        assert.equal(publishablePath(path), true, path);
+        assert.doesNotThrow(() => validateStagedDiff(record(path)), path);
     }
+    assert.equal(publishablePath('.github/workflows/feature-intake.yml'), false);
+    assert.throws(() => validateStagedDiff(record('package.json') + record('.github/workflows/feature-intake.yml')),
+        /Workflow definitions require a maintainer push/);
     for (const path of ['.git/config', '.npmrc', 'src/client.ts', 'webview-ui/.env', 'webview-ui/node_modules/example/index.js']) {
         assert.throws(() => canEdit(implementer, [path]), /outside its authority/, path);
         assert.equal(publishablePath(path), false, path);
     }
     assert.doesNotThrow(() => canEdit(sdet, ['ui-tests/playwright.config.ts']));
-    assert.equal(publishablePath('ui-tests/playwright.config.ts'), false);
+    assert.equal(publishablePath('ui-tests/playwright.config.ts'), true);
     assert.doesNotThrow(() => canEdit(sdet, ['src/test/runTest.ts']));
-    assert.equal(publishablePath('src/test/runTest.ts'), false);
+    assert.equal(publishablePath('src/test/runTest.ts'), true);
 });
 
 test('authorization and handoff require a bot readiness pass for the exact issue content', async () => {

@@ -96,9 +96,10 @@ Use the [SPE feature request form](../../.github/ISSUE_TEMPLATE/feature-request.
 [intake workflow](../../.github/workflows/feature-intake.yml) triages opened, edited, and reopened
 requests. It checks the form, then uses a text-only Copilot session to look for ambiguity and
 missing verification details. It adds `needs-info` and keeps one bot comment with specific
-requests. Copilot reviews each form finding against the whole description, even for incomplete
-requests. It drops unsupported advisory findings, keeps required form corrections, and explains
-each remaining gap, why it matters, what to add, and an example the author can adapt. The
+requests. Copilot reviews the whole brief for decisions that materially affect the user outcome,
+groups related blockers, and gives paste-ready wording so the author can address them in one edit.
+It uses previous feedback on the next revision instead of asking for an exhaustive test matrix.
+Required form checks still apply, but routine implementation and testing decisions are not blockers. The
 comment identifies the model setting used. Reply by editing the issue description rather than in a comment. Each
 revision is reviewed until it passes, at which point the workflow clears `needs-info`.
 If Copilot fails, the bot gives a safe failure category and links to the failed Actions run.
@@ -147,8 +148,8 @@ from the base checkout. If a new dependency is not cached, the run fails rather 
 network access for candidate scripts. Credentials, local Git metadata and settings, runtime
 client configuration, and generated output stay outside the edit scope.
 
-The workflow pushes eligible application changes, including changes to authentication, permissions,
-and Graph services. An approved retry replaces `feature-agent/issue-<number>` with the new reviewed
+The workflow pushes the complete reviewed patch, including necessary manifest and configuration
+changes. An approved retry replaces `feature-agent/issue-<number>` with the new reviewed
 commit and updates any open PR from that branch to the default branch. Keep manual edits on a
 separate branch; the retry replaces the old branch contents. If the branch moves between lookup
 and push, Git rejects the update. If there's no open PR, the workflow attempts to open a draft
@@ -161,8 +162,8 @@ packaging. If implementation fails, it reports the failed stage and links the pa
 uploaded. On success it gives direct downloads for the VSIX, checksum, and patch, reports the
 branch or PR outcome, and lists sensitive changes to review. The workflow replaces its own section
 without changing the feature requirements or invalidating their readiness review. After a successful
-handoff it replaces `agent-ready` with `ready-for-human-review`, including when the PR must be
-opened manually or the patch is intentionally delivered without a branch. To retry, apply
+handoff with a published branch it replaces `agent-ready` with `ready-for-human-review`,
+including when the PR must be opened manually. To retry, apply
 `agent-ready` again (remove it first if still present after a failure). GitHub may briefly show
 both labels until the approved run clears `ready-for-human-review`. Failed or cancelled runs
 do not apply `ready-for-human-review`.
@@ -183,9 +184,12 @@ Trigger the real action with mocked data and call `captureWorkbench` with an ass
 against the visible UI. For example, a test for Container Types > View Properties would
 verify that a synthetic owner is visible in the JSON editor. A desktop scenario, when
 present, must pass and takes precedence over a webview screenshot for the same issue.
-Changes to CI, build controls, or the agent harness still receive a reviewed patch and VSIX, but
-require manual publication so the candidate cannot change the remote execution environment.
-Neither route merges or publishes a release.
+The issue links to **View code changes** and either the PR or **Open a PR manually**.
+Sensitive edits are flagged for human review, not omitted. Changes to GitHub Actions workflow
+definitions require a maintainer push because those definitions can run before merge. The
+publisher rejects the entire patch if it contains such a change, falls outside the allowed
+scope, or fails to push; the issue retains the reviewed patch for inspection. The workflow
+never merges or publishes a release.
 
 Feature runs default to `gpt-6.2-sol`. Set the repository Actions variable `AGENT_LOOP_MODEL`
 to another model ID available to the configured Copilot account, or to `auto` to let Copilot

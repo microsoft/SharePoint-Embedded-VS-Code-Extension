@@ -46,7 +46,7 @@ const pass = () => parseReadiness('{"checks":[],"questions":[]}');
 const verdict = (plan, checks, questions = []) =>
     parseReadiness(JSON.stringify({ checks, questions }), plan.input.findings);
 
-test('an incomplete request gets one comment, then semantic questions, then a readiness pass after edits', async () => {
+test('readiness keeps one feedback comment and supplies previous feedback on the next revision', async () => {
     const f = fixture({ ...issue, body: null });
     const incompletePlan = await prepareReview(f.github);
     assert.equal(incompletePlan.kind, 'model');
@@ -54,7 +54,8 @@ test('an incomplete request gets one comment, then semantic questions, then a re
     const checks = incompletePlan.input.findings.map(({ id, gap, why, add, example }) =>
         ({ id, feedback: { gap, why, add, example } }));
     await publishReview(f.github, incompletePlan, { ...verdict(incompletePlan, checks), model: 'gpt-6.2-sol' });
-    assert.match(f.comments[0].body, /Please address these points/);
+    assert.match(f.comments[0].body, /Please address these points together in one edit/);
+    assert.match(f.comments[0].body, /Suggested wording \(paste or adapt\)/);
     assert.match(f.comments[0].body, /Describe who encounters the problem/);
     assert.match(f.comments[0].body, /testable acceptance criteria/);
     assert.match(f.comments[0].body, /model setting: `gpt-6.2-sol`/);
@@ -64,6 +65,7 @@ test('an incomplete request gets one comment, then semantic questions, then a re
     f.current.body = issue.body;
     const modelPlan = await prepareReview(f.github);
     assert.equal(modelPlan.kind, 'model');
+    assert.match(modelPlan.input.previousFeedback, /testable acceptance criteria/);
     assert.match(reviewPrompt(modelPlan.input), /untrusted requirements data/);
     const questions = verdict(modelPlan, [], [{
         field: 'Expected behavior', gap: 'No outcome is stated when the selected item has disappeared.',
@@ -82,7 +84,10 @@ test('an incomplete request gets one comment, then semantic questions, then a re
     assert.equal(f.writes.length, 3);
 
     f.current.body = issue.body.replace('Restore selection.', 'Restore selection only when the item is still present; otherwise clear it.');
-    await publishReview(f.github, await prepareReview(f.github), pass());
+    const revisedPlan = await prepareReview(f.github);
+    assert.match(revisedPlan.input.previousFeedback, /selected item has disappeared/);
+    assert.match(reviewPrompt(revisedPlan.input), /Do not move the goalposts/);
+    await publishReview(f.github, revisedPlan, pass());
     assert.ok(f.comments[0].body.startsWith(`<!-- spe-feature-readiness:v1 ${reviewRevision(f.current)} ready -->`));
     assert.match(f.comments[0].body, /Ready for `agent-ready` \(awaiting maintainer approval\)/);
     assert.equal(f.comments.length, 1);
