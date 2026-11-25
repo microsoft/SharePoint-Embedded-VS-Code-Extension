@@ -47,6 +47,12 @@
       "type": "string",
       "minLength": 1
     },
+    "advisories": {
+      "type": "array",
+      "maxItems": 2,
+      "uniqueItems": true,
+      "items": { "enum": ["omit-optional-preview", "optional-hardening"] }
+    },
     "criteria": {
       "type": "array",
       "items": {

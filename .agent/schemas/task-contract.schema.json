@@ -130,6 +130,11 @@
           "minimum": 0,
           "maximum": 5
         },
+        "maxReviewRepairs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2
+        },
         "maxWallClockMinutes": {
           "type": "integer",
           "minimum": 5,

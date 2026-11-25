@@ -141,6 +141,9 @@ validation, and independent read-only review still precede publication. An edit-
 is not a signal that the PM needs to provide more acceptance criteria. On the first failing
 required check, the editor receives the failure directly. The next revision starts the
 checks again; only a candidate with all required results passing goes to independent review.
+GitHub feature contracts separately budget up to two failed-check repairs and two actionable
+independent-review repairs, all within the same wall-clock budget. The revised candidate
+must pass every gate and a fresh independent review. A genuine blocked verdict still stops.
 An unchanged edit-scope blocker
 does not spend retries repeating the same assignment. Other recoverable failures can retry
 up to twice per assignment within the run's time budget. Recovery uses a fresh worktree from the latest
@@ -209,6 +212,13 @@ test can assert and capture that exact state with mock data. Webview tests use
 or its smallest enclosing component. Full-window screenshots are not evidence of a
 specific UX result. API-only changes and OS-level
 dialogs do not produce a screenshot.
+
+The screenshot is optional supporting evidence unless the brief requires the image itself
+(`{ required: true }` on the capture helper). A functional assertion still fails when the
+expected UI never appears. If the UI was verified but the image cannot be captured in time,
+omit the preview. Reviewers can pass a working change with `omit-optional-preview` or
+`optional-hardening` advisories; these are not repair requests. For example, extra handling
+for a hypothetical malformed response is advisory, but confirming a rejected operation is not.
 
 For native workbench UI, add `src/test/native/github-issue-<number>.ts` exporting
 `async function run(): Promise<void>`. The feature runner loads it into desktop VS Code on

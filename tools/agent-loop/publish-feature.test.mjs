@@ -63,6 +63,7 @@ test('the issue description reports the branch and direct downloads without chan
         FEATURE_REQUEST_APPROVERS: 'maintainer', PATCH_ARTIFACT_ID: '122', VSIX_ARTIFACT_ID: '123',
         REVIEW_FILES: '["src/services/Auth/GraphAuthProvider.ts"]', BRANCH_PUSHED: 'true',
         PR_POLICY_BLOCKED: 'true', IMPLEMENT_APPROVED: 'true', IMPLEMENT_RESULT: 'success', BRANCH_COMMIT: branchCommit,
+        OMIT_PREVIEW: 'true', OPTIONAL_HARDENING: 'true', UX_SCREENSHOT_COMMIT: 'c'.repeat(40),
     };
     const fetcher = async (url, init) => {
         const branchResponse = branchApi(new URL(url).pathname);
@@ -90,10 +91,13 @@ test('the issue description reports the branch and direct downloads without chan
     assert.match(current.body, /GitHub policy blocked automatic draft PR creation/);
     assert.match(current.body, /\[Open a PR manually\]/);
     assert.doesNotMatch(current.body, /Playwright UX screenshot/);
+    assert.match(current.body, /optional screenshot was omitted/);
+    assert.match(current.body, /additional defensive handling was suggested/);
+    assert.match(current.body, /Ready for human review/);
     assert.match(current.body, /GraphAuthProvider\.ts/);
     const screenshotCommit = 'a'.repeat(40);
     current.labels = [{ name: 'agent-ready' }];
-    await updateFeatureHandoff(event, { ...env, GITHUB_RUN_ID: '43', DRAFT_PR_NUMBER: '19', UX_SCREENSHOT_COMMIT: screenshotCommit }, fetcher);
+    await updateFeatureHandoff(event, { ...env, GITHUB_RUN_ID: '43', DRAFT_PR_NUMBER: '19', UX_SCREENSHOT_COMMIT: screenshotCommit, OMIT_PREVIEW: 'false' }, fetcher);
     assert.deepEqual(methods, ['PATCH', 'PATCH']);
     assert.ok(current.body.includes(`Draft PR: [#19](https://github.com/owner/repo/pull/19).\n\n` +
         `![Playwright UX screenshot](https://raw.githubusercontent.com/owner/repo/${screenshotCommit}/ux-preview.png)`));

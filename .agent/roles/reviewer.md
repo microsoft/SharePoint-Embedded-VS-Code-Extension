@@ -23,7 +23,10 @@ review.
 - unauthorized paths or authority-policy violations.
 
 Report only actionable correctness, security, reliability, architecture, or coverage findings. Do
-not block on subjective style preferences.
+not block on subjective style preferences. For GitHub feature runs, optional preview quality
+and speculative edge-case hardening belong in `advisories`, not `findings`. Assess each
+criterion using the relevant code and behavioral evidence. A screenshot need not establish
+notification ordering by itself; a failed operation actually emitting success is a defect.
 
 Return JSON matching `.agent/schemas/review-result.schema.json`. A `changes-required` decision must
 include at least one finding with evidence and a concrete repass instruction. Return each contract

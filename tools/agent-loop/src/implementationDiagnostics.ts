@@ -1,5 +1,23 @@
 import type { ImplementationStage } from './orchestrator';
-import type { WorkerResult } from './types';
+import type { ReviewResult, WorkerResult } from './types';
+
+export function describeReviewStop(
+    review: Pick<ReviewResult, 'decision' | 'findings'> & Partial<Pick<ReviewResult, 'criteria'>>,
+    repairs: number, reviewRepairs: number
+): string {
+    const safeId = (id: string) => /^AC-\d{2,4}$/.test(id);
+    const criteria = (review.criteria ?? []).filter(c => safeId(c.id) &&
+        ['not-satisfied', 'not-verifiable'].includes(c.status)).slice(0, 12).map(c => `${c.id} ${c.status}`);
+    const findings = review.findings.filter(f => ['blocker', 'high', 'medium', 'low'].includes(f.severity) &&
+        ['correctness', 'security', 'reliability', 'testing', 'architecture', 'contract'].includes(f.category))
+        .slice(0, 6).map(f => `${f.severity} ${f.category} (${f.criterionIds.filter(safeId).slice(0, 12).join(', ') || 'general'})`);
+    return [
+        review.decision === 'blocked' ? 'Independent review was blocked.' : 'Independent review requested changes.',
+        `Repair passes: ${repairs}; review-directed: ${reviewRepairs}.`,
+        ...(criteria.length ? [`Criteria: ${criteria.join(', ')}.`] : []),
+        ...(findings.length ? [`Findings: ${findings.join('; ')}.`] : ['No structured findings reported.']),
+    ].join(' ');
+}
 
 const approvalActions = new Map([
     ['network-access', 'Use a recorded fixture or mock instead of contacting the service.'],

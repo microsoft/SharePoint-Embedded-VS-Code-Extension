@@ -234,8 +234,10 @@ export async function updateFeatureHandoff(event, env, fetcher = fetch) {
         `- [Download the reviewed patch](${runUrl}/artifacts/${env.PATCH_ARTIFACT_ID})`,
         `- [View the Actions run](${runUrl})`,
         '', delivery,
-        ...(/^[a-f0-9]{40}$/.test(env.UX_SCREENSHOT_COMMIT ?? '')
+        ...(env.OMIT_PREVIEW === 'true' ? ['', 'Review note: the optional screenshot was omitted because it did not clearly show the change.']
+            : /^[a-f0-9]{40}$/.test(env.UX_SCREENSHOT_COMMIT ?? '')
             ? ['', `![Playwright UX screenshot](https://raw.githubusercontent.com/${env.GITHUB_REPOSITORY}/${env.UX_SCREENSHOT_COMMIT}/ux-preview.png)`] : []),
+        ...(env.OPTIONAL_HARDENING === 'true' ? ['', 'Review note: additional defensive handling was suggested, but was not required for this feature.'] : []),
         '', 'Downloads require GitHub sign-in and expire after 7 days. Review the patch first, then unzip the VSIX download and use **Extensions: Install from VSIX...** in an isolated VS Code environment.',
         ...(files.length ? ['', '**Sensitive or infrastructure files to review before merging or installing:**',
             ...files.map(file => `- \`${file}\``), ...(files.length === 40 ? ['- See the patch for the full file list.'] : [])] : []),

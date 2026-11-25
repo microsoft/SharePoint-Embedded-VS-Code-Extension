@@ -6,7 +6,7 @@ import * as path from 'node:path';
 import test from 'node:test';
 import { writeRunRecord } from './evidence';
 import { committedChangedPaths } from './git';
-import { describeImplementationFailure, IncompleteWorkersError } from './implementationDiagnostics';
+import { describeImplementationFailure, describeReviewStop, IncompleteWorkersError } from './implementationDiagnostics';
 import {
     buildWorkerSdkArtifacts,
     ensureValidationClientDeclaration,
@@ -15,6 +15,7 @@ import {
     formatContinuationContext,
     formatValidationSummary,
     integrateInitialWorkers,
+    nextRepair,
     recoverWorker,
     selectTerminalWorkerResults
 } from './orchestrator';
@@ -203,9 +204,11 @@ test('a reviewer cannot pass without evidence for all required criteria', () => 
         criteria: [{ id: 'AC-01', status: 'satisfied', evidence: 'Regression test covers the outcome.' }],
     });
     const valid = report();
+    valid.advisories = ['omit-optional-preview', 'optional-hardening'];
     enforceReviewGate(valid, ['AC-01']);
     assert.equal(valid.decision, 'pass');
     const missing = report();
+    missing.advisories = ['optional-hardening'];
     enforceReviewGate(missing, ['AC-01', 'AC-02']);
     assert.equal(missing.decision, 'blocked');
     const high = report();
@@ -269,6 +272,41 @@ test('a single editor repairs the first failed gate before any reviewer invocati
     assert.equal(reviews, 0);
     assert.equal((await evaluateCandidate(true, [green, { ...green, command: 'ui' }], contract, review)).decision, 'blocked');
     assert.equal(reviews, 1);
+});
+
+test('issue 81 sequence: two failed checks do not consume the first actionable review repair', async () => {
+    const criteria = ['AC-01', 'AC-02'];
+    const contract = {
+        requiredChecks: [{ id: 'ui', command: 'ui', timeoutMinutes: 1 }],
+        acceptanceCriteria: criteria.map(id => ({ id, description: 'Container creation notification', evidence: id }))
+    };
+    const gate: ValidationResult = { command: 'ui', exitCode: 0, durationSeconds: 1, status: 'passed' };
+    const findings: ReviewResult['findings'] = [{ id: 'F-01', severity: 'high', category: 'testing',
+        criterionIds: ['AC-02'], rationale: 'Failure path is not covered', evidence: 'No assertion for rejected creation',
+        repassInstruction: 'Assert no success notice after rejected creation' }];
+    const reviewed = { decision: 'changes-required' as const, findings, summary: 'Need failure-path evidence.' };
+    let reviews = 0, reviewsRepaired = 0;
+    for (let n = 0; n < 4; n++) {
+        const results = n < 2 ? [{ ...gate, status: 'failed' as const, exitCode: 1 }] : [gate];
+        const verdict = await evaluateCandidate(true, results, contract, async () =>
+            ++reviews === 1 ? reviewed : { decision: 'pass', findings: [], summary: 'Both criteria satisfied.' });
+        const repair = nextRepair(verdict, results, n, reviewsRepaired, 2, 2);
+        assert.equal(repair, ['validation', 'validation', 'review', undefined][n]);
+        if (repair === 'review') reviewsRepaired++;
+        if (n === 3) assert.equal(verdict.decision, 'pass');
+    }
+    assert.equal(reviews, 2);
+    assert.equal(nextRepair(reviewed, [gate], 3, 1, 2, 2), 'review');
+    assert.equal(nextRepair(reviewed, [gate], 4, 2, 2, 2), undefined);
+    assert.equal(nextRepair({ ...reviewed, decision: 'blocked' }, [gate], 2, 0, 2, 2), undefined);
+    assert.equal(nextRepair(reviewed, [{ ...gate, status: 'failed' }], 3, 1, 2, 2), undefined);
+    assert.equal(nextRepair(reviewed, [gate], 2, 0, 2), undefined); // Legacy shared budget.
+    const safe = describeReviewStop({ ...reviewed, criteria: [
+        { id: 'AC-02', status: 'not-verifiable', evidence: 'private evidence' }
+    ] }, 3, 1);
+    assert.match(safe, /AC-02 not-verifiable/);
+    assert.match(safe, /high testing \(AC-02\)/);
+    assert.doesNotMatch(safe, /private|Failure path is not covered/);
 });
 
 test('validation creates and removes a declaration when the ignored client source is absent', async () => {

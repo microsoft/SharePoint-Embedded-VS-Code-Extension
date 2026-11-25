@@ -238,7 +238,7 @@ export function compileContract(issueNumber, baseCommit, brief) {
             policyFile: '.agent/policies/default-authority.json',
             approvalRequiredFor: ['network-access', 'live-cloud-mutation', 'authority-expansion'],
         },
-        limits: { maxConcurrentWorkers: 1, maxRepasses: 2, maxWallClockMinutes: 100, maxMinutesPerWorker: 20, maxAiCreditsPerWorker: 30 },
+        limits: { maxConcurrentWorkers: 1, maxRepasses: 2, maxReviewRepairs: 2, maxWallClockMinutes: 100, maxMinutesPerWorker: 20, maxAiCreditsPerWorker: 30 },
         requiredArtifacts: ['integration-result', 'validation-results', 'review-result'],
     };
 }

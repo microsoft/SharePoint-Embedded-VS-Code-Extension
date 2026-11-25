@@ -105,6 +105,8 @@ jobs:
       agent-diagnostic: ${{ steps.agent.outputs.diagnostic }}
       artifact-id: ${{ steps.review.outputs.artifact-id }}
       review-files: ${{ steps.agent.outputs.review-files }}
+      omit-preview: ${{ steps.agent.outputs.omit-preview }}
+      optional-hardening: ${{ steps.agent.outputs.optional-hardening }}
       vsix-url: ${{ steps.vsix.outputs.artifact-url }}
       vsix-id: ${{ steps.vsix.outputs.artifact-id }}
       ux-screenshot-id: ${{ steps.ux-screenshot.outputs.artifact-id }}
@@ -232,9 +234,12 @@ jobs:
             exit 1
           fi
           [[ "$phase" == awaiting-human-acceptance ]]
+          omit_preview=$(jq -r '.reviewAdvisories | index("omit-optional-preview") != null' "$result")
+          optional_hardening=$(jq -r '.reviewAdvisories | index("optional-hardening") != null' "$result")
+          printf 'omit-preview=%s\noptional-hardening=%s\n' "$omit_preview" "$optional_hardening" >> "$GITHUB_OUTPUT"
           attempt=$(jq -er '.repass | select(type == "number" and . >= 0 and . == floor)' "$result")
           preview="$AGENT_LOOP_UX_EVIDENCE_ROOT/attempt-$attempt.png"
-          if [[ -s "$preview" ]]; then
+          if [[ "$omit_preview" == false && -s "$preview" ]]; then
             if [[ -f "$preview" && ! -L "$preview" && $(stat -c '%s' -- "$preview") -le 10485760 ]] &&
                 [[ $(od -An -N8 -tx1 -- "$preview" | tr -d '[:space:]') == 89504e470d0a1a0a ]] &&
                 install -m 0644 -- "$preview" "$RUNNER_TEMP/ux-preview.png"; then
@@ -473,6 +478,8 @@ jobs:
           PATCH_ARTIFACT_ID: ${{ needs.implement.outputs.artifact-id }}
           VSIX_ARTIFACT_ID: ${{ needs.implement.outputs.vsix-id }}
           UX_SCREENSHOT_COMMIT: ${{ needs.publish-ux-preview.outputs.commit }}
+          OMIT_PREVIEW: ${{ needs.implement.outputs.omit-preview }}
+          OPTIONAL_HARDENING: ${{ needs.implement.outputs.optional-hardening }}
           REVIEW_FILES: ${{ needs.implement.outputs.review-files }}
           BRANCH_PUSHED: ${{ needs.publish.outputs.branch-pushed }}
           BRANCH_COMMIT: ${{ needs.publish.outputs.branch-commit }}

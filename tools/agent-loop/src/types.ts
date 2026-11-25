@@ -43,6 +43,7 @@ export interface TaskContract {
     limits: {
         maxConcurrentWorkers: number;
         maxRepasses: number;
+        maxReviewRepairs?: number;
         maxWallClockMinutes: number;
         maxMinutesPerWorker: number;
         maxAiCreditsPerWorker: number;
@@ -151,6 +152,7 @@ export interface ReviewResult {
     workerId: string;
     reviewedCommit: string;
     decision: 'pass' | 'changes-required' | 'blocked';
+    advisories?: Array<'omit-optional-preview' | 'optional-hardening'>;
     summary: string;
     criteria: Array<{
         id: string;
@@ -200,6 +202,8 @@ export interface RunRecord {
     worktreeRoot: string;
     workers: WorkerRunRecord[];
     validationArtifact?: string;
+    publicStopReason?: string;
+    reviewAdvisories?: ReviewResult['advisories'];
     reviewArtifacts: string[];
     sdkRuntime: {
         sdkVersion: string;

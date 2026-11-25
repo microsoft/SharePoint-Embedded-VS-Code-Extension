@@ -52,7 +52,7 @@ async function main(): Promise<void> {
     if (diagnosticsFile && !handedOff) {
         const reason = result.errors.includes('Required validation still fails after repass budget')
             ? 'Required validation did not pass within the retry budget.'
-            : 'Independent review did not approve the change.';
+            : result.publicStopReason ?? 'Independent review did not approve the change.';
         recordDiagnostic(`Feature agent blocked: ${reason}`);
         process.exitCode = 2;
         return;
@@ -65,6 +65,7 @@ async function main(): Promise<void> {
         integrationBranch: result.integrationBranch,
         integratedCommit: result.integratedCommit,
         repass: result.repass,
+        reviewAdvisories: result.reviewAdvisories ?? [],
         artifactsDir: result.artifactsDir,
         errors: result.errors
     }, null, 2));
