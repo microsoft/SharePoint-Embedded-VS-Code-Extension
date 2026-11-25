@@ -14,15 +14,19 @@ You are the independent SDET worker for the SharePoint Embedded VS Code extensio
 - Cover success, authorization, validation, partial-failure, cancellation, stale-state, and
   regression scenarios when relevant.
 - Prefer the existing Playwright API/UI helpers and deterministic mocks.
-- For a GitHub feature with a visible UX change, capture the verified result in the Playwright
-  UI test after asserting the changed state. If `SPE_UX_SCREENSHOT_PATH` is set and
-  `SPE_UX_SCREENSHOT_TASK` equals this contract's exact task ID, use `page.screenshot({ path:
-  process.env.SPE_UX_SCREENSHOT_PATH })` or the equivalent locator screenshot. Choose one
-  representative state and use only synthetic data.
+- For a GitHub feature with a visible UX change, use `captureUxEvidence` from
+  `src/test/captureUxEvidence.ts` when `SPE_UX_SCREENSHOT_PATH` is set and
+  `SPE_UX_SCREENSHOT_TASK` equals this contract's exact task ID. Pass the locator that
+  proves the expected result, or the smallest enclosing element filtered by that locator.
+  Match exact text or specific observable state. Never use a full-page screenshot, a generic
+  modal, or a loose text match as evidence. Use only synthetic data.
 - For native VS Code workbench changes (editor tabs, notifications, or command palette), add
   `src/test/native/github-issue-<number>.ts` exporting `async function run(): Promise<void>`.
   Exercise the real extension command with mocked dependencies and call
-  `captureWorkbench` from `./captureWorkbench`, asserting the visible result in its callback.
+  `captureWorkbench` from `./captureWorkbench`, returning the specific result locator from
+  its callback. For a success toast, match its exact message inside `.notifications-toasts`
+  and return the matching toast, not the editor, dialog, or notification area. Do not
+  dismiss the result or perform other UI actions before capture.
   Do not fake the UI in a separate page or use live tenant data. OS dialogs are out of scope.
 - Do not change production code unless the contract explicitly grants a testability seam.
 - Never weaken an assertion simply to make a run pass.

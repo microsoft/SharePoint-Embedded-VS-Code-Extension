@@ -174,14 +174,19 @@ not the feature branch or `main`. A new preview replaces the old one.
 In **UI impact**, name the screen, the user action, and the expected visible result (or
 write `None`). For example, "Storage Explorer webview: select a container, then confirm
 that its details panel shows the new status." A screenshot is included only when a passing
-test can assert and capture that exact state with mock data. API-only changes and OS-level
+test can assert and capture that exact state with mock data. Webview tests use
+`captureUxEvidence` from `src/test/captureUxEvidence.ts` with the exact result locator
+or its smallest enclosing component. Full-window screenshots are not evidence of a
+specific UX result. API-only changes and OS-level
 dialogs do not produce a screenshot.
 
 For native workbench UI, add `src/test/native/github-issue-<number>.ts` exporting
 `async function run(): Promise<void>`. The feature runner loads it into desktop VS Code on
 an isolated virtual display and embeds the resulting screenshot in the same issue section.
-Trigger the real action with mocked data and call `captureWorkbench` with an assertion
-against the visible UI. For example, a test for Container Types > View Properties would
+Trigger the real action with mocked data and return the exact result locator from the
+`captureWorkbench` callback. For example, match the exact success message in a VS Code
+toast and capture only that toast while it is visible. For Container Types > View Properties,
+a test would
 verify that a synthetic owner is visible in the JSON editor. A desktop scenario, when
 present, must pass and takes precedence over a webview screenshot for the same issue.
 The issue links to **View code changes** and either the PR or **Open a PR manually**.
