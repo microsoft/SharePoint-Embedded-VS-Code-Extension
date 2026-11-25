@@ -1,5 +1,5 @@
 import { execFileSync, spawn } from 'node:child_process';
-import { existsSync, statSync, truncateSync } from 'node:fs';
+import { existsSync, statSync, truncateSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 function displayNumber(server) {
@@ -26,6 +26,9 @@ if (existsSync(`src/test/native/${task}.ts`)) {
     const screenshot = process.env.SPE_UX_SCREENSHOT_PATH;
     if (!existsSync(executable) || !screenshot) throw new Error('Desktop screenshot runtime is unavailable.');
 
+    // This container has a clean scratch checkout, not the previous check's build outputs.
+    writeFileSync('src/client.ts', 'export const clientId = "00000000-0000-0000-0000-000000000000";\nexport const telemetryKey = "";\n', { flag: 'wx' });
+    execFileSync('npm', ['run', 'build:webview'], { stdio: 'inherit' });
     execFileSync('npm', ['run', 'test-compile'], { stdio: 'inherit' });
     const scenario = resolve(`out/test/native/${task}.js`);
     if (!existsSync(scenario)) throw new Error('Desktop screenshot scenario did not compile.');

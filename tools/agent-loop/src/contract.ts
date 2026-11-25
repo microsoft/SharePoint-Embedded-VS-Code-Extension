@@ -104,21 +104,21 @@ export function validateContractInvariants(
     assertAcyclic(contract.workers);
 
     const implementer = requireSingleRole(contract, 'implementer');
-    const sdet = requireSingleRole(contract, 'sdet');
+    const sdet = isSingleEditorFeature(contract) ? undefined : requireSingleRole(contract, 'sdet');
     const integrator = requireSingleRole(contract, 'integrator');
     const reviewer = requireSingleRole(contract, 'reviewer');
 
-    if (implementer.dependsOn.length > 0 || sdet.dependsOn.length > 0) {
+    if (implementer.dependsOn.length > 0 || (sdet && sdet.dependsOn.length > 0)) {
         throw new Error('Implementer and SDET must start independently from the base commit');
     }
-    if (!implementer.mayEdit || !sdet.mayEdit) {
-        throw new Error('Implementer and SDET must have bounded edit scopes');
+    if (!implementer.mayEdit || (sdet && !sdet.mayEdit) || integrator.mayEdit) {
+        throw new Error('Only the implementer and assigned SDET may edit');
     }
-    if (mutableScopesOverlap(implementer.allowedPaths, sdet.allowedPaths)) {
+    if (sdet && mutableScopesOverlap(implementer.allowedPaths, sdet.allowedPaths)) {
         throw new Error('Parallel implementer and SDET path scopes overlap');
     }
-    if (!integrator.dependsOn.includes(implementer.id) || !integrator.dependsOn.includes(sdet.id)) {
-        throw new Error('Integrator must depend on implementer and SDET');
+    if (!integrator.dependsOn.includes(implementer.id) || (sdet && !integrator.dependsOn.includes(sdet.id))) {
+        throw new Error('Integrator must depend on every editing assignment');
     }
     if (
         reviewer.mayEdit ||
@@ -133,6 +133,10 @@ export function validateContractInvariants(
             throw new Error(`Required check is not allowed by the authority policy: ${check.command}`);
         }
     }
+}
+
+export function isSingleEditorFeature(contract: TaskContract): boolean {
+    return /^github-issue-[1-9]\d*$/.test(contract.taskId) && !contract.workers.some(worker => worker.role === 'sdet');
 }
 
 export function requireSingleRole(contract: TaskContract, role: WorkerAssignment['role']): WorkerAssignment {

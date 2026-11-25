@@ -15,7 +15,7 @@ const approvalActions = new Map([
 
 const blockerActions = {
     'missing-context': 'Resolve the conflicting requirement or missing prerequisite in the affected criterion. Routine presentation choices do not require approval.',
-    'edit-scope': 'Check which worker owns the required files and split the assignment if necessary.',
+    'edit-scope': 'The worker reported needing a path outside its allowed edits. Inspect the contract paths or narrow the requested change before retrying.',
     'fixture-unavailable': 'Provide a synthetic fixture that exercises the required behavior offline.',
     'implementation-incomplete': 'Narrow the affected criterion or isolate it as a smaller change.',
     'budget-exhausted': 'Reduce the size of the assignment or review its configured limits.',

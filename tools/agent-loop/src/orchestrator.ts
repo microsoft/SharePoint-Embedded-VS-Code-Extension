@@ -11,6 +11,7 @@ import {
     createReviewResultValidator,
     createWorkerResultValidator,
     loadContract,
+    isSingleEditorFeature,
     requireSingleRole
 } from './contract';
 import {
@@ -183,8 +184,9 @@ export async function runContract(options: RunOptions): Promise<RunRecord> {
     try {
         await transitionRun(repoRoot, run, 'implementing');
         const implementer = requireSingleRole(loaded.contract, 'implementer');
-        const sdet = requireSingleRole(loaded.contract, 'sdet');
-        const initialWorkers = await runInitialWorkers(context, implementer, sdet);
+        const initialWorkers = isSingleEditorFeature(loaded.contract)
+            ? [await runRecoverableAssignment(context, implementer, baseCommit, 0)]
+            : await runInitialWorkers(context, implementer, requireSingleRole(loaded.contract, 'sdet'));
         requireCompletedWorkers(initialWorkers);
 
         assertWithinWallClock(run, loaded.contract);
@@ -199,7 +201,10 @@ export async function runContract(options: RunOptions): Promise<RunRecord> {
         await writeIntegrationResult(context, initialWorkers[0].startedAt);
         await writeRunRecord(repoRoot, run);
         let validation = await runValidation(context);
-        let review = await runReview(context, validation);
+        const evaluate = (results: ValidationResult[]) => evaluateCandidate(
+            isSingleEditorFeature(loaded.contract), results, loaded.contract, () => runReview(context, results)
+        );
+        let review = await evaluate(validation);
 
         while (
             (review.decision === 'changes-required' || validation.some(result => result.status === 'failed')) &&
@@ -218,7 +223,7 @@ export async function runContract(options: RunOptions): Promise<RunRecord> {
             await writeIntegrationResult(context, new Date().toISOString());
             await writeRunRecord(repoRoot, run);
             validation = await runValidation(context);
-            review = await runReview(context, validation);
+            review = await evaluate(validation);
         }
 
         if (validation.some(result => result.status === 'failed')) {
@@ -297,8 +302,13 @@ async function runRepassWorkers(
     validation: ValidationResult[]
 ): Promise<WorkerResult[]> {
     const implementer = requireSingleRole(context.loaded.contract, 'implementer');
-    const sdet = requireSingleRole(context.loaded.contract, 'sdet');
     const failedValidationContext = formatValidationSummary(validation);
+    if (isSingleEditorFeature(context.loaded.contract)) {
+        if (!findings.length) throw new Error('Repass was requested without an actionable finding');
+        return [await runRecoverableAssignment(context, implementer, context.run.integratedCommit!,
+            context.run.repass, formatRepassContext(findings, failedValidationContext), [context.run.artifactsDir])];
+    }
+    const sdet = requireSingleRole(context.loaded.contract, 'sdet');
     const implementerFindings: ReviewFinding[] = [];
     const sdetFindings: ReviewFinding[] = [];
 
@@ -382,7 +392,8 @@ export async function recoverWorker(
                 !/^(?:SDK worker returned malformed JSON|SDK worker final response must be|SDK worker result failed structured validation|Timeout waiting for)|\b(?:ETIMEDOUT|ECONNRESET|EAI_AGAIN)\b/i.test(detail)) throw error;
             continue;
         }
-        if (retry >= retryLimit || result.blockerCode === 'budget-exhausted') return result;
+        if (retry >= retryLimit || result.blockerCode === 'budget-exhausted' ||
+            (result.blockerCode === 'edit-scope' && !result.approvalRequests.length)) return result;
         if (result.approvalRequests.length) {
             if (offlinePlan || result.approvalRequests.some(request => request.category.trim().toLowerCase() === 'budget')) return result;
             // Start a new plan from the last scoped checkpoint, not from the requesting worker's edits or instructions.
@@ -651,6 +662,7 @@ async function runValidation(context: RunContext): Promise<ValidationResult[]> {
                 stdoutTail: outputTail(processResult.stdout),
                 stderrTail: outputTail(processResult.stderr)
             });
+            if (isSingleEditorFeature(context.loaded.contract) && (processResult.exitCode !== 0 || processResult.timedOut)) break;
         }
     } finally {
         await removeClientDeclaration();
@@ -748,7 +760,11 @@ async function runReview(
         workerId: reviewId,
         reviewedCommit: context.run.integratedCommit!
     };
-    addValidationFindings(review, validation, context.loaded.contract);
+    const failures = validationFindings(validation, context.loaded.contract);
+    if (failures.length) {
+        review.decision = 'changes-required';
+        review.findings.push(...failures);
+    }
     enforceReviewGate(review, context.loaded.contract.acceptanceCriteria.map(criterion => criterion.id),
         context.featureRun ? integratedPaths.length > 0 : undefined);
     assertStructuredResult(context.reviewValidator, review, `Review ${reviewId}`);
@@ -769,28 +785,37 @@ async function runReview(
     return review;
 }
 
-function addValidationFindings(
-    review: ReviewResult,
-    validation: ValidationResult[],
-    contract: TaskContract
-): void {
-    const failed = validation.filter(result => result.status === 'failed');
-    if (failed.length === 0) {
-        return;
-    }
+type CandidateVerdict = Pick<ReviewResult, 'decision' | 'findings' | 'summary'>;
+type ValidationContract = Pick<TaskContract, 'requiredChecks' | 'acceptanceCriteria'>;
 
-    review.decision = 'changes-required';
-    for (const [index, failure] of failed.entries()) {
-        review.findings.push({
-            id: `F-${900 + index}`,
-            severity: 'blocker',
-            category: failure.command.includes('test') ? 'testing' : 'correctness',
-            criterionIds: contract.acceptanceCriteria.map(criterion => criterion.id),
-            rationale: `Required validation command failed: ${failure.command}`,
-            evidence: failure.stderrTail || failure.stdoutTail || `Exit code ${String(failure.exitCode)}`,
-            repassInstruction: `Fix the root cause of the failing command and rerun: ${failure.command}`
-        });
+export async function evaluateCandidate(
+    singleEditor: boolean, validation: ValidationResult[], contract: ValidationContract,
+    review: () => Promise<CandidateVerdict>
+): Promise<CandidateVerdict> {
+    if (singleEditor) {
+        const findings = validationFindings(validation, contract);
+        if (findings.length) return { decision: 'changes-required', findings, summary: 'A required check failed before independent review.' };
+        if (!contract.requiredChecks.every(check =>
+            validation.some(result => result.command === check.command && result.status === 'passed'))) {
+            throw new Error('Required validation evidence is incomplete; cannot start independent review.');
+        }
     }
+    return review();
+}
+
+function validationFindings(
+    validation: ValidationResult[],
+    contract: ValidationContract
+): ReviewFinding[] {
+    return validation.filter(result => result.status === 'failed').map((failure, index) => ({
+        id: `F-${900 + index}`,
+        severity: 'blocker',
+        category: failure.command.includes('test') ? 'testing' : 'correctness',
+        criterionIds: contract.acceptanceCriteria.map(criterion => criterion.id),
+        rationale: `Required validation command failed: ${failure.command}`,
+        evidence: failure.stderrTail || failure.stdoutTail || `Exit code ${String(failure.exitCode)}`,
+        repassInstruction: `Fix the root cause of the failing command and rerun: ${failure.command}`
+    }));
 }
 
 function requireCompletedWorkers(results: WorkerResult[]): void {

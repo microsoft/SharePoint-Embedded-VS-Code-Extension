@@ -89,7 +89,8 @@ test('a feature can publish application and configuration changes within the edi
     const { validateContractInvariants } = require('./dist/contract.js');
     validateContractInvariants(process.cwd(), contract, policy);
     const implementer = contract.workers.find(worker => worker.role === 'implementer');
-    const sdet = contract.workers.find(worker => worker.role === 'sdet');
+    assert.deepEqual(contract.workers.filter(worker => worker.mayEdit).map(worker => worker.id), ['implementer']);
+    assert.deepEqual(contract.workers.find(worker => worker.role === 'integrator').dependsOn, ['implementer']);
     const denied = [...contract.deniedPaths, ...policy.filesystem.deny];
     const canEdit = (worker, paths) => assertChangedPathsAllowed(paths, contract.allowedPaths, worker.allowedPaths, denied);
     const product = [
@@ -114,9 +115,7 @@ test('a feature can publish application and configuration changes within the edi
     ];
     const tests = ['ui-tests/api/storage-explorer-notification.api.spec.ts', 'src/test/suite/extension.test.ts'];
     assert.doesNotThrow(() => canEdit(implementer, product));
-    assert.doesNotThrow(() => canEdit(sdet, tests));
-    assert.throws(() => canEdit(sdet, product), /outside its authority/);
-    assert.throws(() => canEdit(implementer, tests), /outside its authority/);
+    assert.doesNotThrow(() => canEdit(implementer, tests));
     const record = path => `:100644 100644 aaaaaaa bbbbbbb M\0${path}\0`;
     assert.doesNotThrow(() => validateStagedDiff([...product, ...tests].map(record).join('')));
 
@@ -136,9 +135,9 @@ test('a feature can publish application and configuration changes within the edi
         assert.throws(() => canEdit(implementer, [path]), /outside its authority/, path);
         assert.equal(publishablePath(path), false, path);
     }
-    assert.doesNotThrow(() => canEdit(sdet, ['ui-tests/playwright.config.ts']));
+    assert.doesNotThrow(() => canEdit(implementer, ['ui-tests/playwright.config.ts']));
     assert.equal(publishablePath('ui-tests/playwright.config.ts'), true);
-    assert.doesNotThrow(() => canEdit(sdet, ['src/test/runTest.ts']));
+    assert.doesNotThrow(() => canEdit(implementer, ['src/test/runTest.ts']));
     assert.equal(publishablePath('src/test/runTest.ts'), true);
 });
 

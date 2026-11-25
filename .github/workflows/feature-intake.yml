@@ -130,6 +130,16 @@ jobs:
       - name: Prepare the locked project dependencies, Copilot CLI and validation image
         if: steps.intake.outputs.approved == 'true'
         run: |
+          playwright_version=$(node -p "require('./package-lock.json').packages['node_modules/@playwright/test'].version")
+          if [[ "$playwright_version" != '1.61.1' ]]; then
+            echo '::error::Update the validation image pin to match the Playwright lockfile.'
+            exit 1
+          fi
+          image="mcr.microsoft.com/playwright:v1.61.1-noble@sha256:5b8f294aff9041b7191c34a4bab3ac270157a28774d4b0660e9743297b697e48"
+          # Pull while npm prepares the runner, not after the build.
+          docker pull "$image" &
+          pull_pid=$!
+          trap 'kill "$pull_pid" 2>/dev/null || true' EXIT
           cache="$RUNNER_TEMP/feature-npm-cache"
           npm ci --ignore-scripts --cache "$cache" --no-audit --no-fund
           npm ci --prefix webview-ui --ignore-scripts --cache "$cache" --no-audit --no-fund
@@ -138,14 +148,6 @@ jobs:
           npm run agent:build
           npm install --global "$AGENT_LOOP_COPILOT_PACKAGE"
           printf 'AGENT_LOOP_COPILOT_COMMAND=%s\n' "$(command -v copilot-linux-x64)" >> "$GITHUB_ENV"
-          playwright_version=$(node -p "require('./package-lock.json').packages['node_modules/@playwright/test'].version")
-          if [[ "$playwright_version" != '1.61.1' ]]; then
-            echo '::error::Update the validation image pin to match the Playwright lockfile.'
-            exit 1
-          fi
-          image="mcr.microsoft.com/playwright:v1.61.1-noble@sha256:5b8f294aff9041b7191c34a4bab3ac270157a28774d4b0660e9743297b697e48"
-          docker pull "$image"
-          docker image inspect --format 'AGENT_LOOP_VALIDATION_IMAGE={{.Id}}' "$image" >> "$GITHUB_ENV"
           desktop="$RUNNER_TEMP/feature-desktop-vscode"
           if node -e 'require("@vscode/test-electron").downloadAndUnzipVSCode({
             cachePath: process.argv[1], version: "1.106.3", platform: "linux-x64"
@@ -155,6 +157,9 @@ jobs:
           else
             echo '::warning::Desktop VS Code is unavailable. Webview validation can still run.'
           fi
+          wait "$pull_pid"
+          trap - EXIT
+          docker image inspect --format 'AGENT_LOOP_VALIDATION_IMAGE={{.Id}}' "$image" >> "$GITHUB_ENV"
           git config user.name "SPE Feature Agent"
           git config user.email "github-actions[bot]@users.noreply.github.com"
       - name: Recheck approval before implementation

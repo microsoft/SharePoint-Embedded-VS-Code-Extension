@@ -230,16 +230,15 @@ export function compileContract(issueNumber, baseCommit, brief) {
             { id: 'ui', command: 'npm run test:ui', timeoutMinutes: 15 },
         ],
         workers: [
-            worker('implementer', true, productPaths, [], ['baseline-source']),
-            worker('sdet', true, testPaths, [], ['baseline-source']),
-            worker('integrator', false, allowedPaths, ['implementer', 'sdet'], ['worker-results', 'worker-commits']),
+            worker('implementer', true, allowedPaths, [], ['baseline-source']),
+            worker('integrator', false, allowedPaths, ['implementer'], ['worker-results', 'worker-commits']),
             worker('reviewer', false, ['**'], ['integrator'], ['integrated-diff', 'validation-results']),
         ],
         authority: {
             policyFile: '.agent/policies/default-authority.json',
             approvalRequiredFor: ['network-access', 'live-cloud-mutation', 'authority-expansion'],
         },
-        limits: { maxConcurrentWorkers: 2, maxRepasses: 2, maxWallClockMinutes: 100, maxMinutesPerWorker: 20, maxAiCreditsPerWorker: 30 },
+        limits: { maxConcurrentWorkers: 1, maxRepasses: 2, maxWallClockMinutes: 100, maxMinutesPerWorker: 20, maxAiCreditsPerWorker: 30 },
         requiredArtifacts: ['integration-result', 'validation-results', 'review-result'],
     };
 }

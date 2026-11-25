@@ -134,9 +134,16 @@ their result and explain why. The reviewer evaluates the outcome against the bri
 preference for a different default. Permissions, API guarantees, and completion evidence
 cannot be assumed.
 Editing the issue invalidates the previous readiness result. If implementation fails, open the
-`implement` job in Actions for the failed stage and a safe diagnostic. For GitHub feature runs,
-the implementer and test worker can each retry up to twice per assignment, including during
-rework, within the run's existing time budget. Recovery uses a fresh worktree from the latest
+`implement` job in Actions for the failed stage and a safe diagnostic. New GitHub feature runs
+use one editor for the implementation, regression coverage, and all review repairs. The editor
+has the same total path scope as the previous two workers combined. Integration, offline
+validation, and independent read-only review still precede publication. An edit-scope stop
+is not a signal that the PM needs to provide more acceptance criteria. On the first failing
+required check, the editor receives the failure directly. The next revision starts the
+checks again; only a candidate with all required results passing goes to independent review.
+An unchanged edit-scope blocker
+does not spend retries repeating the same assignment. Other recoverable failures can retry
+up to twice per assignment within the run's time budget. Recovery uses a fresh worktree from the latest
 scoped checkpoint or the assignment base. When a worker reports needing approval, the runner
 denies the requested operation and can spend one remaining retry on a different implementation
 under the original permissions. It never carries edits or instructions from that request into

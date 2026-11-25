@@ -11,6 +11,7 @@ import {
     buildWorkerSdkArtifacts,
     ensureValidationClientDeclaration,
     enforceReviewGate,
+    evaluateCandidate,
     formatContinuationContext,
     formatValidationSummary,
     integrateInitialWorkers,
@@ -56,6 +57,8 @@ test('worker recovery is bounded and stops on exhaustion or enforced authority e
     assert.equal(await recoverWorker('base', 2, async () => budget, stop), budget);
     const exhausted = { ...failed, blockerCode: 'budget-exhausted' as const };
     assert.equal(await recoverWorker('base', 2, async () => exhausted, stop), exhausted);
+    const outsideScope = { ...failed, blockerCode: 'edit-scope' as const };
+    assert.equal(await recoverWorker('base', 2, async () => outsideScope, stop), outsideScope);
     await assert.rejects(recoverWorker('base', 2, async () => {
         throw new Error('Copilot SDK worker requested denied authority: ETIMEDOUT');
     }, stop), /denied authority/);
@@ -245,6 +248,27 @@ test('validation handoff omits passing output and bounds failure excerpts', () =
     assert.match(summary, /\[showing last 1500 characters\]/);
     assert.match(summary, /-end/);
     assert.ok(summary.length < 2500);
+});
+
+test('a single editor repairs the first failed gate before any reviewer invocation', async () => {
+    const contract = {
+        requiredChecks: [{ id: 'types', command: 'tsc', timeoutMinutes: 1 }, { id: 'ui', command: 'ui', timeoutMinutes: 2 }],
+        acceptanceCriteria: [{ id: 'AC-01', description: 'Show the result.', evidence: 'Visible state.' }]
+    };
+    const failed: ValidationResult = { command: 'tsc', status: 'failed', exitCode: 1, durationSeconds: 1, stderrTail: 'Type mismatch' };
+    let reviews = 0;
+    const review = async () => {
+        reviews++;
+        return { decision: 'blocked' as const, summary: 'Independent review still decides.', findings: [] };
+    };
+    const repair = await evaluateCandidate(true, [failed], contract, review);
+    assert.equal(repair.decision, 'changes-required');
+    assert.equal(repair.findings[0].evidence, 'Type mismatch');
+    const green = { ...failed, status: 'passed' as const, exitCode: 0 };
+    await assert.rejects(evaluateCandidate(true, [green], contract, review), /incomplete/);
+    assert.equal(reviews, 0);
+    assert.equal((await evaluateCandidate(true, [green, { ...green, command: 'ui' }], contract, review)).decision, 'blocked');
+    assert.equal(reviews, 1);
 });
 
 test('validation creates and removes a declaration when the ignored client source is absent', async () => {
