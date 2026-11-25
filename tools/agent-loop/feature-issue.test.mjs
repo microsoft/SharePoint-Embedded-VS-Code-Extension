@@ -20,9 +20,11 @@ const approvers = new Set(['owner']);
 const env = { GITHUB_REPOSITORY: 'owner/repo', GH_TOKEN: 'test-token', FEATURE_REQUEST_APPROVERS: 'Owner', GITHUB_SHA: 'a'.repeat(40) };
 
 test('only the canonical title prefix enters triage; ignores closed issues and pull requests', () => {
+    assert.equal(TITLE_PREFIX, 'Feature Request:');
     assert.equal(assessIssue(issue).status, 'complete');
     for (const other of [
         { ...issue, title: 'SPE VSC Extension - Preserve selection' },
+        { ...issue, title: 'Feature-Request: SPE VSC Extension - Preserve selection' },
         { ...issue, state: 'closed' },
         { ...issue, pull_request: {} },
     ]) assert.equal(assessIssue(other).status, 'ignored');

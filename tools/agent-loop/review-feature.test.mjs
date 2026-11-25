@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { issueClient, reviewRevision, TITLE_PREFIX } from './feature-issue.mjs';
-import { classifyFailure, parseReadiness, prepareReview, publishReview, reviewPrompt } from './review-feature.mjs';
+import { classifyFailure, clearTriaging, parseReadiness, prepareReview, publishReview, reviewPrompt } from './review-feature.mjs';
 
 const issue = {
     id: 100, number: 8, title: `${TITLE_PREFIX} Preserve selected rows`, state: 'open',
@@ -19,11 +19,13 @@ function fixture(first) {
         if (init.method === 'GET') return Response.json(path.endsWith('/comments') ? comments : current);
         writes.push([init.method, path]);
         if (path.endsWith('/labels')) {
-            current.labels.push({ name: 'needs-info' });
+            for (const name of JSON.parse(init.body).labels) {
+                if (!current.labels.some(label => label.name === name)) current.labels.push({ name });
+            }
             return Response.json(current.labels);
         }
-        if (path.endsWith('/labels/needs-info')) {
-            current.labels = current.labels.filter(({ name }) => name !== 'needs-info');
+        if (init.method === 'DELETE' && path.includes('/labels/')) {
+            current.labels = current.labels.filter(({ name }) => name !== path.split('/').at(-1));
             return new Response(null, { status: 204 });
         }
         const { body } = JSON.parse(init.body);
@@ -45,6 +47,29 @@ const moreContext = { gap: 'The form is incomplete.', why: 'A developer cannot i
 const pass = () => parseReadiness('{"checks":[],"questions":[]}');
 const verdict = (plan, checks, questions = []) =>
     parseReadiness(JSON.stringify({ checks, questions }), plan.input.findings);
+
+test('opened requests start triaging and transition without granting approval or relabeling edits', async () => {
+    const f = fixture({ ...issue, body: issue.body.replace('- Preserve selection.', '- It works.') });
+    const plan = await prepareReview(f.github, { action: 'opened', issue: f.current });
+    assert.deepEqual(f.current.labels.map(v => v.name), ['enhancement', 'triaging']);
+    await prepareReview(f.github, { action: 'opened', issue: f.current });
+    assert.equal(f.writes.length, 1);
+    await publishReview(f.github, plan, verdict(plan, plan.input.findings.map(({ id }) => ({ id, feedback: moreContext }))));
+    assert.deepEqual(f.current.labels.map(v => v.name), ['enhancement', 'needs-info']);
+    f.current.body = issue.body;
+    await publishReview(f.github, await prepareReview(f.github, { action: 'edited', issue: f.current }), pass());
+    assert.deepEqual(f.current.labels.map(v => v.name), ['enhancement']);
+});
+
+test('triaging remains on a first-pass ready issue until a maintainer labels it', async () => {
+    const f = fixture({ ...issue, labels: [{ name: 'triaging' }] });
+    await publishReview(f.github, await prepareReview(f.github, { action: 'opened', issue: f.current }), pass());
+    assert.deepEqual(f.current.labels.map(v => v.name), ['triaging']);
+    f.current.labels.push({ name: 'agent-ready' });
+    await clearTriaging(f.github);
+    await clearTriaging(f.github);
+    assert.deepEqual(f.current.labels.map(v => v.name), ['agent-ready']);
+});
 
 test('readiness keeps one feedback comment and supplies previous feedback on the next revision', async () => {
     const f = fixture({ ...issue, body: null });

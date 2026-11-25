@@ -4,7 +4,7 @@ import { dirname } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { splitIssueDelivery } from './issue-delivery-section.mjs';
 
-export const TITLE_PREFIX = 'Feature-Request: SPE VSC Extension -';
+export const TITLE_PREFIX = 'Feature Request:';
 export const READY = 'agent-ready';
 export const NEEDS_INFO = 'needs-info';
 const HEADINGS = ['Problem', 'Expected behavior', 'Acceptance criteria', 'UI impact'];

@@ -92,9 +92,13 @@ review result are the synthesized handoff.
 ## GitHub feature requests
 
 Use the [SPE feature request form](../../.github/ISSUE_TEMPLATE/feature-request.yml) with the title
-`Feature-Request: SPE VSC Extension - <feature name>`. The
+`Feature Request: <feature name>`. To run intake again on an issue filed under the old prefix,
+rename its title to this format. The
 [intake workflow](../../.github/workflows/feature-intake.yml) triages opened, edited, and reopened
-requests. It checks the form, then uses a text-only Copilot session to look for ambiguity and
+requests. The form applies `triaging` on creation; the opened workflow also adds it to
+matching requests filed without the form. `needs-info` or `agent-ready` removes `triaging`.
+An edit does not restart the initial label, and a readiness pass never grants approval.
+It checks the form, then uses a text-only Copilot session to look for ambiguity and
 missing verification details. It adds `needs-info` and keeps one bot comment with specific
 requests. Copilot reviews the whole brief for decisions that materially affect the user outcome,
 groups related blockers, and gives paste-ready wording so the author can address them in one edit.
@@ -161,7 +165,7 @@ worker text, raw SDK logs, and credentials. Exhausted recovery never publishes u
 After a fix and a current
 readiness pass, remove and reapply `agent-ready` to start a new run.
 
-To enable the workflow on the default branch, create the `needs-info`, `agent-ready`, and
+To enable the workflow on the default branch, create the `triaging`, `needs-info`, `agent-ready`, and
 `ready-for-human-review` repository labels and set the Actions variable `FEATURE_REQUEST_APPROVERS` to the approved GitHub
 usernames (comma-separated). Create the `feature-agent` Actions environment, restrict deployments
 to the default branch, and add `COPILOT_GITHUB_TOKEN` as an environment secret. Use an

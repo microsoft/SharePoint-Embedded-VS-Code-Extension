@@ -4,10 +4,18 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { splitIssueDelivery } from './issue-delivery-section.mjs';
-import { assessIssue, hasLabel, issueClient, matchesIssueEvent, MAX_BODY, NEEDS_INFO,
-    readReadinessComment, reviewMarker, reviewRevision } from './feature-issue.mjs';
+import { assessIssue, hasLabel, issueClient, matchesIssueEvent, MAX_BODY, NEEDS_INFO, READY,
+    readReadinessComment, reviewMarker, reviewRevision, TITLE_PREFIX } from './feature-issue.mjs';
 
 const fields = ['Problem', 'Expected behavior', 'Acceptance criteria', 'UI impact'];
+const TRIAGING = 'triaging';
+
+export async function clearTriaging(github) {
+    const issue = await github();
+    if (hasLabel(issue, TRIAGING) && (hasLabel(issue, NEEDS_INFO) || hasLabel(issue, READY))) {
+        await github(`/labels/${TRIAGING}`, { method: 'DELETE', missingOk: true });
+    }
+}
 const detailKeys = ['gap', 'why', 'add', 'example'];
 const feedbackKeys = ['field', ...detailKeys];
 const feedbackText = (value) => typeof value === 'string' && value.trim().length > 0 && value.length <= 320 &&
@@ -166,7 +174,7 @@ async function askCopilot(input, env, { useLocalLogin = false } = {}) {
 }
 
 const smokeIssue = {
-    title: 'Feature-Request: SPE VSC Extension - Confirm a successful container creation',
+    title: `${TITLE_PREFIX} Confirm a successful container creation`,
     state: 'open',
     body: '### Problem\nDevelopers cannot tell whether creation succeeded in Storage Explorer. The desired notice is above the list, only after confirmed creation, and reads Container Demo created successfully.\n' +
         '### Expected behavior\nShow a notification. Preserve existing errors.\n' +
@@ -221,6 +229,11 @@ export async function prepareReview(github, event) {
     const current = await github();
     const brief = assessIssue(current);
     if (brief.status === 'ignored' || (event && !matchesIssueEvent(event, current))) return { kind: 'ignored' };
+    if (event?.action === 'opened' && ![TRIAGING, NEEDS_INFO, READY].some(label => hasLabel(current, label))) {
+        const labels = await github('/labels', { method: 'POST', body: { labels: [TRIAGING] } });
+        if (!hasLabel({ labels }, TRIAGING)) throw new Error('The triaging repository label is missing.');
+        await clearTriaging(github);
+    }
     const revision = reviewRevision(current);
     const prior = await readReadinessComment(github);
     if (canReuseReview(prior, revision)) return { kind: 'cached', revision };
@@ -243,6 +256,7 @@ export async function publishReview(github, plan, modelResult, { runUrl } = {}) 
         const labels = await github('/labels', { method: 'POST', body: { labels: [NEEDS_INFO] } });
         if (!labels.some(({ name }) => name === NEEDS_INFO)) throw new Error('The needs-info repository label is missing.');
     }
+    if (needsInfo || hasLabel(current, READY)) await clearTriaging(github);
     if (!reusable) {
         const body = commentBody(plan.revision, { ...result, feedback }, runUrl);
         if (prior?.body !== body) {
@@ -295,7 +309,9 @@ async function runWorkflowMode(mode, env, planFile, resultFile) {
     } else {
         const event = JSON.parse(await readFile(env.GITHUB_EVENT_PATH, 'utf8'));
         const github = issueClient(event, env);
-        if (mode === 'prepare') {
+        if (mode === 'clear-triaging' && event.action === 'labeled' && [READY, NEEDS_INFO].includes(event.label?.name)) {
+            await clearTriaging(github);
+        } else if (mode === 'prepare') {
             const plan = await prepareReview(github, event);
             await writeFile(planFile, JSON.stringify(plan));
             await writeFile(env.GITHUB_OUTPUT, `kind=${plan.kind}\n`, { flag: 'a' });

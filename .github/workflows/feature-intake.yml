@@ -12,9 +12,27 @@ env:
   AGENT_LOOP_COPILOT_PACKAGE: '@github/copilot-linux-x64@1.0.106'
 
 jobs:
+  clear-triaging:
+    if: >-
+      startsWith(github.event.issue.title, 'Feature Request:') &&
+      github.event.action == 'labeled' &&
+      (github.event.label.name == 'needs-info' || github.event.label.name == 'agent-ready')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          persist-credentials: false
+      - name: Clear the initial triaging label
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node tools/agent-loop/review-feature.mjs clear-triaging
+
   triage:
     if: >-
-      startsWith(github.event.issue.title, 'Feature-Request: SPE VSC Extension -') &&
+      startsWith(github.event.issue.title, 'Feature Request:') &&
       github.event.action != 'labeled'
     runs-on: ubuntu-latest
     timeout-minutes: 8
@@ -64,7 +82,7 @@ jobs:
 
   report-progress:
     if: >-
-      startsWith(github.event.issue.title, 'Feature-Request: SPE VSC Extension -') &&
+      startsWith(github.event.issue.title, 'Feature Request:') &&
       github.event.action == 'labeled' && github.event.label.name == 'agent-ready' && github.run_attempt == 1
     runs-on: ubuntu-latest
     timeout-minutes: 130
@@ -85,7 +103,7 @@ jobs:
 
   implement:
     if: >-
-      startsWith(github.event.issue.title, 'Feature-Request: SPE VSC Extension -') &&
+      startsWith(github.event.issue.title, 'Feature Request:') &&
       github.event.action == 'labeled' && github.event.label.name == 'agent-ready' && github.run_attempt == 1
     runs-on: ubuntu-latest
     timeout-minutes: 120

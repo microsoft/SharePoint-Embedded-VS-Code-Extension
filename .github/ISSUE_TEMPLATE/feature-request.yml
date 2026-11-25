@@ -1,6 +1,7 @@
 name: SPE VS Code extension feature request
 description: Request a feature or improvement to the SharePoint Embedded extension.
-title: "Feature-Request: SPE VSC Extension - "
+title: "Feature Request: "
+labels: ["triaging"]
 body:
   - type: markdown
     attributes:
