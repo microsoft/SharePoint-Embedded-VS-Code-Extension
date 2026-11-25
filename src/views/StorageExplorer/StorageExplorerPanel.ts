@@ -259,6 +259,13 @@ export class StorageExplorerPanel {
                 },
             });
             this._post({ command: 'rpc/response', requestId, ok: true, result });
+            if (message.op === 'containers.create' && result && typeof result === 'object'
+                && 'name' in result && typeof result.name === 'string') {
+                void vscode.window.showInformationMessage(
+                    vscode.l10n.t('Container "{0}" created successfully.', result.name)
+                );
+                DevelopmentTreeViewProvider.getInstance().refresh();
+            }
         } catch (error) {
             const original = serializeError(error);
             if (message.op === 'drive.download') {
