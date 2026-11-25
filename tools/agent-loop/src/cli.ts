@@ -39,6 +39,7 @@ async function main(): Promise<void> {
     const result = await runContract({
         contractPath,
         featureRun: command === 'run-feature',
+        onRecovery: role => recordDiagnostic(`Feature agent retrying worker: ${role}`),
         onStage: value => {
             stage = value;
             recordDiagnostic(`Feature agent stage: ${value}`);

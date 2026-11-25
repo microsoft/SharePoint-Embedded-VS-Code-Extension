@@ -58,6 +58,7 @@ import {
 export interface RunOptions {
     contractPath: string;
     onStage?: (stage: ImplementationStage) => void;
+    onRecovery?: (role: WorkerAssignment['role']) => void;
     featureRun?: boolean;
 }
 
@@ -72,6 +73,7 @@ interface RunContext {
     reviewValidator: (value: unknown) => string[];
     sdkRuntime: SdkPreflightResult;
     onStage?: RunOptions['onStage'];
+    onRecovery?: RunOptions['onRecovery'];
     featureRun?: boolean;
 }
 
@@ -169,6 +171,7 @@ export async function runContract(options: RunOptions): Promise<RunRecord> {
         reviewValidator: createReviewResultValidator(repoRoot),
         sdkRuntime,
         onStage: options.onStage,
+        onRecovery: options.onRecovery,
         featureRun: options.featureRun
     };
 
@@ -208,11 +211,7 @@ export async function runContract(options: RunOptions): Promise<RunRecord> {
 
             const repassWorkers = await runRepassWorkers(context, review.findings, validation);
             requireCompletedWorkers(repassWorkers);
-            for (const worker of repassWorkers) {
-                if (worker.outputCommit && worker.outputCommit !== run.integratedCommit) {
-                    await cherryPick(integrationWorktree, worker.outputCommit);
-                }
-            }
+            await integrateInitialWorkers(integrationWorktree, run.integratedCommit!, repassWorkers);
 
             run.integratedCommit = await currentCommit(integrationWorktree);
             await writeIntegrationResult(context, new Date().toISOString());
@@ -251,6 +250,10 @@ async function runInitialWorkers(
     implementer: WorkerAssignment,
     sdet: WorkerAssignment
 ): Promise<WorkerResult[]> {
+    if (context.featureRun) {
+        return runWorkerBatch(context, [implementer, sdet].map(assignment =>
+            () => runRecoverableAssignment(context, assignment, context.run.baseCommit, 0)));
+    }
     let initial: WorkerResult[];
     if (context.loaded.contract.limits.maxConcurrentWorkers > 1) {
         initial = await Promise.all([
@@ -312,26 +315,24 @@ async function runRepassWorkers(
         }
     }
 
-    const work: Array<Promise<WorkerResult>> = [];
+    const work: Array<() => Promise<WorkerResult>> = [];
     if (implementerFindings.length > 0) {
-        work.push(runEditingAssignment(
+        work.push(() => runRecoverableAssignment(
             context,
             implementer,
             context.run.integratedCommit!,
             context.run.repass,
             formatRepassContext(implementerFindings, failedValidationContext),
-            'repass',
             [context.run.artifactsDir]
         ));
     }
     if (sdetFindings.length > 0) {
-        work.push(runEditingAssignment(
+        work.push(() => runRecoverableAssignment(
             context,
             sdet,
             context.run.integratedCommit!,
             context.run.repass,
             formatRepassContext(sdetFindings, failedValidationContext),
-            'repass',
             [context.run.artifactsDir]
         ));
     }
@@ -340,15 +341,63 @@ async function runRepassWorkers(
         throw new Error('Repass was requested without an actionable finding');
     }
 
-    if (context.loaded.contract.limits.maxConcurrentWorkers > 1) {
-        return Promise.all(work);
-    }
+    return runWorkerBatch(context, work);
+}
 
+async function runWorkerBatch(context: RunContext, work: Array<() => Promise<WorkerResult>>): Promise<WorkerResult[]> {
+    if (context.loaded.contract.limits.maxConcurrentWorkers > 1) {
+        const settled = await Promise.allSettled(work.map(worker => worker()));
+        return settled.map(result => {
+            if (result.status === 'rejected') throw result.reason;
+            return result.value;
+        });
+    }
     const results: WorkerResult[] = [];
     for (const worker of work) {
-        results.push(await worker);
+        results.push(await worker());
     }
     return results;
+}
+
+export async function recoverWorker(
+    baseCommit: string,
+    retryLimit: number,
+    invoke: (base: string, retry: number, prior?: WorkerResult) => Promise<WorkerResult>,
+    beforeRetry: () => void
+): Promise<WorkerResult> {
+    let base = baseCommit;
+    let prior: WorkerResult | undefined;
+    for (let retry = 0; ; retry++) {
+        if (retry) beforeRetry();
+        let result: WorkerResult;
+        try {
+            result = await invoke(base, retry, prior);
+        } catch (error) {
+            const detail = errorMessage(error);
+            if (retry >= retryLimit || /denied authority|outside its authority/i.test(detail) ||
+                !/^(?:SDK worker returned malformed JSON|SDK worker final response must be|SDK worker result failed structured validation|Timeout waiting for)|\b(?:ETIMEDOUT|ECONNRESET|EAI_AGAIN)\b/i.test(detail)) throw error;
+            continue;
+        }
+        if (result.status === 'completed' || result.approvalRequests.length || retry >= retryLimit) return result;
+        if (result.outputCommit) base = result.outputCommit;
+        prior = result;
+    }
+}
+
+function runRecoverableAssignment(
+    context: RunContext, assignment: WorkerAssignment, base: string, attempt: number,
+    additionalContext?: string, readRoots?: string[]
+): Promise<WorkerResult> {
+    const retryLimit = context.featureRun ? context.loaded.contract.limits.maxRepasses : 0;
+    return recoverWorker(base, retryLimit, (checkpoint, retry, prior) => {
+        const recovery = retry ? (prior ? formatContinuationContext(prior)
+            : 'The previous invocation did not return a usable result. Complete the assignment and return the required structured result.') : undefined;
+        return runEditingAssignment(context, assignment, checkpoint, attempt,
+            [additionalContext, recovery].filter(Boolean).join('\n\n') || undefined, 'repass', readRoots, retry);
+    }, () => {
+        assertWithinWallClock(context.run, context.loaded.contract);
+        context.onRecovery?.(assignment.role);
+    });
 }
 
 async function runEditingAssignment(
@@ -358,10 +407,11 @@ async function runEditingAssignment(
     attempt: number,
     additionalContext?: string,
     attemptKind: 'repass' | 'continuation' = 'repass',
-    readRoots?: string[]
+    readRoots?: string[],
+    retry = 0
 ): Promise<WorkerResult> {
     const suffix = attempt === 0 ? 'initial' : `${attemptKind}-${attempt}`;
-    const invocationId = `${assignment.id}-${suffix}`;
+    const invocationId = `${assignment.id}-${suffix}${retry ? `-retry-${retry}` : ''}`;
     const worktreePath = path.join(context.run.worktreeRoot, invocationId);
     const workerArtifactDir = path.join(context.run.artifactsDir, 'workers', invocationId);
     const branch = branchName(context.loaded.contract.taskId, invocationId, context.run.runId);
@@ -772,8 +822,9 @@ export function formatContinuationContext(result: WorkerResult): string {
     );
     return [
         'This is a bounded continuation of your prior implementation pass.',
-        `The orchestrator checkpointed your prior scoped changes at commit ${result.outputCommit}.`,
-        'Preserve those changes and complete the remaining contract criteria. Do not restart or undo satisfied work.',
+        result.outputCommit ? `The orchestrator checkpointed your prior scoped changes at commit ${result.outputCommit}.`
+            : 'This invocation starts from the last trusted checkpoint or assignment base; uncommitted edits were not carried forward.',
+        'Preserve valid checkpointed changes and complete the remaining contract criteria.',
         '',
         'Prior summary:',
         result.summary,

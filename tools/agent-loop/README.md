@@ -128,7 +128,12 @@ When the current revision passes, the bot comment says **Ready for `agent-ready`
 maintainer approval)**. Implementation never starts from readiness review alone, regardless of
 who filed the issue. An approved maintainer must apply `agent-ready` to start implementation.
 Editing the issue invalidates the previous readiness result. If implementation fails, open the
-`implement` job in Actions for the failed stage and a safe diagnostic. After a fix and a current
+`implement` job in Actions for the failed stage and a safe diagnostic. For GitHub feature runs,
+the implementer and test worker can each retry up to twice per assignment, including during
+rework, within the run's existing time budget. Recovery uses a fresh worktree from the latest
+scoped checkpoint or the assignment base. Approval requests and authority errors are not retried.
+The issue reports automatic retries; exhausted recovery never publishes unreviewed code.
+After a fix and a current
 readiness pass, remove and reapply `agent-ready` to start a new run.
 
 To enable the workflow on the default branch, create the `needs-info`, `agent-ready`, and

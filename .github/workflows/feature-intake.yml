@@ -99,6 +99,7 @@ jobs:
     outputs:
       approved: ${{ steps.intake.outputs.approved }}
       agent-stage: ${{ steps.agent.outputs.stage }}
+      worker-retries: ${{ steps.agent.outputs.worker-retries }}
       artifact-id: ${{ steps.review.outputs.artifact-id }}
       review-files: ${{ steps.agent.outputs.review-files }}
       vsix-url: ${{ steps.vsix.outputs.artifact-url }}
@@ -181,14 +182,19 @@ jobs:
           agent_status=0
           AGENT_LOOP_DIAGNOSTICS_FILE="$diagnostics" node tools/agent-loop/dist/cli.js run-feature \
             .agent-runs/github-intake-contract.json > "$result" 2> "$RUNNER_TEMP/feature-agent-errors.log" || agent_status=$?
+          worker_retries=0
           while IFS= read -r line; do
             printf '%s\n' "$line"
             case "$line" in
               'Feature agent stage: contract'|'Feature agent stage: copilot-preflight'|'Feature agent stage: implementation'|'Feature agent stage: integration'|'Feature agent stage: validation'|'Feature agent stage: review'|'Feature agent stage: repass')
                 printf 'stage=%s\n' "${line#Feature agent stage: }" >> "$GITHUB_OUTPUT"
                 ;;
+              'Feature agent retrying worker: implementer'|'Feature agent retrying worker: sdet')
+                worker_retries=$((worker_retries + 1))
+                ;;
             esac
           done < "$diagnostics"
+          printf 'worker-retries=%s\n' "$worker_retries" >> "$GITHUB_OUTPUT"
           if (( agent_status != 0 )); then
             echo '::error::The feature agent stopped before producing a review-ready change. See the stage and diagnostic above.'
             exit "$agent_status"
@@ -436,6 +442,7 @@ jobs:
           IMPLEMENT_RESULT: ${{ needs.implement.result }}
           IMPLEMENT_APPROVED: ${{ needs.implement.outputs.approved }}
           AGENT_STAGE: ${{ needs.implement.outputs.agent-stage }}
+          WORKER_RETRIES: ${{ needs.implement.outputs.worker-retries }}
           PATCH_ARTIFACT_ID: ${{ needs.implement.outputs.artifact-id }}
           VSIX_ARTIFACT_ID: ${{ needs.implement.outputs.vsix-id }}
           UX_SCREENSHOT_COMMIT: ${{ needs.publish-ux-preview.outputs.commit }}

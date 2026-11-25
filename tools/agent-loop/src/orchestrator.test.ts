@@ -14,9 +14,50 @@ import {
     formatContinuationContext,
     formatValidationSummary,
     integrateInitialWorkers,
+    recoverWorker,
     selectTerminalWorkerResults
 } from './orchestrator';
 import { ReviewResult, RunRecord, ValidationResult, WorkerResult } from './types';
+
+function recoveryResult(status: WorkerResult['status'], outputCommit: string | null): WorkerResult {
+    return {
+        schemaVersion: '1.0', runId: 'run', taskId: 'task', workerId: 'worker', role: 'implementer',
+        status, outputCommit, baseCommit: 'base', startedAt: '', finishedAt: '', summary: '',
+        criteria: [], filesChanged: [], validations: [], artifacts: [], risks: [], approvalRequests: []
+    };
+}
+
+test('worker recovery resumes from a checkpoint and retries transient failures', async () => {
+    const blocked = recoveryResult('blocked', 'checkpoint');
+    const completed = { ...blocked, status: 'completed' as const };
+    let retries = 0;
+    const result = await recoverWorker('base', 2, async (base, attempt, prior) => {
+        assert.equal(base, attempt ? 'checkpoint' : 'base');
+        if (attempt === 0) return blocked;
+        assert.equal(prior, blocked);
+        if (attempt === 1) throw new Error('ECONNRESET');
+        return completed;
+    }, () => { retries++; });
+    assert.equal(result, completed);
+    assert.equal(retries, 2);
+});
+
+test('worker recovery is bounded and never retries approval or authority blockers', async () => {
+    const failed = recoveryResult('failed', null);
+    let calls = 0;
+    assert.equal(await recoverWorker('base', 2, async base => {
+        assert.equal(base, 'base');
+        calls++;
+        return failed;
+    }, () => {}), failed);
+    assert.equal(calls, 3);
+    const approval = { ...failed, approvalRequests: [{ category: 'network-access', reason: 'Requires access' }] };
+    const stop = () => assert.fail('Do not retry an approval or authority blocker.');
+    assert.equal(await recoverWorker('base', 2, async () => approval, stop), approval);
+    await assert.rejects(recoverWorker('base', 2, async () => {
+        throw new Error('Copilot SDK worker requested denied authority: ETIMEDOUT');
+    }, stop), /denied authority/);
+});
 
 test('parallel workers can persist the same run record without a temporary file collision', async t => {
     const artifactsDir = await mkdtemp(path.join(os.tmpdir(), 'spe-run-record-'));

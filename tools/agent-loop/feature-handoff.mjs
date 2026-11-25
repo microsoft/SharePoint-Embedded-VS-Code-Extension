@@ -141,6 +141,9 @@ export async function updateFeatureHandoff(event, env, fetcher = fetch) {
     const { github, repoUrl, runUrl } = deliveryContext(event, env, fetcher);
     const changedMarkdown = runStatus(runUrl, '**Run no longer applies to this issue.**',
         'The issue or its approval changed. Wait for readiness review of the current request, then reapply `agent-ready` if you want to run it again.');
+    const retriedWorkers = /^[1-9]\d{0,2}$/.test(env.WORKER_RETRIES ?? '') ? Number(env.WORKER_RETRIES) : 0;
+    const retryNote = retriedWorkers === 1 ? 'The agent retried a worker once automatically.'
+        : `The agent retried workers ${retriedWorkers} times automatically.`;
     if (env.IMPLEMENT_RESULT && env.IMPLEMENT_RESULT !== 'success') {
         const cancelled = env.IMPLEMENT_RESULT === 'cancelled';
         let detail = '';
@@ -151,12 +154,14 @@ export async function updateFeatureHandoff(event, env, fetcher = fetch) {
             const failedAgent = job?.steps?.some(step => step.name === 'Run the agent loop and export the reviewed diff' && step.conclusion === 'failure');
             const stage = (failedAgent ? agentStages.get(env.AGENT_STAGE) : undefined) ?? implementationMilestone(job, 'failure');
             detail = `Stopped at: **${stage}**. No testable VSIX was delivered.`;
+            if (retriedWorkers) detail = `${retryNote} ${detail}`;
             if (/^[1-9]\d*$/.test(env.PATCH_ARTIFACT_ID ?? '')) {
                 detail += ` [Download the reviewed patch](${runUrl}/artifacts/${env.PATCH_ARTIFACT_ID}).`;
             }
         }
         await writeDelivery(event, env, github,
-            runStatus(runUrl, cancelled ? '**Run cancelled.**' : '**Implementation failed.**', detail),
+            runStatus(runUrl, cancelled ? '**Run cancelled.**'
+                : retriedWorkers ? '**Run blocked after automatic recovery.**' : '**Implementation failed.**', detail),
             { existingRunOnly: env.IMPLEMENT_APPROVED !== 'true', changedMarkdown, humanReview: false });
         return;
     }
@@ -187,6 +192,7 @@ export async function updateFeatureHandoff(event, env, fetcher = fetch) {
     const markdown = [
         '## Feature agent delivery', '',
         humanReview ? '**Ready for human review.**' : '**Build complete for the approved issue revision.**',
+        ...(retriedWorkers ? ['', retryNote, ''] : []),
         `- [Download the testable VSIX and checksum](${runUrl}/artifacts/${env.VSIX_ARTIFACT_ID})`,
         `- [Download the reviewed patch](${runUrl}/artifacts/${env.PATCH_ARTIFACT_ID})`,
         `- [View the Actions run](${runUrl})`,

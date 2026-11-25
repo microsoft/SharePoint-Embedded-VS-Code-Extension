@@ -225,6 +225,9 @@ test('a fresh approved run reports pickup, progress, and failure on the same iss
     assert.match(current.body, /Stopped at: \*\*Building the testable VSIX\*\*/);
     assert.match(current.body, /No testable VSIX was delivered/);
     assert.match(current.body, /\[Download the reviewed patch\]/);
+    await updateFeatureHandoff(event, { ...env, IMPLEMENT_RESULT: 'failure', WORKER_RETRIES: '2' }, fetcher);
+    assert.match(current.body, /Run blocked after automatic recovery/);
+    assert.match(current.body, /retried workers 2 times automatically/);
     assert.equal(splitIssueDelivery(current.body).runId, '42');
     assert.equal(reviewRevision(current), reviewRevision(issue));
     current.body = current.body.replace('Unclear prompt.', 'Updated problem.');

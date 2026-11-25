@@ -268,6 +268,9 @@ export function buildPrompt<T>(
         options.trustedFeatureInstructions && options.assignment.mayEdit
             ? '- Use spe_edit_file to make authorized file edits. Read the file first and change one exact, unique text match at a time.'
             : '',
+        options.trustedFeatureInstructions && options.assignment.mayEdit
+            ? '- Report completed when your assigned edits are ready for integration, even if you cannot run checks yourself. Mark checks as not run; the orchestrator runs them and sends actionable failures back. Never claim that an unrun check passed.'
+            : '',
         `- Work only in this isolated checkout and only within: ${options.assignment.allowedPaths.join(', ')}`,
         '- Do not use network access, live cloud resources, MCP tools, push, merge, publish, or deploy.',
         '- Do not run shell commands; the orchestrator owns Git mutations and deterministic validation.',
