@@ -42,6 +42,7 @@ import { assertChangedPathsAllowed, matchesAny } from './paths';
 import { outputTail, runShellCommand } from './process';
 import { runSdkPreflight, SdkPreflightResult } from './sdkPreflight';
 import { runValidationCommand } from './validationSandbox';
+import { IncompleteWorkersError } from './implementationDiagnostics';
 import {
     AuthorityPolicy,
     LoadedContract,
@@ -58,7 +59,7 @@ import {
 export interface RunOptions {
     contractPath: string;
     onStage?: (stage: ImplementationStage) => void;
-    onRecovery?: (role: WorkerAssignment['role']) => void;
+    onRecovery?: (role: WorkerAssignment['role'], newOfflinePlan: boolean) => void;
     featureRun?: boolean;
 }
 
@@ -362,23 +363,35 @@ async function runWorkerBatch(context: RunContext, work: Array<() => Promise<Wor
 export async function recoverWorker(
     baseCommit: string,
     retryLimit: number,
-    invoke: (base: string, retry: number, prior?: WorkerResult) => Promise<WorkerResult>,
-    beforeRetry: () => void
+    invoke: (base: string, retry: number, prior: WorkerResult | undefined, offlinePlan: boolean) => Promise<WorkerResult>,
+    beforeRetry: (newOfflinePlan: boolean) => void
 ): Promise<WorkerResult> {
     let base = baseCommit;
     let prior: WorkerResult | undefined;
+    let offlinePlan = false;
+    let newOfflinePlan = false;
     for (let retry = 0; ; retry++) {
-        if (retry) beforeRetry();
+        if (retry) beforeRetry(newOfflinePlan);
+        newOfflinePlan = false;
         let result: WorkerResult;
         try {
-            result = await invoke(base, retry, prior);
+            result = await invoke(base, retry, prior, offlinePlan);
         } catch (error) {
             const detail = errorMessage(error);
             if (retry >= retryLimit || /denied authority|outside its authority/i.test(detail) ||
                 !/^(?:SDK worker returned malformed JSON|SDK worker final response must be|SDK worker result failed structured validation|Timeout waiting for)|\b(?:ETIMEDOUT|ECONNRESET|EAI_AGAIN)\b/i.test(detail)) throw error;
             continue;
         }
-        if (result.status === 'completed' || result.approvalRequests.length || retry >= retryLimit) return result;
+        if (retry >= retryLimit || result.blockerCode === 'budget-exhausted') return result;
+        if (result.approvalRequests.length) {
+            if (offlinePlan || result.approvalRequests.some(request => request.category.trim().toLowerCase() === 'budget')) return result;
+            // Start a new plan from the last scoped checkpoint, not from the requesting worker's edits or instructions.
+            prior = undefined;
+            offlinePlan = true;
+            newOfflinePlan = true;
+            continue;
+        }
+        if (result.status === 'completed') return result;
         if (result.outputCommit) base = result.outputCommit;
         prior = result;
     }
@@ -389,14 +402,20 @@ function runRecoverableAssignment(
     additionalContext?: string, readRoots?: string[]
 ): Promise<WorkerResult> {
     const retryLimit = context.featureRun ? context.loaded.contract.limits.maxRepasses : 0;
-    return recoverWorker(base, retryLimit, (checkpoint, retry, prior) => {
-        const recovery = retry ? (prior ? formatContinuationContext(prior)
-            : 'The previous invocation did not return a usable result. Complete the assignment and return the required structured result.') : undefined;
+    return recoverWorker(base, retryLimit, (checkpoint, retry, prior, offlinePlan) => {
+        const recovery = retry ? (prior ? formatContinuationContext(prior, context.featureRun)
+            : !offlinePlan ? 'The previous invocation did not return a usable result. Complete the assignment and return the required structured result.' : undefined) : undefined;
+        const alternative = offlinePlan ? [
+            'A previous plan required permission that was not granted. Abandon that plan. Your permissions have not changed.',
+            'Use only existing repository interfaces, scoped source edits, and offline synthetic fixtures. For a Graph feature, implement real request and response handling in the product and mock the service only in tests.',
+            'Do not perform or work around the restricted operation, skip requirements, or substitute a mock for production behavior.',
+            'If the real feature cannot be implemented within the original contract, report the essential approval category and affected criteria.'
+        ].join('\n') : undefined;
         return runEditingAssignment(context, assignment, checkpoint, attempt,
-            [additionalContext, recovery].filter(Boolean).join('\n\n') || undefined, 'repass', readRoots, retry);
-    }, () => {
+            [additionalContext, recovery, alternative].filter(Boolean).join('\n\n') || undefined, 'repass', readRoots, retry);
+    }, newOfflinePlan => {
         assertWithinWallClock(context.run, context.loaded.contract);
-        context.onRecovery?.(assignment.role);
+        context.onRecovery?.(assignment.role, newOfflinePlan);
     });
 }
 
@@ -730,7 +749,8 @@ async function runReview(
         reviewedCommit: context.run.integratedCommit!
     };
     addValidationFindings(review, validation, context.loaded.contract);
-    enforceReviewGate(review, context.loaded.contract.acceptanceCriteria.map(criterion => criterion.id));
+    enforceReviewGate(review, context.loaded.contract.acceptanceCriteria.map(criterion => criterion.id),
+        context.featureRun ? integratedPaths.length > 0 : undefined);
     assertStructuredResult(context.reviewValidator, review, `Review ${reviewId}`);
 
     const resultPath = path.join(artifactDir, 'result.json');
@@ -777,9 +797,7 @@ function requireCompletedWorkers(results: WorkerResult[]): void {
     const incomplete = selectTerminalWorkerResults(results)
         .filter(result => result.status !== 'completed');
     if (incomplete.length > 0) {
-        throw new Error(
-            `Workers did not complete: ${incomplete.map(result => `${result.workerId}=${result.status}`).join(', ')}`
-        );
+        throw new IncompleteWorkersError(incomplete);
     }
 }
 
@@ -795,7 +813,7 @@ export async function integrateInitialWorkers(
     }
 }
 
-export function enforceReviewGate(review: ReviewResult, requiredCriteria: string[]): void {
+export function enforceReviewGate(review: ReviewResult, requiredCriteria: string[], hasFeatureChanges?: boolean): void {
     if (review.decision !== 'pass') {
         return;
     }
@@ -805,6 +823,15 @@ export function enforceReviewGate(review: ReviewResult, requiredCriteria: string
         review.findings.some(finding => finding.severity === 'blocker' || finding.severity === 'high')) {
         review.decision = 'blocked';
         review.summary = 'Reviewer reported pass without satisfying every acceptance criterion or resolving all high-severity findings.';
+    } else if (hasFeatureChanges === false) {
+        review.decision = 'changes-required';
+        review.summary = 'There is no change against the feature run base.';
+        review.findings.push({
+            id: 'F-990', severity: 'blocker', category: 'correctness', criterionIds: requiredCriteria,
+            evidence: 'The integrated tree has no changed paths compared with the approved base.',
+            rationale: 'There is no diff to review in a PR.',
+            repassInstruction: 'Implement missing behavior or genuinely missing regression coverage. If the base already satisfies the brief with coverage, report that instead of inventing edits.'
+        });
     }
 }
 
@@ -816,7 +843,7 @@ export function selectTerminalWorkerResults(results: WorkerResult[]): WorkerResu
     return [...latestByRole.values()];
 }
 
-export function formatContinuationContext(result: WorkerResult): string {
+export function formatContinuationContext(result: WorkerResult, featureRun = false): string {
     const remaining = result.criteria.filter(criterion =>
         criterion.status === 'blocked' || criterion.status === 'not-satisfied'
     );
@@ -825,6 +852,11 @@ export function formatContinuationContext(result: WorkerResult): string {
         result.outputCommit ? `The orchestrator checkpointed your prior scoped changes at commit ${result.outputCommit}.`
             : 'This invocation starts from the last trusted checkpoint or assignment base; uncommitted edits were not carried forward.',
         'Preserve valid checkpointed changes and complete the remaining contract criteria.',
+        ...(featureRun && result.blockerCode === 'missing-context' && !result.approvalRequests.length ? [
+            'Resolve the reported missing context before repeating the same approach: inspect the closest existing feature.',
+            'If the criteria allow multiple implementations, choose a reversible default, record the assumption and rationale, and implement it now. Do not ask the PM to choose.',
+            'If no in-scope choice satisfies all explicit criteria, identify the conflicting criteria or missing essential prerequisite. Do not invent permissions or claim an unmet criterion passed.'
+        ] : []),
         '',
         'Prior summary:',
         result.summary,

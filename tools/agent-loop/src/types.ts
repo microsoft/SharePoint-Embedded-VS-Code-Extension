@@ -119,6 +119,7 @@ export interface WorkerResult {
     criteria: CriterionResult[];
     filesChanged: string[];
     validations: ValidationResult[];
+    blockerCode?: 'missing-context' | 'edit-scope' | 'fixture-unavailable' | 'implementation-incomplete' | 'budget-exhausted';
     artifacts: Array<{
         type: string;
         path: string;

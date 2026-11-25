@@ -1,7 +1,7 @@
 import { appendFileSync, readFileSync } from 'node:fs';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { pathToFileURL } from 'node:url';
-import { approval, hasLabel, intake, issueClient, READY, sensitivePath } from './feature-issue.mjs';
+import { approval, hasLabel, intake, issueClient, matchesIssueEvent, READY, sensitivePath } from './feature-issue.mjs';
 import { appendIssueDelivery, splitIssueDelivery } from './issue-delivery-section.mjs';
 import { reviewedDiff } from './publish-feature.mjs';
 
@@ -33,7 +33,8 @@ async function writeDelivery(event, env, github, markdown, { existingRunOnly = f
         return false;
     }
     if (!decision.approved) {
-        if (humanReview && sameRun && hasLabel(issue, HUMAN_REVIEW) && !hasLabel(issue, READY) &&
+        if (humanReview && sameRun && matchesIssueEvent(event, issue) && issue.state === 'open' &&
+            hasLabel(issue, HUMAN_REVIEW) && !hasLabel(issue, READY) &&
             issue.body === appendIssueDelivery(requirements, env.GITHUB_RUN_ID, markdown)) return true;
         if (!sameRun || !changedMarkdown) {
             console.log(`Skipped updating the issue description: ${decision.reason}`);
@@ -46,8 +47,8 @@ async function writeDelivery(event, env, github, markdown, { existingRunOnly = f
         // Change both status labels in one request so the handoff cannot leave both set.
         const labels = issue.labels.map(({ name }) => name).filter(name => ![READY, HUMAN_REVIEW].includes(name.toLowerCase()));
         const updated = await github('', { method: 'PATCH', body: { body, labels: [...labels, HUMAN_REVIEW] } });
-        if (!hasLabel(updated, HUMAN_REVIEW) || hasLabel(updated, READY)) {
-            throw new Error(`Could not switch to "${HUMAN_REVIEW}". Ensure the repository label exists.`);
+        if (updated.body !== body || !hasLabel(updated, HUMAN_REVIEW) || hasLabel(updated, READY)) {
+            throw new Error(`GitHub did not confirm the issue handoff and "${HUMAN_REVIEW}" label.`);
         }
         console.log('Updated the Feature agent delivery section and marked it ready for human review.');
     } else if (issue.body !== body) {
@@ -62,7 +63,7 @@ async function writeDelivery(event, env, github, markdown, { existingRunOnly = f
             await github(`/labels/${HUMAN_REVIEW}`, { method: 'DELETE', missingOk: true });
         }
     }
-    return true;
+    return decision.approved;
 }
 
 const milestones = new Map([
@@ -137,6 +138,31 @@ export async function watchFeatureRun(event, env, fetcher = fetch, wait = sleep)
     console.warn('Feature progress polling timed out; the final report will still run.');
 }
 
+async function branchBlocker(event, env, branch, fetcher) {
+    if (env.BRANCH_PUSHED !== 'true') return 'No feature branch was confirmed. Inspect the publish job before retrying.';
+    if (!/^[a-f0-9]{40}$/.test(env.BRANCH_COMMIT ?? '')) return 'The publisher did not identify the reviewed branch commit.';
+    const api = `https://api.github.com/repos/${env.GITHUB_REPOSITORY}`;
+    const get = path => fetcher(api + path, {
+        headers: { Authorization: `Bearer ${env.GH_TOKEN}`, Accept: 'application/vnd.github+json' },
+        redirect: 'error', signal: AbortSignal.timeout(15_000),
+    });
+    try {
+        const ref = await get(`/git/ref/heads/${branch}`);
+        if (!ref.ok) return `GitHub could not confirm the feature branch (HTTP ${ref.status}).`;
+        if ((await ref.json()).object?.sha !== env.BRANCH_COMMIT) return 'The feature branch no longer points to the reviewed commit. Check for a newer run.';
+        const comparison = await get(`/compare/${encodeURIComponent(event.repository.default_branch)}...${env.BRANCH_COMMIT}?per_page=1`);
+        if (!comparison.ok) return `GitHub could not compare the reviewed commit with the default branch (HTTP ${comparison.status}).`;
+        const diff = await comparison.json();
+        if (!(diff.ahead_by > 0 && Array.isArray(diff.files) && diff.files.length)) {
+            return 'There is no PR diff against the default branch. Check whether the feature has already landed.';
+        }
+    } catch (error) {
+        if (!(error instanceof TypeError || error instanceof SyntaxError || ['AbortError', 'TimeoutError'].includes(error.name))) throw error;
+        return 'GitHub did not return usable branch or comparison data. Retry handoff after connectivity is restored.';
+    }
+    return '';
+}
+
 export async function updateFeatureHandoff(event, env, fetcher = fetch) {
     const { github, repoUrl, runUrl } = deliveryContext(event, env, fetcher);
     const changedMarkdown = runStatus(runUrl, '**Run no longer applies to this issue.**',
@@ -144,8 +170,12 @@ export async function updateFeatureHandoff(event, env, fetcher = fetch) {
     const retriedWorkers = /^[1-9]\d{0,2}$/.test(env.WORKER_RETRIES ?? '') ? Number(env.WORKER_RETRIES) : 0;
     const retryNote = retriedWorkers === 1 ? 'The agent retried a worker once automatically.'
         : `The agent retried workers ${retriedWorkers} times automatically.`;
+    const offlineNote = /^[1-9]\d{0,2}$/.test(env.OFFLINE_PLANS ?? '')
+        ? `Offline alternatives attempted without additional permissions: ${env.OFFLINE_PLANS}.` : '';
     if (env.IMPLEMENT_RESULT && env.IMPLEMENT_RESULT !== 'success') {
         const cancelled = env.IMPLEMENT_RESULT === 'cancelled';
+        const diagnostic = env.AGENT_DIAGNOSTIC?.length <= 4096 &&
+            /^[A-Za-z0-9 ().,:;'-]+$/.test(env.AGENT_DIAGNOSTIC) ? env.AGENT_DIAGNOSTIC : '';
         let detail = '';
         if (!cancelled) {
             const job = await getImplementationJob(env, fetcher).catch(error => {
@@ -154,45 +184,52 @@ export async function updateFeatureHandoff(event, env, fetcher = fetch) {
             const failedAgent = job?.steps?.some(step => step.name === 'Run the agent loop and export the reviewed diff' && step.conclusion === 'failure');
             const stage = (failedAgent ? agentStages.get(env.AGENT_STAGE) : undefined) ?? implementationMilestone(job, 'failure');
             detail = `Stopped at: **${stage}**. No testable VSIX was delivered.`;
-            if (retriedWorkers) detail = `${retryNote} ${detail}`;
+            if (diagnostic) {
+                detail += `\n\n**Reason:** ${diagnostic}\n\n**Automatic worker retries:** ${retriedWorkers}.`;
+            } else if (retriedWorkers) detail = `${retryNote} ${detail}`;
+            if (offlineNote) detail += `\n\n${offlineNote}`;
             if (/^[1-9]\d*$/.test(env.PATCH_ARTIFACT_ID ?? '')) {
                 detail += ` [Download the reviewed patch](${runUrl}/artifacts/${env.PATCH_ARTIFACT_ID}).`;
             }
         }
         await writeDelivery(event, env, github,
             runStatus(runUrl, cancelled ? '**Run cancelled.**'
+                : diagnostic.includes('requested approval:') ? '**Needs a maintainer decision.**'
                 : retriedWorkers ? '**Run blocked after automatic recovery.**' : '**Implementation failed.**', detail),
             { existingRunOnly: env.IMPLEMENT_APPROVED !== 'true', changedMarkdown, humanReview: false });
         return;
     }
-    if (!env.VSIX_ARTIFACT_ID && env.IMPLEMENT_RESULT === 'success') {
-        await writeDelivery(event, env, github, runStatus(runUrl, '**Stopped without a VSIX.**',
-            'The run did not produce a patch, or the issue changed and the prior approval could no longer be used.'),
-        { existingRunOnly: true, changedMarkdown, humanReview: false });
+    if (env.IMPLEMENT_APPROVED !== 'true') {
+        console.log('No approved implementation to hand off.');
         return;
     }
+    if (env.IMPLEMENT_RESULT !== 'success') throw new Error('Implementation success was not confirmed.');
     const files = JSON.parse(env.REVIEW_FILES || '[]');
     if (!Array.isArray(files) || files.length > 40 || files.some(file => typeof file !== 'string' || !/^[\w./?-]+$/.test(file))) {
         throw new Error('Invalid sensitive file list.');
     }
     if (![env.PATCH_ARTIFACT_ID, env.VSIX_ARTIFACT_ID].every(id => /^[1-9]\d*$/.test(id ?? ''))) {
-        throw new Error('Expected the reviewed patch and VSIX artifact IDs.');
+        const missing = 'The reviewed patch or testable VSIX was not delivered. Check whether approval changed or artifact upload failed.';
+        await writeDelivery(event, env, github, runStatus(runUrl, '**Not PR-ready.**', missing), { changedMarkdown, humanReview: false });
+        throw new Error(missing);
     }
     const branch = `feature-agent/issue-${event.issue.number}`;
     const compareUrl = `${repoUrl}/compare/${encodeURIComponent(event.repository.default_branch)}...${branch}`;
-    const hasBranch = env.BRANCH_PUSHED === 'true';
+    const blocker = await branchBlocker(event, env, branch, fetcher);
+    const hasBranch = !blocker;
     const hasPR = /^[1-9]\d*$/.test(env.DRAFT_PR_NUMBER ?? '');
     const delivery = hasBranch ? [
         `Branch pushed: [\`${branch}\`](${repoUrl}/tree/${branch}). [View code changes](${compareUrl}).`,
         ...(env.PR_POLICY_BLOCKED === 'true' ? ['GitHub policy blocked automatic draft PR creation.'] : []),
         hasPR ? `Draft PR: [#${env.DRAFT_PR_NUMBER}](${repoUrl}/pull/${env.DRAFT_PR_NUMBER}).`
             : `[Open a PR manually](${compareUrl}?expand=1).`,
-    ].join('\n\n') : 'No feature branch was published. Use the reviewed patch to see the code; see the run for the publishing error.';
-    const humanReview = env.IMPLEMENT_RESULT === 'success' && hasBranch;
+    ].join('\n\n') : blocker;
+    const humanReview = hasBranch;
     const markdown = [
         '## Feature agent delivery', '',
-        humanReview ? '**Ready for human review.**' : '**Build complete for the approved issue revision.**',
+        humanReview ? '**Ready for human review.**' : '**Not PR-ready.**',
         ...(retriedWorkers ? ['', retryNote, ''] : []),
+        ...(offlineNote ? [offlineNote, ''] : []),
         `- [Download the testable VSIX and checksum](${runUrl}/artifacts/${env.VSIX_ARTIFACT_ID})`,
         `- [Download the reviewed patch](${runUrl}/artifacts/${env.PATCH_ARTIFACT_ID})`,
         `- [View the Actions run](${runUrl})`,
@@ -203,7 +240,9 @@ export async function updateFeatureHandoff(event, env, fetcher = fetch) {
         ...(files.length ? ['', '**Sensitive or infrastructure files to review before merging or installing:**',
             ...files.map(file => `- \`${file}\``), ...(files.length === 40 ? ['- See the patch for the full file list.'] : [])] : []),
     ].join('\n');
-    await writeDelivery(event, env, github, markdown, { changedMarkdown, humanReview });
+    const delivered = await writeDelivery(event, env, github, markdown, { changedMarkdown, humanReview });
+    if (!delivered) throw new Error('This run cannot claim delivery: its approval changed or a newer run owns the issue.');
+    if (blocker) throw new Error(blocker);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

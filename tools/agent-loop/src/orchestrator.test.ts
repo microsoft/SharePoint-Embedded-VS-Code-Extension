@@ -6,7 +6,7 @@ import * as path from 'node:path';
 import test from 'node:test';
 import { writeRunRecord } from './evidence';
 import { committedChangedPaths } from './git';
-import { describeImplementationFailure } from './implementationDiagnostics';
+import { describeImplementationFailure, IncompleteWorkersError } from './implementationDiagnostics';
 import {
     buildWorkerSdkArtifacts,
     ensureValidationClientDeclaration,
@@ -42,7 +42,7 @@ test('worker recovery resumes from a checkpoint and retries transient failures',
     assert.equal(retries, 2);
 });
 
-test('worker recovery is bounded and never retries approval or authority blockers', async () => {
+test('worker recovery is bounded and stops on exhaustion or enforced authority errors', async () => {
     const failed = recoveryResult('failed', null);
     let calls = 0;
     assert.equal(await recoverWorker('base', 2, async base => {
@@ -51,12 +51,53 @@ test('worker recovery is bounded and never retries approval or authority blocker
         return failed;
     }, () => {}), failed);
     assert.equal(calls, 3);
-    const approval = { ...failed, approvalRequests: [{ category: 'network-access', reason: 'Requires access' }] };
-    const stop = () => assert.fail('Do not retry an approval or authority blocker.');
-    assert.equal(await recoverWorker('base', 2, async () => approval, stop), approval);
+    const stop = () => assert.fail('Do not retry budget or authority blockers.');
+    const budget = { ...failed, approvalRequests: [{ category: 'budget', reason: 'Requires more time' }] };
+    assert.equal(await recoverWorker('base', 2, async () => budget, stop), budget);
+    const exhausted = { ...failed, blockerCode: 'budget-exhausted' as const };
+    assert.equal(await recoverWorker('base', 2, async () => exhausted, stop), exhausted);
     await assert.rejects(recoverWorker('base', 2, async () => {
         throw new Error('Copilot SDK worker requested denied authority: ETIMEDOUT');
     }, stop), /denied authority/);
+});
+
+test('an approval request can recover via a different plan, without inheriting the requesting attempt', async () => {
+    const checkpoint = recoveryResult('blocked', 'scoped-checkpoint');
+    const approval = { ...recoveryResult('blocked', 'never-use-this-commit'), approvalRequests: [
+        { category: 'network-access', reason: 'Requests a live service' }
+    ] };
+    const completed = recoveryResult('completed', 'offline-implementation');
+    const recoveries: boolean[] = [];
+    const result = await recoverWorker('base', 2, async (base, attempt, prior, offline) => {
+        if (attempt === 0) return checkpoint;
+        assert.equal(base, 'scoped-checkpoint');
+        if (attempt === 1) {
+            assert.equal(offline, false);
+            assert.equal(prior, checkpoint);
+            return approval;
+        }
+        assert.equal(offline, true);
+        assert.equal(prior, undefined);
+        return completed;
+    }, newPlan => recoveries.push(newPlan));
+    assert.equal(result, completed);
+    assert.deepEqual(recoveries, [false, true]);
+});
+
+test('a second approval request stops; a transport retry cannot lift offline constraints', async () => {
+    const approval = { ...recoveryResult('blocked', null), approvalRequests: [{ category: 'network-access', reason: '' }] };
+    const modes: boolean[] = [];
+    const recoveries: boolean[] = [];
+    const result = await recoverWorker('base', 3, async (base, attempt, prior, offline) => {
+        assert.equal(base, 'base');
+        assert.equal(prior, undefined);
+        modes.push(offline);
+        if (attempt === 1) throw new Error('ECONNRESET');
+        return approval;
+    }, newPlan => recoveries.push(newPlan));
+    assert.equal(result, approval);
+    assert.deepEqual(modes, [false, true, true]);
+    assert.deepEqual(recoveries, [true, false]);
 });
 
 test('parallel workers can persist the same run record without a temporary file collision', async t => {
@@ -84,6 +125,24 @@ test('public implementation diagnostics classify the failure without printing ra
     assert.doesNotMatch(writeFailure, /private/);
     assert.equal(describeImplementationFailure('review', new Error('Model-provided text')),
         'Feature agent stopped during review: The agent could not complete this stage.');
+});
+
+test('terminal worker diagnostics retain actionable blockers but not raw worker text', () => {
+    const result = recoveryResult('blocked', null);
+    result.summary = 'private runner file';
+    result.criteria = [{ id: 'AC-01', status: 'blocked', evidence: 'private fixture' }];
+    result.approvalRequests = [
+        { category: 'new-graph-beta-endpoint', reason: 'private approval context' },
+        { category: 'private custom category', reason: 'private' }
+    ];
+    const other = recoveryResult('failed', null);
+    other.role = 'sdet';
+    other.blockerCode = 'fixture-unavailable';
+    const message = describeImplementationFailure('implementation', new IncompleteWorkersError([result, other]));
+    assert.match(message, /Implementation worker \(AC-01\) requested approval: new-graph-beta-endpoint, unclassified/);
+    assert.match(message, /No additional permission was granted/);
+    assert.match(message, /Test worker reported failure: fixture-unavailable. Provide a synthetic fixture/);
+    assert.doesNotMatch(message, /private/);
 });
 
 test('initial integration preserves all commits in an implementer continuation', async t => {
@@ -151,6 +210,10 @@ test('a reviewer cannot pass without evidence for all required criteria', () => 
         rationale: 'Incorrect result', evidence: 'Regression', repassInstruction: 'Fix the result' });
     enforceReviewGate(high, ['AC-01']);
     assert.equal(high.decision, 'blocked');
+    const empty = report();
+    enforceReviewGate(empty, ['AC-01'], false);
+    assert.equal(empty.decision, 'changes-required');
+    assert.match(empty.findings[0].repassInstruction, /instead of inventing edits/);
 });
 
 test('validation handoff omits passing output and bounds failure excerpts', () => {
@@ -276,4 +339,14 @@ test('continuation handoff includes only unfinished criteria and checkpoint cont
     assert.match(context, /AC-10/);
     assert.doesNotMatch(context, /AC-01/);
     assert.match(context, /compile risk/);
+});
+
+test('missing-context recovery directs approved workers to choose a default without overriding approval', () => {
+    const result = recoveryResult('blocked', null);
+    result.blockerCode = 'missing-context';
+    const choice = /choose a reversible default/;
+    assert.match(formatContinuationContext(result, true), choice);
+    assert.doesNotMatch(formatContinuationContext(result), choice);
+    result.approvalRequests.push({ category: 'network-access', reason: 'Requires access' });
+    assert.doesNotMatch(formatContinuationContext(result, true), choice);
 });

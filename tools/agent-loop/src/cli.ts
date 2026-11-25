@@ -39,7 +39,10 @@ async function main(): Promise<void> {
     const result = await runContract({
         contractPath,
         featureRun: command === 'run-feature',
-        onRecovery: role => recordDiagnostic(`Feature agent retrying worker: ${role}`),
+        onRecovery: (role, newOfflinePlan) => {
+            recordDiagnostic(`Feature agent retrying worker: ${role}`);
+            if (newOfflinePlan) recordDiagnostic(`Feature agent trying offline alternative: ${role}`);
+        },
         onStage: value => {
             stage = value;
             recordDiagnostic(`Feature agent stage: ${value}`);

@@ -4,6 +4,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import test from 'node:test';
 import {
+    buildPrompt,
     buildSdkSessionConfig,
     createSdkPermissionHandler,
     invokeSdkWorker,
@@ -31,6 +32,18 @@ test('feature workers receive a scoped editor but the reviewer does not', async 
     const request = { kind: 'custom-tool', toolName: FEATURE_EDITOR };
     assert.equal((await createSdkPermissionHandler(implementer)(request, { sessionId: 'test' })).kind, 'approve-once');
     assert.equal((await createSdkPermissionHandler(reviewer)(request, { sessionId: 'test' })).kind, 'reject');
+});
+
+test('approved feature workers share a default-selection rule without waiving explicit criteria', async () => {
+    for (const role of ['implementer', 'sdet', 'reviewer'] as const) {
+        const options = await buildInvocationOptions(role);
+        const prompt = buildPrompt({ ...options, trustedFeatureInstructions: true }, '', '{}');
+        assert.match(prompt, /smallest reversible default consistent with every explicit acceptance criterion/);
+        assert.match(prompt, /Never assume permission/);
+        if (role === 'reviewer') assert.match(prompt, /An assumption is not evidence/);
+        else assert.match(prompt, /Record consequential defaults and their rationale/);
+        assert.doesNotMatch(buildPrompt(options, '', '{}'), /smallest reversible default/);
+    }
 });
 
 test('feature editor creates and edits only authorized files', async t => {
@@ -416,7 +429,7 @@ test('SDK environment removes non-authentication secrets', () => {
 });
 
 async function buildInvocationOptions(
-    role: 'implementer' | 'reviewer',
+    role: 'implementer' | 'sdet' | 'reviewer',
     artifactDir?: string
 ): Promise<InvocationOptions<WorkerResult | Record<string, unknown>>> {
     const repoRoot = await findRepositoryRoot(path.resolve(__dirname, '..', '..', '..'));

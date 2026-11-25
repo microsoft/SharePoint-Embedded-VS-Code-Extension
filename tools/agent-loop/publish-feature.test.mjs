@@ -5,11 +5,18 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import { reviewMarker, reviewRevision, TITLE_PREFIX } from './feature-issue.mjs';
-import { publish, validateStagedDiff } from './publish-feature.mjs';
+import { publish, TransientGitTransportError, validateStagedDiff } from './publish-feature.mjs';
 import { classifyFeatureHandoff, updateFeatureHandoff, watchFeatureRun } from './feature-handoff.mjs';
 import { appendIssueDelivery, splitIssueDelivery } from './issue-delivery-section.mjs';
 
 const repository = 'owner/repo';
+const branchCommit = '1'.repeat(40);
+function branchApi(path, { tip = branchCommit, changed = true } = {}) {
+    if (path === `/repos/${repository}/git/ref/heads/feature-agent/issue-8`) return Response.json({ object: { sha: tip } });
+    if (path === `/repos/${repository}/compare/main...${branchCommit}`) {
+        return Response.json({ ahead_by: changed ? 1 : 0, files: changed ? [{ filename: 'src/example.ts' }] : [] });
+    }
+}
 const issue = {
     id: 100, number: 8, labels: [{ name: 'agent-ready' }], state: 'open',
     title: `${TITLE_PREFIX} Improve the prompt`,
@@ -55,13 +62,16 @@ test('the issue description reports the branch and direct downloads without chan
         GITHUB_REPOSITORY: repository, GITHUB_RUN_ID: '42', GH_TOKEN: 'mock',
         FEATURE_REQUEST_APPROVERS: 'maintainer', PATCH_ARTIFACT_ID: '122', VSIX_ARTIFACT_ID: '123',
         REVIEW_FILES: '["src/services/Auth/GraphAuthProvider.ts"]', BRANCH_PUSHED: 'true',
-        PR_POLICY_BLOCKED: 'true',
+        PR_POLICY_BLOCKED: 'true', IMPLEMENT_APPROVED: 'true', IMPLEMENT_RESULT: 'success', BRANCH_COMMIT: branchCommit,
     };
     const fetcher = async (url, init) => {
+        const branchResponse = branchApi(new URL(url).pathname);
+        if (branchResponse) return branchResponse;
         assert.equal(new URL(url).pathname, '/repos/owner/repo/issues/8');
         if (init.method === 'GET') return Response.json(current);
         methods.push(init.method);
-        current = { ...current, ...JSON.parse(init.body) };
+        const { body, labels } = JSON.parse(init.body);
+        current = { ...current, body, labels: labels ? labels.map(name => ({ name })) : current.labels };
         return Response.json(current);
     };
     await updateFeatureHandoff(event, env, fetcher);
@@ -82,15 +92,16 @@ test('the issue description reports the branch and direct downloads without chan
     assert.doesNotMatch(current.body, /Playwright UX screenshot/);
     assert.match(current.body, /GraphAuthProvider\.ts/);
     const screenshotCommit = 'a'.repeat(40);
+    current.labels = [{ name: 'agent-ready' }];
     await updateFeatureHandoff(event, { ...env, GITHUB_RUN_ID: '43', DRAFT_PR_NUMBER: '19', UX_SCREENSHOT_COMMIT: screenshotCommit }, fetcher);
     assert.deepEqual(methods, ['PATCH', 'PATCH']);
     assert.ok(current.body.includes(`Draft PR: [#19](https://github.com/owner/repo/pull/19).\n\n` +
         `![Playwright UX screenshot](https://raw.githubusercontent.com/owner/repo/${screenshotCommit}/ux-preview.png)`));
     assert.equal(current.body.match(/^## Feature agent delivery$/gm).length, 1);
-    await updateFeatureHandoff(event, env, fetcher);
+    await assert.rejects(updateFeatureHandoff(event, env, fetcher), /cannot claim delivery/);
     assert.equal(splitIssueDelivery(current.body).runId, '43');
     current.body = current.body.replace('Unclear prompt.', 'Updated problem.');
-    await updateFeatureHandoff(event, { ...env, GITHUB_RUN_ID: '44' }, fetcher);
+    await assert.rejects(updateFeatureHandoff(event, { ...env, GITHUB_RUN_ID: '44' }, fetcher), /cannot claim delivery/);
     assert.deepEqual(methods, ['PATCH', 'PATCH']);
     assert.match(current.body, /Updated problem\./);
 });
@@ -114,13 +125,16 @@ test('approved retries switch between agent-ready and ready-for-human-review', a
     };
     const env = {
         GITHUB_REPOSITORY: repository, GITHUB_RUN_ID: '42', GH_TOKEN: 'mock',
-        FEATURE_REQUEST_APPROVERS: 'maintainer', IMPLEMENT_RESULT: 'success',
+        FEATURE_REQUEST_APPROVERS: 'maintainer', IMPLEMENT_RESULT: 'success', IMPLEMENT_APPROVED: 'true', BRANCH_COMMIT: branchCommit,
         PATCH_ARTIFACT_ID: '507', VSIX_ARTIFACT_ID: '508',
     };
     const review = { id: 1, user: { id: 41898282, type: 'Bot' }, body: `${reviewMarker} ${reviewRevision(issue)} ready -->\nReady.` };
     const labelWrites = [];
+    const remoteState = { tip: branchCommit, changed: true };
     const fetcher = async (target, init) => {
         const path = decodeURIComponent(new URL(target).pathname);
+        const branchResponse = branchApi(path, remoteState);
+        if (branchResponse) return branchResponse;
         if (path.includes('/actions/')) return Response.json({ jobs: [{ name: 'implement', status: 'completed' }] });
         if (path.endsWith('/comments')) return Response.json([review]);
         if (init.method === 'DELETE') {
@@ -147,13 +161,21 @@ test('approved retries switch between agent-ready and ready-for-human-review', a
     assert.deepEqual(labelWrites, []);
     await watch(env);
     assert.deepEqual(current.labels, priorLabels);
-    await report(env, {});
+    await assert.rejects(report(env, {}), /No feature branch was confirmed/);
+    await assert.rejects(report(env, { VSIX_ARTIFACT_ID: '' }), /not delivered/);
+    await assert.rejects(report(env, { PATCH_ARTIFACT_ID: '' }), /not delivered/);
+    remoteState.tip = '2'.repeat(40);
+    await assert.rejects(report(env, { BRANCH_PUSHED: 'true' }), /no longer points to the reviewed commit/);
+    remoteState.tip = branchCommit;
+    remoteState.changed = false;
+    await assert.rejects(report(env, { BRANCH_PUSHED: 'true' }), /no PR diff/);
+    remoteState.changed = true;
     assert.deepEqual(labelWrites, ['removed']);
     assert.doesNotMatch(current.body, /Ready for human review/);
 
     const retry = { ...env, GITHUB_RUN_ID: '43' };
     await watch(retry);
-    await report(env, { BRANCH_PUSHED: 'true' });
+    await assert.rejects(report(env, { BRANCH_PUSHED: 'true' }), /cannot claim delivery/);
     assert.deepEqual(current.labels, priorLabels);
     const policyBlocked = { PR_POLICY_BLOCKED: 'true', BRANCH_PUSHED: 'true', UX_SCREENSHOT_COMMIT: 'b'.repeat(40) };
     await report(retry, policyBlocked);
@@ -228,10 +250,16 @@ test('a fresh approved run reports pickup, progress, and failure on the same iss
     await updateFeatureHandoff(event, { ...env, IMPLEMENT_RESULT: 'failure', WORKER_RETRIES: '2' }, fetcher);
     assert.match(current.body, /Run blocked after automatic recovery/);
     assert.match(current.body, /retried workers 2 times automatically/);
+    const approvalReason = 'Feature agent stopped during implementation: Test worker (AC-01) requested approval: network-access. No additional permission was granted. Use a recorded fixture or mock instead of contacting the service.';
+    await updateFeatureHandoff(event, { ...env, IMPLEMENT_RESULT: 'failure', AGENT_DIAGNOSTIC: approvalReason, WORKER_RETRIES: '1', OFFLINE_PLANS: '1' }, fetcher);
+    assert.match(current.body, /Needs a maintainer decision/);
+    assert.ok(current.body.includes(`**Reason:** ${approvalReason}`));
+    assert.match(current.body, /Automatic worker retries:\*\* 1/);
+    assert.match(current.body, /Offline alternatives attempted without additional permissions: 1/);
     assert.equal(splitIssueDelivery(current.body).runId, '42');
     assert.equal(reviewRevision(current), reviewRevision(issue));
     current.body = current.body.replace('Unclear prompt.', 'Updated problem.');
-    await updateFeatureHandoff(event, { ...env, IMPLEMENT_RESULT: 'success', PATCH_ARTIFACT_ID: '507', VSIX_ARTIFACT_ID: '508' }, fetcher);
+    await assert.rejects(updateFeatureHandoff(event, { ...env, IMPLEMENT_APPROVED: 'true', IMPLEMENT_RESULT: 'success', PATCH_ARTIFACT_ID: '507', VSIX_ARTIFACT_ID: '508' }, fetcher), /cannot claim delivery/);
     assert.match(current.body, /Run no longer applies to this issue/);
     assert.match(current.body, /Updated problem\./);
     assert.doesNotMatch(current.body, /Download the testable VSIX/);
@@ -254,19 +282,28 @@ test('publishes from an isolated index, replaces the issue branch, and reuses an
     git(['add', '.']);
     git(['-c', 'user.name=Test', '-c', 'user.email=test@example.com', 'commit', '-qm', 'Base']);
     const base = git(['rev-parse', 'HEAD']).trim();
+    function snapshotTree() {
+        git(['add', '-u']);
+        const tree = git(['write-tree']).trim();
+        git(['restore', '--staged', '--', '.']);
+        return tree;
+    }
     await writeFile(file, 'export const prompt = "New";\n');
+    const reviewedTree = snapshotTree();
     await writeFile(join(directory, 'feature.patch'), git(['diff', '--binary']));
     await writeFile(join(directory, 'feature-base-sha.txt'), `${base}\n`);
     git(['restore', authPath]);
     const env = {
         ...process.env, GH_TOKEN: 'mock', GITHUB_REPOSITORY: repository, GITHUB_REF: 'refs/heads/main',
         GITHUB_SHA: base, GITHUB_RUN_ID: '42', RUNNER_TEMP: directory, FEATURE_REQUEST_APPROVERS: 'maintainer',
+        REVIEWED_TREE: reviewedTree,
         TESTABLE_VSIX_URL: `https://github.com/${repository}/actions/runs/42/artifacts/123`,
     };
     const ref = 'refs/heads/feature-agent/issue-8';
     const url = `https://github.com/${repository}/pull/19`;
     let remote = '';
     let updateBeforePush;
+    let transportFailure;
     let pushes = 0;
     let attempts = 0;
     let posts = 0;
@@ -280,6 +317,10 @@ test('publishes from an isolated index, replaces the issue branch, and reuses an
         if (args[1] === 'ls-remote') return remote;
         if (args.includes('push')) {
             attempts++;
+            if (transportFailure === 'before') {
+                transportFailure = undefined;
+                throw new TransientGitTransportError();
+            }
             const lease = args.find(arg => arg.startsWith('--force-with-lease='));
             if (updateBeforePush) remote = updateBeforePush;
             if (lease !== `--force-with-lease=${ref}:${remote.split('\t')[0]}`) throw new Error('stale lease');
@@ -288,6 +329,10 @@ test('publishes from an isolated index, replaces the issue branch, and reuses an
             assert.equal(git(['rev-parse', `${head}^`]).trim(), base);
             remote = `${head}\t${ref}\n`;
             pushes++;
+            if (transportFailure === 'after') {
+                transportFailure = undefined;
+                throw new TransientGitTransportError();
+            }
             return '';
         }
         return git(args, options, input);
@@ -321,6 +366,8 @@ test('publishes from an isolated index, replaces the issue branch, and reuses an
     await assert.rejects(publish(options), /Issue text changed/);
     assert.equal(pushes, 0);
     current = issue;
+    await assert.rejects(publish({ ...options, env: { ...env, REVIEWED_TREE: base } }), /do not match the reviewed source tree/);
+    assert.equal(pushes, 0);
     assert.deepEqual(await publish(options), { policyBlocked: true });
     assert.equal(branchConfirmed, true);
     const initialCommit = remote.split('\t')[0];
@@ -335,6 +382,7 @@ test('publishes from an isolated index, replaces the issue branch, and reuses an
     prResponse = null;
     assert.deepEqual(await publish(options), { url, number: 19, created: true });
     await writeFile(file, 'export const prompt = "Latest";\n');
+    env.REVIEWED_TREE = snapshotTree();
     await writeFile(join(directory, 'feature.patch'), git(['diff', '--binary']));
     git(['restore', authPath]);
     branchConfirmed = false;
@@ -354,6 +402,7 @@ test('publishes from an isolated index, replaces the issue branch, and reuses an
 
     await writeFile(manifest, '{"description":"Updated extension description"}\n');
     await writeFile(file, 'export const prompt = "Mixed";\n');
+    env.REVIEWED_TREE = snapshotTree();
     await writeFile(join(directory, 'feature.patch'), git(['diff', '--binary']));
     git(['restore', authPath, 'package.json']);
     assert.deepEqual(await publish(options), { url, number: 19, created: false });
@@ -365,4 +414,16 @@ test('publishes from an isolated index, replaces the issue branch, and reuses an
     branchConfirmed = false;
     await assert.rejects(publish(options), /Pull request lookup failed \(HTTP 503\).*branch was pushed/);
     assert.equal(branchConfirmed, true);
+    // Check a failed transmission and a lost acknowledgement against the original lease.
+    lookupStatus = 200;
+    for (const [failure, expectedAttempts] of [['before', 2], ['after', 1]]) {
+        const before = attempts;
+        const successfulPushes = pushes;
+        remote = `${base}\t${ref}\n`;
+        transportFailure = failure;
+        assert.deepEqual(await publish(options), { url, number: 19, created: false });
+        assert.equal(attempts - before, expectedAttempts);
+        assert.equal(pushes, successfulPushes + 1);
+        assert.equal(remote, `${mixedCommit}\t${ref}\n`);
+    }
 });

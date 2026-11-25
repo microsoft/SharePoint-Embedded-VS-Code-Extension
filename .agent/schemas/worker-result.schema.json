@@ -185,6 +185,10 @@
         "type": "string"
       }
     },
+    "blockerCode": {
+      "type": "string",
+      "enum": ["missing-context", "edit-scope", "fixture-unavailable", "implementation-incomplete", "budget-exhausted"]
+    },
     "approvalRequests": {
       "type": "array",
       "items": {

@@ -127,12 +127,27 @@ node tools\agent-loop\review-feature.mjs smoke
 When the current revision passes, the bot comment says **Ready for `agent-ready` (awaiting
 maintainer approval)**. Implementation never starts from readiness review alone, regardless of
 who filed the issue. An approved maintainer must apply `agent-ready` to start implementation.
+Once approved, workers resolve unspecified product details without asking the PM: follow the
+nearest repository convention, preserve existing behavior, or choose the smallest reversible
+default that satisfies the explicit criteria. Workers record consequential assumptions in
+their result and explain why. The reviewer evaluates the outcome against the brief, not a
+preference for a different default. Permissions, API guarantees, and completion evidence
+cannot be assumed.
 Editing the issue invalidates the previous readiness result. If implementation fails, open the
 `implement` job in Actions for the failed stage and a safe diagnostic. For GitHub feature runs,
 the implementer and test worker can each retry up to twice per assignment, including during
 rework, within the run's existing time budget. Recovery uses a fresh worktree from the latest
-scoped checkpoint or the assignment base. Approval requests and authority errors are not retried.
-The issue reports automatic retries; exhausted recovery never publishes unreviewed code.
+scoped checkpoint or the assignment base. When a worker reports needing approval, the runner
+denies the requested operation and can spend one remaining retry on a different implementation
+under the original permissions. It never carries edits or instructions from that request into
+the new plan. For a Graph feature this can mean implementing the real client integration and
+using a synthetic service response only in tests. Repeated approval requests, exhausted budgets,
+and enforced authority errors do not start another alternative.
+The issue and failed Actions annotation report the stop reason. For a worker-reported stop,
+the issue identifies the worker, affected criteria when reported, approval or blocker category,
+next action, and retry count. `agent-ready` does not grant live access; do not repeatedly
+relabel an unchanged request that stopped for approval. Public diagnostics exclude free-form
+worker text, raw SDK logs, and credentials. Exhausted recovery never publishes unreviewed code.
 After a fix and a current
 readiness pass, remove and reapply `agent-ready` to start a new run.
 
@@ -157,7 +172,10 @@ The workflow pushes the complete reviewed patch, including necessary manifest an
 changes. An approved retry replaces `feature-agent/issue-<number>` with the new reviewed
 commit and updates any open PR from that branch to the default branch. Keep manual edits on a
 separate branch; the retry replaces the old branch contents. If the branch moves between lookup
-and push, Git rejects the update. If there's no open PR, the workflow attempts to open a draft
+and push, Git rejects the update. After a transient push error, the publisher checks the remote
+branch first. If the commit already landed, it continues to the PR step. Otherwise it can retry
+once with the original lease and fresh approval, provided the branch has not changed.
+If there's no open PR, the workflow attempts to open a draft
 using the repository token. A blocked PR
 does not undo a successful push. If GitHub explicitly denies PR creation by Actions policy, the
 publisher warns instead of failing and the issue includes a link to open the PR manually.
@@ -195,6 +213,12 @@ a test would
 verify that a synthetic owner is visible in the JSON editor. A desktop scenario, when
 present, must pass and takes precedence over a webview screenshot for the same issue.
 The issue links to **View code changes** and either the PR or **Open a PR manually**.
+PR-ready delivery is the success condition for an approved run. An empty integrated diff
+goes back for bounded rework instead of counting as success. The published source tree must
+match the reviewed source used for the VSIX. Before marking the issue ready, the handoff
+requires the patch and VSIX artifact IDs, confirms the remote branch tip and a nonempty
+comparison with the default branch, and requires GitHub to acknowledge the issue body and
+review label. Missing delivery evidence is a blocker, not a successful exit.
 Sensitive edits are flagged for human review, not omitted. Changes to GitHub Actions workflow
 definitions require a maintainer push because those definitions can run before merge. The
 publisher rejects the entire patch if it contains such a change, falls outside the allowed

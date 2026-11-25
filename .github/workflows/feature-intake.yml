@@ -98,8 +98,11 @@ jobs:
     environment: feature-agent
     outputs:
       approved: ${{ steps.intake.outputs.approved }}
+      reviewed-tree: ${{ steps.agent.outputs.reviewed-tree }}
       agent-stage: ${{ steps.agent.outputs.stage }}
       worker-retries: ${{ steps.agent.outputs.worker-retries }}
+      offline-plans: ${{ steps.agent.outputs.offline-plans }}
+      agent-diagnostic: ${{ steps.agent.outputs.diagnostic }}
       artifact-id: ${{ steps.review.outputs.artifact-id }}
       review-files: ${{ steps.agent.outputs.review-files }}
       vsix-url: ${{ steps.vsix.outputs.artifact-url }}
@@ -183,6 +186,8 @@ jobs:
           AGENT_LOOP_DIAGNOSTICS_FILE="$diagnostics" node tools/agent-loop/dist/cli.js run-feature \
             .agent-runs/github-intake-contract.json > "$result" 2> "$RUNNER_TEMP/feature-agent-errors.log" || agent_status=$?
           worker_retries=0
+          offline_plans=0
+          diagnostic=''
           while IFS= read -r line; do
             printf '%s\n' "$line"
             case "$line" in
@@ -192,11 +197,21 @@ jobs:
               'Feature agent retrying worker: implementer'|'Feature agent retrying worker: sdet')
                 worker_retries=$((worker_retries + 1))
                 ;;
+              'Feature agent trying offline alternative: implementer'|'Feature agent trying offline alternative: sdet')
+                offline_plans=$((offline_plans + 1))
+                ;;
+              'Feature agent stopped during '*|'Feature agent blocked: '*)
+                diagnostic="$line"
+                ;;
             esac
           done < "$diagnostics"
-          printf 'worker-retries=%s\n' "$worker_retries" >> "$GITHUB_OUTPUT"
+          printf 'worker-retries=%s\noffline-plans=%s\n' "$worker_retries" "$offline_plans" >> "$GITHUB_OUTPUT"
           if (( agent_status != 0 )); then
-            echo '::error::The feature agent stopped before producing a review-ready change. See the stage and diagnostic above.'
+            if [[ -z "$diagnostic" ]]; then
+              diagnostic="The runner exited with status $agent_status without recording a diagnostic. Check the job timing and runner termination before retrying."
+            fi
+            printf 'diagnostic=%s\n' "$diagnostic" >> "$GITHUB_OUTPUT"
+            printf '::error title=Feature agent stopped::%s\n' "$diagnostic"
             exit "$agent_status"
           fi
           commit=$(jq -er '.integratedCommit | select(test("^[0-9a-f]{40}$"))' "$result")
@@ -206,8 +221,10 @@ jobs:
           git merge-base --is-ancestor "$GITHUB_SHA" "$commit"
           git --no-pager diff --no-ext-diff --no-textconv --binary "$GITHUB_SHA" "$commit" -- > "$RUNNER_TEMP/feature.patch"
           if [[ ! -s "$RUNNER_TEMP/feature.patch" ]]; then
-            echo '::warning::The agent returned no changes. No patch will be uploaded.'
-            exit 0
+            reason='The candidate has no changes against the run base. Check whether the feature already exists or an acceptance criterion is not implemented.'
+            printf 'diagnostic=%s\n' "$reason" >> "$GITHUB_OUTPUT"
+            printf '::error title=No PR-ready diff::%s\n' "$reason"
+            exit 1
           fi
           [[ "$phase" == awaiting-human-acceptance ]]
           attempt=$(jq -er '.repass | select(type == "number" and . >= 0 and . == floor)' "$result")
@@ -225,6 +242,7 @@ jobs:
             node tools/agent-loop/feature-handoff.mjs
           printf '%s\n' "$GITHUB_SHA" > "$RUNNER_TEMP/feature-base-sha.txt"
           printf 'patch=true\ncommit=%s\nphase=%s\n' "$commit" "$phase" >> "$GITHUB_OUTPUT"
+          printf 'reviewed-tree=%s\n' "$(git rev-parse "${commit}^{tree}")" >> "$GITHUB_OUTPUT"
       - name: Confirm the issue has not changed before handoff
         id: handoff
         if: steps.agent.outputs.patch == 'true'
@@ -331,6 +349,7 @@ jobs:
       pull-requests: write
     outputs:
       branch-pushed: ${{ steps.publish.outputs.branch-pushed }}
+      branch-commit: ${{ steps.publish.outputs.branch-commit }}
       pr-number: ${{ steps.publish.outputs.pr-number }}
       pr-policy-blocked: ${{ steps.publish.outputs.pr-policy-blocked }}
     steps:
@@ -350,6 +369,7 @@ jobs:
           GIT_TERMINAL_PROMPT: '0'
           FEATURE_REQUEST_APPROVERS: ${{ vars.FEATURE_REQUEST_APPROVERS }}
           TESTABLE_VSIX_URL: ${{ needs.implement.outputs.vsix-url }}
+          REVIEWED_TREE: ${{ needs.implement.outputs.reviewed-tree }}
         run: node tools/agent-loop/publish-feature.mjs "$RUNNER_TEMP/feature-review"
 
   publish-ux-preview:
@@ -443,11 +463,14 @@ jobs:
           IMPLEMENT_APPROVED: ${{ needs.implement.outputs.approved }}
           AGENT_STAGE: ${{ needs.implement.outputs.agent-stage }}
           WORKER_RETRIES: ${{ needs.implement.outputs.worker-retries }}
+          OFFLINE_PLANS: ${{ needs.implement.outputs.offline-plans }}
+          AGENT_DIAGNOSTIC: ${{ needs.implement.outputs.agent-diagnostic }}
           PATCH_ARTIFACT_ID: ${{ needs.implement.outputs.artifact-id }}
           VSIX_ARTIFACT_ID: ${{ needs.implement.outputs.vsix-id }}
           UX_SCREENSHOT_COMMIT: ${{ needs.publish-ux-preview.outputs.commit }}
           REVIEW_FILES: ${{ needs.implement.outputs.review-files }}
           BRANCH_PUSHED: ${{ needs.publish.outputs.branch-pushed }}
+          BRANCH_COMMIT: ${{ needs.publish.outputs.branch-commit }}
           DRAFT_PR_NUMBER: ${{ needs.publish.outputs.pr-number }}
           PR_POLICY_BLOCKED: ${{ needs.publish.outputs.pr-policy-blocked }}
         run: node tools/agent-loop/feature-handoff.mjs report
