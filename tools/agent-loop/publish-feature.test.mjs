@@ -443,3 +443,57 @@ test('publishes from an isolated index, replaces the issue branch, and reuses an
         assert.equal(remote, `${mixedCommit}\t${ref}\n`);
     }
 });
+
+test('a Modifications run only replaces the issue branch while it still points to the pinned proposal', async (t) => {
+    const directory = await mkdtemp(join(tmpdir(), 'spe-publish-proposal-'));
+    t.after(() => rm(directory, { recursive: true, force: true }));
+    const repositoryPath = join(directory, 'repo');
+    const source = 'src/commands/ContainerType/RegisterOnLocalTenant.ts';
+    await mkdir(join(repositoryPath, 'src', 'commands', 'ContainerType'), { recursive: true });
+    const git = (args, env, input) => execFileSync('git', ['-C', repositoryPath, ...args], { env, input, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] });
+    await writeFile(join(repositoryPath, source), 'export const registerLater = false;\n');
+    git(['init', '-q']);
+    git(['add', '.']);
+    git(['-c', 'user.name=Test', '-c', 'user.email=test@example.com', 'commit', '-qm', 'Base']);
+    const base = git(['rev-parse', 'HEAD']).trim();
+    await writeFile(join(repositoryPath, source), 'export const registerLater = true;\n');
+    git(['add', '-u']);
+    const reviewedTree = git(['write-tree']).trim();
+    git(['restore', '--staged', '--', '.']);
+    await writeFile(join(directory, 'feature.patch'), git(['diff', '--binary']));
+    await writeFile(join(directory, 'feature-base-sha.txt'), `${base}\n`);
+    git(['restore', source]);
+    const revised = { ...issue, body: `${issue.body}\n### Modifications\nKeep the prompt. Change the menu label.` };
+    const review = { id: 1, user: { id: 41898282, type: 'Bot' }, body: `${reviewMarker} ${reviewRevision(revised)} ready -->\nReady.` };
+    const pinned = 'a'.repeat(40);
+    const ref = 'refs/heads/feature-agent/issue-8';
+    let remote = `${'b'.repeat(40)}\t${ref}\n`;
+    const leases = [];
+    const run = (command, args, options, input) => {
+        if (args[1] === 'ls-remote') return remote;
+        if (args.includes('push')) {
+            leases.push(args.find(arg => arg.startsWith('--force-with-lease=')));
+            remote = `${args.at(-1).split(':')[0]}\t${ref}\n`;
+            return '';
+        }
+        return git(args.slice(1), options, input);
+    };
+    const fetcher = async (target) => {
+        const { pathname } = new URL(target);
+        if (pathname.endsWith('/pulls')) return Response.json([{ html_url: 'https://github.com/owner/repo/pull/19', number: 19 }]);
+        return Response.json(pathname.endsWith('/comments') ? [review] : revised);
+    };
+    const env = { ...process.env, GH_TOKEN: 'mock', GITHUB_REPOSITORY: repository, GITHUB_REF: 'refs/heads/main', GITHUB_SHA: base,
+        GITHUB_RUN_ID: '42', RUNNER_TEMP: directory, FEATURE_REQUEST_APPROVERS: 'maintainer', REVIEWED_TREE: reviewedTree };
+    const options = { event: { ...event, issue: revised }, directory, run, fetcher };
+    await assert.rejects(publish({ ...options, env }), /pinned proposal do not match/);
+    await assert.rejects(publish({ ...options, env: { ...env, PROPOSAL_COMMIT: pinned } }), /changed after it was pinned/);
+    assert.deepEqual(leases, []);
+    remote = `${pinned}\t${ref}\n`;
+    assert.deepEqual(await publish({ ...options, env: { ...env, PROPOSAL_COMMIT: pinned } }),
+        { url: 'https://github.com/owner/repo/pull/19', number: 19, created: false });
+    assert.deepEqual(leases, [`--force-with-lease=${ref}:${pinned}`]);
+    await assert.rejects(publish({ event, env: { ...env, PROPOSAL_COMMIT: pinned }, directory, run,
+        fetcher: async (target) => Response.json(new URL(target).pathname.endsWith('/comments')
+            ? [{ ...review, body: `${reviewMarker} ${reviewRevision(issue)} ready -->\nReady.` }] : issue) }), /pinned proposal do not match/);
+});

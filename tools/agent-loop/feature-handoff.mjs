@@ -68,6 +68,7 @@ async function writeDelivery(event, env, github, markdown, { existingRunOnly = f
 
 const milestones = new Map([
     ['Authorize issue and compile its task contract', 'Checking approval and preparing the task'],
+    ['Pin and verify the previous proposal', 'Verifying the previous proposal for the requested modifications'],
     ['Check test VSIX sign-in configuration', 'Configuring test VSIX sign-in (SPE_TEST_CLIENT_ID)'],
     ['Prepare the locked project dependencies, Copilot CLI and validation image', 'Preparing the isolated runner'],
     ['Recheck approval before implementation', 'Checking that approval is still current'],
@@ -229,6 +230,8 @@ export async function updateFeatureHandoff(event, env, fetcher = fetch) {
     const markdown = [
         '## Feature agent delivery', '',
         humanReview ? '**Ready for human review.**' : '**Not PR-ready.**',
+        ...(/^[a-f0-9]{40}$/.test(env.PROPOSAL_COMMIT ?? '')
+            ? ['', `Built on the previous reviewed proposal \`${env.PROPOSAL_COMMIT.slice(0, 12)}\` with the requested modifications, reapplied to the current default branch and reviewed again.`] : []),
         ...(retriedWorkers ? ['', retryNote, ''] : []),
         ...(offlineNote ? [offlineNote, ''] : []),
         `- [Download the testable VSIX and checksum](${runUrl}/artifacts/${env.VSIX_ARTIFACT_ID})`,

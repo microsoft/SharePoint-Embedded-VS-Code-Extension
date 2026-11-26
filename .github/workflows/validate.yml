@@ -49,7 +49,7 @@ jobs:
       - name: Test agent loop
         run: |
           npm run agent:test
-          node --test tools/agent-loop/feature-issue.test.mjs tools/agent-loop/review-feature.test.mjs tools/agent-loop/publish-feature.test.mjs
+          node --test tools/agent-loop/feature-issue.test.mjs tools/agent-loop/feature-proposal.test.mjs tools/agent-loop/review-feature.test.mjs tools/agent-loop/publish-feature.test.mjs
 
   api-tests:
     name: API tests

@@ -186,3 +186,67 @@ test('even an approved author needs a separate agent-ready label event after rea
     const labelEvent = { ...event, issue: approvedIssue, sender: owner };
     assert.equal((await intake({ event: labelEvent, mode: 'authorize', env, fetcher })).approved, true);
 });
+
+// Requirements from public issue microsoft/SharePoint-Embedded-VS-Code-Extension#87 (delivery section omitted).
+const crossTenantBody = [
+    '### Problem', '',
+    '- I’m signed in to Tenant A. I can select a multitenant Entra app whose home is Tenant B and which appears under Enterprise applications in Tenant A. After I create a container type (CT) with that app (which is currently not supported), I want to register the new CT in Tenant A. Today the extension sends me to a guide instead.', '',
+    '### Expected behavior',
+    '- When creation succeeds, offer “Register in this tenant.” Use the CT ID returned by creation and its recorded owning app ID to register it in Tenant A. I should not have to switch tenants, paste either ID, or create a second CT.',
+    '- The new container type is properly registered against the Entra app from another tenant.', '',
+    '### Acceptance criteria', '',
+    '- When creation succeeds in Tenant A, the new CT’s owning app ID matches the selected app’s Application (client) ID from Tenant B, not its local service principal object ID.',
+    '- With the required consent and permissions, selecting “Register in this tenant” registers that same CT in Tenant A and shows it as registered only after registration succeeds.',
+    '- If I skip registration, I can register the CT later from its context menu. If it is already registered, show that status without overwriting existing grants.',
+    '- If creation or registration fails, identify which step failed and why. If creation succeeded but registration failed, let me retry registration without recreating the CT.', '',
+    '### UI impact', '',
+    '- Offer Entra Apps from other tenants which are registered in the current tenant',
+    '- After creation, show the CT name, the target tenant, and “Register in this tenant” and “Skip” actions. Offer the registration guide when a prerequisite is missing, not as the only option solely because the app is from another tenant.',
+].join('\n');
+const crossTenantIssue = { id: 87, number: 87, state: 'open', labels: [{ name: 'agent-ready' }],
+    title: `${TITLE_PREFIX} Create container type with Entra app id from another tenant`, body: crossTenantBody };
+
+test('compound acceptance criteria compile to stable scenarios mapped to their parent criterion', () => {
+    const contract = compileContract(87, env.GITHUB_SHA, assessIssue(crossTenantIssue));
+    assert.deepEqual(contract.acceptanceCriteria.map(c => [c.id, (c.scenarios ?? []).map(s => s.id)]), [
+        ['AC-01', []], ['AC-02', []], ['AC-03', ['AC-03-S1', 'AC-03-S2']], ['AC-04', ['AC-04-S1', 'AC-04-S2']],
+    ]);
+    assert.deepEqual(contract.acceptanceCriteria[2].scenarios.map(s => s.description), [
+        'If I skip registration, I can register the CT later from its context menu.',
+        'If it is already registered, show that status without overwriting existing grants.',
+    ]);
+    assert.deepEqual(compileContract(87, env.GITHUB_SHA, assessIssue(crossTenantIssue)).acceptanceCriteria, contract.acceptanceCriteria);
+    assert.equal(contract.proposalRevision, undefined);
+    const { validateContractInvariants } = require('./dist/contract.js');
+    const validate = new (require('ajv').default)().compile(require('../../.agent/schemas/task-contract.schema.json'));
+    assert.equal(validate(contract), true, JSON.stringify(validate.errors));
+    validateContractInvariants(process.cwd(), contract, require('../../.agent/policies/default-authority.json'));
+});
+
+test('a Modifications section requests a proposal revision; an empty one remains an ordinary fresh run', async () => {
+    const modifications = 'Keep: the Register in this tenant action and the cross-tenant app picker.\nChange: after Skip, the container type context menu offers Register in this tenant and shows Registered without changing existing grants.';
+    const revised = { ...crossTenantIssue, body: `${crossTenantBody}\n\n### Modifications\n\n${modifications}` };
+    const blank = { ...crossTenantIssue, body: `${crossTenantBody}\n\n### Modifications\n\n_No response_` };
+    assert.equal(assessIssue(blank).modifications, undefined);
+    assert.equal(compileContract(87, env.GITHUB_SHA, assessIssue(blank)).proposalRevision, undefined);
+    const brief = assessIssue(revised);
+    assert.equal(brief.modifications, modifications);
+    const contract = compileContract(87, env.GITHUB_SHA, brief);
+    assert.deepEqual(contract.proposalRevision, { branch: 'feature-agent/issue-87', modifications });
+    assert.equal(new (require('ajv').default)().compile(require('../../.agent/schemas/task-contract.schema.json'))(contract), true);
+    assert.notEqual(reviewRevision(revised), reviewRevision(crossTenantIssue));
+    assert.equal(assessIssue({ ...revised, body: `${revised.body}\n\n### Modifications\n\nAgain.` }).status, 'incomplete');
+    assert.equal(assessIssue({ ...crossTenantIssue, body: `${crossTenantBody}\n\n### Modifications\n\n${'x'.repeat(4001)}` }).status, 'incomplete');
+
+    // Editing Modifications invalidates the earlier pass; only a bot pass for the new revision plus a fresh maintainer label approves it.
+    const labeled = { action: 'labeled', label: { name: 'agent-ready' }, sender: { type: 'User', login: 'Owner' }, issue: revised };
+    let comment = { id: 1, user: { id: 41898282, type: 'Bot' }, body: `${reviewMarker} ${reviewRevision(crossTenantIssue)} ready -->\nReady.` };
+    const fetcher = async (url) => Response.json(url.includes('/comments?') ? [comment] : revised);
+    assert.equal((await intake({ event: labeled, mode: 'authorize', env, fetcher })).approved, false);
+    assert.equal((await intake({ event: { ...labeled, action: 'edited' }, mode: 'authorize', env, fetcher })).approved, false);
+    comment = { ...comment, body: `${reviewMarker} ${reviewRevision(revised)} ready -->\nReady.` };
+    const result = await intake({ event: labeled, mode: 'authorize', env, fetcher });
+    assert.equal(result.approved, true);
+    assert.equal(result.modifications, true);
+    assert.equal(result.contract.proposalRevision.modifications, modifications);
+});

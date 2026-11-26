@@ -39,3 +39,16 @@ body:
         a desktop scenario. API-only changes do not produce a screenshot.
     validations:
       required: true
+  - type: textarea
+    id: modifications
+    attributes:
+      label: Modifications
+      description: >-
+        Optional. Leave empty for a fresh implementation. After a run reaches
+        ready-for-human-review, describe what to keep and what to change in that proposal.
+        Editing this section starts a new readiness review, and a maintainer must apply
+        agent-ready again. The next run reapplies the reviewed proposal to the current
+        default branch and stops if that proposal is missing, changed, or conflicts.
+      placeholder: "Keep: the Register in this tenant action.\nChange: after Skip, show Register in this tenant in the container type's context menu."
+    validations:
+      required: false

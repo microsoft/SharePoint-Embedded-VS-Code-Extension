@@ -120,7 +120,8 @@ jobs:
       agent-stage: ${{ steps.agent.outputs.stage }}
       worker-retries: ${{ steps.agent.outputs.worker-retries }}
       offline-plans: ${{ steps.agent.outputs.offline-plans }}
-      agent-diagnostic: ${{ steps.agent.outputs.diagnostic }}
+      agent-diagnostic: ${{ steps.agent.outputs.diagnostic || steps.proposal.outputs.diagnostic }}
+      proposal-commit: ${{ steps.proposal.outputs.proposal-commit }}
       artifact-id: ${{ steps.review.outputs.artifact-id }}
       review-files: ${{ steps.agent.outputs.review-files }}
       omit-preview: ${{ steps.agent.outputs.omit-preview }}
@@ -136,12 +137,20 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           ref: ${{ github.sha }}
+          # Full history lets a Modifications run verify that the previous proposal descends from the default branch.
+          fetch-depth: 0
           persist-credentials: false
       - name: Authorize issue and compile its task contract
         id: intake
         env:
           GH_TOKEN: ${{ github.token }}
         run: node tools/agent-loop/feature-issue.mjs authorize
+      - name: Pin and verify the previous proposal
+        id: proposal
+        if: steps.intake.outputs.approved == 'true' && steps.intake.outputs.modifications == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node tools/agent-loop/feature-proposal.mjs pin
       - name: Check test VSIX sign-in configuration
         if: steps.intake.outputs.approved == 'true'
         env:
@@ -407,6 +416,7 @@ jobs:
           FEATURE_REQUEST_APPROVERS: ${{ vars.FEATURE_REQUEST_APPROVERS }}
           TESTABLE_VSIX_URL: ${{ needs.implement.outputs.vsix-url }}
           REVIEWED_TREE: ${{ needs.implement.outputs.reviewed-tree }}
+          PROPOSAL_COMMIT: ${{ needs.implement.outputs.proposal-commit }}
         run: node tools/agent-loop/publish-feature.mjs "$RUNNER_TEMP/feature-review"
 
   publish-ux-preview:
@@ -502,6 +512,7 @@ jobs:
           WORKER_RETRIES: ${{ needs.implement.outputs.worker-retries }}
           OFFLINE_PLANS: ${{ needs.implement.outputs.offline-plans }}
           AGENT_DIAGNOSTIC: ${{ needs.implement.outputs.agent-diagnostic }}
+          PROPOSAL_COMMIT: ${{ needs.implement.outputs.proposal-commit }}
           PATCH_ARTIFACT_ID: ${{ needs.implement.outputs.artifact-id }}
           VSIX_ARTIFACT_ID: ${{ needs.implement.outputs.vsix-id }}
           UX_SCREENSHOT_COMMIT: ${{ needs.publish-ux-preview.outputs.commit }}

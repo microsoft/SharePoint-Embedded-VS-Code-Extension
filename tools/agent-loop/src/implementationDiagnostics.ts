@@ -1,5 +1,6 @@
 import type { ImplementationStage } from './orchestrator';
-import type { ReviewResult, WorkerResult } from './types';
+import { ProposalConflictError } from './git';
+import type { ReviewResult, TaskContract, WorkerResult } from './types';
 
 export function describeReviewStop(
     review: Pick<ReviewResult, 'decision' | 'findings'> & Partial<Pick<ReviewResult, 'criteria'>>,
@@ -8,6 +9,9 @@ export function describeReviewStop(
     const safeId = (id: string) => /^AC-\d{2,4}$/.test(id);
     const criteria = (review.criteria ?? []).filter(c => safeId(c.id) &&
         ['not-satisfied', 'not-verifiable'].includes(c.status)).slice(0, 12).map(c => `${c.id} ${c.status}`);
+    const scenarios = (review.criteria ?? []).flatMap(c => (c.scenarios ?? []).filter(s =>
+        s.id.startsWith(`${c.id}-S`) && /^AC-\d{2,4}-S\d$/.test(s.id) && s.status !== 'satisfied' && observations.has(s.observed)))
+        .slice(0, 12).map(s => `${s.id} ${s.observed}`);
     const findings = review.findings.filter(f => ['blocker', 'high', 'medium', 'low'].includes(f.severity) &&
         ['correctness', 'security', 'reliability', 'testing', 'architecture', 'contract'].includes(f.category))
         .slice(0, 6).map(f => `${f.severity} ${f.category} (${f.criterionIds.filter(safeId).slice(0, 12).join(', ') || 'general'})`);
@@ -15,6 +19,7 @@ export function describeReviewStop(
         review.decision === 'blocked' ? 'Independent review was blocked.' : 'Independent review requested changes.',
         `Repair passes: ${repairs}; review-directed: ${reviewRepairs}.`,
         ...(criteria.length ? [`Criteria: ${criteria.join(', ')}.`] : []),
+        ...(scenarios.length ? [`Open scenarios: ${scenarios.join(', ')}.`] : []),
         ...(findings.length ? [`Findings: ${findings.join('; ')}.`] : ['No structured findings reported.']),
     ].join(' ');
 }
@@ -39,13 +44,46 @@ const blockerActions = {
     'budget-exhausted': 'Reduce the size of the assignment or review its configured limits.',
 };
 
-// Only controlled categories, roles, counts and criterion IDs may reach the public issue.
+// Results whose last attempt repeated the previous open scenarios with no new code or evidence.
+export const noProgressResults = new WeakSet<WorkerResult>();
+
+const safeCriterionId = (id: string) => /^AC-\d{2,4}$/.test(id);
+const safeScenarioId = (id: string) => /^AC-\d{2,4}-S\d$/.test(id);
+const observations = new Set(['verified', 'not-implemented', 'not-covered', 'assertion-failed', 'build-failed', 'fixture-unavailable', 'not-verifiable']);
+// Public issue text only, reduced to the issue diagnostic character set.
+export const publicExpectation = (text: string) => text.replace(/[^A-Za-z0-9 ().,:;'-]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 140).replace(/[\s.,:;]+$/, '');
+
+type ScenarioCatalog = Pick<TaskContract, 'acceptanceCriteria'>;
+
+export function describeOpenScenarios(worker: WorkerResult, contract?: ScenarioCatalog): string[] {
+    const catalog = new Map((contract?.acceptanceCriteria ?? []).flatMap(c => (c.scenarios ?? []).map(s => [s.id, { parent: c.id, s }] as const)));
+    const notes: string[] = [];
+    for (const criterion of worker.criteria) {
+        if (!['blocked', 'not-satisfied'].includes(criterion.status) || !safeCriterionId(criterion.id)) continue;
+        const declared = (contract?.acceptanceCriteria ?? []).find(c => c.id === criterion.id)?.scenarios ?? [];
+        const reported = (criterion.scenarios ?? []).filter(s => safeScenarioId(s.id) && catalog.get(s.id)?.parent === criterion.id);
+        const open = reported.filter(s => ['blocked', 'not-satisfied'].includes(s.status));
+        for (const scenario of open.slice(0, 4)) {
+            const expected = publicExpectation(catalog.get(scenario.id)!.s.description);
+            const observed = observations.has(scenario.observed) ? scenario.observed : 'not-verifiable';
+            notes.push(`Scenario ${scenario.id} of ${criterion.id} still fails (expected: ${expected}; observed: ${observed}).`);
+        }
+        const passed = reported.filter(s => s.status === 'satisfied').map(s => s.id);
+        if (passed.length) notes.push(`Kept passing scenarios: ${passed.join(', ')}.`);
+        if (declared.length && !reported.length) {
+            notes.push(`Scenarios ${declared.map(s => s.id).join(', ')} of ${criterion.id} were not reported individually.`);
+        }
+    }
+    return notes;
+}
+
+// Only controlled categories, roles, counts, criterion IDs and public scenario text may reach the public issue.
 export class IncompleteWorkersError extends Error {
-    constructor(workers: WorkerResult[]) {
+    constructor(workers: WorkerResult[], contract?: ScenarioCatalog) {
         super(workers.map(worker => {
             const role = worker.role === 'sdet' ? 'Test worker' : 'Implementation worker';
             const ids = [...new Set(worker.criteria.filter(c => ['blocked', 'not-satisfied'].includes(c.status) &&
-                /^AC-\d{2,4}$/.test(c.id)).map(c => c.id))].slice(0, 12);
+                safeCriterionId(c.id)).map(c => c.id))].slice(0, 12);
             const prefix = `${role}${ids.length ? ` (${ids.join(', ')})` : ''}`;
             if (worker.approvalRequests.length) {
                 const categories = [...new Set(worker.approvalRequests.map(a => {
@@ -59,7 +97,12 @@ export class IncompleteWorkersError extends Error {
             const code = worker.blockerCode;
             const cause = code ? `${code}. ${blockerActions[code]}` :
                 'No specific blocker was reported. Inspect the affected criteria and split out any missing prerequisite.';
-            return `${prefix} reported ${worker.status === 'failed' ? 'failure' : 'blocked'}: ${cause}`;
+            const stalled = noProgressResults.has(worker)
+                ? ['Stopped early: the last two attempts reported the same open scenarios with no new code or evidence.'] : [];
+            const kept = worker.outputCommit && worker.filesChanged.length
+                ? [`The last scoped checkpoint changed ${worker.filesChanged.length} file(s) and is kept in the run record.`] : [];
+            return [`${prefix} reported ${worker.status === 'failed' ? 'failure' : 'blocked'}: ${cause}`,
+                ...describeOpenScenarios(worker, contract), ...stalled, ...kept].join(' ');
         }).join(' '));
     }
 }
@@ -69,6 +112,10 @@ export function describeImplementationFailure(stage: ImplementationStage, error:
     let reason = 'The agent could not complete this stage.';
     if (error instanceof IncompleteWorkersError) {
         reason = error.message;
+    } else if (error instanceof ProposalConflictError) {
+        reason = `The previous proposal conflicts with the current default branch in ${error.paths.length} file(s). Nothing was resolved automatically. Update the proposal branch from the default branch or remove the Modifications section for a fresh run.`;
+    } else if (/^The previous proposal (?:is already part of|is missing|was not pinned)/.test(detail)) {
+        reason = detail;
     } else if (stage === 'copilot-preflight') {
         if (/protocol version mismatch/i.test(detail)) {
             reason = 'The pinned Copilot CLI and SDK are incompatible.';

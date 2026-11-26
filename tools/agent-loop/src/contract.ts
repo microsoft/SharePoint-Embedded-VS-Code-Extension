@@ -133,6 +133,15 @@ export function validateContractInvariants(
             throw new Error(`Required check is not allowed by the authority policy: ${check.command}`);
         }
     }
+    for (const criterion of contract.acceptanceCriteria) {
+        const ids = (criterion.scenarios ?? []).map(scenario => scenario.id);
+        if (ids.some((id, index) => id !== `${criterion.id}-S${index + 1}`)) {
+            throw new Error(`Scenarios for ${criterion.id} must be numbered ${criterion.id}-S1 onward`);
+        }
+    }
+    if (contract.proposalRevision && contract.proposalRevision.branch !== contract.taskId.replace(/^github-issue-/, 'feature-agent/issue-')) {
+        throw new Error('A proposal revision must target the same issue');
+    }
 }
 
 export function isSingleEditorFeature(contract: TaskContract): boolean {

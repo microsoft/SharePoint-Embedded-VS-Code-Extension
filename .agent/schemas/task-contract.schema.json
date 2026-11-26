@@ -65,6 +65,17 @@
         "$ref": "#/definitions/acceptanceCriterion"
       }
     },
+    "proposalRevision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["branch", "modifications"],
+      "properties": {
+        "branch": { "type": "string", "pattern": "^feature-agent/issue-[1-9][0-9]*$" },
+        "modifications": { "type": "string", "minLength": 1, "maxLength": 4000 },
+        "commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "parent": { "type": "string", "pattern": "^[0-9a-f]{40}$" }
+      }
+    },
     "requiredChecks": {
       "type": "array",
       "minItems": 1,
@@ -195,6 +206,20 @@
         "evidence": {
           "type": "string",
           "minLength": 5
+        },
+        "scenarios": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 4,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "description"],
+            "properties": {
+              "id": { "type": "string", "pattern": "^AC-[0-9]{2,}-S[0-9]+$" },
+              "description": { "type": "string", "minLength": 10 }
+            }
+          }
         }
       }
     },

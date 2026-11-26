@@ -169,6 +169,36 @@ worker text, raw SDK logs, and credentials. Exhausted recovery never publishes u
 After a fix and a current
 readiness pass, remove and reapply `agent-ready` to start a new run.
 
+### Revising a reviewed proposal
+
+The form's optional **Modifications** section lets a reviewer say what to keep and what to change
+in the proposal from the last `ready-for-human-review` handoff. Leave it empty (or `_No response_`)
+for an ordinary fresh run. Editing it changes the readiness revision, so it is reviewed again and
+an approved maintainer must apply `agent-ready` again; nothing is approved automatically.
+
+In this mode the implement job pins the current tip of `feature-agent/issue-<number>` and verifies
+it before any worker starts: it must be a single unmodified feature-agent handoff commit for the
+same issue, its parent must be in the default branch history, its paths must be publishable, and
+the issue must have a bot-applied `ready-for-human-review` event. The workflow base remains the
+trusted default-branch checkout. The runner reapplies only the proposal's diff to that base with
+a three-way merge and checkpoints it; the editor then applies the modifications, and the result
+goes through the usual validation and independent review. A missing, altered, stale, already
+merged, or conflicting proposal stops the run with a safe reason rather than starting over.
+The publisher only replaces the branch while it still points to the pinned proposal.
+
+### Compound criteria and stalled scenarios
+
+A criterion with several sentences is split into stable scenarios such as `AC-03-S1` and
+`AC-03-S2` (one per sentence, two to four). The editor and reviewer report each scenario's
+status and a controlled observation (`verified`, `not-implemented`, `not-covered`,
+`assertion-failed`, `build-failed`, `fixture-unavailable`, or `not-verifiable`). A pass requires
+every reported scenario of a criterion to be satisfied. The run record keeps per-attempt progress:
+open scenario IDs, the checkpoint commit, changed-file count, and an evidence fingerprint (not the
+evidence text). A retry that reports the same open scenarios, blocker, and evidence without new
+code stops instead of repeating. The public diagnostic names the failing scenario and its parent,
+the expected outcome from the public issue text (reduced to a safe character set), the controlled
+observation, and which scenarios passed. Worker prose, prompts, and logs are never published.
+
 To enable the workflow on the default branch, create the `triaging`, `needs-info`, `agent-ready`, and
 `ready-for-human-review` repository labels and set the Actions variable `FEATURE_REQUEST_APPROVERS` to the approved GitHub
 usernames (comma-separated). Create the `feature-agent` Actions environment, restrict deployments

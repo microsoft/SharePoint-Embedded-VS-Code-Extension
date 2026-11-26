@@ -7,7 +7,7 @@ import { splitIssueDelivery } from './issue-delivery-section.mjs';
 import { assessIssue, hasLabel, issueClient, matchesIssueEvent, MAX_BODY, NEEDS_INFO, READY,
     readReadinessComment, reviewMarker, reviewRevision, TITLE_PREFIX } from './feature-issue.mjs';
 
-const fields = ['Problem', 'Expected behavior', 'Acceptance criteria', 'UI impact'];
+const fields = ['Problem', 'Expected behavior', 'Acceptance criteria', 'UI impact', 'Modifications'];
 const TRIAGING = 'triaging';
 
 export async function clearTriaging(github) {
@@ -60,6 +60,7 @@ export function reviewPrompt(input) {
         'Only block on a missing product decision that would materially change the user outcome, or a contradiction that prevents a meaningful test. Leave ordinary edge cases, visual details, data shapes, and test fixtures to implementation using established behavior and conservative defaults. For example, a mix of valid and malformed permission records is not a blocker when the brief already says to preserve known owners and to distinguish no owners from unavailable data.',
         'Review the whole brief in one pass. Group related cases under one recommendation. Before responding, mentally apply every proposed edit and check that the revised brief would be ready; if not, improve the proposed edits now.',
         'If previous feedback is provided, verify whether it is resolved in the current issue. Do not move the goalposts by asking for newly noticed minor edge cases. Only raise a new blocker if a material change or contradiction in the revision would make implementation unsafe or untestable. Do not invent requirements.',
+        'An optional Modifications section asks the next run to revise the previous reviewed proposal. If present, check that it states what to keep or change specifically enough to verify and does not contradict the acceptance criteria. Do not require it, and do not ask for the proposal content itself.',
         'Do not assume Azure, tenant data, credentials, or repository access. Do not provide exploit or attack guidance.',
         'Fact-check every form finding against the entire visible issue, not just the section that triggered it. Do not treat a heuristic as proof that detail is missing. If the description is truncated, do not claim to know what the omitted text says.',
         'Return only JSON with two keys: "checks" and "questions". In "checks", include one object {"id": number, "feedback": object or null} for each form finding ID.',
@@ -202,7 +203,7 @@ function reviewInput(issue, assessment, prior) {
             ? { previousFeedback: prior.body.slice(0, 6_000) } : {}) };
 }
 
-function commentBody(revision, result, runUrl) {
+function commentBody(revision, result, runUrl, modifications = false) {
     const lines = result.feedback.flatMap(({ field, gap, why, add, example }, index) => [
         `${index + 1}. **${escapeMarkdown(field)}:** ${escapeMarkdown(gap)}`,
         `   - **Why it matters:** ${escapeMarkdown(why)}`,
@@ -212,7 +213,8 @@ function commentBody(revision, result, runUrl) {
     ]);
     const runLink = runUrl ? ` See the [Actions run](${runUrl}).` : '';
     const text = result.status === 'ready'
-        ? ['**Ready for `agent-ready` (awaiting maintainer approval).** The current issue has enough detail. Implementation has not been started by this review. Apply `agent-ready` to start it. If the label is already present from an earlier attempt, remove and reapply it.']
+        ? ['**Ready for `agent-ready` (awaiting maintainer approval).** The current issue has enough detail. Implementation has not been started by this review. Apply `agent-ready` to start it. If the label is already present from an earlier attempt, remove and reapply it.',
+            ...(modifications ? ['', '**Modifications requested.** The approved run will revise the latest ready-for-human-review proposal on this issue\'s `feature-agent` branch, reapplied to the current default branch. It stops instead of starting over if that proposal is missing, has changed, or conflicts. Remove the Modifications section for a fresh implementation.'] : [])]
         : result.status === 'unavailable'
             ? [lines.length ? '**Review could not finish.** The form checks below still need attention, but Copilot has not reviewed them.'
                 : '**Review could not finish — no author action required.**', '',
@@ -258,7 +260,7 @@ export async function publishReview(github, plan, modelResult, { runUrl } = {}) 
     }
     if (needsInfo || hasLabel(current, READY)) await clearTriaging(github);
     if (!reusable) {
-        const body = commentBody(plan.revision, { ...result, feedback }, runUrl);
+        const body = commentBody(plan.revision, { ...result, feedback }, runUrl, Boolean(assessIssue(current).modifications));
         if (prior?.body !== body) {
             if (prior) await github('', { method: 'PATCH', commentId: prior.id, body: { body } });
             else await github('/comments', { method: 'POST', body: { body } });
