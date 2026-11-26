@@ -47,31 +47,22 @@ export const containerTypeAppPermissionSchema = z.enum([
 ]);
 
 /**
- * Permission principal role on a container type. Left open-ended
- * (z.string()) because the exact enum isn't formally documented for
- * container type permissions yet.
+ * Permission principal role on a container type
  */
-export const containerTypePermissionRoleSchema = z.string();
+export const containerTypePermissionRoleSchema = z.literal('owner');
 
 /**
- * Principal type for a container type permission entry.
- */
-export const containerTypePermissionPrincipalTypeSchema = z.enum([
-    'user',
-    'group',
-    'application',
-    'unknownFutureValue'
-]);
-
-/**
- * Single permission entry on a container type. Loose shape — we'll tighten
- * this once the live response shape from `$expand=permissions` is confirmed.
+ * Single owner permission entry on a container type
  */
 export const containerTypePermissionSchema = z.object({
-    role: containerTypePermissionRoleSchema.optional(),
-    principalId: z.string().optional(),
-    principalType: containerTypePermissionPrincipalTypeSchema.optional()
-}).passthrough();
+    id: z.string(),
+    roles: z.tuple([containerTypePermissionRoleSchema]),
+    grantedToV2: z.object({
+        user: z.object({
+            id: z.string()
+        })
+    })
+});
 
 /**
  * Base settings schema for file storage container types
@@ -114,4 +105,3 @@ export type ContainerTypeAppPermission = z.infer<typeof containerTypeAppPermissi
 export type ContainerTypeSettings = z.infer<typeof containerTypeSettingsSchema>;
 export type ContainerTypeRegistrationSettings = z.infer<typeof containerTypeRegistrationSettingsSchema>;
 export type ContainerTypePermission = z.infer<typeof containerTypePermissionSchema>;
-export type ContainerTypePermissionPrincipalType = z.infer<typeof containerTypePermissionPrincipalTypeSchema>;
