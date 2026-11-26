@@ -49,6 +49,8 @@ body:
         Editing this section starts a new readiness review, and a maintainer must apply
         agent-ready again. The next run reapplies the reviewed proposal to the current
         default branch and stops if that proposal is missing, changed, or conflicts.
-      placeholder: "Keep: the Register in this tenant action.\nChange: after Skip, show Register in this tenant in the container type's context menu."
+      placeholder: |-
+        Keep: What should stay the same in the current proposal?
+        Change: What should work differently, and what result do you expect?
     validations:
       required: false

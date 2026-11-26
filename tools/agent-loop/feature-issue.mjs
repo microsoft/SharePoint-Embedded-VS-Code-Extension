@@ -134,7 +134,7 @@ export function assessIssue(issue) {
         missing.push(guidance(MODIFICATIONS, `Modifications must be ${MAX_MODIFICATIONS.toLocaleString('en-US')} characters or fewer.`,
             'The next run applies these notes to the previous proposal and needs a bounded, specific request.',
             'List what to keep and what to change in the previous proposal as short bullets.',
-            'Keep the Register in this tenant action. Change Skip so the container type shows Register later in its context menu.'));
+            'Keep: the new confirmation dialog. Change: show the error message inline instead of in a notification.'));
     }
     return missing.length ? { status: 'incomplete', missing, advisory }
         : { status: 'complete', title, problem, behavior, criteria, impact, ...(modifications && { modifications }) };
