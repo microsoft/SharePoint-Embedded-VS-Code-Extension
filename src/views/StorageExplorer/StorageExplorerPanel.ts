@@ -284,8 +284,12 @@ export class StorageExplorerPanel {
                 command: 'rpc/response', requestId, ok: false,
                 error: await this._diagnose(original, message.op !== 'containers.list'),
             });
+            return;
         }
 
+        if (message.op === 'containers.create') {
+            void vscode.window.showInformationMessage(vscode.l10n.t('Container created successfully.'));
+        }
     }
 
     private async _saveDownload(name: string, source: DownloadSource): Promise<void> {

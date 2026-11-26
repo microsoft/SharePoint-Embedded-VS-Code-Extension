@@ -64,6 +64,7 @@ Use Windows File Explorer or OSX Finder as your inspiration for how to layout th
 
 - Provide navigation affordances at the top. Let the user know which app+tenant they are exploring, provide an editable path input, a clickable breadcrumb path, refresh button, etc
 - Provide a set of 'actions' for the selected item underneath the main top nav. New file, folder, uploade, rename, delete, etc. 
+- Show a native VS Code notification after Storage Explorer successfully creates a container.
 - Provide a tabular listing of content as the main content view. Table headings on top with Name, Date modified, Type, and Size as defaults. Let the user pick which columns to show and let them sort on it. You'll have to handle pagination. 
 - Provide a collapsable panel on the left where you can show some of the item specific UI -- versions, metadata, permissions, etc
 

@@ -44,6 +44,7 @@
   "Read content within all storage containers": "Read content within all storage containers",
   "Write content within all storage containers": "Write content within all storage containers",
   "Create storage containers": "Create storage containers",
+  "Container created successfully.": "Container created successfully.",
   "Delete storage containers": "Delete storage containers",
   "List storage containers and their properties": "List storage containers and their properties",
   "Update properties on storage containers": "Update properties on storage containers",
