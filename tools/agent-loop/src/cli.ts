@@ -5,7 +5,7 @@ import {
     validateContractCommand,
     type ImplementationStage
 } from './orchestrator';
-import { describeImplementationFailure } from './implementationDiagnostics';
+import { describeImplementationFailure, IncompleteWorkersError } from './implementationDiagnostics';
 
 let stage: ImplementationStage = 'contract';
 const diagnosticsFile = process.env.AGENT_LOOP_DIAGNOSTICS_FILE;
@@ -50,9 +50,10 @@ async function main(): Promise<void> {
     });
     const handedOff = result.phase === 'awaiting-human-acceptance';
     if (diagnosticsFile && !handedOff) {
-        const reason = result.errors.includes('Required validation still fails after repass budget')
+        if (result.repairFocus) recordDiagnostic(`Feature repair focus: ${result.repairFocus}`);
+        const reason = result.publicStopReason ?? (result.errors.includes('Required validation still fails after repass budget')
             ? 'Required validation did not pass within the retry budget.'
-            : result.publicStopReason ?? 'Independent review did not approve the change.';
+            : 'Independent review did not approve the change.');
         recordDiagnostic(`Feature agent blocked: ${reason}`);
         process.exitCode = 2;
         return;
@@ -88,6 +89,7 @@ function printUsage(): void {
 main().catch(error => {
     process.exitCode = 1;
     if (diagnosticsFile) {
+        if (error instanceof IncompleteWorkersError && error.focus) recordDiagnostic(`Feature repair focus: ${error.focus}`);
         recordDiagnostic(describeImplementationFailure(stage, error));
     } else {
         console.error(error instanceof Error ? error.stack ?? error.message : String(error));

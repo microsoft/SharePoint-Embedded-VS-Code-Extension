@@ -39,3 +39,18 @@ body:
         a desktop scenario. API-only changes do not produce a screenshot.
     validations:
       required: true
+  - type: textarea
+    id: modifications
+    attributes:
+      label: Modifications
+      description: >-
+        Optional. Leave empty for a fresh implementation. After a run reaches
+        ready-for-human-review, describe what to keep and what to change in that proposal.
+        Editing this section starts a new readiness review, and a maintainer must apply
+        deploy-to-agent again after the readiness labels appear. The next run reapplies the reviewed proposal to the current
+        default branch and stops if that proposal is missing, changed, or conflicts.
+      placeholder: |-
+        Keep: What should stay the same in the current proposal?
+        Change: What should work differently, and what result do you expect?
+    validations:
+      required: false

@@ -6,14 +6,36 @@ import { splitIssueDelivery } from './issue-delivery-section.mjs';
 
 export const TITLE_PREFIX = 'Feature Request:';
 export const READY = 'agent-ready';
+export const READY_LABELS = [READY, 'ready-for-agent'];
+export const DEPLOY = 'deploy-to-agent';
+export const FAILED = 'agent-failed';
+export const HUMAN_REVIEW = 'ready-for-human-review';
+export const TRIAGING = 'triaging';
 export const NEEDS_INFO = 'needs-info';
+const managedLabels = [TRIAGING, NEEDS_INFO, ...READY_LABELS, DEPLOY, FAILED, HUMAN_REVIEW];
+export function phaseLabels(issue, desired) {
+    return [...issue.labels.map(label => label.name).filter(name => !managedLabels.includes(name.toLowerCase())), ...desired];
+}
 const FEATURE_LIMITS = Object.freeze({
     maxConcurrentWorkers: 1, maxRepasses: 2, maxReviewRepairs: 2,
     maxWallClockMinutes: 240, maxMinutesPerWorker: 60, maxAiCreditsPerWorker: 240,
 });
 const HEADINGS = ['Problem', 'Expected behavior', 'Acceptance criteria', 'UI impact'];
+// Optional: what to keep or change from the previous ready-for-human-review proposal.
+export const MODIFICATIONS = 'Modifications';
 export const MAX_BODY = 12_000;
 const MAX_CRITERIA = 12;
+export const MAX_MODIFICATIONS = 4_000;
+const MAX_SCENARIOS = 4;
+
+// Split a compound criterion into stable, separately verifiable scenarios (one per sentence).
+export function criterionScenarios(id, criterion) {
+    const sentences = criterion.split(/(?<=[.!?])\s+(?=[\p{Lu}“"'])/u).map(part => part.trim()).filter(Boolean);
+    if (sentences.length < 2 || sentences.length > MAX_SCENARIOS || sentences.some(part => part.length < 10 || !description(part))) {
+        return [];
+    }
+    return sentences.map((part, index) => ({ id: `${id}-S${index + 1}`, description: part }));
+}
 
 const isFeature = (issue) => typeof issue?.title === 'string' && issue.title.startsWith(TITLE_PREFIX);
 export const hasLabel = (issue, name) => issue.labels.some((label) => label.name.toLowerCase() === name);
@@ -28,7 +50,7 @@ function extractSections(body) {
     for (const line of body.replace(/<!--[\s\S]*?(?:-->|$)/g, '').split(/\r?\n/)) {
         const heading = /^###\s+(.+?)\s*$/.exec(line)?.[1];
         if (heading) {
-            active = HEADINGS.includes(heading) ? heading : undefined;
+            active = HEADINGS.includes(heading) || heading === MODIFICATIONS ? heading : undefined;
             if (active && sections.has(active)) return null;
             if (active) sections.set(active, []);
         } else if (active) {
@@ -69,6 +91,8 @@ export function assessIssue(issue) {
     const problem = get('Problem');
     const behavior = get('Expected behavior');
     const impact = get('UI impact');
+    const modificationsText = get(MODIFICATIONS);
+    const modifications = description(modificationsText) ? modificationsText : undefined;
     const criteria = (sections.get('Acceptance criteria') ?? []).map((line) =>
         /^\s*(?:[-*+]|\d+[.)])\s+(?:\[[ xX]\]\s+)?(.+?)\s*$/.exec(line)?.[1]
     ).filter((entry) => entry && description(entry) && !/^\[[ xX]\](?:\s|$)/.test(entry));
@@ -115,7 +139,14 @@ export function assessIssue(issue) {
             'Describe what changes on screen and where, or write None for a non-visual change.',
             'A dismissible success notice appears inside Storage Explorer above the container list.'));
     }
-    return missing.length ? { status: 'incomplete', missing, advisory } : { status: 'complete', title, problem, behavior, criteria, impact };
+    if (modifications && modifications.length > MAX_MODIFICATIONS) {
+        missing.push(guidance(MODIFICATIONS, `Modifications must be ${MAX_MODIFICATIONS.toLocaleString('en-US')} characters or fewer.`,
+            'The next run applies these notes to the previous proposal and needs a bounded, specific request.',
+            'List what to keep and what to change in the previous proposal as short bullets.',
+            'Keep: the new confirmation dialog. Change: show the error message inline instead of in a notification.'));
+    }
+    return missing.length ? { status: 'incomplete', missing, advisory }
+        : { status: 'complete', title, problem, behavior, criteria, impact, ...(modifications && { modifications }) };
 }
 
 const approvalAccounts = (value) => new Set((value ?? '').toLowerCase().split(/[\s,]+/).filter(Boolean));
@@ -126,16 +157,16 @@ export const matchesIssueEvent = (event, current) => event.issue?.id === current
     splitIssueDelivery(event.issue.body).requirements === splitIssueDelivery(current.body).requirements;
 
 export function approval(event, current, approvers) {
-    if (event.action !== 'labeled' || event.label?.name !== READY || !allowedAccount(event.sender, approvers)) {
-        return { approved: false, reason: 'An approved maintainer must apply agent-ready.' };
+    if (event.action !== 'labeled' || event.label?.name !== DEPLOY || !allowedAccount(event.sender, approvers)) {
+        return { approved: false, reason: 'An approved maintainer must apply deploy-to-agent.' };
     }
     if (!matchesIssueEvent(event, current)) {
         return { approved: false, reason: 'Issue text changed after this event. Wait for readiness review of the current version.' };
     }
     const brief = assessIssue(current);
-    if (brief.status !== 'complete' || !hasLabel(current, READY) || !hasLabel(event.issue, READY) ||
-        hasLabel(current, NEEDS_INFO) || hasLabel(event.issue, NEEDS_INFO)) {
-        return { approved: false, reason: 'Issue must be open, complete, and labeled agent-ready without needs-info.' };
+    if (brief.status !== 'complete' || !READY_LABELS.every(name => hasLabel(event.issue, name)) ||
+        ![event.issue, current].every(issue => hasLabel(issue, DEPLOY) && ![TRIAGING, NEEDS_INFO, FAILED, HUMAN_REVIEW].some(name => hasLabel(issue, name)))) {
+        return { approved: false, reason: 'Wait for the ready-for-agent status, then have an approved maintainer apply deploy-to-agent.' };
     }
     return { approved: true, brief };
 }
@@ -221,11 +252,22 @@ export function compileContract(issueNumber, baseCommit, brief) {
         baseBranch: baseCommit,
         allowedPaths,
         deniedPaths,
-        acceptanceCriteria: brief.criteria.map((criterion, index) => ({
-            id: `AC-${String(index + 1).padStart(2, '0')}`,
-            description: criterion,
-            evidence: 'Demonstrate the observable behavior with deterministic validation or documented review evidence.',
-        })),
+        acceptanceCriteria: brief.criteria.map((criterion, index) => {
+            const id = `AC-${String(index + 1).padStart(2, '0')}`;
+            const scenarios = criterionScenarios(id, criterion);
+            return {
+                id,
+                description: criterion,
+                evidence: scenarios.length
+                    ? 'Demonstrate each listed scenario separately with deterministic validation or documented review evidence.'
+                    : 'Demonstrate the observable behavior with deterministic validation or documented review evidence.',
+                ...(scenarios.length && { scenarios }),
+            };
+        }),
+        ...(brief.modifications && {
+            // The proposal is pinned and verified by feature-proposal.mjs before the runner starts.
+            proposalRevision: { branch: `feature-agent/issue-${issueNumber}`, modifications: brief.modifications },
+        }),
         requiredChecks: [
             { id: 'types', command: 'npx tsc -p ./ --noEmit', timeoutMinutes: 5 },
             { id: 'lint', command: 'npm run lint', timeoutMinutes: 5 },
@@ -302,12 +344,13 @@ export async function intake({ event, mode, env, fetcher = fetch }) {
     if (!decision.approved) return { approved: false, message: decision.reason };
     const review = await readReadinessComment(github);
     if (review?.status !== 'ready' || review.revision !== reviewRevision(current)) {
-        return { approved: false, message: 'The current issue revision has not passed readiness review. Wait for review, then reapply agent-ready.' };
+        return { approved: false, message: 'The current issue revision has not passed readiness review. Wait for review, then reapply deploy-to-agent.' };
     }
     if (mode === 'authorize') {
-        return { approved: true, message: 'Feature approved.', contract: compileContract(event.issue.number, env.GITHUB_SHA, decision.brief) };
+        return { approved: true, message: 'Feature approved.', modifications: Boolean(decision.brief.modifications),
+            contract: compileContract(event.issue.number, env.GITHUB_SHA, decision.brief) };
     }
-    return { approved: true, message: 'Approval still matches the current issue.' };
+    return { approved: true, message: 'Approval still matches the current issue.', modifications: Boolean(decision.brief.modifications) };
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
@@ -321,5 +364,5 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
         await mkdir(dirname(contractPath), { recursive: true });
         await writeFile(contractPath, JSON.stringify(result.contract));
     }
-    await writeFile(env.GITHUB_OUTPUT, `approved=${result.approved}\n`, { flag: 'a' });
+    await writeFile(env.GITHUB_OUTPUT, `approved=${result.approved}\nmodifications=${result.modifications === true}\n`, { flag: 'a' });
 }

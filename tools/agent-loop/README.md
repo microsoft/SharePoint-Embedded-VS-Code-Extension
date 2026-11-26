@@ -96,8 +96,9 @@ Use the [SPE feature request form](../../.github/ISSUE_TEMPLATE/feature-request.
 rename its title to this format. The
 [intake workflow](../../.github/workflows/feature-intake.yml) triages opened, edited, and reopened
 requests. The form applies `triaging` on creation; the opened workflow also adds it to
-matching requests filed without the form. `needs-info` or `agent-ready` removes `triaging`.
-An edit does not restart the initial label, and a readiness pass never grants approval.
+matching requests filed without the form. A changed brief returns to `triaging`, replacing
+any prior deployment or outcome. A readiness decision replaces it with either `needs-info`
+or both readiness labels: `agent-ready` and `ready-for-agent`. Neither starts implementation.
 It checks the form, then uses a text-only Copilot session to look for ambiguity and
 missing verification details. It adds `needs-info` and keeps one bot comment with specific
 requests. Copilot reviews the whole brief for decisions that materially affect the user outcome,
@@ -128,9 +129,9 @@ npm run agent:build
 node tools\agent-loop\review-feature.mjs smoke
 ```
 
-When the current revision passes, the bot comment says **Ready for `agent-ready` (awaiting
-maintainer approval)**. Implementation never starts from readiness review alone, regardless of
-who filed the issue. An approved maintainer must apply `agent-ready` to start implementation.
+When the current revision passes, the bot comment says **Ready for agent (awaiting
+maintainer deployment)**. An approved maintainer must apply `deploy-to-agent` to that
+reviewed revision. The active run keeps `deploy-to-agent` and clears the readiness labels.
 Once approved, workers resolve unspecified product details without asking the PM: follow the
 nearest repository convention, preserve existing behavior, or choose the smallest reversible
 default that satisfies the explicit criteria. Workers record consequential assumptions in
@@ -163,14 +164,53 @@ using a synthetic service response only in tests. Repeated approval requests, ex
 and enforced authority errors do not start another alternative.
 The issue and failed Actions annotation report the stop reason. For a worker-reported stop,
 the issue identifies the worker, affected criteria when reported, approval or blocker category,
-next action, and retry count. `agent-ready` does not grant live access; do not repeatedly
+next action, and retry count. `deploy-to-agent` does not grant live access; do not repeatedly
 relabel an unchanged request that stopped for approval. Public diagnostics exclude free-form
 worker text, raw SDK logs, and credentials. Exhausted recovery never publishes unreviewed code.
-After a fix and a current
-readiness pass, remove and reapply `agent-ready` to start a new run.
+For implementation or review failures tied to the brief, the issue also drafts **Keep / Change**
+wording for **Modifications** from the named criteria and reported observations. A coverage
+gap suggests adding coverage; an assertion failure suggests reproducing and correcting the
+discrepancy. If only a compound criterion was identified, the suggestion lists its outcomes
+separately rather than guessing which failed. A runner or configuration failure is not a
+reason to rewrite product requirements. Suggestions never edit the brief or grant approval.
+An approved implementation failure consumes `deploy-to-agent` and sets `agent-failed`.
+Edit the issue description to send the new revision through readiness review. Once ready,
+an approved maintainer applies `deploy-to-agent` for the new run.
 
-To enable the workflow on the default branch, create the `triaging`, `needs-info`, `agent-ready`, and
-`ready-for-human-review` repository labels and set the Actions variable `FEATURE_REQUEST_APPROVERS` to the approved GitHub
+### Revising a reviewed proposal
+
+The form's optional **Modifications** section lets a reviewer say what to keep and what to change
+in the proposal from the last `ready-for-human-review` handoff. Leave it empty (or `_No response_`)
+for an ordinary fresh run. Editing it changes the readiness revision, so it is reviewed again and
+an approved maintainer must apply `deploy-to-agent` again; nothing is approved automatically.
+
+In this mode the implement job pins the current tip of `feature-agent/issue-<number>` and verifies
+it before any worker starts: it must be a single unmodified feature-agent handoff commit for the
+same issue, its parent must be in the default branch history, its paths must be publishable, and
+the issue must have a bot-applied `ready-for-human-review` event. The workflow base remains the
+trusted default-branch checkout. The runner reapplies only the proposal's diff to that base with
+a three-way merge and checkpoints it; the editor then applies the modifications, and the result
+goes through the usual validation and independent review. A missing, altered, stale, already
+merged, or conflicting proposal stops the run with a safe reason rather than starting over.
+The publisher only replaces the branch while it still points to the pinned proposal.
+
+### Compound criteria and stalled scenarios
+
+A criterion with several sentences is split into stable scenarios such as `AC-03-S1` and
+`AC-03-S2` (one per sentence, two to four). The editor and reviewer report each scenario's
+status and a controlled observation (`verified`, `not-implemented`, `not-covered`,
+`assertion-failed`, `build-failed`, `fixture-unavailable`, or `not-verifiable`). A pass requires
+every reported scenario of a criterion to be satisfied. The run record keeps per-attempt progress:
+open scenario IDs, the checkpoint commit, changed-file count, and an evidence fingerprint (not the
+evidence text). A retry that reports the same open scenarios, blocker, and evidence without new
+code stops instead of repeating. The public diagnostic names the failing scenario and its parent,
+the expected outcome from the public issue text (reduced to a safe character set), the controlled
+observation, and which scenarios passed. Worker prose, prompts, and logs are never published.
+
+To enable the workflow on the default branch, keep the `triaging`, `needs-info`, `agent-ready`,
+and `ready-for-human-review` repository labels. Triage creates `ready-for-agent`,
+`deploy-to-agent`, and `agent-failed` if missing, without changing existing definitions.
+Set the Actions variable `FEATURE_REQUEST_APPROVERS` to the approved GitHub
 usernames (comma-separated). Create the `feature-agent` Actions environment, restrict deployments
 to the default branch, and add `COPILOT_GITHUB_TOKEN` as an environment secret. Use an
 organization-approved Copilot CLI credential with only
@@ -197,17 +237,15 @@ If there's no open PR, the workflow attempts to open a draft
 using the repository token. A blocked PR
 does not undo a successful push. If GitHub explicitly denies PR creation by Actions policy, the
 publisher warns instead of failing and the issue includes a link to open the PR manually.
-Unexpected PR API errors still fail the publishing job. After `agent-ready`, the **Feature agent delivery** section in
+Unexpected PR API errors still fail the publishing job. After `deploy-to-agent`, the **Feature agent delivery** section in
 the issue description links the current run and reports progress through implementation and
 packaging. If implementation fails, it reports the failed stage and links the patch if one was
 uploaded. On success it gives direct downloads for the VSIX, checksum, and patch, reports the
 branch or PR outcome, and lists sensitive changes to review. The workflow replaces its own section
 without changing the feature requirements or invalidating their readiness review. After a successful
-handoff with a published branch it replaces `agent-ready` with `ready-for-human-review`,
-including when the PR must be opened manually. To retry, apply
-`agent-ready` again (remove it first if still present after a failure). GitHub may briefly show
-both labels until the approved run clears `ready-for-human-review`. Failed or cancelled runs
-do not apply `ready-for-human-review`.
+handoff with a published branch it replaces `deploy-to-agent` with `ready-for-human-review`,
+including when GitHub policy requires the PR to be opened manually. Failed or cancelled
+approved runs get `agent-failed` instead; unrelated issue labels are preserved.
 For visible changes the UI test can render with synthetic data, the issue embeds the final
 Playwright PNG directly below the PR link (or publishing status if there is no PR). The PNG
 is publicly viewable and stored on a dedicated `feature-agent-preview/issue-<number>` branch,

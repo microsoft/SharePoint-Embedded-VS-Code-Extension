@@ -76,8 +76,13 @@ export async function publish({ event, env, directory, run = execute, fetcher = 
     async function requireApproval() {
         const decision = await intake({ event, mode: 'confirm', env, fetcher });
         if (!decision.approved) throw new Error(decision.message);
+        return decision;
     }
-    await requireApproval();
+    const { modifications } = await requireApproval();
+    const proposal = env.PROPOSAL_COMMIT || undefined;
+    if (modifications ? !sha.test(proposal ?? '') : proposal !== undefined) {
+        throw new Error('The approved Modifications request and the pinned proposal do not match. Nothing was pushed.');
+    }
     const patch = join(directory, 'feature.patch');
     const baseFile = join(directory, 'feature-base-sha.txt');
     const [patchStat, baseStat] = await Promise.all([lstat(patch), lstat(baseFile)]);
@@ -126,6 +131,9 @@ export async function publish({ event, env, directory, run = execute, fetcher = 
         }
     }
     const expected = await remoteTip();
+    if (proposal && expected !== proposal) {
+        throw new Error('The proposal branch changed after it was pinned for this Modifications run. Nothing was pushed.');
+    }
     if (expected !== commit) {
         for (let attempt = 0; ; attempt++) {
             await requireApproval();

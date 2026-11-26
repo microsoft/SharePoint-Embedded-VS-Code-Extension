@@ -5,8 +5,8 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import test from 'node:test';
 import { writeRunRecord } from './evidence';
-import { committedChangedPaths } from './git';
-import { describeImplementationFailure, describeReviewStop, IncompleteWorkersError } from './implementationDiagnostics';
+import { committedChangedPaths, ProposalConflictError, reapplyCommit } from './git';
+import { describeImplementationFailure, describeReviewStop, describeValidationStop, IncompleteWorkersError, noProgressResults, repairFocus } from './implementationDiagnostics';
 import {
     buildWorkerSdkArtifacts,
     ensureValidationClientDeclaration,
@@ -20,7 +20,7 @@ import {
     recoverWorker,
     selectTerminalWorkerResults
 } from './orchestrator';
-import { ReviewResult, RunRecord, ValidationResult, WorkerResult } from './types';
+import { ReviewResult, RunRecord, ValidationResult, WorkerProgress, WorkerResult } from './types';
 
 function recoveryResult(status: WorkerResult['status'], outputCommit: string | null): WorkerResult {
     return {
@@ -51,8 +51,8 @@ test('worker recovery is bounded and stops on exhaustion or enforced authority e
     assert.equal(await recoverWorker('base', 2, async base => {
         assert.equal(base, 'base');
         calls++;
-        return failed;
-    }, () => {}), failed);
+        return { ...failed, criteria: [{ id: 'AC-01', status: 'blocked', evidence: `attempt ${calls}` }] };
+    }, () => {}).then(result => result.status), 'failed');
     assert.equal(calls, 3);
     const stop = () => assert.fail('Do not retry budget or authority blockers.');
     const budget = { ...failed, approvalRequests: [{ category: 'budget', reason: 'Requires more time' }] };
@@ -148,6 +148,22 @@ test('terminal worker diagnostics retain actionable blockers but not raw worker 
     assert.match(message, /No additional permission was granted/);
     assert.match(message, /Test worker reported failure: fixture-unavailable. Provide a synthetic fixture/);
     assert.doesNotMatch(message, /private/);
+});
+
+test('the repair focus contains only scoped IDs and observations, never worker prose', () => {
+    const w = recoveryResult('blocked', null);
+    w.criteria = [{ id: 'AC-03', status: 'blocked', evidence: 'private evidence', scenarios: [
+        { id: 'AC-03-S1', status: 'satisfied', observed: 'verified' },
+        { id: 'AC-03-S2', status: 'blocked', observed: 'not-covered' },
+        { id: 'AC-02-S1', status: 'blocked', observed: 'assertion-failed' },
+    ] }];
+    assert.equal(new IncompleteWorkersError([w]).focus, 'AC-03-S2=not-covered,AC-03-S1=verified');
+    w.approvalRequests = [{ category: 'network-access', reason: 'private' }];
+    assert.equal(new IncompleteWorkersError([w]).focus, '');
+    assert.equal(repairFocus([{id: 'AC-03', status:'not-verifiable', evidence:'private'}]), 'AC-03=unresolved');
+    const diagnostic = describeValidationStop([{ command: 'npm run test:api', status: 'failed', exitCode: 1, durationSeconds: 7, stderrTail: 'private output' }]);
+    assert.match(diagnostic, /offline API check failed/);
+    assert.doesNotMatch(diagnostic, /private output/);
 });
 
 test('initial integration preserves all commits in an implementer continuation', async t => {
@@ -427,4 +443,114 @@ test('missing-context recovery directs approved workers to choose a default with
     assert.doesNotMatch(formatContinuationContext(result), choice);
     result.approvalRequests.push({ category: 'network-access', reason: 'Requires access' });
     assert.doesNotMatch(formatContinuationContext(result, true), choice);
+});
+
+// Public acceptance criterion AC-03 from microsoft/SharePoint-Embedded-VS-Code-Extension issue 87.
+const registerLater = 'If I skip registration, I can register the CT later from its context menu.';
+const keepGrants = 'If it is already registered, show that status without overwriting existing grants.';
+const compoundContract = {
+    acceptanceCriteria: [{
+        id: 'AC-03', description: `${registerLater} ${keepGrants}`, evidence: 'Demonstrate each listed scenario.',
+        scenarios: [{ id: 'AC-03-S1', description: registerLater }, { id: 'AC-03-S2', description: keepGrants }]
+    }]
+};
+function stalledScenario(evidence = 'private worker note: grants API unclear'): WorkerResult {
+    const result = recoveryResult('blocked', null);
+    result.blockerCode = 'implementation-incomplete';
+    result.criteria = [{
+        id: 'AC-03', status: 'blocked', evidence,
+        scenarios: [
+            { id: 'AC-03-S1', status: 'satisfied', observed: 'verified' },
+            { id: 'AC-03-S2', status: 'blocked', observed: 'not-implemented' }
+        ]
+    }];
+    return result;
+}
+
+test('a repeated compound-criterion stall with no new code or evidence stops before spending more retries', async () => {
+    let calls = 0;
+    const progress: WorkerProgress[] = [];
+    const result = await recoverWorker('base', 2, async () => { calls++; return stalledScenario(); }, () => {}, p => progress.push(p));
+    assert.equal(calls, 2);
+    assert.ok(noProgressResults.has(result));
+    assert.deepEqual(progress.map(p => p.noProgress), [false, true]);
+    assert.deepEqual(progress[1].open, [{ id: 'AC-03-S2', observed: 'not-implemented' }]);
+    assert.equal(progress[1].newCode, false);
+    const message = new IncompleteWorkersError([result], compoundContract).message;
+    assert.match(message, /Implementation worker \(AC-03\) reported blocked: implementation-incomplete/);
+    assert.match(message, /Scenario AC-03-S2 of AC-03 still fails \(expected: If it is already registered, show that status without overwriting existing grants; observed: not-implemented\)/);
+    assert.match(message, /Kept passing scenarios: AC-03-S1\./);
+    assert.match(message, /Stopped early: the last two attempts reported the same open scenarios with no new code or evidence\./);
+    assert.doesNotMatch(message, /private|grants API/);
+    assert.match(message, /^[A-Za-z0-9 ().,:;'-]+$/);
+    assert.match(describeImplementationFailure('repass', new IncompleteWorkersError([result], compoundContract)), /AC-03-S2/);
+});
+
+test('a compound-criterion retry that adds code or new evidence keeps its checkpoint and continues', async () => {
+    const bases: string[] = [];
+    const attempts = [
+        { ...stalledScenario(), outputCommit: 'checkpoint-1', filesChanged: ['src/commands/ContainerType/RegisterOnLocalTenant.ts'] },
+        stalledScenario('different evidence after the checkpoint'),
+        { ...recoveryResult('completed', 'checkpoint-2'), criteria: [{ id: 'AC-03', status: 'satisfied' as const, evidence: 'tests' }] }
+    ];
+    const progress: WorkerProgress[] = [];
+    const result = await recoverWorker('base', 2, async base => { bases.push(base); return attempts[bases.length - 1]; }, () => {}, p => progress.push(p));
+    assert.equal(result.status, 'completed');
+    assert.deepEqual(bases, ['base', 'checkpoint-1', 'checkpoint-1']);
+    assert.deepEqual(progress.map(p => [p.newCode, p.noProgress]), [[true, false], [false, false], [true, false]]);
+    assert.equal(progress[0].checkpointCommit, 'checkpoint-1');
+});
+
+test('a reviewer pass cannot hide an open scenario, and review stops name it', () => {
+    const review: ReviewResult = {
+        schemaVersion: '1.0', runId: 'run', taskId: 'task', workerId: 'review', reviewedCommit: 'a'.repeat(40),
+        decision: 'pass', summary: 'ok', findings: [],
+        criteria: [{ id: 'AC-03', status: 'satisfied', evidence: 'tests', scenarios: [
+            { id: 'AC-03-S1', status: 'satisfied', observed: 'verified' },
+            { id: 'AC-03-S2', status: 'not-satisfied', observed: 'assertion-failed' }
+        ] }]
+    };
+    enforceReviewGate(review, ['AC-03']);
+    assert.equal(review.decision, 'blocked');
+    assert.match(describeReviewStop(review, 1, 1), /Open scenarios: AC-03-S2 assertion-failed\./);
+    const complete = { ...review, decision: 'pass' as const, criteria: [{ ...review.criteria[0], scenarios: [review.criteria[0].scenarios![0]] }] };
+    enforceReviewGate(complete, ['AC-03']);
+    assert.equal(complete.decision, 'pass');
+});
+
+test('the previous proposal is reapplied to the current base and conflicts stop without resolution', async t => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'spe-proposal-'));
+    t.after(() => rm(root, { recursive: true, force: true }));
+    const repo = path.join(root, 'repo');
+    await mkdir(path.join(repo, 'src'), { recursive: true });
+    const git = (...args: string[]) => execFileSync('git', ['-C', repo, '-c', 'user.name=T', '-c', 'user.email=t@example.com', ...args], { encoding: 'utf8' }).trim();
+    git('init', '-q');
+    await writeFile(path.join(repo, 'src', 'register.ts'), 'export const register = 1;\n');
+    await writeFile(path.join(repo, 'src', 'menu.ts'), 'export const menu = 1;\n');
+    git('add', '.');
+    git('commit', '-qm', 'old main');
+    const oldMain = git('rev-parse', 'HEAD');
+    git('checkout', '-qb', 'proposal');
+    await writeFile(path.join(repo, 'src', 'register.ts'), 'export const register = 2;\n');
+    git('commit', '-qam', 'Implement SPE extension feature request #87');
+    const proposal = git('rev-parse', 'HEAD');
+    git('checkout', '-q', '-');
+    await writeFile(path.join(repo, 'src', 'menu.ts'), 'export const menu = 2;\n');
+    git('commit', '-qam', 'current main');
+    const currentMain = git('rev-parse', 'HEAD');
+    git('worktree', 'add', '-q', '--detach', path.join(root, 'seed'), currentMain);
+    const seed = await reapplyCommit(repo, path.join(root, 'seed'), oldMain, proposal, path.join(root, 'a', 'p.patch'), 'seed');
+    assert.deepEqual(seed.paths, ['src/register.ts']);
+    assert.equal(git('rev-parse', `${seed.commit}^`), currentMain);
+    assert.match(git('show', `${seed.commit}:src/menu.ts`), /menu = 2/);
+    assert.match(git('show', `${seed.commit}:src/register.ts`), /register = 2/);
+
+    await writeFile(path.join(repo, 'src', 'register.ts'), 'export const register = 3;\n');
+    git('commit', '-qam', 'conflicting main');
+    git('worktree', 'add', '-q', '--detach', path.join(root, 'conflict'), 'HEAD');
+    await assert.rejects(reapplyCommit(repo, path.join(root, 'conflict'), oldMain, proposal, path.join(root, 'b', 'p.patch'), 'seed'),
+        (error: unknown) => error instanceof ProposalConflictError && error.paths.join() === 'src/register.ts');
+    assert.equal(execFileSync('git', ['-C', path.join(root, 'conflict'), 'status', '--porcelain'], { encoding: 'utf8' }), '');
+    assert.match(describeImplementationFailure('implementation', new ProposalConflictError(['src/register.ts'])),
+        /conflicts with the current default branch in 1 file\(s\)\. Nothing was resolved automatically/);
 });

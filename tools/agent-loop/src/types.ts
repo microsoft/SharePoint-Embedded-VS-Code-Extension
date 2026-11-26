@@ -1,9 +1,25 @@
 export type WorkerRole = 'implementer' | 'sdet' | 'integrator' | 'reviewer';
 
+export interface AcceptanceScenario {
+    id: string;
+    description: string;
+}
+
 export interface AcceptanceCriterion {
     id: string;
     description: string;
     evidence: string;
+    scenarios?: AcceptanceScenario[];
+}
+
+export type ScenarioObservation = 'verified' | 'not-implemented' | 'not-covered' | 'assertion-failed' |
+    'build-failed' | 'fixture-unavailable' | 'not-verifiable';
+
+export interface ProposalRevision {
+    branch: string;
+    modifications: string;
+    commit?: string;
+    parent?: string;
 }
 
 export interface RequiredCheck {
@@ -34,6 +50,7 @@ export interface TaskContract {
     allowedPaths: string[];
     deniedPaths: string[];
     acceptanceCriteria: AcceptanceCriterion[];
+    proposalRevision?: ProposalRevision;
     requiredChecks: RequiredCheck[];
     workers: WorkerAssignment[];
     authority: {
@@ -93,6 +110,11 @@ export interface CriterionResult {
     id: string;
     status: 'satisfied' | 'not-satisfied' | 'not-applicable' | 'blocked';
     evidence: string;
+    scenarios?: Array<{
+        id: string;
+        status: 'satisfied' | 'not-satisfied' | 'not-applicable' | 'blocked';
+        observed: ScenarioObservation;
+    }>;
 }
 
 export interface ValidationResult {
@@ -158,8 +180,27 @@ export interface ReviewResult {
         id: string;
         status: 'satisfied' | 'not-satisfied' | 'not-verifiable';
         evidence: string;
+        scenarios?: Array<{
+            id: string;
+            status: 'satisfied' | 'not-satisfied' | 'not-verifiable';
+            observed: ScenarioObservation;
+        }>;
     }>;
     findings: ReviewFinding[];
+}
+
+export interface WorkerProgress {
+    workerId: string;
+    status: WorkerResult['status'];
+    blockerCode?: WorkerResult['blockerCode'];
+    // Criterion and scenario IDs that remained open, each with a controlled observation.
+    open: Array<{ id: string; observed?: ScenarioObservation }>;
+    baseCommit: string;
+    checkpointCommit: string | null;
+    filesChanged: number;
+    newCode: boolean;
+    evidenceFingerprint: string;
+    noProgress: boolean;
 }
 
 export type RunPhase =
@@ -203,8 +244,11 @@ export interface RunRecord {
     workers: WorkerRunRecord[];
     validationArtifact?: string;
     publicStopReason?: string;
+    repairFocus?: string;
     reviewAdvisories?: ReviewResult['advisories'];
     reviewArtifacts: string[];
+    proposalSeedCommit?: string;
+    progress?: WorkerProgress[];
     sdkRuntime: {
         sdkVersion: string;
         cliPath: string;

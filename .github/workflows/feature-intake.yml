@@ -12,24 +12,6 @@ env:
   AGENT_LOOP_COPILOT_PACKAGE: '@github/copilot-linux-x64@1.0.106'
 
 jobs:
-  clear-triaging:
-    if: >-
-      startsWith(github.event.issue.title, 'Feature Request:') &&
-      github.event.action == 'labeled' &&
-      (github.event.label.name == 'needs-info' || github.event.label.name == 'agent-ready')
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      issues: write
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
-        with:
-          persist-credentials: false
-      - name: Clear the initial triaging label
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: node tools/agent-loop/review-feature.mjs clear-triaging
-
   triage:
     if: >-
       startsWith(github.event.issue.title, 'Feature Request:') &&
@@ -47,6 +29,20 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           persist-credentials: false
+      - name: Ensure agent lifecycle labels exist
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          labels=$(gh api --paginate "repos/$GITHUB_REPOSITORY/labels?per_page=100" --jq '.[].name')
+          ensure_label() {
+            if ! grep -Fxiq -- "$1" <<< "$labels"; then
+              gh label create "$1" --repo "$GITHUB_REPOSITORY" --color "$2" --description "$3" ||
+                gh api --silent "repos/$GITHUB_REPOSITORY/labels/$1"
+            fi
+          }
+          ensure_label ready-for-agent 0E8A16 'Readiness review passed; waiting for a maintainer to deploy.'
+          ensure_label deploy-to-agent 1D76DB 'Maintainer authorization to implement this reviewed issue revision.'
+          ensure_label agent-failed B60205 'The approved implementation did not complete its PR-ready handoff.'
       - name: Read issue and check for an existing review
         id: readiness
         env:
@@ -74,7 +70,7 @@ jobs:
           COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
           AGENT_LOOP_MODEL: ${{ vars.AGENT_LOOP_MODEL || 'gpt-6.2-sol' }}
         run: node tools/agent-loop/review-feature.mjs review
-      - name: Update the readiness comment and needs-info label
+      - name: Update readiness feedback and status labels
         if: steps.readiness.outputs.kind != 'ignored'
         env:
           GH_TOKEN: ${{ github.token }}
@@ -83,7 +79,7 @@ jobs:
   report-progress:
     if: >-
       startsWith(github.event.issue.title, 'Feature Request:') &&
-      github.event.action == 'labeled' && github.event.label.name == 'agent-ready' && github.run_attempt == 1
+      github.event.action == 'labeled' && github.event.label.name == 'deploy-to-agent' && github.run_attempt == 1
     runs-on: ubuntu-latest
     timeout-minutes: 280
     permissions:
@@ -104,7 +100,7 @@ jobs:
   implement:
     if: >-
       startsWith(github.event.issue.title, 'Feature Request:') &&
-      github.event.action == 'labeled' && github.event.label.name == 'agent-ready' && github.run_attempt == 1
+      github.event.action == 'labeled' && github.event.label.name == 'deploy-to-agent' && github.run_attempt == 1
     runs-on: ubuntu-latest
     timeout-minutes: 270
     concurrency:
@@ -120,7 +116,9 @@ jobs:
       agent-stage: ${{ steps.agent.outputs.stage }}
       worker-retries: ${{ steps.agent.outputs.worker-retries }}
       offline-plans: ${{ steps.agent.outputs.offline-plans }}
-      agent-diagnostic: ${{ steps.agent.outputs.diagnostic }}
+      agent-diagnostic: ${{ steps.agent.outputs.diagnostic || steps.proposal.outputs.diagnostic }}
+      repair-focus: ${{ steps.agent.outputs.repair-focus }}
+      proposal-commit: ${{ steps.proposal.outputs.proposal-commit }}
       artifact-id: ${{ steps.review.outputs.artifact-id }}
       review-files: ${{ steps.agent.outputs.review-files }}
       omit-preview: ${{ steps.agent.outputs.omit-preview }}
@@ -136,12 +134,20 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           ref: ${{ github.sha }}
+          # Full history lets a Modifications run verify that the previous proposal descends from the default branch.
+          fetch-depth: 0
           persist-credentials: false
       - name: Authorize issue and compile its task contract
         id: intake
         env:
           GH_TOKEN: ${{ github.token }}
         run: node tools/agent-loop/feature-issue.mjs authorize
+      - name: Pin and verify the previous proposal
+        id: proposal
+        if: steps.intake.outputs.approved == 'true' && steps.intake.outputs.modifications == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node tools/agent-loop/feature-proposal.mjs pin
       - name: Check test VSIX sign-in configuration
         if: steps.intake.outputs.approved == 'true'
         env:
@@ -231,6 +237,12 @@ jobs:
                 ;;
               'Feature agent trying offline alternative: implementer'|'Feature agent trying offline alternative: sdet')
                 offline_plans=$((offline_plans + 1))
+                ;;
+              'Feature repair focus: '*)
+                focus="${line#Feature repair focus: }"
+                if [[ "$focus" =~ ^[A-Za-z0-9,=-]{1,2048}$ ]]; then
+                  printf 'repair-focus=%s\n' "$focus" >> "$GITHUB_OUTPUT"
+                fi
                 ;;
               'Feature agent stopped during '*|'Feature agent blocked: '*)
                 diagnostic="$line"
@@ -407,6 +419,7 @@ jobs:
           FEATURE_REQUEST_APPROVERS: ${{ vars.FEATURE_REQUEST_APPROVERS }}
           TESTABLE_VSIX_URL: ${{ needs.implement.outputs.vsix-url }}
           REVIEWED_TREE: ${{ needs.implement.outputs.reviewed-tree }}
+          PROPOSAL_COMMIT: ${{ needs.implement.outputs.proposal-commit }}
         run: node tools/agent-loop/publish-feature.mjs "$RUNNER_TEMP/feature-review"
 
   publish-ux-preview:
@@ -497,11 +510,14 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           FEATURE_REQUEST_APPROVERS: ${{ vars.FEATURE_REQUEST_APPROVERS }}
           IMPLEMENT_RESULT: ${{ needs.implement.result }}
+          PUBLISH_RESULT: ${{ needs.publish.result }}
           IMPLEMENT_APPROVED: ${{ needs.implement.outputs.approved }}
           AGENT_STAGE: ${{ needs.implement.outputs.agent-stage }}
           WORKER_RETRIES: ${{ needs.implement.outputs.worker-retries }}
           OFFLINE_PLANS: ${{ needs.implement.outputs.offline-plans }}
           AGENT_DIAGNOSTIC: ${{ needs.implement.outputs.agent-diagnostic }}
+          REPAIR_FOCUS: ${{ needs.implement.outputs.repair-focus }}
+          PROPOSAL_COMMIT: ${{ needs.implement.outputs.proposal-commit }}
           PATCH_ARTIFACT_ID: ${{ needs.implement.outputs.artifact-id }}
           VSIX_ARTIFACT_ID: ${{ needs.implement.outputs.vsix-id }}
           UX_SCREENSHOT_COMMIT: ${{ needs.publish-ux-preview.outputs.commit }}

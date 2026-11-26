@@ -80,7 +80,7 @@ Unless a task contract and a human approval explicitly grant additional authorit
   Azure resources.
 - Do not change authentication scopes, telemetry collection, security boundaries, dependencies, or
   release configuration without calling out the change for human review.
-- For a GitHub feature task authorized by `agent-ready`, a contract may allow these source edits
+- For a GitHub feature task authorized by a maintainer applying `deploy-to-agent`, a contract may allow these source edits
   for offline validation and a test VSIX. Flag them in the handoff; do not treat that approval as
   permission to merge, release, access live services, or use credentials.
 - Do not read, print, copy, or persist credentials, tokens, secrets, private keys, or local

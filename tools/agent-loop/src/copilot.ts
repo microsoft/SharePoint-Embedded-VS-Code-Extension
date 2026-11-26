@@ -286,6 +286,11 @@ export function buildPrompt<T>(
         options.trustedFeatureInstructions && options.assignment.mayEdit
             ? '- Try an existing service seam and a synthetic fixture before declaring a blocker. A source edit to construct a request is not a live service call. Put future merge, deployment and tenant consent concerns in risks, not approvalRequests. Use approvalRequests only for permission genuinely needed now, using the exact policy category. When blocked or failed, mark the affected criterion IDs and supply the applicable blockerCode. Never perform a prohibited operation.'
             : '',
+        options.trustedFeatureInstructions && options.contract.acceptanceCriteria.some(criterion => criterion.scenarios?.length)
+            ? (options.assignment.mayEdit
+                ? '- Some criteria list scenarios (AC-xx-Sn). Treat each as a separately verifiable outcome: implement and cover every scenario you can, even if another is blocked, so completed work is checkpointed. Under each such criterion, report scenarios with status and a controlled observed value (verified only when code and a test demonstrate it). Report blocked only for the scenarios that remain open, with the smallest missing piece in evidence.'
+                : '- Some criteria list scenarios (AC-xx-Sn). Under each such criterion, report every scenario with status and a controlled observed value. A criterion is satisfied only when all of its scenarios are.')
+            : '',
         `- Work only in this isolated checkout and only within: ${options.assignment.allowedPaths.join(', ')}`,
         '- Do not use network access, live cloud resources, MCP tools, push, merge, publish, or deploy.',
         '- Do not run shell commands; the orchestrator owns Git mutations and deterministic validation.',

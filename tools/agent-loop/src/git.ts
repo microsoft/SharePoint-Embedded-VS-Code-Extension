@@ -1,4 +1,4 @@
-import { mkdir } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import * as path from 'node:path';
 import { parsePorcelainZ } from './paths';
 import { runProcess } from './process';
@@ -68,6 +68,37 @@ export async function createWorkerCommit(
         `${taskId}: ${workerId} attempt ${attempt}`
     ]);
     return (await git(worktreePath, ['rev-parse', 'HEAD'])).stdout.trim();
+}
+
+export class ProposalConflictError extends Error {
+    constructor(readonly paths: string[]) {
+        super(`The previous proposal conflicts with the current base in ${paths.length} file(s).`);
+    }
+}
+
+// Reapplies one pinned commit's changes onto the checked-out base with a three-way merge.
+// A conflict aborts with the conflicting paths; nothing is resolved automatically.
+export async function reapplyCommit(
+    repoRoot: string, worktreePath: string, parent: string, commit: string, patchPath: string, message: string
+): Promise<{ commit: string; paths: string[] }> {
+    const patch = await git(repoRoot, ['diff', '--binary', '--no-renames', '--no-ext-diff', '--no-textconv', '--full-index', parent, commit]);
+    await mkdir(path.dirname(patchPath), { recursive: true });
+    await writeFile(patchPath, patch.stdout, 'utf8');
+    const applied = await git(worktreePath, ['apply', '--3way', '--index', '--whitespace=nowarn', patchPath], false);
+    if (applied.exitCode !== 0) {
+        const unmerged = (await git(worktreePath, ['diff', '--name-only', '--diff-filter=U', '-z'], false)).stdout
+            .split('\0').filter(Boolean).sort();
+        await git(worktreePath, ['reset', '--hard', '--quiet'], false);
+        if (unmerged.length) throw new ProposalConflictError(unmerged);
+        throw new Error(`Unable to reapply the previous proposal: ${applied.stderr.trim()}`);
+    }
+    const paths = await changedPaths(worktreePath);
+    if (!paths.length) return { commit: await currentCommit(worktreePath), paths };
+    await git(worktreePath, [
+        '-c', 'user.name=Agent Loop', '-c', 'user.email=agent-loop@users.noreply.github.com',
+        'commit', '--quiet', '--no-verify', '-m', message
+    ]);
+    return { commit: await currentCommit(worktreePath), paths };
 }
 
 export async function cherryPick(worktreePath: string, commit: string): Promise<void> {
