@@ -8,9 +8,12 @@ import {
     ContainerType,
     ContainerTypeCreate,
     ContainerTypeUpdate,
+    ContainerTypeOwnerPermission,
     containerTypeSchema,
     containerTypeCreateSchema,
-    containerTypeUpdateSchema
+    containerTypeUpdateSchema,
+    containerTypePermissionsResponseSchema,
+    containerTypeOwnerPermissionsSchema
 } from '../../models/schemas';
 import { Logger } from '../../utils/Logger';
 
@@ -114,10 +117,8 @@ export class ContainerTypeService {
      * Create a new container type.
      * POST /v1.0/storage/fileStorage/containerTypes
      *
-     * The caller controls `billingClassification` via the payload — the
-     * service no longer hardcodes 'trial'. `permissions` is not a navigation
-     * property on fileStorageContainerType, so $expand=permissions is not
-     * supported; use `patchOwners` separately to set permissions.
+     * The caller controls `billingClassification` via the payload. Create
+     * owner grants separately with `addOwner` on the beta permissions endpoint.
      */
     async create(containerType: ContainerTypeCreate): Promise<ContainerType> {
         try {
@@ -147,18 +148,23 @@ export class ContainerTypeService {
      * Requires the calling user to be an owner on the CT or a SharePoint
      * Embedded / Global Administrator (delegated `FileStorageContainerType.Manage.All`).
      */
-    async listPermissions(id: string): Promise<any[]> {
+    async listPermissions(id: string): Promise<unknown[]> {
         try {
             Logger.log(`[ContainerTypeService.listPermissions] Listing permissions for container type ${id}`);
-            const response = await this._client
+            const response: unknown = await this._client
                 .api(`${ContainerTypeService.BASE_PATH}/${id}/permissions`)
                 .version('beta')
                 .get();
-            return response?.value ?? [];
-        } catch (error: any) {
+            return containerTypePermissionsResponseSchema.parse(response).value;
+        } catch (error) {
             console.error(`[ContainerTypeService.listPermissions] Error listing permissions for ${id}:`, error);
-            throw new Error(`Failed to list permissions for container type: ${error.message || error}`);
+            throw new Error(`Failed to list permissions for container type: ${error instanceof Error ? error.message : String(error)}`);
         }
+    }
+
+    /** Validate and project the owner grants for the container type properties view. */
+    async listOwnerPermissions(id: string): Promise<ContainerTypeOwnerPermission[]> {
+        return containerTypeOwnerPermissionsSchema.parse(await this.listPermissions(id));
     }
 
     /**

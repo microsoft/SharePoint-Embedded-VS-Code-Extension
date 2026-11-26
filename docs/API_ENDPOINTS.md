@@ -50,6 +50,8 @@ All endpoints under `/storage/fileStorage/` are SharePoint Embedded APIs routed 
 
 > **Note**: Row 3 (`GET /containerTypes/{id}`) is required by every update operation. The code calls `ContainerTypeService.get()` to retrieve the current ETag before calling `ContainerTypeService.update()` (PATCH).
 
+**View Properties** reads the container type from v1.0 and separately calls the existing beta `GET /storage/fileStorage/containerTypes/{containerTypeId}/permissions` endpoint. The JSON editor shows `permissions` with each grant's `id`, `roles`, and `grantedToV2.user.id`. If the permissions request fails, the editor still opens with the v1.0 properties, omits `permissions`, and shows a warning. A successful empty collection is shown as `"permissions": []`.
+
 **Additional query patterns used** (all resolve to row 2 — GET List):
 - `$filter=owningAppId eq '{appId}'` — `getByOwningApp()`
 - `$filter=billingClassification eq 'trial'` — `getByBillingClassification()`

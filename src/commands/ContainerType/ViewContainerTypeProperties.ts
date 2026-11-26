@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import type { ContainerTypeOwnerPermission } from '../../models/schemas';
 import { ContainerTypeTreeItem } from '../../views/treeview/development/ContainerTypeTreeItem';
 import { Command } from '../Command';
 import { GraphProvider } from '../../services/Graph/GraphProvider';
@@ -20,9 +21,8 @@ export class ViewContainerTypeProperties extends Command {
         }
 
         try {
-            // Fetch latest container type data from API (with no-cache to get fresh data)
-            const graphProvider = GraphProvider.getInstance();
-            const containerType = await graphProvider.containerTypes.get(
+            const containerTypes = GraphProvider.getInstance().containerTypes;
+            const containerType = await containerTypes.get(
                 containerTypeViewModel.containerType.id,
                 { noCache: true }
             );
@@ -32,22 +32,37 @@ export class ViewContainerTypeProperties extends Command {
                 return;
             }
 
-            const containerTypeProperties = JSON.stringify(containerType, null, 4);
+            let permissions: ContainerTypeOwnerPermission[] | undefined;
+            try {
+                permissions = await containerTypes.listOwnerPermissions(containerType.id);
+            } catch (error) {
+                // The caller can still view v1.0 properties if the beta read is denied or fails.
+                void vscode.window.showWarningMessage(vscode.l10n.t(
+                    'Could not load owner permissions for container type "{0}": {1}',
+                    containerType.name,
+                    error instanceof Error ? error.message : String(error)
+                ));
+            }
+
+            const containerTypeProperties = JSON.stringify({ ...containerType, permissions }, null, 4);
             const provider = new (class implements vscode.TextDocumentContentProvider {
-                provideTextDocumentContent(uri: vscode.Uri): string {
+                provideTextDocumentContent(): string {
                     return containerTypeProperties;
                 }
             })();
 
             const registration = vscode.workspace.registerTextDocumentContentProvider('virtual', provider);
-            // Add timestamp to URI to prevent VS Code from caching the document content
-            let uri = vscode.Uri.parse(`virtual://${containerType.id}/${containerType.name}.json?t=${Date.now()}`, true);
-            const doc = await vscode.workspace.openTextDocument(uri);
-            await vscode.window.showTextDocument(doc, { preview: true });
-            await vscode.languages.setTextDocumentLanguage(doc, 'json');
-            registration.dispose();
-        } catch (error: any) {
-            const message = vscode.l10n.t('Failed to open container type properties: {0}', error.message);
+            try {
+                // Add timestamp to URI to prevent VS Code from caching the document content
+                const uri = vscode.Uri.parse(`virtual://${containerType.id}/${containerType.name}.json?t=${Date.now()}`, true);
+                const doc = await vscode.workspace.openTextDocument(uri);
+                await vscode.window.showTextDocument(doc, { preview: true });
+                await vscode.languages.setTextDocumentLanguage(doc, 'json');
+            } finally {
+                registration.dispose();
+            }
+        } catch (error) {
+            const message = vscode.l10n.t('Failed to open container type properties: {0}', error instanceof Error ? error.message : String(error));
             vscode.window.showErrorMessage(message);
         }
     }
