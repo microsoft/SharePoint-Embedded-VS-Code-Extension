@@ -12,6 +12,7 @@ import {
     ensureValidationClientDeclaration,
     enforceReviewGate,
     evaluateCandidate,
+    featureTestNames,
     formatContinuationContext,
     formatValidationSummary,
     integrateInitialWorkers,
@@ -195,6 +196,21 @@ test('a rename out of a protected path keeps both paths visible to proposal clas
     git('mv', 'package.json', 'src/utils/example.ts');
     git('commit', '-qm', 'Move configuration');
     assert.deepEqual(await committedChangedPaths(cwd, base), ['package.json', 'src/utils/example.ts']);
+    assert.deepEqual(await committedChangedPaths(cwd, base, 'HEAD', true), ['src/utils/example.ts']);
+});
+
+test('native capture selects changed behavior-named entrypoints, not other tests or helpers', () => {
+    const names = ['container-creation-confirmation.scenario.ts', 'container-type-owner-properties.scenario.ts'];
+    assert.deepEqual(featureTestNames([
+        ...names.map(name => `src/test/native/${name}`).reverse(),
+        'src/test/native/captureWorkbench.ts', 'src/test/native/helpers/seed-owner.ts',
+        'ui-tests/api/container-create-notification.api.spec.ts'
+    ]), { nativeScenarios: names });
+    for (const file of ['src/test/native/github-issue-84.ts', 'src/test/native/issue-85.scenario.ts',
+        'ui-tests/api/issue-84.api.spec.ts', 'src/test/native/owner-properties.ts']) {
+        assert.ok(featureTestNames([file]).error, file);
+    }
+    assert.deepEqual(featureTestNames([]), { nativeScenarios: [] });
 });
 
 test('a reviewer cannot pass without evidence for all required criteria', () => {

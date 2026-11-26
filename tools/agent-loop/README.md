@@ -228,9 +228,14 @@ omit the preview. Reviewers can pass a working change with `omit-optional-previe
 `optional-hardening` advisories; these are not repair requests. For example, extra handling
 for a hypothetical malformed response is advisory, but confirming a rejected operation is not.
 
-For native workbench UI, add `src/test/native/github-issue-<number>.ts` exporting
+For native workbench UI, add a behavior-named file such as
+`src/test/native/container-creation-confirmation.scenario.ts` or
+`src/test/native/container-type-owner-properties.scenario.ts` exporting
 `async function run(): Promise<void>`. The feature runner loads it into desktop VS Code on
 an isolated virtual display and embeds the resulting screenshot in the same issue section.
+It discovers added or modified `*.scenario.ts` entrypoints from the reviewed diff, not from
+the issue number. Shared native fixtures go in `src/test/native/helpers/`. API and webview
+tests retain their existing suite suffixes and should likewise describe the behavior.
 Trigger the real action with mocked data and return the exact result locator from the
 `captureWorkbench` callback. For example, match the exact success message in a VS Code
 toast and capture only that toast while it is visible. For Container Types > View Properties,
@@ -259,10 +264,15 @@ configured model is missing or disabled.
 The run builds `spe-issue-<number>-<commit>-testable.vsix` from the reviewed code in an offline,
 credential-free container. Download the VSIX and SHA-256 file from **Actions → Feature Request
 Intake → run → Artifacts**. The package uses the Marketplace extension ID; test in an isolated
-VS Code profile or extension directory to avoid replacing your usual installation. Without an
-approved public test application client ID in `SPE_TEST_CLIENT_ID`, the package is for install
-and UI smoke testing only; live sign-in is not configured. Never put a client secret into
-`SPE_TEST_CLIENT_ID` or use production credentials with generated code.
+VS Code profile or extension directory to avoid replacing your usual installation. Before
+starting a feature run, set the Actions variable `SPE_TEST_CLIENT_ID` (in the `feature-agent`
+environment or at repository level) to the **Application (client) ID** of the approved Entra
+public-client registration for testing the extension. Do not use the tenant ID, object ID,
+owning container app ID, or a client secret. The registration must support the extension's
+VS Code sign-in flow and the intended test tenant. A UUID by itself does not confer permission.
+Missing, malformed, and all-zero IDs stop the run before implementation. The upload step
+also requires the configured ID in the packaged entrypoint. This does not authenticate to
+a tenant during CI. Packages built with the old placeholder must be rebuilt and reinstalled.
 
 Enable **Allow GitHub Actions to create and approve pull requests** in **Settings > Actions >
 General > Workflow permissions** if repository and organization policy permit it. Keep the default

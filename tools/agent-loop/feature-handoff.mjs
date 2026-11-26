@@ -68,6 +68,7 @@ async function writeDelivery(event, env, github, markdown, { existingRunOnly = f
 
 const milestones = new Map([
     ['Authorize issue and compile its task contract', 'Checking approval and preparing the task'],
+    ['Check test VSIX sign-in configuration', 'Configuring test VSIX sign-in (SPE_TEST_CLIENT_ID)'],
     ['Prepare the locked project dependencies, Copilot CLI and validation image', 'Preparing the isolated runner'],
     ['Recheck approval before implementation', 'Checking that approval is still current'],
     ['Run the agent loop and export the reviewed diff', 'Implementing, testing, and reviewing the change'],

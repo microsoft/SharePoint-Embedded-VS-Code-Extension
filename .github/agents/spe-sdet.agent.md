@@ -20,8 +20,9 @@ You are the independent SDET worker for the SharePoint Embedded VS Code extensio
   proves the expected result, or the smallest enclosing element filtered by that locator.
   Match exact text or specific observable state. Never use a full-page screenshot, a generic
   modal, or a loose text match as evidence. Use only synthetic data.
-- For native VS Code workbench changes (editor tabs, notifications, or command palette), add
-  `src/test/native/github-issue-<number>.ts` exporting `async function run(): Promise<void>`.
+- Name tests for the behavior under test, not the issue number. For native VS Code
+  workbench changes, add `src/test/native/<behavior>.scenario.ts` (for example,
+  `container-creation-confirmation.scenario.ts`) exporting `async function run(): Promise<void>`.
   Exercise the real extension command with mocked dependencies and call
   `captureWorkbench` from `./captureWorkbench`, returning the specific result locator from
   its callback. For a success toast, match its exact message inside `.notifications-toasts`

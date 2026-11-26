@@ -142,6 +142,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: node tools/agent-loop/feature-issue.mjs authorize
+      - name: Check test VSIX sign-in configuration
+        if: steps.intake.outputs.approved == 'true'
+        env:
+          SPE_TEST_CLIENT_ID: ${{ vars.SPE_TEST_CLIENT_ID }}
+        run: node tools/agent-loop/package-feature.mjs check-client-id
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         if: steps.intake.outputs.approved == 'true'
         with:
@@ -351,6 +356,8 @@ jobs:
               exit 1
             fi
           done
+          unzip -p "$file" extension/out/extension.js > "$RUNNER_TEMP/feature-packaged-entrypoint.js"
+          node "$GITHUB_WORKSPACE/tools/agent-loop/package-feature.mjs" verify-bundle "$RUNNER_TEMP/feature-packaged-entrypoint.js"
           sha256sum "$file" > "$file.sha256"
           printf 'filename=%s\n' "$file" >> "$GITHUB_OUTPUT"
       - name: Upload testable VSIX

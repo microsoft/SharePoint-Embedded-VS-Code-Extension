@@ -121,12 +121,14 @@ export async function readFileAtCommit(
 export async function committedChangedPaths(
     worktreePath: string,
     baseCommit: string,
-    headCommit = 'HEAD'
+    headCommit = 'HEAD',
+    presentOnly = false
 ): Promise<string[]> {
     const result = await git(worktreePath, [
         'diff',
         '--name-only',
         '--no-renames',
+        ...(presentOnly ? ['--diff-filter=AMT'] : []),
         '-z',
         `${baseCommit}..${headCommit}`
     ]);

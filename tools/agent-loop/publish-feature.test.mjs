@@ -8,6 +8,18 @@ import { reviewMarker, reviewRevision, TITLE_PREFIX } from './feature-issue.mjs'
 import { publish, TransientGitTransportError, validateStagedDiff } from './publish-feature.mjs';
 import { classifyFeatureHandoff, updateFeatureHandoff, watchFeatureRun } from './feature-handoff.mjs';
 import { appendIssueDelivery, splitIssueDelivery } from './issue-delivery-section.mjs';
+import { requireTestClientId, verifyBundledClientId } from './package-feature.mjs';
+
+test('test VSIX packaging requires a configured non-nil client ID in the shipped extension bundle', () => {
+    const nil = '00000000-0000-0000-0000-000000000000';
+    const testId = 'a1234567-89ab-4def-8123-456789abcdef';
+    for (const invalid of [undefined, '', '   ', nil, 'not-an-id']) {
+        assert.throws(() => requireTestClientId(invalid), /SPE_TEST_CLIENT_ID/);
+    }
+    assert.equal(requireTestClientId(` ${testId.toUpperCase()} `), testId);
+    assert.throws(() => verifyBundledClientId(`const authId="${nil}";`, testId), /entrypoint/);
+    assert.doesNotThrow(() => verifyBundledClientId(`const authId="${testId}",unrelated="${nil}";`, testId));
+});
 
 const repository = 'owner/repo';
 const branchCommit = '1'.repeat(40);

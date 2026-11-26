@@ -631,6 +631,24 @@ async function writeIntegrationResult(context: RunContext, startedAt: string): P
     );
 }
 
+export function featureTestNames(paths: string[]): { nativeScenarios: string[]; error?: string } {
+    const nativeScenarios: string[] = [];
+    for (const file of paths) {
+        if (!/^(?:src\/test|ui-tests)\//.test(file) || !/\.[cm]?[jt]sx?$/.test(file)) continue;
+        const name = path.posix.basename(file);
+        if (/(?:^|[-_.])(?:github[-_.]?)?issue[-_.]?#?\d+(?=[-_.]|$)|^#?\d+(?:\.|$)/i.test(name)) {
+            return { nativeScenarios: [], error: `Rename ${file} for the behavior it tests rather than the issue number.` };
+        }
+        if (path.posix.dirname(file) !== 'src/test/native' || !name.endsWith('.ts') ||
+            ['captureWorkbench.ts', 'workbench-smoke.ts'].includes(name)) continue;
+        if (!/^[a-z][a-z0-9]*(?:-[a-z0-9]+)+\.scenario\.ts$/.test(name)) {
+            return { nativeScenarios: [], error: `Name ${file} like container-creation-confirmation.scenario.ts or put shared helpers under src/test/native/helpers/.` };
+        }
+        nativeScenarios.push(name);
+    }
+    return { nativeScenarios: nativeScenarios.sort() };
+}
+
 async function runValidation(context: RunContext): Promise<ValidationResult[]> {
     context.onStage?.('validation');
     await transitionRun(context.repoRoot, context.run, 'validating');
@@ -639,8 +657,15 @@ async function runValidation(context: RunContext): Promise<ValidationResult[]> {
         : await ensureValidationClientDeclaration(context.run.integrationWorktree!);
 
     try {
+        const names = context.featureRun
+            ? featureTestNames(await committedChangedPaths(context.run.integrationWorktree!, context.run.baseCommit, context.run.integratedCommit, true))
+            : { nativeScenarios: [] };
         for (const check of context.loaded.contract.requiredChecks) {
             assertWithinWallClock(context.run, context.loaded.contract);
+            if (names.error) {
+                results.push({ command: 'Feature test filenames', status: 'failed', exitCode: 1, durationSeconds: 0, stderrTail: names.error });
+                break;
+            }
             const checkDir = path.join(
                 context.run.artifactsDir,
                 'validation',
@@ -649,12 +674,12 @@ async function runValidation(context: RunContext): Promise<ValidationResult[]> {
             const stdoutPath = path.join(checkDir, `${check.id}.stdout.log`);
             const stderrPath = path.join(checkDir, `${check.id}.stderr.log`);
             const evidenceRoot = process.env.AGENT_LOOP_UX_EVIDENCE_ROOT;
-            let uxEvidence: { file: string; taskId: string } | undefined;
+            let uxEvidence: { file: string; taskId: string; nativeScenarios: string[] } | undefined;
             if (context.featureRun && check.id === 'ui' && evidenceRoot && path.isAbsolute(evidenceRoot)) {
                 const file = path.join(evidenceRoot, `attempt-${context.run.repass}.png`);
                 await writeFile(file, '', { flag: 'wx' });
                 await chmod(file, 0o666);
-                uxEvidence = { file, taskId: context.loaded.contract.taskId };
+                uxEvidence = { file, taskId: context.loaded.contract.taskId, nativeScenarios: names.nativeScenarios };
             }
             const processResult = await runValidationCommand(check.command, {
                 cwd: context.run.integrationWorktree!,

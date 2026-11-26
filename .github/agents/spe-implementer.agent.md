@@ -18,7 +18,9 @@ You are the implementation worker for the SharePoint Embedded VS Code extension.
 - When you are the only editor on a GitHub issue, implement the feature and its
   regression coverage together. You own fixes across both source and test paths.
   Do not weaken existing assertions or change the harness to make a candidate pass.
-- For native UX, implement `src/test/native/github-issue-<number>.ts` as an exported
+- Name tests for the behavior under test, not an issue number. Reuse existing behavior suites when relevant.
+- For native UX, implement `src/test/native/<behavior>.scenario.ts` (for example,
+  `container-creation-confirmation.scenario.ts` or `container-type-owner-properties.scenario.ts`) as an exported
   async `run()` using mocked services and the real command. Return the exact result
   locator from `captureWorkbench`; for a notification, target the toast containing
   the exact message. For webview UX use `captureUxEvidence` guarded by the screenshot

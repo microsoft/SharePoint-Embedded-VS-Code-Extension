@@ -6,7 +6,7 @@ export async function runValidationCommand(
     command: string,
     options: ProcessOptions,
     npmCache?: string,
-    uxEvidence?: { file: string; taskId: string }
+    uxEvidence?: { file: string; taskId: string; nativeScenarios: string[] }
 ): Promise<ProcessResult> {
     const image = process.env.AGENT_LOOP_VALIDATION_IMAGE;
     if (!image) {
@@ -35,6 +35,7 @@ export async function runValidationCommand(
             '--mount', `type=bind,source=${uxEvidence.file},target=/ux-preview.png`,
             '--env', 'SPE_UX_SCREENSHOT_PATH=/ux-preview.png',
             '--env', `SPE_UX_SCREENSHOT_TASK=${uxEvidence.taskId}`,
+            '--env', `SPE_NATIVE_SCENARIOS=${JSON.stringify(uxEvidence.nativeScenarios)}`,
             '--mount', `type=bind,source=${desktopScript},target=/native-ux.mjs,readonly`,
             ...(desktop ? ['--mount', `type=bind,source=${desktop},target=/desktop-vscode,readonly`] : [])
         ] : []),

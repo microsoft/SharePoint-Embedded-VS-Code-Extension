@@ -1,5 +1,5 @@
 import { execFileSync, spawn } from 'node:child_process';
-import { existsSync, statSync, truncateSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, statSync, truncateSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 function displayNumber(server) {
@@ -21,7 +21,11 @@ function displayNumber(server) {
 
 const task = process.env.SPE_UX_SCREENSHOT_TASK;
 if (!/^github-issue-[1-9]\d*$/.test(task ?? '')) throw new Error('Invalid desktop screenshot task.');
-if (existsSync(`src/test/native/${task}.ts`)) {
+const names = JSON.parse(process.env.SPE_NATIVE_SCENARIOS ?? '[]');
+if (!Array.isArray(names) || names.some(name => typeof name !== 'string' || !/^[a-z][a-z0-9]*(?:-[a-z0-9]+)+\.scenario\.ts$/.test(name))) {
+    throw new Error('Invalid native scenario filenames.');
+}
+if (names.length) {
     const executable = '/desktop-vscode/code';
     const screenshot = process.env.SPE_UX_SCREENSHOT_PATH;
     if (!existsSync(executable) || !screenshot) throw new Error('Desktop screenshot runtime is unavailable.');
@@ -30,10 +34,6 @@ if (existsSync(`src/test/native/${task}.ts`)) {
     writeFileSync('src/client.ts', 'export const clientId = "00000000-0000-0000-0000-000000000000";\nexport const telemetryKey = "";\n', { flag: 'wx' });
     execFileSync('npm', ['run', 'build:webview'], { stdio: 'inherit' });
     execFileSync('npm', ['run', 'test-compile'], { stdio: 'inherit' });
-    const scenario = resolve(`out/test/native/${task}.js`);
-    if (!existsSync(scenario)) throw new Error('Desktop screenshot scenario did not compile.');
-    truncateSync(screenshot, 0);
-
     const runner = [
         'require("@vscode/test-electron").runTests({',
         '  vscodeExecutablePath: process.argv[1],',
@@ -48,9 +48,20 @@ if (existsSync(`src/test/native/${task}.ts`)) {
         { stdio: ['ignore', 'ignore', 'inherit', 'pipe'] });
     try {
         const display = await displayNumber(server);
-        execFileSync(process.execPath, ['-e', runner, executable, scenario], {
-            env: { ...process.env, DISPLAY: `:${display}` }, stdio: 'inherit', timeout: 180_000
-        });
+        let preview;
+        for (const name of names) {
+            const scenario = resolve('out/test/native', name.replace(/\.ts$/, '.js'));
+            if (!existsSync(scenario)) throw new Error(`Desktop scenario did not compile: ${name}`);
+            truncateSync(screenshot, 0);
+            execFileSync(process.execPath, ['-e', runner, executable, scenario], {
+                env: { ...process.env, DISPLAY: `:${display}` }, stdio: 'inherit', timeout: 180_000
+            });
+            if (!preview && statSync(screenshot).size > 0 && statSync(screenshot).size <= 10 * 1024 * 1024) {
+                preview = readFileSync(screenshot);
+            }
+        }
+        if (preview) writeFileSync(screenshot, preview);
+        else truncateSync(screenshot, 0);
     } finally {
         server.kill();
     }
