@@ -50,6 +50,8 @@ All endpoints under `/storage/fileStorage/` are SharePoint Embedded APIs routed 
 
 > **Note**: Row 3 (`GET /containerTypes/{id}`) is required by every update operation. The code calls `ContainerTypeService.get()` to retrieve the current ETag before calling `ContainerTypeService.update()` (PATCH).
 
+**View properties** opts into `GET /beta/storage/fileStorage/containerTypes/{id}?$expand=permissions`. The JSON editor shows `owners` as user IDs (`grantedToV2.user.id`) for entries with the `owner` role, not the permission record IDs. If Graph omits the expanded property, the JSON does not report an owner list. Ordinary reads stay on `v1.0`.
+
 **Additional query patterns used** (all resolve to row 2 — GET List):
 - `$filter=owningAppId eq '{appId}'` — `getByOwningApp()`
 - `$filter=billingClassification eq 'trial'` — `getByBillingClassification()`

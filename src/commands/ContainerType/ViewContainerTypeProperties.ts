@@ -24,7 +24,7 @@ export class ViewContainerTypeProperties extends Command {
             const graphProvider = GraphProvider.getInstance();
             const containerType = await graphProvider.containerTypes.get(
                 containerTypeViewModel.containerType.id,
-                { noCache: true }
+                { noCache: true, expandPermissions: true }
             );
 
             if (!containerType) {
@@ -32,7 +32,11 @@ export class ViewContainerTypeProperties extends Command {
                 return;
             }
 
-            const containerTypeProperties = JSON.stringify(containerType, null, 4);
+            const { permissions, ...properties } = containerType;
+            const owners = permissions
+                ?.filter(permission => permission.roles.includes('owner'))
+                .map(permission => permission.grantedToV2.user.id);
+            const containerTypeProperties = JSON.stringify({ ...properties, owners }, null, 4);
             const provider = new (class implements vscode.TextDocumentContentProvider {
                 provideTextDocumentContent(uri: vscode.Uri): string {
                     return containerTypeProperties;

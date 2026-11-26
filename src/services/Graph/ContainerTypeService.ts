@@ -76,17 +76,22 @@ export class ContainerTypeService {
     }
 
     /**
-     * Get a specific container type by ID
-     * GET /storage/fileStorage/containerTypes/{id}
+     * Get a specific container type by ID.
+     * The permissions navigation property is only available in beta.
      */
     async get(id: string, options?: {
         select?: string[];
         noCache?: boolean;
+        expandPermissions?: boolean;
     }): Promise<ContainerType | null> {
         try {
             let request = this._client
                 .api(`${ContainerTypeService.BASE_PATH}/${id}`)
-                .version(ContainerTypeService.API_VERSION);
+                .version(options?.expandPermissions ? 'beta' : ContainerTypeService.API_VERSION);
+
+            if (options?.expandPermissions) {
+                request = request.expand('permissions');
+            }
 
             // Add cache-control header to prevent stale data
             if (options?.noCache) {
@@ -99,7 +104,9 @@ export class ContainerTypeService {
 
             Logger.log(`[ContainerTypeService.get] Fetching container type ${id}`);
             const response = await request.get();
-            Logger.log(`[ContainerTypeService.get] Response:`, JSON.stringify(response, null, 2));
+            if (!options?.expandPermissions) {
+                Logger.log(`[ContainerTypeService.get] Response:`, JSON.stringify(response, null, 2));
+            }
             return containerTypeSchema.parse(response);
         } catch (error: any) {
             console.error(`[ContainerTypeService.get] Error fetching ${id}:`, error);
@@ -114,10 +121,8 @@ export class ContainerTypeService {
      * Create a new container type.
      * POST /v1.0/storage/fileStorage/containerTypes
      *
-     * The caller controls `billingClassification` via the payload — the
-     * service no longer hardcodes 'trial'. `permissions` is not a navigation
-     * property on fileStorageContainerType, so $expand=permissions is not
-     * supported; use `patchOwners` separately to set permissions.
+     * The caller controls `billingClassification` via the payload.
+     * Use `addOwner` separately to set owner permissions.
      */
     async create(containerType: ContainerTypeCreate): Promise<ContainerType> {
         try {
