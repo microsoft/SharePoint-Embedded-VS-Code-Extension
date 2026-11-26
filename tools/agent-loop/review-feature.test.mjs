@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { issueClient, reviewRevision, TITLE_PREFIX } from './feature-issue.mjs';
-import { classifyFailure, clearTriaging, parseReadiness, prepareReview, publishReview, reviewPrompt } from './review-feature.mjs';
+import { classifyFailure, parseReadiness, prepareReview, publishReview, reviewPrompt } from './review-feature.mjs';
 
 const issue = {
     id: 100, number: 8, title: `${TITLE_PREFIX} Preserve selected rows`, state: 'open',
@@ -18,6 +18,10 @@ function fixture(first) {
         const path = new URL(url).pathname;
         if (init.method === 'GET') return Response.json(path.endsWith('/comments') ? comments : current);
         writes.push([init.method, path]);
+        if (init.method === 'PATCH' && path.endsWith('/issues/8')) {
+            current.labels = JSON.parse(init.body).labels.map(name => ({ name }));
+            return Response.json(current);
+        }
         if (path.endsWith('/labels')) {
             for (const name of JSON.parse(init.body).labels) {
                 if (!current.labels.some(label => label.name === name)) current.labels.push({ name });
@@ -58,17 +62,13 @@ test('opened requests start triaging and transition without granting approval or
     assert.deepEqual(f.current.labels.map(v => v.name), ['enhancement', 'needs-info']);
     f.current.body = issue.body;
     await publishReview(f.github, await prepareReview(f.github, { action: 'edited', issue: f.current }), pass());
-    assert.deepEqual(f.current.labels.map(v => v.name), ['enhancement']);
+    assert.deepEqual(f.current.labels.map(v => v.name), ['enhancement', 'agent-ready', 'ready-for-agent']);
 });
 
-test('triaging remains on a first-pass ready issue until a maintainer labels it', async () => {
+test('first-pass readiness replaces triaging but does not deploy', async () => {
     const f = fixture({ ...issue, labels: [{ name: 'triaging' }] });
     await publishReview(f.github, await prepareReview(f.github, { action: 'opened', issue: f.current }), pass());
-    assert.deepEqual(f.current.labels.map(v => v.name), ['triaging']);
-    f.current.labels.push({ name: 'agent-ready' });
-    await clearTriaging(f.github);
-    await clearTriaging(f.github);
-    assert.deepEqual(f.current.labels.map(v => v.name), ['agent-ready']);
+    assert.deepEqual(f.current.labels.map(v => v.name), ['agent-ready', 'ready-for-agent']);
 });
 
 test('readiness keeps one feedback comment and supplies previous feedback on the next revision', async () => {
@@ -114,9 +114,22 @@ test('readiness keeps one feedback comment and supplies previous feedback on the
     assert.match(reviewPrompt(revisedPlan.input), /Do not move the goalposts/);
     await publishReview(f.github, revisedPlan, pass());
     assert.ok(f.comments[0].body.startsWith(`<!-- spe-feature-readiness:v1 ${reviewRevision(f.current)} ready -->`));
-    assert.match(f.comments[0].body, /Ready for `agent-ready` \(awaiting maintainer approval\)/);
+    assert.match(f.comments[0].body, /approved maintainer must apply `deploy-to-agent`/);
     assert.equal(f.comments.length, 1);
-    assert.deepEqual(f.current.labels, [{ name: 'enhancement' }]);
+    assert.deepEqual(f.current.labels.map(v => v.name), ['enhancement', 'agent-ready', 'ready-for-agent']);
+});
+
+test('editing a failed brief replaces agent-failed with triaging and never carries a deployment forward', async () => {
+    const f = fixture({ ...issue, labels: [{ name: 'triaging' }, { name: 'enhancement' }] });
+    await publishReview(f.github, await prepareReview(f.github, { action: 'opened', issue: f.current }), pass());
+    f.current.labels = [{ name: 'enhancement' }, { name: 'agent-failed' }];
+    await publishReview(f.github, await prepareReview(f.github, { action: 'edited', issue: f.current }));
+    assert.deepEqual(f.current.labels.map(v => v.name), ['enhancement', 'agent-failed']);
+    f.current.body += '\n### Modifications\nKeep selection on refresh. Change the missing-item behavior.';
+    const plan = await prepareReview(f.github, { action: 'edited', issue: f.current });
+    assert.deepEqual(f.current.labels.map(v => v.name), ['enhancement', 'triaging']);
+    await publishReview(f.github, plan, pass());
+    assert.deepEqual(f.current.labels.map(v => v.name), ['enhancement', 'agent-ready', 'ready-for-agent']);
 });
 
 test('a stale result cannot overwrite feedback and an unavailable review can be retried', async () => {
@@ -135,7 +148,7 @@ test('a stale result cannot overwrite feedback and an unavailable review can be 
     assert.match(f.comments[0].body, /no author action required/);
     assert.match(f.comments[0].body, /credential is missing, expired, or was rejected/);
     assert.equal(f.comments[0].body.match(/\[Actions run\]\(([^)\r\n]+)\)/)?.[1], runUrl);
-    assert.deepEqual(f.current.labels, [{ name: 'enhancement' }]);
+    assert.deepEqual(f.current.labels.map(v => v.name), ['enhancement', 'triaging']);
     assert.equal((await prepareReview(f.github)).kind, 'model');
 });
 
@@ -208,8 +221,8 @@ test('an older needs-info comment is reviewed again rather than cached', async (
     const plan = await prepareReview(f.github);
     assert.equal(plan.kind, 'model');
     await publishReview(f.github, plan, { ...pass(), model: 'gpt-6.2-sol' });
-    assert.deepEqual(f.writes, [['PATCH', '/repos/owner/repo/issues/comments/1']]);
-    assert.match(f.comments[0].body, /Ready for `agent-ready`/);
+    assert.deepEqual(f.writes, [['PATCH', '/repos/owner/repo/issues/comments/1'], ['PATCH','/repos/owner/repo/issues/8']]);
+    assert.match(f.comments[0].body, /Ready for agent/);
 });
 
 test('reviewer diagnostics classify errors without propagating raw SDK text', () => {
@@ -234,7 +247,7 @@ test('malformed or unsafe model output never becomes a readiness verdict', () =>
     }
 });
 
-test('readiness ignores superseded events and never adds agent-ready for the issue author', async () => {
+test('readiness ignores superseded events and never deploys for the issue author', async () => {
     const user = { id: 123, login: 'maintainer', type: 'User' };
     const initial = { ...issue, user };
     const event = { action: 'edited', issue: initial, sender: user };
@@ -243,6 +256,6 @@ test('readiness ignores superseded events and never adds agent-ready for the iss
     const plan = await prepareReview(f.github, event);
     await publishReview(f.github, plan, pass());
     await publishReview(f.github, await prepareReview(f.github, event));
-    assert.deepEqual(f.writes, [['POST', '/repos/owner/repo/issues/8/comments']]);
-    assert.deepEqual(f.current.labels, [{ name: 'enhancement' }]);
+    assert.deepEqual(f.writes, [['PATCH','/repos/owner/repo/issues/8'], ['POST', '/repos/owner/repo/issues/8/comments'], ['PATCH','/repos/owner/repo/issues/8']]);
+    assert.deepEqual(f.current.labels.map(v => v.name), ['enhancement', 'agent-ready', 'ready-for-agent']);
 });

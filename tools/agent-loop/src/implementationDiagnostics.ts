@@ -1,6 +1,20 @@
 import type { ImplementationStage } from './orchestrator';
 import { ProposalConflictError } from './git';
-import type { ReviewResult, TaskContract, WorkerResult } from './types';
+import type { ReviewResult, TaskContract, ValidationResult, WorkerResult } from './types';
+
+export function describeValidationStop(results: ValidationResult[]): string {
+    const fixes = new Map([
+        ['npx tsc -p ./ --noEmit', 'Extension type-check failed. Correct the TypeScript error on the candidate branch.'],
+        ['npm run lint', 'Extension lint failed. Correct the lint violation in the candidate.'],
+        ['npm run build:webview', 'The webview build failed. Reproduce the webview build on the candidate.'],
+        ['npm run test:api', 'An offline API check failed. Reproduce the failing API scenario on the candidate.'],
+        ['npm run test:ui', 'UI validation failed. Inspect the webview and native scenario results before changing the brief.'],
+        ['Feature test filenames', 'A generated test filename was rejected. Rename the test for the behavior it covers.'],
+    ]);
+    const notes = [...new Set(results.filter(r => r.status === 'failed').map(r => fixes.get(r.command) ??
+        'A required validation check failed. Inspect its result before retrying.'))];
+    return [...notes, 'This failure alone does not call for an issue edit.'].join(' ');
+}
 
 export function describeReviewStop(
     review: Pick<ReviewResult, 'decision' | 'findings'> & Partial<Pick<ReviewResult, 'criteria'>>,
@@ -50,6 +64,37 @@ export const noProgressResults = new WeakSet<WorkerResult>();
 const safeCriterionId = (id: string) => /^AC-\d{2,4}$/.test(id);
 const safeScenarioId = (id: string) => /^AC-\d{2,4}-S\d$/.test(id);
 const observations = new Set(['verified', 'not-implemented', 'not-covered', 'assertion-failed', 'build-failed', 'fixture-unavailable', 'not-verifiable']);
+type FocusCriterion = WorkerResult['criteria'][number] | ReviewResult['criteria'][number];
+
+// Pass only IDs and controlled observations between jobs. Resolve the actual wording
+// from the approved issue snapshot, never from a worker's free-form evidence or logs.
+export function repairFocus(criteria: FocusCriterion[], findings: ReviewResult['findings'] = []): string {
+    const open = new Map<string, string>();
+    const keep = new Set<string>();
+    for (const criterion of criteria) {
+        if (!safeCriterionId(criterion.id)) continue;
+        const parentOpen = ['blocked', 'not-satisfied', 'not-verifiable'].includes(criterion.status);
+        let specific = false;
+        for (const s of criterion.scenarios ?? []) {
+            if (!safeScenarioId(s.id) || !s.id.startsWith(`${criterion.id}-S`)) continue;
+            if (['blocked', 'not-satisfied', 'not-verifiable'].includes(s.status)) {
+                open.set(s.id, observations.has(s.observed) && s.observed !== 'verified' ? s.observed : 'unresolved');
+                specific = true;
+            } else if (s.status === 'satisfied' && s.observed === 'verified') keep.add(s.id);
+        }
+        if (!specific && parentOpen) open.set(criterion.id, 'unresolved');
+        if (!specific && criterion.status === 'satisfied' && criterion.evidence.trim() && !criterion.scenarios?.length) keep.add(criterion.id);
+    }
+    for (const f of findings) {
+        for (const id of f.criterionIds.filter(safeCriterionId)) {
+            if (![...open.keys()].some(k => k === id || k.startsWith(`${id}-S`))) open.set(id, 'review-finding');
+        }
+    }
+    if (!open.size) return '';
+    return [...[...open].map(([id, observation]) => `${id}=${observation}`),
+        ...[...keep].filter(id => !open.has(id) && !open.has(id.split('-S')[0])).map(id => `${id}=verified`)]
+        .slice(0, 48).join(',');
+}
 // Public issue text only, reduced to the issue diagnostic character set.
 export const publicExpectation = (text: string) => text.replace(/[^A-Za-z0-9 ().,:;'-]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 140).replace(/[\s.,:;]+$/, '');
 
@@ -79,6 +124,7 @@ export function describeOpenScenarios(worker: WorkerResult, contract?: ScenarioC
 
 // Only controlled categories, roles, counts, criterion IDs and public scenario text may reach the public issue.
 export class IncompleteWorkersError extends Error {
+    readonly focus: string;
     constructor(workers: WorkerResult[], contract?: ScenarioCatalog) {
         super(workers.map(worker => {
             const role = worker.role === 'sdet' ? 'Test worker' : 'Implementation worker';
@@ -104,6 +150,8 @@ export class IncompleteWorkersError extends Error {
             return [`${prefix} reported ${worker.status === 'failed' ? 'failure' : 'blocked'}: ${cause}`,
                 ...describeOpenScenarios(worker, contract), ...stalled, ...kept].join(' ');
         }).join(' '));
+        this.focus = repairFocus(workers.filter(w => !w.approvalRequests.length &&
+            !['budget-exhausted', 'edit-scope'].includes(w.blockerCode ?? '')).flatMap(w => w.criteria));
     }
 }
 

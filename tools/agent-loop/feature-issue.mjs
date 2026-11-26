@@ -6,7 +6,16 @@ import { splitIssueDelivery } from './issue-delivery-section.mjs';
 
 export const TITLE_PREFIX = 'Feature Request:';
 export const READY = 'agent-ready';
+export const READY_LABELS = [READY, 'ready-for-agent'];
+export const DEPLOY = 'deploy-to-agent';
+export const FAILED = 'agent-failed';
+export const HUMAN_REVIEW = 'ready-for-human-review';
+export const TRIAGING = 'triaging';
 export const NEEDS_INFO = 'needs-info';
+const managedLabels = [TRIAGING, NEEDS_INFO, ...READY_LABELS, DEPLOY, FAILED, HUMAN_REVIEW];
+export function phaseLabels(issue, desired) {
+    return [...issue.labels.map(label => label.name).filter(name => !managedLabels.includes(name.toLowerCase())), ...desired];
+}
 const FEATURE_LIMITS = Object.freeze({
     maxConcurrentWorkers: 1, maxRepasses: 2, maxReviewRepairs: 2,
     maxWallClockMinutes: 240, maxMinutesPerWorker: 60, maxAiCreditsPerWorker: 240,
@@ -148,16 +157,16 @@ export const matchesIssueEvent = (event, current) => event.issue?.id === current
     splitIssueDelivery(event.issue.body).requirements === splitIssueDelivery(current.body).requirements;
 
 export function approval(event, current, approvers) {
-    if (event.action !== 'labeled' || event.label?.name !== READY || !allowedAccount(event.sender, approvers)) {
-        return { approved: false, reason: 'An approved maintainer must apply agent-ready.' };
+    if (event.action !== 'labeled' || event.label?.name !== DEPLOY || !allowedAccount(event.sender, approvers)) {
+        return { approved: false, reason: 'An approved maintainer must apply deploy-to-agent.' };
     }
     if (!matchesIssueEvent(event, current)) {
         return { approved: false, reason: 'Issue text changed after this event. Wait for readiness review of the current version.' };
     }
     const brief = assessIssue(current);
-    if (brief.status !== 'complete' || !hasLabel(current, READY) || !hasLabel(event.issue, READY) ||
-        hasLabel(current, NEEDS_INFO) || hasLabel(event.issue, NEEDS_INFO)) {
-        return { approved: false, reason: 'Issue must be open, complete, and labeled agent-ready without needs-info.' };
+    if (brief.status !== 'complete' || !READY_LABELS.every(name => hasLabel(event.issue, name)) ||
+        ![event.issue, current].every(issue => hasLabel(issue, DEPLOY) && ![TRIAGING, NEEDS_INFO, FAILED, HUMAN_REVIEW].some(name => hasLabel(issue, name)))) {
+        return { approved: false, reason: 'Wait for the ready-for-agent status, then have an approved maintainer apply deploy-to-agent.' };
     }
     return { approved: true, brief };
 }
@@ -335,7 +344,7 @@ export async function intake({ event, mode, env, fetcher = fetch }) {
     if (!decision.approved) return { approved: false, message: decision.reason };
     const review = await readReadinessComment(github);
     if (review?.status !== 'ready' || review.revision !== reviewRevision(current)) {
-        return { approved: false, message: 'The current issue revision has not passed readiness review. Wait for review, then reapply agent-ready.' };
+        return { approved: false, message: 'The current issue revision has not passed readiness review. Wait for review, then reapply deploy-to-agent.' };
     }
     if (mode === 'authorize') {
         return { approved: true, message: 'Feature approved.', modifications: Boolean(decision.brief.modifications),

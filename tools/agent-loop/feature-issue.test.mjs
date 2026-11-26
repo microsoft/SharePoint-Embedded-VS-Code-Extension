@@ -13,9 +13,9 @@ const body = [
 ].join('\n\n');
 const issue = {
     id: 4321, number: 42, state: 'open', title: `${TITLE_PREFIX} Preserve selection`,
-    body, labels: [{ name: 'agent-ready' }],
+    body, labels: ['agent-ready', 'ready-for-agent', 'deploy-to-agent'].map(name => ({ name })),
 };
-const event = { action: 'labeled', label: { name: 'agent-ready' }, sender: { type: 'User', login: 'Owner' }, issue };
+const event = { action: 'labeled', label: { name: 'deploy-to-agent' }, sender: { type: 'User', login: 'Owner' }, issue };
 const approvers = new Set(['owner']);
 const env = { GITHUB_REPOSITORY: 'owner/repo', GH_TOKEN: 'test-token', FEATURE_REQUEST_APPROVERS: 'Owner', GITHUB_SHA: 'a'.repeat(40) };
 
@@ -44,6 +44,10 @@ test('requires a current, complete, explicitly approved issue snapshot', () => {
     for (const [e, current, owners = approvers] of [
         [{ ...event, action: 'edited' }, issue],
         [{ ...event, label: { name: 'needs-info' } }, issue],
+        [{ ...event, label: { name: 'agent-ready' } }, issue],
+        [{ ...event, label: { name: 'ready-for-agent' } }, issue],
+        [{ ...event, issue: { ...issue, labels: [{ name: 'deploy-to-agent' }] } }, issue],
+        [event, { ...issue, labels: [...issue.labels, { name: 'agent-failed' }] }],
         [{ ...event, sender: { ...event.sender, type: 'Bot' } }, issue],
         [event, issue, new Set(['other-maintainer'])],
         [event, { ...issue, body: `${body}\n\nEdited after approval.` }],
@@ -170,7 +174,7 @@ test('authorization and handoff require a bot readiness pass for the exact issue
     assert.equal((await intake({ event: { ...event, issue: current }, mode: 'authorize', env, fetcher })).approved, false);
 });
 
-test('even an approved author needs a separate agent-ready label event after readiness', async () => {
+test('even an approved author needs a separate deploy-to-agent event after readiness', async () => {
     const owner = { id: 123, login: 'Owner', type: 'User' };
     const approvedIssue = { ...issue, user: owner };
     const comment = {
@@ -203,7 +207,7 @@ const crossTenantBody = [
     '- Offer Entra Apps from other tenants which are registered in the current tenant',
     '- After creation, show the CT name, the target tenant, and “Register in this tenant” and “Skip” actions. Offer the registration guide when a prerequisite is missing, not as the only option solely because the app is from another tenant.',
 ].join('\n');
-const crossTenantIssue = { id: 87, number: 87, state: 'open', labels: [{ name: 'agent-ready' }],
+const crossTenantIssue = { id: 87, number: 87, state: 'open', labels: issue.labels,
     title: `${TITLE_PREFIX} Create container type with Entra app id from another tenant`, body: crossTenantBody };
 
 test('compound acceptance criteria compile to stable scenarios mapped to their parent criterion', () => {
@@ -239,7 +243,7 @@ test('a Modifications section requests a proposal revision; an empty one remains
     assert.equal(assessIssue({ ...crossTenantIssue, body: `${crossTenantBody}\n\n### Modifications\n\n${'x'.repeat(4001)}` }).status, 'incomplete');
 
     // Editing Modifications invalidates the earlier pass; only a bot pass for the new revision plus a fresh maintainer label approves it.
-    const labeled = { action: 'labeled', label: { name: 'agent-ready' }, sender: { type: 'User', login: 'Owner' }, issue: revised };
+    const labeled = { action: 'labeled', label: { name: 'deploy-to-agent' }, sender: { type: 'User', login: 'Owner' }, issue: revised };
     let comment = { id: 1, user: { id: 41898282, type: 'Bot' }, body: `${reviewMarker} ${reviewRevision(crossTenantIssue)} ready -->\nReady.` };
     const fetcher = async (url) => Response.json(url.includes('/comments?') ? [comment] : revised);
     assert.equal((await intake({ event: labeled, mode: 'authorize', env, fetcher })).approved, false);

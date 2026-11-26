@@ -44,7 +44,7 @@ import { assertChangedPathsAllowed, matchesAny } from './paths';
 import { outputTail, runShellCommand } from './process';
 import { runSdkPreflight, SdkPreflightResult } from './sdkPreflight';
 import { runValidationCommand } from './validationSandbox';
-import { describeReviewStop, IncompleteWorkersError, noProgressResults } from './implementationDiagnostics';
+import { describeReviewStop, describeValidationStop, IncompleteWorkersError, noProgressResults, repairFocus } from './implementationDiagnostics';
 import {
     AuthorityPolicy,
     LoadedContract,
@@ -246,11 +246,13 @@ export async function runContract(options: RunOptions): Promise<RunRecord> {
         }
 
         if (validation.some(result => result.status === 'failed')) {
+            run.publicStopReason = describeValidationStop(validation);
             await transitionRun(repoRoot, run, 'blocked', 'Required validation still fails after repass budget');
             return run;
         }
         if (review.decision !== 'pass') {
             run.publicStopReason = describeReviewStop(review, run.repass, reviewRepairs);
+            run.repairFocus = repairFocus(review.criteria ?? [], review.findings);
             await transitionRun(
                 repoRoot,
                 run,

@@ -244,6 +244,7 @@ export interface RunRecord {
     workers: WorkerRunRecord[];
     validationArtifact?: string;
     publicStopReason?: string;
+    repairFocus?: string;
     reviewAdvisories?: ReviewResult['advisories'];
     reviewArtifacts: string[];
     proposalSeedCommit?: string;

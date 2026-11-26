@@ -9,6 +9,7 @@ import { publish, TransientGitTransportError, validateStagedDiff } from './publi
 import { classifyFeatureHandoff, updateFeatureHandoff, watchFeatureRun } from './feature-handoff.mjs';
 import { appendIssueDelivery, splitIssueDelivery } from './issue-delivery-section.mjs';
 import { requireTestClientId, verifyBundledClientId } from './package-feature.mjs';
+import { modificationGuidance } from './feature-modification-guidance.mjs';
 
 test('test VSIX packaging requires a configured non-nil client ID in the shipped extension bundle', () => {
     const nil = '00000000-0000-0000-0000-000000000000';
@@ -30,13 +31,31 @@ function branchApi(path, { tip = branchCommit, changed = true } = {}) {
     }
 }
 const issue = {
-    id: 100, number: 8, labels: [{ name: 'agent-ready' }], state: 'open',
+    id: 100, number: 8, labels: ['agent-ready', 'ready-for-agent', 'deploy-to-agent'].map(name => ({ name })), state: 'open',
     title: `${TITLE_PREFIX} Improve the prompt`,
     body: '### Problem\nUnclear prompt.\n### Expected behavior\nDescribe next steps.\n' +
         '### Acceptance criteria\n- The prompt describes next steps.\n### UI impact\nNew prompt text.',
 };
+
+test('repair wording depends on the run and distinguishes missing coverage from a failed outcome', () => {
+    const brief = { ...issue, body: issue.body.replace('- The prompt describes next steps.',
+        '- If registration is skipped, allow registration later from the context menu. If already registered, leave the existing grants unchanged.') };
+    const hint = observation => modificationGuidance(brief, `AC-01-S1=verified,AC-01-S2=${observation}`, '');
+    assert.match(hint('not-covered'), /Keep \(AC-01-S1\).*context menu/);
+    assert.match(hint('not-covered'), /Add focused regression coverage.*existing grants unchanged/);
+    assert.match(hint('assertion-failed'), /Reproduce the failed assertion.*existing grants unchanged/);
+    assert.doesNotMatch(hint('assertion-failed'), /Add focused regression coverage/);
+    const parent = modificationGuidance(brief, '', 'Feature agent stopped during repass: Implementation worker (AC-01) reported blocked: implementation-incomplete. Narrow the affected criterion.');
+    assert.match(parent, /did not identify which one was incomplete/);
+    assert.match(parent, /context menu/);
+    assert.match(parent, /grants unchanged/);
+    assert.doesNotMatch(parent, /failed assertion/);
+    assert.equal(modificationGuidance(brief, 'AC-99=assertion-failed', ''), '');
+    assert.equal(modificationGuidance(brief, 'AC-01=arbitrary-worker-text', ''), '');
+    assert.equal(modificationGuidance(brief, '', 'Package upload failed.'), '');
+});
 const event = {
-    action: 'labeled', label: { name: 'agent-ready' }, sender: { type: 'User', login: 'maintainer' }, issue,
+    action: 'labeled', label: { name: 'deploy-to-agent' }, sender: { type: 'User', login: 'maintainer' }, issue,
     repository: { full_name: repository, default_branch: 'main' },
 };
 
@@ -108,7 +127,7 @@ test('the issue description reports the branch and direct downloads without chan
     assert.match(current.body, /Ready for human review/);
     assert.match(current.body, /GraphAuthProvider\.ts/);
     const screenshotCommit = 'a'.repeat(40);
-    current.labels = [{ name: 'agent-ready' }];
+    current.labels = [...issue.labels];
     await updateFeatureHandoff(event, { ...env, GITHUB_RUN_ID: '43', DRAFT_PR_NUMBER: '19', UX_SCREENSHOT_COMMIT: screenshotCommit, OMIT_PREVIEW: 'false' }, fetcher);
     assert.deepEqual(methods, ['PATCH', 'PATCH']);
     assert.ok(current.body.includes(`Draft PR: [#19](https://github.com/owner/repo/pull/19).\n\n` +
@@ -130,13 +149,13 @@ test('delivery parsing does not discard author text after the managed section', 
     assert.equal(splitIssueDelivery(edited).requirements, `${requirements}\n\nNew author text.`);
 });
 
-test('approved retries switch between agent-ready and ready-for-human-review', async () => {
+test('deployment consumes readiness, marks failures, and only delivers human review for a published run', async () => {
     const label = 'ready-for-human-review';
     const priorLabels = [...issue.labels, { name: 'enhancement' }];
     const deliveredLabels = [{ name: 'enhancement' }, { name: label }];
     let current = {
         ...issue,
-        labels: [...priorLabels, { name: label }],
+        labels: [...priorLabels],
         body: appendIssueDelivery(issue.body, '41', '## Feature agent delivery\n\nPrevious run.'),
     };
     const env = {
@@ -153,19 +172,12 @@ test('approved retries switch between agent-ready and ready-for-human-review', a
         if (branchResponse) return branchResponse;
         if (path.includes('/actions/')) return Response.json({ jobs: [{ name: 'implement', status: 'completed' }] });
         if (path.endsWith('/comments')) return Response.json([review]);
-        if (init.method === 'DELETE') {
-            assert.equal(path, `/repos/${repository}/issues/8/labels/${label}`);
-            current.labels = current.labels.filter(({ name }) => name !== label);
-            labelWrites.push('removed');
-            return new Response(null, { status: 204 });
-        }
         if (init.method === 'PATCH') {
             const { body, labels } = JSON.parse(init.body);
             current = { ...current, body };
             if (labels) {
-                assert.deepEqual(labels, deliveredLabels.map(({ name }) => name));
                 current.labels = labels.map(name => ({ name }));
-                labelWrites.push('switched');
+                labelWrites.push(labels.join(','));
             }
         }
         return Response.json(current);
@@ -176,45 +188,57 @@ test('approved retries switch between agent-ready and ready-for-human-review', a
     await watch(env, { ...event, sender: { type: 'User', login: 'other-user' } });
     assert.deepEqual(labelWrites, []);
     await watch(env);
-    assert.deepEqual(current.labels, priorLabels);
+    const runningLabels = ['enhancement', 'deploy-to-agent'];
+    assert.deepEqual(current.labels.map(v => v.name), runningLabels);
     await assert.rejects(report(env, {}), /No feature branch was confirmed/);
+    assert.deepEqual(current.labels.map(v => v.name), ['enhancement', 'agent-failed']);
+    current.labels = [...priorLabels];
     await assert.rejects(report(env, { VSIX_ARTIFACT_ID: '' }), /not delivered/);
+    current.labels = [...priorLabels];
     await assert.rejects(report(env, { PATCH_ARTIFACT_ID: '' }), /not delivered/);
+    current.labels = [...priorLabels];
     remoteState.tip = '2'.repeat(40);
     await assert.rejects(report(env, { BRANCH_PUSHED: 'true' }), /no longer points to the reviewed commit/);
+    current.labels = [...priorLabels];
     remoteState.tip = branchCommit;
     remoteState.changed = false;
     await assert.rejects(report(env, { BRANCH_PUSHED: 'true' }), /no PR diff/);
     remoteState.changed = true;
-    assert.deepEqual(labelWrites, ['removed']);
+    assert.deepEqual(current.labels.map(v => v.name), ['enhancement', 'agent-failed']);
     assert.doesNotMatch(current.body, /Ready for human review/);
 
     const retry = { ...env, GITHUB_RUN_ID: '43' };
+    current.labels = [...priorLabels];
     await watch(retry);
     await assert.rejects(report(env, { BRANCH_PUSHED: 'true' }), /cannot claim delivery/);
-    assert.deepEqual(current.labels, priorLabels);
+    assert.deepEqual(current.labels.map(v => v.name), runningLabels);
     const policyBlocked = { PR_POLICY_BLOCKED: 'true', BRANCH_PUSHED: 'true', UX_SCREENSHOT_COMMIT: 'b'.repeat(40) };
     await report(retry, policyBlocked);
+    const finishedWrites = labelWrites.length;
     await report(retry, policyBlocked);
     assert.deepEqual(current.labels, deliveredLabels);
     assert.match(current.body, /Ready for human review/);
     assert.match(current.body, /\[Open a PR manually\]\([^\n]+\)\.\n\n!\[Playwright UX screenshot\]/);
-    assert.deepEqual(labelWrites, ['removed', 'switched']);
+    assert.equal(labelWrites.length, finishedWrites);
 
     const manualOnly = { ...retry, GITHUB_RUN_ID: '44' };
-    current.labels = [...current.labels, { name: 'agent-ready' }];
+    current.labels = [...priorLabels];
     await watch(manualOnly);
-    assert.deepEqual(current.labels.map(({ name }) => name).sort(), ['agent-ready', 'enhancement']);
+    assert.deepEqual(current.labels.map(v => v.name), runningLabels);
     await report(manualOnly, { BRANCH_PUSHED: 'true' });
     assert.deepEqual(current.labels, deliveredLabels);
     assert.match(current.body, /\[Open a PR manually\]/);
-    assert.deepEqual(labelWrites, ['removed', 'switched', 'removed', 'switched']);
     const cancelled = { ...retry, GITHUB_RUN_ID: '45' };
-    current.labels = [...current.labels, { name: 'agent-ready' }];
+    current.labels = [...priorLabels];
     await watch(cancelled);
     await report(cancelled, { IMPLEMENT_RESULT: 'cancelled' });
-    assert.deepEqual(current.labels.map(({ name }) => name).sort(), ['agent-ready', 'enhancement']);
+    assert.deepEqual(current.labels.map(v => v.name), ['enhancement', 'agent-failed']);
     assert.match(current.body, /Run cancelled/);
+    current.labels = [...priorLabels];
+    await report({ ...retry, GITHUB_RUN_ID: '46' }, { BRANCH_PUSHED: 'true', PUBLISH_RESULT: 'failure' });
+    assert.deepEqual(current.labels.map(v => v.name), ['enhancement', 'agent-failed']);
+    assert.match(current.body, /Publishing did not finish/);
+    assert.match(current.body, /\[Open a PR manually\]/);
 });
 
 test('a fresh approved run reports pickup, progress, and failure on the same issue', async () => {
@@ -243,7 +267,8 @@ test('a fresh approved run reports pickup, progress, and failure on the same iss
             body: `${reviewMarker} ${reviewRevision(issue)} ready -->\nReady.`,
         }]);
         if (init.method === 'PATCH') {
-            current = { ...current, ...JSON.parse(init.body) };
+            const { body, labels } = JSON.parse(init.body);
+            current = { ...current, body, labels: labels ? labels.map(name => ({ name })) : current.labels };
             writes.push(current.body);
         }
         return Response.json(current);
@@ -263,15 +288,23 @@ test('a fresh approved run reports pickup, progress, and failure on the same iss
     assert.match(current.body, /Stopped at: \*\*Building the testable VSIX\*\*/);
     assert.match(current.body, /No testable VSIX was delivered/);
     assert.match(current.body, /\[Download the reviewed patch\]/);
+    assert.deepEqual(current.labels.map(v => v.name), ['agent-failed']);
+    current.labels = [...issue.labels];
     await updateFeatureHandoff(event, { ...env, IMPLEMENT_RESULT: 'failure', WORKER_RETRIES: '2' }, fetcher);
     assert.match(current.body, /Run blocked after automatic recovery/);
     assert.match(current.body, /retried workers 2 times automatically/);
     const approvalReason = 'Feature agent stopped during implementation: Test worker (AC-01) requested approval: network-access. No additional permission was granted. Use a recorded fixture or mock instead of contacting the service.';
+    current.labels = [...issue.labels];
     await updateFeatureHandoff(event, { ...env, IMPLEMENT_RESULT: 'failure', AGENT_DIAGNOSTIC: approvalReason, WORKER_RETRIES: '1', OFFLINE_PLANS: '1' }, fetcher);
     assert.match(current.body, /Needs a maintainer decision/);
     assert.ok(current.body.includes(`**Reason:** ${approvalReason}`));
     assert.match(current.body, /Automatic worker retries:\*\* 1/);
     assert.match(current.body, /Offline alternatives attempted without additional permissions: 1/);
+    assert.doesNotMatch(current.body, /Suggested follow-up from this run/);
+    current.labels = [...issue.labels];
+    await updateFeatureHandoff(event, { ...env, IMPLEMENT_RESULT: 'failure', REPAIR_FOCUS: 'AC-01=not-covered' }, fetcher);
+    assert.match(current.body, /Suggested follow-up from this run/);
+    assert.match(current.body, /Add focused regression coverage.*The prompt describes next steps/);
     assert.equal(splitIssueDelivery(current.body).runId, '42');
     assert.equal(reviewRevision(current), reviewRevision(issue));
     current.body = current.body.replace('Unclear prompt.', 'Updated problem.');

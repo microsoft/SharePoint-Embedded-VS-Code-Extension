@@ -4,16 +4,16 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { splitIssueDelivery } from './issue-delivery-section.mjs';
-import { assessIssue, hasLabel, issueClient, matchesIssueEvent, MAX_BODY, NEEDS_INFO, READY,
+import { assessIssue, hasLabel, issueClient, matchesIssueEvent, MAX_BODY, NEEDS_INFO, READY_LABELS, TRIAGING, FAILED, HUMAN_REVIEW, DEPLOY, phaseLabels,
     readReadinessComment, reviewMarker, reviewRevision, TITLE_PREFIX } from './feature-issue.mjs';
 
 const fields = ['Problem', 'Expected behavior', 'Acceptance criteria', 'UI impact', 'Modifications'];
-const TRIAGING = 'triaging';
-
-export async function clearTriaging(github) {
-    const issue = await github();
-    if (hasLabel(issue, TRIAGING) && (hasLabel(issue, NEEDS_INFO) || hasLabel(issue, READY))) {
-        await github(`/labels/${TRIAGING}`, { method: 'DELETE', missingOk: true });
+async function setReviewPhase(github, issue, phase) {
+    const labels = phaseLabels(issue, phase);
+    if (labels.length === issue.labels.length && phase.every(label => hasLabel(issue, label))) return;
+    const updated = await github('', { method: 'PATCH', body: { labels } });
+    if (updated.labels.length !== labels.length || !phase.every(label => hasLabel(updated, label))) {
+        throw new Error(`Could not set issue status to ${phase.join(', ')}. Check repository label configuration.`);
     }
 }
 const detailKeys = ['gap', 'why', 'add', 'example'];
@@ -188,7 +188,8 @@ const reviewedFindingsNote = 'The full brief was reviewed for blocking decisions
 
 function canReuseReview(review, revision) {
     return review?.revision === revision &&
-        (review.status === 'ready' || (review.status === 'needs-info' && review.body.includes(reviewedFindingsNote)));
+        ((review.status === 'ready' && review.body.includes('maintainer must apply `deploy-to-agent`')) ||
+            (review.status === 'needs-info' && review.body.includes(reviewedFindingsNote)));
 }
 
 function reviewInput(issue, assessment, prior) {
@@ -213,12 +214,12 @@ function commentBody(revision, result, runUrl, modifications = false) {
     ]);
     const runLink = runUrl ? ` See the [Actions run](${runUrl}).` : '';
     const text = result.status === 'ready'
-        ? ['**Ready for `agent-ready` (awaiting maintainer approval).** The current issue has enough detail. Implementation has not been started by this review. Apply `agent-ready` to start it. If the label is already present from an earlier attempt, remove and reapply it.',
+        ? ['**Ready for agent (awaiting maintainer deployment).** The readiness labels do not start implementation. An approved maintainer must apply `deploy-to-agent` for this revision.',
             ...(modifications ? ['', '**Modifications requested.** The approved run will revise the latest ready-for-human-review proposal on this issue\'s `feature-agent` branch, reapplied to the current default branch. It stops instead of starting over if that proposal is missing, has changed, or conflicts. Remove the Modifications section for a fresh implementation.'] : [])]
         : result.status === 'unavailable'
             ? [lines.length ? '**Review could not finish.** The form checks below still need attention, but Copilot has not reviewed them.'
                 : '**Review could not finish — no author action required.**', '',
-                `${reviewerFailures[result.failure]} A maintainer can retry once the reviewer is healthy.${runLink} Do not apply \`agent-ready\` until this comment reports a pass.`, '', ...lines]
+                `${reviewerFailures[result.failure]} A maintainer can retry once the reviewer is healthy.${runLink} Do not apply \`deploy-to-agent\` until this comment reports a pass.`, '', ...lines]
             : ['**Changes requested.** Please address these points together in one edit to the **issue description**. Paste or adapt the suggested wording; no reply or additional test matrix is needed.', '', ...lines];
     const source = result.model && /^[a-z0-9][a-z0-9._-]{0,79}$/i.test(result.model)
         ? `_Reviewed by GitHub Copilot (model setting: \`${result.model}\`). ${reviewedFindingsNote}_`
@@ -231,14 +232,10 @@ export async function prepareReview(github, event) {
     const current = await github();
     const brief = assessIssue(current);
     if (brief.status === 'ignored' || (event && !matchesIssueEvent(event, current))) return { kind: 'ignored' };
-    if (event?.action === 'opened' && ![TRIAGING, NEEDS_INFO, READY].some(label => hasLabel(current, label))) {
-        const labels = await github('/labels', { method: 'POST', body: { labels: [TRIAGING] } });
-        if (!hasLabel({ labels }, TRIAGING)) throw new Error('The triaging repository label is missing.');
-        await clearTriaging(github);
-    }
     const revision = reviewRevision(current);
     const prior = await readReadinessComment(github);
     if (canReuseReview(prior, revision)) return { kind: 'cached', revision };
+    if (event) await setReviewPhase(github, current, [TRIAGING]);
     return { kind: 'model', revision, input: reviewInput(current, brief, prior) };
 }
 
@@ -254,11 +251,6 @@ export async function publishReview(github, plan, modelResult, { runUrl } = {}) 
     const status = reusable ? prior.status : result.status;
     const feedback = status === 'unavailable' ? assessIssue(current).missing ?? [] : result?.feedback;
     const needsInfo = status === 'needs-info' || (status === 'unavailable' && feedback.length > 0);
-    if (needsInfo && !hasLabel(current, NEEDS_INFO)) {
-        const labels = await github('/labels', { method: 'POST', body: { labels: [NEEDS_INFO] } });
-        if (!labels.some(({ name }) => name === NEEDS_INFO)) throw new Error('The needs-info repository label is missing.');
-    }
-    if (needsInfo || hasLabel(current, READY)) await clearTriaging(github);
     if (!reusable) {
         const body = commentBody(plan.revision, { ...result, feedback }, runUrl, Boolean(assessIssue(current).modifications));
         if (prior?.body !== body) {
@@ -266,11 +258,10 @@ export async function publishReview(github, plan, modelResult, { runUrl } = {}) 
             else await github('/comments', { method: 'POST', body: { body } });
         }
     }
-    if (!needsInfo && hasLabel(current, NEEDS_INFO)) {
-        const latest = await github();
-        if (latest.state === 'open' && reviewRevision(latest) === plan.revision && hasLabel(latest, NEEDS_INFO)) {
-            await github(`/labels/${NEEDS_INFO}`, { method: 'DELETE', missingOk: true });
-        }
+    const latest = await github();
+    if (latest.state !== 'open' || reviewRevision(latest) !== plan.revision) return { status: 'stale', message: 'Revision changed before readiness labels were applied.' };
+    if (!(reusable && [DEPLOY, FAILED, HUMAN_REVIEW].some(label => hasLabel(latest, label)))) {
+        await setReviewPhase(github, latest, needsInfo ? [NEEDS_INFO] : status === 'ready' ? READY_LABELS : [TRIAGING]);
     }
     return { message: `Feature request readiness: ${status}.`, status, failure: result?.failure };
 }
@@ -311,9 +302,7 @@ async function runWorkflowMode(mode, env, planFile, resultFile) {
     } else {
         const event = JSON.parse(await readFile(env.GITHUB_EVENT_PATH, 'utf8'));
         const github = issueClient(event, env);
-        if (mode === 'clear-triaging' && event.action === 'labeled' && [READY, NEEDS_INFO].includes(event.label?.name)) {
-            await clearTriaging(github);
-        } else if (mode === 'prepare') {
+        if (mode === 'prepare') {
             const plan = await prepareReview(github, event);
             await writeFile(planFile, JSON.stringify(plan));
             await writeFile(env.GITHUB_OUTPUT, `kind=${plan.kind}\n`, { flag: 'a' });

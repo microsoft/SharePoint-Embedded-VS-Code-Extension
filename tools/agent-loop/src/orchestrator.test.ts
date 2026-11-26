@@ -6,7 +6,7 @@ import * as path from 'node:path';
 import test from 'node:test';
 import { writeRunRecord } from './evidence';
 import { committedChangedPaths, ProposalConflictError, reapplyCommit } from './git';
-import { describeImplementationFailure, describeReviewStop, IncompleteWorkersError, noProgressResults } from './implementationDiagnostics';
+import { describeImplementationFailure, describeReviewStop, describeValidationStop, IncompleteWorkersError, noProgressResults, repairFocus } from './implementationDiagnostics';
 import {
     buildWorkerSdkArtifacts,
     ensureValidationClientDeclaration,
@@ -148,6 +148,22 @@ test('terminal worker diagnostics retain actionable blockers but not raw worker 
     assert.match(message, /No additional permission was granted/);
     assert.match(message, /Test worker reported failure: fixture-unavailable. Provide a synthetic fixture/);
     assert.doesNotMatch(message, /private/);
+});
+
+test('the repair focus contains only scoped IDs and observations, never worker prose', () => {
+    const w = recoveryResult('blocked', null);
+    w.criteria = [{ id: 'AC-03', status: 'blocked', evidence: 'private evidence', scenarios: [
+        { id: 'AC-03-S1', status: 'satisfied', observed: 'verified' },
+        { id: 'AC-03-S2', status: 'blocked', observed: 'not-covered' },
+        { id: 'AC-02-S1', status: 'blocked', observed: 'assertion-failed' },
+    ] }];
+    assert.equal(new IncompleteWorkersError([w]).focus, 'AC-03-S2=not-covered,AC-03-S1=verified');
+    w.approvalRequests = [{ category: 'network-access', reason: 'private' }];
+    assert.equal(new IncompleteWorkersError([w]).focus, '');
+    assert.equal(repairFocus([{id: 'AC-03', status:'not-verifiable', evidence:'private'}]), 'AC-03=unresolved');
+    const diagnostic = describeValidationStop([{ command: 'npm run test:api', status: 'failed', exitCode: 1, durationSeconds: 7, stderrTail: 'private output' }]);
+    assert.match(diagnostic, /offline API check failed/);
+    assert.doesNotMatch(diagnostic, /private output/);
 });
 
 test('initial integration preserves all commits in an implementer continuation', async t => {

@@ -1,11 +1,10 @@
 import { appendFileSync, readFileSync } from 'node:fs';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { pathToFileURL } from 'node:url';
-import { approval, hasLabel, intake, issueClient, matchesIssueEvent, READY, sensitivePath } from './feature-issue.mjs';
+import { approval, hasLabel, intake, issueClient, matchesIssueEvent, DEPLOY, FAILED, HUMAN_REVIEW, phaseLabels, sensitivePath } from './feature-issue.mjs';
 import { appendIssueDelivery, splitIssueDelivery } from './issue-delivery-section.mjs';
 import { reviewedDiff } from './publish-feature.mjs';
-
-const HUMAN_REVIEW = 'ready-for-human-review';
+import { modificationGuidance } from './feature-modification-guidance.mjs';
 
 export function classifyFeatureHandoff(raw) {
     const files = reviewedDiff(raw);
@@ -14,14 +13,14 @@ export function classifyFeatureHandoff(raw) {
 
 function deliveryContext(event, env, fetcher) {
     const github = issueClient(event, env, fetcher);
-    if (!/^[1-9]\d*$/.test(env.GITHUB_RUN_ID ?? '') || event.action !== 'labeled' || event.label?.name !== 'agent-ready') {
+    if (!/^[1-9]\d*$/.test(env.GITHUB_RUN_ID ?? '') || event.action !== 'labeled' || event.label?.name !== DEPLOY) {
         throw new Error('Expected the approved feature run event.');
     }
     const repoUrl = `https://github.com/${env.GITHUB_REPOSITORY}`;
     return { github, repoUrl, runUrl: `${repoUrl}/actions/runs/${env.GITHUB_RUN_ID}` };
 }
 
-async function writeDelivery(event, env, github, markdown, { existingRunOnly = false, changedMarkdown, humanReview } = {}) {
+async function writeDelivery(event, env, github, markdown, { existingRunOnly = false, changedMarkdown, phase } = {}) {
     const approvers = new Set((env.FEATURE_REQUEST_APPROVERS ?? '').toLowerCase().split(/[\s,]+/).filter(Boolean));
     const issue = await github();
     const decision = approval(event, issue, approvers);
@@ -33,8 +32,8 @@ async function writeDelivery(event, env, github, markdown, { existingRunOnly = f
         return false;
     }
     if (!decision.approved) {
-        if (humanReview && sameRun && matchesIssueEvent(event, issue) && issue.state === 'open' &&
-            hasLabel(issue, HUMAN_REVIEW) && !hasLabel(issue, READY) &&
+        if (phase && sameRun && matchesIssueEvent(event, issue) && issue.state === 'open' &&
+            hasLabel(issue, phase) && !hasLabel(issue, DEPLOY) &&
             issue.body === appendIssueDelivery(requirements, env.GITHUB_RUN_ID, markdown)) return true;
         if (!sameRun || !changedMarkdown) {
             console.log(`Skipped updating the issue description: ${decision.reason}`);
@@ -43,25 +42,16 @@ async function writeDelivery(event, env, github, markdown, { existingRunOnly = f
         markdown = changedMarkdown;
     }
     const body = appendIssueDelivery(requirements, env.GITHUB_RUN_ID, markdown);
-    if (decision.approved && humanReview) {
-        // Change both status labels in one request so the handoff cannot leave both set.
-        const labels = issue.labels.map(({ name }) => name).filter(name => ![READY, HUMAN_REVIEW].includes(name.toLowerCase()));
-        const updated = await github('', { method: 'PATCH', body: { body, labels: [...labels, HUMAN_REVIEW] } });
-        if (updated.body !== body || !hasLabel(updated, HUMAN_REVIEW) || hasLabel(updated, READY)) {
-            throw new Error(`GitHub did not confirm the issue handoff and "${HUMAN_REVIEW}" label.`);
+    if (decision.approved && phase) {
+        const labels = phaseLabels(issue, [phase]);
+        const updated = await github('', { method: 'PATCH', body: { body, labels } });
+        if (updated.body !== body || !hasLabel(updated, phase) || updated.labels.length !== labels.length) {
+            throw new Error(`GitHub did not confirm the delivery update and "${phase}" label.`);
         }
-        console.log('Updated the Feature agent delivery section and marked it ready for human review.');
+        console.log(`Updated feature delivery: ${phase}.`);
     } else if (issue.body !== body) {
         await github('', { method: 'PATCH', body: { body } });
         console.log('Updated the Feature agent delivery section.');
-    }
-    if (decision.approved && humanReview === false && hasLabel(issue, HUMAN_REVIEW)) {
-        const latest = await github();
-        if (splitIssueDelivery(latest.body).runId !== env.GITHUB_RUN_ID || !approval(event, latest, approvers).approved) {
-            console.log('Skipped clearing the human review label: the issue or current run changed.');
-        } else if (hasLabel(latest, HUMAN_REVIEW)) {
-            await github(`/labels/${HUMAN_REVIEW}`, { method: 'DELETE', missingOk: true });
-        }
     }
     return decision.approved;
 }
@@ -122,7 +112,7 @@ export async function watchFeatureRun(event, env, fetcher = fetch, wait = sleep)
         return;
     }
     let status = runStatus(runUrl, '**Picked up.** Waiting for an implementation runner.');
-    if (!await writeDelivery(event, env, github, status, { humanReview: false })) return;
+    if (!await writeDelivery(event, env, github, status, { phase: DEPLOY })) return;
     // Let the final report run even if the implementation never gets a runner.
     const until = Date.now() + 275 * 60_000;
     while (Date.now() < until) {
@@ -168,7 +158,7 @@ async function branchBlocker(event, env, branch, fetcher) {
 export async function updateFeatureHandoff(event, env, fetcher = fetch) {
     const { github, repoUrl, runUrl } = deliveryContext(event, env, fetcher);
     const changedMarkdown = runStatus(runUrl, '**Run no longer applies to this issue.**',
-        'The issue or its approval changed. Wait for readiness review of the current request, then reapply `agent-ready` if you want to run it again.');
+        'The issue or its approval changed. Wait for readiness review of the current request, then have a maintainer apply `deploy-to-agent` to run it again.');
     const retriedWorkers = /^[1-9]\d{0,2}$/.test(env.WORKER_RETRIES ?? '') ? Number(env.WORKER_RETRIES) : 0;
     const retryNote = retriedWorkers === 1 ? 'The agent retried a worker once automatically.'
         : `The agent retried workers ${retriedWorkers} times automatically.`;
@@ -190,6 +180,9 @@ export async function updateFeatureHandoff(event, env, fetcher = fetch) {
                 detail += `\n\n**Reason:** ${diagnostic}\n\n**Automatic worker retries:** ${retriedWorkers}.`;
             } else if (retriedWorkers) detail = `${retryNote} ${detail}`;
             if (offlineNote) detail += `\n\n${offlineNote}`;
+            const suggestion = modificationGuidance(event.issue, env.REPAIR_FOCUS, diagnostic);
+            if (suggestion) detail += `\n\n${suggestion}`;
+            detail += '\n\nAfter addressing the failure, update the issue description for a fresh readiness review. An approved maintainer must apply `deploy-to-agent` to start the next run.';
             if (/^[1-9]\d*$/.test(env.PATCH_ARTIFACT_ID ?? '')) {
                 detail += ` [Download the reviewed patch](${runUrl}/artifacts/${env.PATCH_ARTIFACT_ID}).`;
             }
@@ -198,7 +191,7 @@ export async function updateFeatureHandoff(event, env, fetcher = fetch) {
             runStatus(runUrl, cancelled ? '**Run cancelled.**'
                 : diagnostic.includes('requested approval:') ? '**Needs a maintainer decision.**'
                 : retriedWorkers ? '**Run blocked after automatic recovery.**' : '**Implementation failed.**', detail),
-            { existingRunOnly: env.IMPLEMENT_APPROVED !== 'true', changedMarkdown, humanReview: false });
+            { existingRunOnly: env.IMPLEMENT_APPROVED !== 'true', changedMarkdown, phase: FAILED });
         return;
     }
     if (env.IMPLEMENT_APPROVED !== 'true') {
@@ -212,7 +205,7 @@ export async function updateFeatureHandoff(event, env, fetcher = fetch) {
     }
     if (![env.PATCH_ARTIFACT_ID, env.VSIX_ARTIFACT_ID].every(id => /^[1-9]\d*$/.test(id ?? ''))) {
         const missing = 'The reviewed patch or testable VSIX was not delivered. Check whether approval changed or artifact upload failed.';
-        await writeDelivery(event, env, github, runStatus(runUrl, '**Not PR-ready.**', missing), { changedMarkdown, humanReview: false });
+        await writeDelivery(event, env, github, runStatus(runUrl, '**Not PR-ready.**', missing), { changedMarkdown, phase: FAILED });
         throw new Error(missing);
     }
     const branch = `feature-agent/issue-${event.issue.number}`;
@@ -226,10 +219,12 @@ export async function updateFeatureHandoff(event, env, fetcher = fetch) {
         hasPR ? `Draft PR: [#${env.DRAFT_PR_NUMBER}](${repoUrl}/pull/${env.DRAFT_PR_NUMBER}).`
             : `[Open a PR manually](${compareUrl}?expand=1).`,
     ].join('\n\n') : blocker;
-    const humanReview = hasBranch;
+    const publishFailed = ['failure', 'cancelled'].includes(env.PUBLISH_RESULT);
+    const humanReview = hasBranch && !publishFailed;
     const markdown = [
         '## Feature agent delivery', '',
         humanReview ? '**Ready for human review.**' : '**Not PR-ready.**',
+        ...(publishFailed && hasBranch ? ['Publishing did not finish. The confirmed branch and PR action are provided below for recovery.'] : []),
         ...(/^[a-f0-9]{40}$/.test(env.PROPOSAL_COMMIT ?? '')
             ? ['', `Built on the previous reviewed proposal \`${env.PROPOSAL_COMMIT.slice(0, 12)}\` with the requested modifications, reapplied to the current default branch and reviewed again.`] : []),
         ...(retriedWorkers ? ['', retryNote, ''] : []),
@@ -246,7 +241,7 @@ export async function updateFeatureHandoff(event, env, fetcher = fetch) {
         ...(files.length ? ['', '**Sensitive or infrastructure files to review before merging or installing:**',
             ...files.map(file => `- \`${file}\``), ...(files.length === 40 ? ['- See the patch for the full file list.'] : [])] : []),
     ].join('\n');
-    const delivered = await writeDelivery(event, env, github, markdown, { changedMarkdown, humanReview });
+    const delivered = await writeDelivery(event, env, github, markdown, { changedMarkdown, phase: humanReview ? HUMAN_REVIEW : FAILED });
     if (!delivered) throw new Error('This run cannot claim delivery: its approval changed or a newer run owns the issue.');
     if (blocker) throw new Error(blocker);
 }
