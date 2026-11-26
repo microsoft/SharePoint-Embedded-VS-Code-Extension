@@ -17,47 +17,16 @@
 
 import { test, expect } from '@playwright/test';
 import { installVscodeStub } from '../helpers/mock/vscodeStub';
-import { mockModuleFor } from '../helpers/mock/moduleStub';
+import {
+    StubLocalRegistrationTreeItem,
+    StubOwningAppTreeItem,
+    stubContainerTypeTreeItemDependencies,
+} from '../helpers/mock/containerTypeTreeItem';
 
 const vscode = installVscodeStub();
 
-const PARENT = 'development/ContainerTypeTreeItem.ts';
-
-/**
- * The sibling rows are stood in for so this suite fails on the *hierarchy* rather than on a
- * transitive singleton (the owning-app and registration rows reach for Graph/auth state).
- * The Storage Explorer row is deliberately left real — it is the row under test.
- */
-class StubOwningAppTreeItem {
-    public contextValue = 'spe:owningAppTreeItem';
-    public label = 'Owning application';
-    public constructor(public readonly containerType: any, public readonly parent: any) { }
-}
-
-class StubLocalRegistrationTreeItem {
-    public contextValue = 'spe:localRegistrationTreeItem';
-    public label = 'Local registration';
-    public constructor(
-        public readonly containerType: any,
-        public readonly registration: any,
-        public readonly billingInvalid: boolean
-    ) { }
-}
-
-// eslint-disable-next-line @typescript-eslint/naming-convention -- mirrors the real export
-mockModuleFor(PARENT, 'OwningAppTreeItem', { OwningAppTreeItem: StubOwningAppTreeItem });
-// eslint-disable-next-line @typescript-eslint/naming-convention -- mirrors the real export
-mockModuleFor(PARENT, 'LocalRegistrationTreeItem', { LocalRegistrationTreeItem: StubLocalRegistrationTreeItem });
-mockModuleFor(PARENT, 'utils/Logger', {
-    // eslint-disable-next-line @typescript-eslint/naming-convention -- mirrors the real export
-    Logger: new Proxy({}, {
-        get: () => () => new Proxy({}, { get: () => () => undefined }),
-    }),
-});
-mockModuleFor(PARENT, 'BillingDecorationProvider', {
-    blockBillingInvalid: () => undefined,
-    tintBillingInvalid: () => undefined,
-});
+// Stand in for Graph/auth-backed siblings but keep the Storage Explorer row under test real.
+stubContainerTypeTreeItemDependencies();
 
 const { ContainerTypeTreeItem } = require('../../src/views/treeview/development/ContainerTypeTreeItem');
 const { StorageExplorerTreeItem } = require('../../src/views/treeview/development/StorageExplorerTreeItem');

@@ -11,6 +11,8 @@ import {
     applicationSchema,
     applicationCreateSchema,
     applicationUpdateSchema,
+    applicationServicePrincipalPageSchema,
+    guidSchema,
     ServicePrincipal,
     servicePrincipalSchema
 } from '../../models/schemas';
@@ -128,7 +130,7 @@ export class ApplicationService {
                 return null;
             }
             console.error(`[ApplicationService.get] Error getting application ${idOrAppId}:`, error);
-            throw new Error(`Failed to get application ${idOrAppId}: ${error.message || error}`);
+            throw Object.assign(new Error(`Failed to get application ${idOrAppId}: ${error.message || error}`), { statusCode: error.statusCode });
         }
     }
 
@@ -760,11 +762,48 @@ export class ApplicationService {
     // === Service Principal Management ===
 
     /**
+     * List multi-tenant applications homed elsewhere that have a service principal
+     * in the signed-in tenant. Return application IDs, not service principal object IDs.
+     */
+    async listCrossTenantApplications(tenantId: string): Promise<{ appId: string; displayName: string }[]> {
+        const currentTenantId = guidSchema.parse(tenantId).toLowerCase();
+        const apps = new Map<string, { appId: string; displayName: string }>();
+        let request = this._client
+            .api('/servicePrincipals')
+            .version(ApplicationService.API_VERSION)
+            .filter("servicePrincipalType eq 'Application'")
+            .select('appId,displayName,servicePrincipalType,appOwnerOrganizationId,signInAudience');
+
+        for (;;) {
+            const page = applicationServicePrincipalPageSchema.parse(await request.get());
+            for (const principal of page.value) {
+                if (principal.servicePrincipalType !== 'Application' ||
+                    (principal.signInAudience !== 'AzureADMultipleOrgs' &&
+                        principal.signInAudience !== 'AzureADandPersonalMicrosoftAccount')) {
+                    continue;
+                }
+                const owner = guidSchema.safeParse(principal.appOwnerOrganizationId);
+                const applicationId = guidSchema.safeParse(principal.appId);
+                if (owner.success && owner.data.toLowerCase() !== currentTenantId && applicationId.success) {
+                    const appId = applicationId.data;
+                    apps.set(appId.toLowerCase(), { appId, displayName: principal.displayName || appId });
+                }
+            }
+            const nextLink = page['@odata.nextLink'];
+            if (!nextLink) {
+                break;
+            }
+            request = this._client.api(nextLink);
+        }
+        return [...apps.values()];
+    }
+
+    /**
      * Get a service principal by appId
      * GET /servicePrincipals(appId='{appId}')
      *
      * @param appId - The appId (client ID) of the application
-     * @returns The ServicePrincipal or null if not found
+     * @returns The ServicePrincipal; throws if the lookup fails or the principal does not exist.
      */
     async getServicePrincipal(appId: string): Promise<ServicePrincipal> {
         // Short-circuit for well-known 1P apps that won't have a service principal in the tenant
@@ -787,10 +826,10 @@ export class ApplicationService {
         } catch (error: any) {
             if (error.code === 'Request_ResourceNotFound' || error.statusCode === 404) {
                 Logger.log(`[ApplicationService.getServicePrincipal] Service principal not found for appId: ${appId}`);
-                throw new Error(`Service principal not found for application ${appId}`);
+                throw Object.assign(new Error(`Service principal not found for application ${appId}`), { statusCode: 404 });
             }
             console.error(`[ApplicationService.getServicePrincipal] Error getting service principal for ${appId}:`, error);
-            throw new Error(`Failed to get service principal for application ${appId}: ${error.message || error}`);
+            throw Object.assign(new Error(`Failed to get service principal for application ${appId}: ${error.message || error}`), { statusCode: error.statusCode });
         }
     }
 

@@ -40,14 +40,15 @@ Once signed in, you are prompted to create a [container type](https://learn.micr
 
 ## Create a Microsoft Entra ID App
 
-Every container type is owned by a Microsoft Entra ID application. When creating a container type, you can create a new Microsoft Entra ID application or pick one of your existing applications as the owning application. Learn more about SharePoint Embedded [app architecture](https://learn.microsoft.com/en-us/sharepoint/dev/embedded/concepts/app-concepts/app-architecture).
+Every container type is owned by a Microsoft Entra ID application. When creating a container type, you can create a new application or select an existing one as the owning application. Learn more about SharePoint Embedded [app architecture](https://learn.microsoft.com/en-us/sharepoint/dev/embedded/concepts/app-concepts/app-architecture).
 
-- Follow the prompts to name your new Entra application or select an existing application ID
+- Follow the prompts to name your new Entra application or select an existing application ID.
+- To use an application from another tenant, choose **Select an app from another tenant...** in the owning-app picker. The app must support multiple Entra tenants and already appear under **Enterprise applications** in your signed-in tenant.
 
 ![Create App](./readme-images/n6aname-app.png)
 
 > [!NOTE]
-> If you choose an existing application, the extension will update that app's configuration settings for it to work with both SharePoint Embedded and this extension. Doing this is NOT recommended on production applications.
+> If you choose an existing application from your current tenant, the extension will update that app's configuration settings for it to work with both SharePoint Embedded and this extension. Doing this is NOT recommended on production applications. The extension does not edit an app registration in another tenant.
 
 After your container type is created and your application is configured, you'll be able to view your Local tenant registration as a tree in the left nav-bar.
 
@@ -77,12 +78,15 @@ The extension also supports **trial** container types for evaluation and **direc
 
 ## Register your container type
 
-After creating your container type, you'll need to register that container type on your local tenant. Learn more about container type [registration](https://learn.microsoft.com/en-us/sharepoint/dev/embedded/concepts/app-concepts/register-api-documentation).
+Creating a container type records its owning Entra application ID. Before using the container type, you must also register it in the tenant where it will be used.
 
-- Follow the prompts and select **'Register on local tenant'** on the lower right corner of the VS Code window
-- If you don't see the prompt, you can right-click on your `<container-type-name>` and select **Register** from the menu
+**If the owning app is from your current tenant:** Select **Register on local tenant** when prompted or from the container type's context menu.
 
 ![register](./readme-images/n7aregister-ct.png)
+
+**If the owning app is from another tenant:** Choose **Register in this tenant** after creation. The extension registers the same container type with its recorded owning application ID in the tenant shown in the prompt. If you skip registration or it fails, right-click the container type and select **Register on local tenant** to try again without recreating it. Existing registrations and grants are left unchanged.
+
+The extension does not configure the owning app in its home tenant. If a prerequisite such as consent or permissions is missing, use the [container type registration guide](https://learn.microsoft.com/en-us/sharepoint/dev/embedded/concepts/app-concepts/register-api-documentation) and work with the app owner or your tenant admin before retrying.
 
 ## Create your first container
 

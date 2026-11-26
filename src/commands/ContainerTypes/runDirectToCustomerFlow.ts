@@ -4,11 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import {
-    Application,
-    ContainerType
-} from '../../models/schemas';
+import { ContainerType } from '../../models/schemas';
+import type { SelectedEntraApp } from '../Apps/GetOrCreateApp';
 import { GraphProvider } from '../../services/Graph/GraphProvider';
+import { AuthenticationState } from '../../services/AuthenticationState';
 import { DevelopmentTreeViewProvider } from '../../views/treeview/development/DevelopmentTreeViewProvider';
 import { ProgressWaitNotification, Timer } from '../../views/notifications/ProgressWaitNotification';
 import { TelemetryProvider } from '../../services/TelemetryProvider';
@@ -23,7 +22,7 @@ const D2C_DOCS_URL = 'https://learn.microsoft.com/en-us/sharepoint/dev/embedded/
 
 export interface DirectToCustomerFlowInput {
     displayName: string;
-    app: Application;
+    app: SelectedEntraApp;
 }
 
 /**
@@ -33,6 +32,7 @@ export interface DirectToCustomerFlowInput {
  * actionable message with a docs link.
  */
 export async function runDirectToCustomerFlow(input: DirectToCustomerFlowInput): Promise<ContainerType | undefined> {
+    const tenantId = input.app.isCrossTenant ? (await AuthenticationState.getCurrentAccount())?.tenantId : undefined;
     const graphProvider = GraphProvider.getInstance();
     const progress = new ProgressWaitNotification(
         vscode.l10n.t('Creating container type (may take up to 30 seconds)...')
@@ -91,21 +91,17 @@ export async function runDirectToCustomerFlow(input: DirectToCustomerFlowInput):
 
     TelemetryProvider.instance.send(new CreateDirectToCustomerContainerTypeEvent());
 
-    // Offer registration on local tenant. Mirrors the trial flow's prompt.
-    // Errors are caught so the billing prompt still runs unconditionally.
-    const register = vscode.l10n.t('Register on local tenant');
-    const skip = vscode.l10n.t('Skip');
-    const registerSelection = await vscode.window.showInformationMessage(
-        vscode.l10n.t('Direct-to-customer container type "{0}" was created. Would you like to register it on your local tenant?', input.displayName),
-        register,
-        skip
-    );
-    if (registerSelection === register) {
-        try {
-            await RegisterOnLocalTenant.run(containerType);
-        } catch (err) {
-            console.error('[runDirectToCustomerFlow] Registration threw:', err);
-        }
+    // Offer registration or guidance. Billing still runs if registration fails.
+    try {
+        await RegisterOnLocalTenant.offerRegistrationAfterCreate(
+            containerType,
+            input.app,
+            vscode.l10n.t('Direct-to-customer container type "{0}" was created. Would you like to register it on your local tenant?', input.displayName),
+            tenantId
+        );
+    } catch (err) {
+        console.error('[runDirectToCustomerFlow] Registration threw:', err);
+        void vscode.window.showErrorMessage(vscode.l10n.t('Registration failed for container type "{0}": {1}', containerType.name, err instanceof Error ? err.message : String(err)));
     }
     DevelopmentTreeViewProvider.instance.refresh();
 

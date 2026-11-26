@@ -4,11 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import {
-    Application,
-    ContainerType
-} from '../../models/schemas';
+import { ContainerType } from '../../models/schemas';
+import type { SelectedEntraApp } from '../Apps/GetOrCreateApp';
 import { GraphProvider } from '../../services/Graph/GraphProvider';
+import { AuthenticationState } from '../../services/AuthenticationState';
 import { DevelopmentTreeViewProvider } from '../../views/treeview/development/DevelopmentTreeViewProvider';
 import { ProgressWaitNotification, Timer } from '../../views/notifications/ProgressWaitNotification';
 import { TelemetryProvider } from '../../services/TelemetryProvider';
@@ -21,7 +20,7 @@ import { RegisterOnLocalTenant } from '../ContainerType/RegisterOnLocalTenant';
 
 export interface StandardFlowInput {
     displayName: string;
-    app: Application;
+    app: SelectedEntraApp;
 }
 
 /**
@@ -32,6 +31,7 @@ export interface StandardFlowInput {
  * unusable until billing is attached via the tree context menu.
  */
 export async function runStandardFlow(input: StandardFlowInput): Promise<ContainerType | undefined> {
+    const tenantId = input.app.isCrossTenant ? (await AuthenticationState.getCurrentAccount())?.tenantId : undefined;
     const graphProvider = GraphProvider.getInstance();
 
     // 1. Create the container type
@@ -78,21 +78,17 @@ export async function runStandardFlow(input: StandardFlowInput): Promise<Contain
 
     TelemetryProvider.instance.send(new CreateStandardContainerTypeEvent());
 
-    // 3. Offer registration on local tenant. Mirrors the trial flow's prompt.
-    //    Errors are caught so billing still runs unconditionally afterwards.
-    const register = vscode.l10n.t('Register on local tenant');
-    const skip = vscode.l10n.t('Skip');
-    const registerSelection = await vscode.window.showInformationMessage(
-        vscode.l10n.t('Standard container type "{0}" was created. Would you like to register it on your local tenant?', input.displayName),
-        register,
-        skip
-    );
-    if (registerSelection === register) {
-        try {
-            await RegisterOnLocalTenant.run(containerType);
-        } catch (err) {
-            console.error('[runStandardFlow] Registration threw:', err);
-        }
+    // 3. Offer registration or guidance. Billing still runs if registration fails.
+    try {
+        await RegisterOnLocalTenant.offerRegistrationAfterCreate(
+            containerType,
+            input.app,
+            vscode.l10n.t('Standard container type "{0}" was created. Would you like to register it on your local tenant?', input.displayName),
+            tenantId
+        );
+    } catch (err) {
+        console.error('[runStandardFlow] Registration threw:', err);
+        void vscode.window.showErrorMessage(vscode.l10n.t('Registration failed for container type "{0}": {1}', containerType.name, err instanceof Error ? err.message : String(err)));
     }
     DevelopmentTreeViewProvider.instance.refresh();
 

@@ -6,10 +6,11 @@
 import * as vscode from 'vscode';
 import { Command } from '../Command';
 import { Application } from '../../models/schemas';
-import { GraphAuthProvider } from '../../services/Auth';
 import { AuthenticationState } from '../../services/AuthenticationState';
 import { ProgressWaitNotification, Timer } from '../../views/notifications/ProgressWaitNotification';
 import { GraphProvider } from '../../services/Graph/GraphProvider';
+
+export type SelectedEntraApp = Application & { isCrossTenant?: true };
 
 // Static class that handles the get or create application command
 export class GetOrCreateApp extends Command {
@@ -17,17 +18,14 @@ export class GetOrCreateApp extends Command {
     public static readonly COMMAND = 'Apps.getOrCreate';
 
     // Command handler
-    public static async run(isOwningApp: boolean = true): Promise<Application | undefined> {
+    public static async run(isOwningApp: boolean = true): Promise<SelectedEntraApp | undefined> {
         // Get authentication state
-        const authState = AuthenticationState.getInstance();
         const account = await AuthenticationState.getCurrentAccount();
         if (!account) {
             vscode.window.showErrorMessage(vscode.l10n.t('Please sign in first'));
             return;
         }
 
-        // Get Graph provider
-        const graphAuth = GraphAuthProvider.getInstance();
         const graphProvider = GraphProvider.getInstance();
 
         const qp = vscode.window.createQuickPick<AppQuickPickItem>();
@@ -71,52 +69,66 @@ export class GetOrCreateApp extends Command {
             id: 'all'
         };
 
-        let excludedAppIds: string[] | undefined;
+        const crossTenantAppItem: AppQuickPickItem = {
+            id: 'crossTenant',
+            label: vscode.l10n.t('Select an app from another tenant...'),
+            detail: vscode.l10n.t('Select a multitenant Entra app already registered in this tenant'),
+            alwaysShow: true,
+            iconPath: new vscode.ThemeIcon('link-external')
+        };
+        const initialItems = isOwningApp ? [newAppItem, crossTenantAppItem] : [newAppItem];
+        qp.items = initialItems;
+
+        let excludedAppIds: Promise<Set<string>> | undefined;
+        const getExcludedAppIds = () => excludedAppIds ??= graphProvider.containerTypes.list()
+            .then(containerTypes => new Set(containerTypes.map(ct => ct.owningAppId.toLowerCase())))
+            .catch(error => {
+                excludedAppIds = undefined;
+                throw error;
+            });
+
+        let refreshId = 0;
         const refreshQuickPickItems = async (query?: string) => {
-            if (qp.items.length === 0) {
-                qp.items = [newAppItem];
-            }
-
+            const id = ++refreshId;
             qp.busy = true;
-            if (isOwningApp && !excludedAppIds) {
-                // Get container types to find apps that are already used
-                const containerTypes = await graphProvider.containerTypes.list();
-                excludedAppIds = containerTypes.map((ct) => ct.owningAppId);
-            }
+            try {
+                const exclusions = isOwningApp ? await getExcludedAppIds() : undefined;
+                const term = query?.trim();
+                const { applications } = term
+                    ? await graphProvider.applications.search(term)
+                    : await graphProvider.applications.list();
+                if (id !== refreshId) {
+                    return;
+                }
 
-            const exclusions = isOwningApp ? (excludedAppIds || []) : [];
-            // Search applications using the new service
-        let appsResult: { applications: Application[] };
-        
-        if (query && query.trim()) {
-            // Search by display name if query is provided
-            appsResult = await graphProvider.applications.search(query.trim());
-        } else {
-            // List all applications if no query
-            appsResult = await graphProvider.applications.list();
-        }
-            const filteredApps = appsResult.applications.filter((app) => !exclusions.includes(app.appId!));
-            const appItems = filteredApps.map((app) => (
-                {
-                    id: app.appId!,
-                    label: app.displayName,
-                    detail: app.appId,
-                    name: app.displayName,
-                    iconPath: new vscode.ThemeIcon('app-icon'),
-                } as AppQuickPickItem
-            ));
-            const baseItems = externalAppVisible
-                ? [externalAppItem, newAppItem, azureAppsSeparator, ...appItems]
-                : [newAppItem, azureAppsSeparator, ...appItems];
-            qp.items = baseItems;
-            qp.busy = false;
-            
-            if (!validateAppName(query)) {
-                qp.title = vscode.l10n.t('Invalid app name. App name must be less than 120 characters and not contain the characters < > ; & %');
-                qp.items = [];
-                return;
-            } else {
+                const appItems: AppQuickPickItem[] = [];
+                for (const app of applications) {
+                    if (app.appId && !exclusions?.has(app.appId.toLowerCase())) {
+                        appItems.push({
+                            id: app.appId,
+                            label: app.displayName,
+                            detail: app.appId,
+                            name: app.displayName,
+                            iconPath: new vscode.ThemeIcon('app-icon')
+                        });
+                    }
+                }
+
+                if (!validateAppName(query)) {
+                    qp.title = vscode.l10n.t('Invalid app name. App name must be less than 120 characters and not contain the characters < > ; & %');
+                    qp.items = [];
+                    return;
+                }
                 qp.title = isOwningApp ? vscode.l10n.t('Select or create an Owning Application for your Container Type') : vscode.l10n.t('Select or create an App Registration for your Container Type');
+                qp.items = [...(externalAppVisible ? [externalAppItem] : []), ...initialItems, azureAppsSeparator, ...appItems];
+            } catch (error) {
+                if (id === refreshId) {
+                    void vscode.window.showErrorMessage(vscode.l10n.t('Could not load existing Entra apps: {0}', errorMessage(error)));
+                }
+            } finally {
+                if (id === refreshId) {
+                    qp.busy = false;
+                }
             }
         };
 
@@ -148,9 +160,8 @@ export class GetOrCreateApp extends Command {
             if (timeout) {
                 clearTimeout(timeout);
             }
-            timeout = setTimeout(async () => {
-                refreshQuickPickItems(value);
-            }, 200);
+            ++refreshId;
+            timeout = setTimeout(() => void refreshQuickPickItems(value), 200);
         });
 
         let appId: string | undefined;
@@ -165,9 +176,14 @@ export class GetOrCreateApp extends Command {
             qp.hide();
         });
 
-        return new Promise<Application | undefined>((resolve) => {
+        return new Promise<SelectedEntraApp | undefined>((resolve) => {
             qp.onDidHide(async () => {
+                clearTimeout(timeout);
+                ++refreshId;
                 qp.dispose();
+                if (isOwningApp && appId === crossTenantAppItem.id) {
+                    return resolve(await pickCrossTenantApp(graphProvider, account.tenantId, getExcludedAppIds));
+                }
                 if (appId === newAppItem.id && appName) {
                     const createAppProgressWindow = new ProgressWaitNotification(vscode.l10n.t('Creating Entra app...'));
                     createAppProgressWindow.show();
@@ -269,6 +285,47 @@ export class GetOrCreateApp extends Command {
             refreshQuickPickItems();
         });
     };
+}
+
+async function pickCrossTenantApp(
+    graphProvider: GraphProvider,
+    tenantId: string,
+    getExcludedAppIds: () => Promise<ReadonlySet<string>>
+): Promise<SelectedEntraApp | undefined> {
+    const progress = new ProgressWaitNotification(vscode.l10n.t('Loading apps from other tenants...'));
+    void progress.show();
+    let items: (vscode.QuickPickItem & { app: Application })[];
+    try {
+        const [apps, exclusions] = await Promise.all([
+            graphProvider.applications.listCrossTenantApplications(tenantId),
+            getExcludedAppIds()
+        ]);
+        items = apps
+            .filter(app => !exclusions.has(app.appId.toLowerCase()))
+            .map(app => ({ label: app.displayName, detail: app.appId, app }));
+    } catch (error) {
+        void vscode.window.showErrorMessage(vscode.l10n.t('Could not load apps from other tenants: {0}', errorMessage(error)));
+        return;
+    } finally {
+        progress.hide();
+    }
+
+    if (!items.length) {
+        void vscode.window.showInformationMessage(vscode.l10n.t('No available apps from other tenants were found. The app must be multitenant and registered as an enterprise application in this tenant.'));
+        return;
+    }
+
+    const selected = await vscode.window.showQuickPick(items, {
+        title: vscode.l10n.t('Select an owning app from another tenant'),
+        placeHolder: vscode.l10n.t('Search by app name or application ID'),
+        matchOnDetail: true,
+        ignoreFocusOut: true
+    });
+    return selected && { ...selected.app, isCrossTenant: true };
+}
+
+function errorMessage(error: unknown): string {
+    return error instanceof Error ? error.message : String(error);
 }
 
 function validateAppName(name: string | undefined): boolean {

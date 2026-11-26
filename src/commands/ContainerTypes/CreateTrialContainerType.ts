@@ -8,10 +8,9 @@ import { Command } from '../Command';
 import { ContainerType } from '../../models/schemas';
 import { DevelopmentTreeViewProvider } from '../../views/treeview/development/DevelopmentTreeViewProvider';
 import { AuthenticationState } from '../../services/AuthenticationState';
-import { GetOrCreateApp } from '../Apps/GetOrCreateApp';
+import { GetOrCreateApp, type SelectedEntraApp } from '../Apps/GetOrCreateApp';
 import { RegisterOnLocalTenant } from '../ContainerType/RegisterOnLocalTenant';
 import { ProgressWaitNotification, Timer } from '../../views/notifications/ProgressWaitNotification';
-import { Application } from '../../models/schemas';
 import { CreateTrialContainerTypeEvent, TrialContainerTypeCreationFailure } from '../../models/telemetry/telemetry';
 import { TelemetryProvider } from '../../services/TelemetryProvider';
 import { GraphProvider } from '../../services/Graph/GraphProvider';
@@ -21,7 +20,7 @@ export interface TrialFlowInput {
     /** Display name for the container type. If omitted, the user will be prompted. */
     displayName?: string;
     /** Owning Entra app. If omitted, the app picker will be shown. */
-    app?: Application;
+    app?: SelectedEntraApp;
 }
 
 /**
@@ -118,16 +117,12 @@ export async function runTrialFlow(input?: TrialFlowInput): Promise<ContainerTyp
     };
     await refreshCt();
     progressWindow.hide();
-    const register = vscode.l10n.t('Register on local tenant');
-    const skip = vscode.l10n.t('Skip');
-    const buttons = [register, skip];
-    const selection = await vscode.window.showInformationMessage(
-        vscode.l10n.t(`Your container type has been created. Would you like to register it on your local tenant?`),
-        ...buttons
+    await RegisterOnLocalTenant.offerRegistrationAfterCreate(
+        containerType,
+        app,
+        vscode.l10n.t('Your container type has been created. Would you like to register it on your local tenant?'),
+        account.tenantId
     );
-    if (selection === register) {
-        await RegisterOnLocalTenant.run(containerType);
-    }
     TelemetryProvider.instance.send(new CreateTrialContainerTypeEvent());
     return containerType;
 }

@@ -115,9 +115,10 @@ export class ContainerTypeRegistrationService {
 
             Logger.log(`[ContainerTypeRegistrationService.register] Container type ${containerTypeId} registered successfully`);
             return containerTypeRegistrationSchema.parse(response);
-        } catch (error: any) {
+        } catch (error) {
             console.error(`[ContainerTypeRegistrationService.register] Error registering container type ${containerTypeId}:`, error);
-            throw new Error(`Failed to register container type ${containerTypeId}: ${error.message || error}`);
+            // Preserve the Graph status so the command can distinguish denied access from other failures.
+            throw error;
         }
     }
 

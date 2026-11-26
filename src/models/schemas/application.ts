@@ -412,3 +412,17 @@ export const servicePrincipalSchema = z.object({
 }).passthrough(); // Allow additional properties from Graph API
 
 export type ServicePrincipal = z.infer<typeof servicePrincipalSchema>;
+
+const applicationServicePrincipalSchema = servicePrincipalSchema.pick({
+    appId: true,
+    displayName: true,
+    servicePrincipalType: true,
+    appOwnerOrganizationId: true
+}).strip().extend({
+    signInAudience: z.string().nullish()
+});
+
+export const applicationServicePrincipalPageSchema = z.object({
+    value: z.array(applicationServicePrincipalSchema),
+    ['@odata.nextLink']: z.string().url().optional()
+});
